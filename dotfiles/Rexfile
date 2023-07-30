@@ -3,6 +3,10 @@ use Rex -feature => ['1.14'];
 our $HOME = $ENV{HOME};
 our $DOT = "$HOME/git/rexfiles/dotfiles";
 
+task 'fedora', sub {
+  pkg 'tig', ensure => 'installed';
+};
+
 task 'helix', sub {
   my ($dst, $src) = ("$HOME/.config/helix", "$DOT/helix");
   file $dst, ensure => 'directory';
