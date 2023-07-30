@@ -1,0 +1,28 @@
+[[language]]
+name = "go"
+auto-format= true
+diagnostic-severity = "Hint"
+
+[[language]]
+name = "raku"
+auto-format = true
+scope = "source.raku"
+roots = ["raku"]
+file-types = ["raku"]
+language-server = { command = "node", args = ["/home/paul/git/RakuNavigator/server/out/server.js", "--stdio"] }
+
+[[language]]
+name = "puppet"
+auto-format = true
+scope = "source.pp"
+roots = ["Manifest"]
+file-types = ["pp", "epp"]
+language-server = { command = "puppet-languageserver", args = ["--stdio"] }
+formatter = { command = "puppet-debugserver", args = ["--stdio"] }
+
+[[language]]
+name = "spellcheck"
+language-server = { command = "ltex-ls" }
+file-types = ["txt"]
+scope = "source.spellcheck"
+roots = []
