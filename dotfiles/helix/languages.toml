@@ -2,6 +2,7 @@
 name = "go"
 auto-format= true
 diagnostic-severity = "Hint"
+formatter = { command = "goimports" }
 
 [[language]]
 name = "perl"
@@ -9,7 +10,7 @@ file-types = ["pl", "pm", "Rexfile"]
 
 [[language]]
 name = "bash"
-indent = { unit = "    " }
+indent = { tab-width = 4, unit = "    " }
 
 [[language]]
 name = "raku"

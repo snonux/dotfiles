@@ -34,4 +34,3 @@ A-s = { e = ":set-option soft-wrap.enable true", d = ":set-option soft-wrap.enab
 
 # Testing
 T = ["save_selection", "goto_file_start", "jump_backward"]
-F = ["select_all", ":pipe goimports", "normal_mode", ":update", "goto_file_start" ]
