@@ -8,6 +8,10 @@ name = "perl"
 file-types = ["pl", "pm", "Rexfile"]
 
 [[language]]
+name = "bash"
+indent = { unit = "    " }
+
+[[language]]
 name = "raku"
 auto-format = true
 scope = "source.raku"
