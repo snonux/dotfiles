@@ -4,6 +4,10 @@ auto-format= true
 diagnostic-severity = "Hint"
 
 [[language]]
+name = "perl"
+file-types = ["pl", "pm", "Rexfile"]
+
+[[language]]
 name = "raku"
 auto-format = true
 scope = "source.raku"
