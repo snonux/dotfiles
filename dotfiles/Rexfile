@@ -1,14 +1,16 @@
-use Rex -feature => ['1.14'];
+use Rex -feature => ['1.14', 'exec_autodie'];
 use Rex::Logger;
 
 our $HOME = $ENV{HOME};
 our $DOT = "$HOME/git/rexfiles/dotfiles";
 
-task 'fedora', sub {
+desc 'Install packages on Fedora Linux';
+task 'pkg_fedora', sub {
   pkg 'tig', ensure => 'installed';
 };
 
-task 'helix', sub {
+desc 'Install ~/.config/helix';
+task 'home_helix', sub {
   my ($dst, $src) = ("$HOME/.config/helix", "$DOT/helix");
   file $dst, ensure => 'directory';
   file "$dst/" . basename($_), ensure => 'present', source => $_  for glob "$src/*"; 
@@ -29,14 +31,23 @@ task 'helix_diff', sub {
   }
 };
 
-task 'scripts', sub {
+desc 'Install ~/scripts';
+task 'home_scripts', sub {
   my ($dst, $src) = ("$HOME/scripts", "$DOT/scripts");
   file $dst, ensure => 'directory';
   file "$dst/" . basename($_), ensure => 'present', source => $_,  mode => '0755'
     for glob "$src/*"; 
 };
 
-task 'all', sub {
-  helix();
-  scripts();
+desc 'Install ~/.ssh files';
+task 'home_ssh', sub {
+  file "$HOME/.ssh", ensure => 'directory', mode => '0700';
+  file "$HOME/.ssh/config", ensure => 'present', source => "$DOT/ssh/config", mode => '0600';
+};
+
+desc 'Install all my ~ files';
+task 'home', sub {
+  home_helix();
+  home_scripts();
+  home_ssh();
 };

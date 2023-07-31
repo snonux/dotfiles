@@ -1,0 +1,9 @@
+ControlPath ~/.ssh/%r@%h:%p
+ControlMaster auto
+#UseKeychain yes
+AddKeysToAgent yes
+ControlPersist 60m
+#StrictHostKeyChecking no
+
+Host *.buetow.org
+Port 2
