@@ -10,7 +10,6 @@ fi
 #
 export UNAME=$(uname)
 export UNAME_R=$(uname -r)
-export EDITOR=nvim
 export EPOCHSTART=19700101
 
 if [ -f ~/motd ]; then
@@ -126,7 +125,6 @@ bindkey "^R" history-incremental-search-backward
 autoload -Uz compinit
 compinit
 
-export VISUAL=nvim
 autoload edit-command-line; zle -N edit-command-line
 bindkey -M vicmd v edit-command-line
 
