@@ -179,13 +179,6 @@ task 'home_calendar', sub {
 
 desc 'Install all my ~ files';
 task 'home', sub {
-  run_task 'home_bash';
-  run_task 'home_calendar';
-  run_task 'home_helix';
-  run_task 'home_scripts';
-  run_task 'home_signature';
-  run_task 'home_ssh';
-  run_task 'home_tmux';
-  run_task 'home_vale';
-  run_task 'home_zsh';
+  require Rex::TaskList;
+  run_task $_ for Rex::TaskList->create()->get_all_tasks('^home_');
 };
