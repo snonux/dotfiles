@@ -61,6 +61,11 @@ task 'home_tmux', sub {
   install "$DOT/tmux/tmux.conf" => "$HOME/.tmux.conf";
 };
 
+desc 'Install my signature';
+task 'home_signature', sub {
+  install "$DOT/signature" => "$HOME/.signature";
+};
+
 desc 'Install all my ~ files';
 task 'home', sub {
   home_helix();
@@ -69,4 +74,5 @@ task 'home', sub {
   home_vale();
   home_zsh();
   home_tmux();
+  home_signature();
 };
