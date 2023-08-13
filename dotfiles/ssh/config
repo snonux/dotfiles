@@ -5,5 +5,13 @@ AddKeysToAgent yes
 ControlPersist 60m
 #StrictHostKeyChecking no
 
+Host blowfish.buetow.org
+User rex
+Port 2
+
+Host fishfinger.buetow.org
+User rex
+Port 2
+
 Host *.buetow.org
 Port 2
