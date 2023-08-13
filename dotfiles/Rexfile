@@ -4,7 +4,7 @@ use Rex::Logger;
 our $HOME = $ENV{HOME};
 our $DOT = "$HOME/git/rexfiles/dotfiles";
 
-sub install_dir {
+sub ensure_dir {
   my ($src_glob, $dst_dir, $file_mode) = @_;
 
   file $dst_dir, ensure => 'directory', mode => '0700';
@@ -16,7 +16,7 @@ sub install_dir {
       for glob $src_glob;
 }
 
-sub install_file {
+sub ensure_file {
   my ($src_file, $dst_file, $file_mode) = @_;
 
   file $dst_file, ensure => 'present',
@@ -24,46 +24,85 @@ sub install_file {
     mode => $file_mode // '0640';
 }
 
-sub install {
+sub ensure {
   my ($src, $dst, $mode) = @_;
-  ($dst =~ /\/$/ ? \&install_dir : \&install_file)->($src, $dst, $mode);
+  ($dst =~ /\/$/ ? \&ensure_dir : \&ensure_file)->($src, $dst, $mode);
 }
 
 desc 'Install packages on Fedora Linux';
 task 'pkg_fedora', sub {
-  pkg 'tig', ensure => 'installed';
+  my @pkgs = qw/
+    ack
+    bat
+    ctags
+    exa 
+    fzf 
+    golang 
+    golang-x-tools-gopls 
+    gpaste 
+    gron 
+    htop 
+    java-latest-openjdk-devel 
+    lynx 
+    make 
+    neovim 
+    nextcloud-client 
+    nodejs 
+    perl-File-Slurp
+    procs 
+    rakudo 
+    Rex 
+    ripgrep 
+    ruby 
+    strace 
+    task
+    tig 
+    tmux 
+    zsh 
+    dialect
+    chromium
+    strawberry
+    gnumeric
+    tuba
+    zathura
+  /;
+
+  for my $pkg (@pkgs) {
+    Rex::Logger::info("Installing package $pkg");
+    pkg $pkg, ensure => 'installed';
+  }
 };
 
 desc 'Install ~/.config/helix';
-task 'home_helix', sub { install "$DOT/helix/*" => "$HOME/.config/helix/" };
+task 'home_helix', sub { ensure "$DOT/helix/*" => "$HOME/.config/helix/" };
 
 desc 'Install ~/scripts';
-task 'home_scripts', sub { install "$DOT/scripts/*" => "$HOME/scripts/", '0750' };
+task 'home_scripts', sub { ensure "$DOT/scripts/*" => "$HOME/scripts/", '0750' };
 
 desc 'Install ~/.ssh files';
-task 'home_ssh', sub { install "$DOT/ssh/config" => "$HOME/.ssh/config", '0600' };
+task 'home_ssh', sub { ensure "$DOT/ssh/config" => "$HOME/.ssh/config", '0600' };
 
 desc 'Install ZSH configuration';
 task 'home_zsh', sub {
-  install "$DOT/zsh/zshrc" => "$HOME/.zshrc";
-  install "$DOT/zsh/zshrc_d/*" => "$HOME/.zshrc_d/";
+  ensure "$DOT/zsh/zshrc" => "$HOME/.zshrc";
+  ensure "$DOT/zsh/zshrc_d/*" => "$HOME/.zshrc_d/";
 };
 
 desc 'Vale and proselint';
 task 'home_vale', sub {
-  install "$DOT/vale.ini" => "$HOME/.vale.ini";
+  ensure "$DOT/vale.ini" => "$HOME/.vale.ini";
   say 'Now you can run "vale sync"';
 };
 
 desc 'Install tmux configuration';
 task 'home_tmux', sub {
-  install "$DOT/tmux/tmux.local.conf" => "$HOME/.tmux.local.conf";
-  install "$DOT/tmux/tmux.conf" => "$HOME/.tmux.conf";
+  ensure "$DOT/tmux/tmux.local.conf" => "$HOME/.tmux.local.conf";
+  ensure "$DOT/tmux/tmux.conf" => "$HOME/.tmux.conf";
 };
 
 desc 'Install my signature';
 task 'home_signature', sub {
-  install "$DOT/signature" => "$HOME/.signature";
+  ensure "$DOT/signature" => "$HOME/.signature";
 };
 
 desc 'Install all my ~ files';
