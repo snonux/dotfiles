@@ -1,6 +1,6 @@
 #!/usr/bin/env raku
 #
-# Script to move NextCloud nodes to taskwarrior DB.
+# Script to move NextCloud notes to taskwarrior DB.
 
 our @categories = <Work Log Task Soon Habit Wisdom>;
 
