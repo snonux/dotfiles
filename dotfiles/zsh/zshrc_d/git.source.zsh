@@ -13,7 +13,7 @@ git::prune () {
 }
 
 git::quickpush () {
-    git commit -a -m "$@"
+    git commit -a
     git pull
     git push
 }
