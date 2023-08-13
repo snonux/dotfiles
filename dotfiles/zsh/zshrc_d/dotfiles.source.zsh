@@ -12,7 +12,7 @@ dotfiles::update::git () {
   local -r prev_pwd="$(pwd)"
   cd $DOTFILES
   git pull
-  git commit -a -m 'update'
+  git commit -a
   git push
   rex home
   cd "$prev_pwd"
