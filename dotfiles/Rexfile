@@ -182,3 +182,5 @@ task 'home', sub {
   require Rex::TaskList;
   run_task $_ for Rex::TaskList->create()->get_all_tasks('^home_');
 };
+
+# vim: syntax=perl
