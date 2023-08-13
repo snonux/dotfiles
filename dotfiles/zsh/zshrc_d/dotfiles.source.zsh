@@ -1,9 +1,9 @@
-declare DOTFILES=~/git/dotfiles
+declare DOTFILES=~/git/rexfiles/dotfiles
 
 dotfiles::update () {
   local -r prev_pwd="$(pwd)"
   cd $DOTFILES
-  ./update.sh
+  rex home
   cd "$prev_pwd"
 }
 alias .u=dotfiles::update
@@ -14,7 +14,7 @@ dotfiles::update::git () {
   git pull
   git commit -a -m 'update'
   git push
-  ./update.sh
+  rex home
   cd "$prev_pwd"
 }
 alias .ug=dotfiles::update::git
@@ -39,22 +39,22 @@ dotfiles::visual () {
 }
 alias .v=dotfiles::visual
 
-dotfiles::backup::helix () {
-  local -r prev_pwd="$(pwd)"
-  cd ~/git/rexfiles/dotfiles/helix &&
-    cp ~/.config/helix/*.toml . &&
-    git add *.toml &&
-    git commit -m "Updating Helix config" *.toml
-  git pull
-  git push
-  cd "$prev_pwd"
-}
-alias .hx=dotfiles::backup::helix
+#dotfiles::backup::helix () {
+#  local -r prev_pwd="$(pwd)"
+#  cd ~/git/rexfiles/dotfiles/helix &&
+#    cp ~/.config/helix/*.toml . &&
+#    git add *.toml &&
+#    git commit -m "Updating Helix config" *.toml
+#  git pull
+#  git push
+#  cd "$prev_pwd"
+#}
+#alias .hx=dotfiles::backup::helix
 
 dotfiles::rexify () {
   local -r prev_pwd="$(pwd)"
   cd ~/git/rexfiles/dotfiles/
-  rex all
+  rex home
   cd "$prev_pwd"
 }
 alias .rex=dotfiles::rexify
