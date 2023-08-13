@@ -1,4 +1,4 @@
-declare DOTFILES=~/git/rexfiles
+declare DOTFILES=~/git/rexfiles/dotfiles
 
 dotfiles::update () {
   local -r prev_pwd="$(pwd)"
