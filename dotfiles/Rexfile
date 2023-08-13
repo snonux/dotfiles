@@ -55,6 +55,12 @@ task 'home_vale', sub {
   say 'Now you can run "vale sync"';
 };
 
+desc 'Install tmux configuration';
+task 'home_tmux', sub {
+  install "$DOT/tmux/tmux.local.conf" => "$HOME/.tmux.local.conf";
+  install "$DOT/tmux/tmux.conf" => "$HOME/.tmux.conf";
+};
+
 desc 'Install all my ~ files';
 task 'home', sub {
   home_helix();
@@ -62,4 +68,5 @@ task 'home', sub {
   home_ssh();
   home_vale();
   home_zsh();
+  home_tmux();
 };
