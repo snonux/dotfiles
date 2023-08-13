@@ -4,3 +4,6 @@ export VISUAL=$EDITOR
 editor::nvim::cd () {
     cd ~/.config/nvim
 }
+
+alias vi=$EDITOR
+alias cdvi=editor::nvim::cd

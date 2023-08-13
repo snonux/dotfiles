@@ -1,1 +1,1 @@
-# Obsolete
+# Currently not in use.

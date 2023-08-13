@@ -1,1 +1,1 @@
-alias vi=nvim
+# Currently not in use.
