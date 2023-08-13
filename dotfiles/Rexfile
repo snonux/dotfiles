@@ -2,7 +2,10 @@ use Rex -feature => ['1.14', 'exec_autodie'];
 use Rex::Logger;
 
 our $HOME = $ENV{HOME};
+# In a public Git repository.
 our $DOT = "$HOME/git/rexfiles/dotfiles";
+# In a private Git repository.
+our $DOT_PRIVATE = "$HOME/git/rexfiles_private/dotfiles";
 
 sub ensure_dir {
   my ($src_glob, $dst_dir, $file_mode) = @_;
@@ -165,6 +168,15 @@ task 'home_signature', sub {
   ensure "$DOT/signature" => "$HOME/.signature";
 };
 
+desc 'Install my calendar files';
+task 'home_calendar', sub {
+  unless (-d $DOT_PRIVATE) {
+    Rex::Logger::info("$DOT_PRIVATE not there, skipping task", 'warn')
+  } else {
+    ensure "$DOT_PRIVATE/calendar/*" => "$HOME/.calendar/";
+  }
+};
+
 desc 'Install all my ~ files';
 task 'home', sub {
   home_helix();
@@ -175,4 +187,5 @@ task 'home', sub {
   home_bash();
   home_tmux();
   home_signature();
+  home_calendar();
 };
