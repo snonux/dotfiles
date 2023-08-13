@@ -1,0 +1,28 @@
+# If shell is interactive
+if [[ ! -z "$PS1" && ! -f $HOME/.nozsh ]]; then
+  # Use ZSH if it's installed
+  if [ -e /opt/local/bin/zsh ]; then
+    exec /opt/local/bin/zsh
+  elif [ -e /bin/zsh ]; then
+    exec /bin/zsh
+  elif [ -e /usr/bin/zsh ]; then
+    exec /usr/bin/zsh
+  elif [ -e /data/data/com.termux/files/usr/bin/zsh ]; then
+    exec /data/data/com.termux/files/usr/bin/zsh
+  fi
+  echo 'I might want to install zsh on this host'
+fi
+
+# append to the history file, don't overwrite it
+shopt -s histappend
+
+# check the window size after each command and, if necessary,
+# update the values of LINES and COLUMNS.
+shopt -s checkwinsize
+
+# enable programmable completion features (you don't need to enable
+# this, if it's already enabled in /etc/bash.bashrc and /etc/profile
+# sources /etc/bash.bashrc).
+if [ -f /etc/bash_completion ]; then
+  . /etc/bash_completion
+fi

@@ -142,6 +142,12 @@ task 'home_zsh', sub {
   ensure "$DOT/zsh/zshrc_d/*" => "$HOME/.zshrc_d/";
 };
 
+desc 'Install BASH configuration';
+task 'home_bash', sub {
+  ensure "$DOT/bash/bash_profile" => "$HOME/.bash_profile";
+  ensure "$DOT/bash/bashrc" => "$HOME/.bashrc";
+};
+
 desc 'Vale and proselint';
 task 'home_vale', sub {
   ensure "$DOT/vale.ini" => "$HOME/.vale.ini";
@@ -166,6 +172,7 @@ task 'home', sub {
   home_ssh();
   home_vale();
   home_zsh();
+  home_bash();
   home_tmux();
   home_signature();
 };
