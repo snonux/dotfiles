@@ -7,7 +7,9 @@ our $DOT = "$HOME/git/rexfiles/dotfiles";
 sub ensure_dir {
   my ($src_glob, $dst_dir, $file_mode) = @_;
 
-  file $dst_dir, ensure => 'directory', mode => '0700';
+  file $dst_dir,
+    ensure => 'directory',
+    mode => '0700';
 
   file "$dst_dir/" . basename($_),
     ensure => 'present',
@@ -28,6 +30,58 @@ sub ensure {
   my ($src, $dst, $mode) = @_;
   ($dst =~ /\/$/ ? \&ensure_dir : \&ensure_file)->($src, $dst, $mode);
 }
+
+desc 'Install packages on Termux';
+task 'pkg_termux', sub {
+  my @pkgs = qw/
+    ack-grep
+    ctags
+    fzf
+    golang
+    htop
+    make
+    neovim
+    nodejs
+    ripgrep
+    rsync
+    ruby
+    starship
+    tig
+    zsh
+  /;
+
+  for my $pkg (@pkgs) {
+    Rex::Logger::info("Installing package $pkg");
+    pkg $pkg, ensure => 'installed';
+  }
+};
+
+desc 'Install packages on FreeBSD';
+task 'pkg_freebsd', sub {
+  my @pkgs = qw/
+    bat
+    ctags
+    fzf
+    gmake
+    go
+    gron
+    htop
+    lynx
+    neovim
+    node
+    p5-ack
+    ripgrep
+    starship
+    tig
+    tmux
+    zsh
+  /;
+
+  for my $pkg (@pkgs) {
+    Rex::Logger::info("Installing package $pkg");
+    pkg $pkg, ensure => 'installed';
+  }
+};
 
 desc 'Install packages on Fedora Linux';
 task 'pkg_fedora', sub {
