@@ -19,7 +19,6 @@ sub install_dir {
 sub install_file {
   my ($src_file, $dst_file, $file_mode) = @_;
 
-  say "Installing $src_file to $dst_file";
   file $dst_file, ensure => 'present',
     source => $src_file,
     mode => $file_mode // '0640';
@@ -44,6 +43,12 @@ task 'home_scripts', sub { install "$DOT/scripts/*" => "$HOME/scripts/", '0750' 
 desc 'Install ~/.ssh files';
 task 'home_ssh', sub { install "$DOT/ssh/config" => "$HOME/.ssh/config", '0600' };
 
+desc 'Install ZSH configuration';
+task 'home_zsh', sub {
+  install "$DOT/zsh/zshrc" => "$HOME/.zshrc";
+  install "$DOT/zsh/zshrc_d/*" => "$HOME/.zshrc_d/";
+};
+
 desc 'Vale and proselint';
 task 'home_vale', sub {
   install "$DOT/vale.ini" => "$HOME/.vale.ini";
@@ -56,4 +61,5 @@ task 'home', sub {
   home_scripts();
   home_ssh();
   home_vale();
+  home_zsh();
 };
