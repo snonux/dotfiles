@@ -179,13 +179,13 @@ task 'home_calendar', sub {
 
 desc 'Install all my ~ files';
 task 'home', sub {
-  home_helix();
-  home_scripts();
-  home_ssh();
-  home_vale();
-  home_zsh();
-  home_bash();
-  home_tmux();
-  home_signature();
-  home_calendar();
+  run_task 'home_bash';
+  run_task 'home_calendar';
+  run_task 'home_helix';
+  run_task 'home_scripts';
+  run_task 'home_signature';
+  run_task 'home_ssh';
+  run_task 'home_tmux';
+  run_task 'home_vale';
+  run_task 'home_zsh';
 };
