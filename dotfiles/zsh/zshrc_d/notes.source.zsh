@@ -6,4 +6,12 @@ if [ -e ~/Notes ]; then
     notes::habit () {
         $VISUAL ~/Notes/*/Habits.md
     }
+
+    notes::edit () {
+        cd ~/Notes
+        $VISUAL "$(find . -type f | fzf)"
+        cd -
+    }
+
+    alias ,ne=notes::edit
 fi
