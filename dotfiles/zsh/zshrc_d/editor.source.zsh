@@ -7,3 +7,4 @@ editor::nvim::cd () {
 
 alias vi=$EDITOR
 alias cdvi=editor::nvim::cd
+alias fvi="$EDITOR \"\$(find . -type f | fzf)\""
