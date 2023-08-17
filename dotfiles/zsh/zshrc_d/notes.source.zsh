@@ -1,12 +1,6 @@
-if [ -e ~/Notes ]; then
-    notes::wisdom () {
-        $VISUAL ~/Notes/*/Wisdoms.md
-    }
+declare NOTES_DIR=$HOME/Notes
 
-    notes::habit () {
-        $VISUAL ~/Notes/*/Habits.md
-    }
-
+if [ -e $NOTES_DIR ]; then
     notes::edit () {
         cd ~/Notes
         $VISUAL "$(find . -type f | fzf)"
@@ -14,4 +8,5 @@ if [ -e ~/Notes ]; then
     }
 
     alias ,ne=notes::edit
+    alias cdnodes="cd $NOTES_DIR"
 fi
