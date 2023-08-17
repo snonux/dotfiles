@@ -17,7 +17,7 @@ sub add-task(Bool $dry-mode, Str $category, Str $content, Str $due) returns Bool
 }
 
 sub due(Str $category) {
-    my $pick = $category eq any('Soon', 'Work') ?? 14 !!
+    my $pick = $category eq any('Soon', 'Work', 'Log') ?? 14 !!
                $category eq 'Habit' ?? 2 !! 365;
     return DateTime.now(
       formatter => { sprintf 'due:%04d-%02d-%02d', .year, .month, .day }
