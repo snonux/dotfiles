@@ -456,3 +456,7 @@ alias wetter=weather
 cheat () {
     curl cheat.sh/$1
 }
+
+functions () {
+    grep -h -E '^[a-z]+::[a-z]+ ()' ~/.zsh*/* | cut -d: -f1 | sort -u
+}
