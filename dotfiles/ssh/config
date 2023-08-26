@@ -13,5 +13,9 @@ Host fishfinger.buetow.org
 User rex
 Port 2
 
+Host *.aws.buetow.org
+User ec2-user
+Port 22
+
 Host *.buetow.org
 Port 2
