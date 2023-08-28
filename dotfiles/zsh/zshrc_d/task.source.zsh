@@ -33,6 +33,11 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }
     alias a=task::add
 
+    task::add::log () {
+        task add +log "$@" due:$(task::random::due_date)
+    }
+    alias log=task::add::log 
+
     task::sync () {
         readonly force="$1"
         readonly stamp_file=~/.tasksync.last
