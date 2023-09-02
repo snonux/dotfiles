@@ -460,3 +460,5 @@ cheat () {
 functions () {
     grep -h -E '^[a-z]+::[a-z]+ ()' ~/.zsh*/* | cut -d: -f1 | sort -u
 }
+
+alias tf=terraform
