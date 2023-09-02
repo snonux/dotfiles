@@ -422,7 +422,7 @@ asum () {
 }
 
 lastu () {
-   last | egrep -v '(root|cron|nagios)'
+   last | grep -E -v '(root|cron|nagios)'
 }
 
 lastl () {
