@@ -10,7 +10,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         fi
     }
 
-    alias tdue="task active; task due.before:$(date +%Y-%m-%d --date '14 days')"
+    alias tdue="task active; task due.before:$(date +%Y-%m-%d --date '7 days')"
     tdue
 
     task::random::due_date () {
