@@ -10,8 +10,8 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         fi
     }
 
-    alias tdue='task active;task due.before:14day long'
-    sh -c 'task active;task due.before:14day long 2>/dev/null; exit 0'
+    alias tdue="task active; task due.before:$(date +%Y-%m-%d --date '14 days')"
+    tdue
 
     task::random::due_date () {
         local -i due_days=$(($RANDOM % 365))
