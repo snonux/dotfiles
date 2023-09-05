@@ -13,6 +13,13 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias tdue="task active; task due.before:$(date +%Y-%m-%d --date '7 days')"
     tdue
 
+    task::done::due () {
+        local -i task_id="$1"; shift
+        task $task_id done
+        tdue
+    }
+    alias tdone=task::done::due
+
     task::random::due_date () {
         local -i due_days=$(($RANDOM % 365))
         date +%Y-%m-%d --date "$due_days days"
@@ -27,6 +34,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         echo "Setting random due date for task $task_id"
         task $task_id modify due:$(task::random::due_date)
     }
+    alias trand=task::randomize
 
     task::add () {
         task add "$@" due:$(task::random::due_date)
