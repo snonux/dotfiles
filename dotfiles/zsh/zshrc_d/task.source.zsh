@@ -1,5 +1,4 @@
 if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
-    alias t=task
     alias j='task add +journal'
 
     task::rakurize () {
@@ -11,6 +10,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }
 
     alias tdue="task active; task due.before:$(date +%Y-%m-%d --date '7 days')"
+    alias t=tdue
     tdue
 
     task::done::due () {

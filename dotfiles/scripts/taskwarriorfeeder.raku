@@ -25,6 +25,7 @@ sub due(Str $category) {
 }
 
 sub MAIN(:$notes-dir = %*ENV<HOME> ~ '/Notes', Bool :$dry-mode = False) {
+  # Backfill all tasks from Nextcloud ~/Notes dir to taskwarrior
   for dir $notes-dir, test => { .IO.f } -> $file {
     my $content = $file.slurp.split("\n");
     my $category = $content.split(' ', 2).first;
@@ -34,11 +35,16 @@ sub MAIN(:$notes-dir = %*ENV<HOME> ~ '/Notes', Bool :$dry-mode = False) {
     $file.unlink if add-task $dry-mode, $category, $content, due($category) and !$dry-mode;
   }
 
-  my $random-habit = "$notes-dir/HabitsAndQuotes/Habits.md"
-                     .IO.slurp.split("\n").grep( /^\* /).pick.subst('* ', '');
-  add-task $dry-mode, 'Habit', $random-habit, due('Habit');
+  # Add random habits to do to taskwarrior
+  my %habits := {
+    'SpiritualHabits' => 'Habit',
+    'PhysicalHabits' => 'Habit',
+    'Wisdoms' => 'Wisdom',
+  }
 
-  my $random-wisdom = "$notes-dir/HabitsAndQuotes/Wisdoms.md"
-                     .IO.slurp.split("\n").grep( /^\* /).pick.subst('* ', '');
-  add-task $dry-mode, 'Wisdom', $random-wisdom, due('Wisdom');
+  for %habits.kv -> $k, $v {
+    next unless Bool.pick; # Randomly do it.
+    my $random-habit = "$notes-dir/HabitsAndQuotes/$k.md".IO.slurp.split("\n").grep( /^\* /).pick.subst('* ', '');
+    add-task $dry-mode, $v, $random-habit, due($v);
+  }
 }
