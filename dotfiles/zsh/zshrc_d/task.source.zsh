@@ -10,8 +10,12 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         fi
     }
 
-    alias tdue="task active; task due.before:$(date +%Y-%m-%d --date '7 days')"
-    tdue
+    task::due () { 
+        task active
+        task due.before:$(date +%Y-%m-%d --date '7 days')
+    }
+    alias due=task::due
+    task::due
 
     task::done::due () {
         local -i task_id="$1"; shift
