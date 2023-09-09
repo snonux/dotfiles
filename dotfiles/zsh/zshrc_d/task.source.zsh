@@ -74,6 +74,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         echo $now > $stamp_file
     }
     alias tsync='task::sync force'
+    alias tdice="task ready | sort -R | sed -n '/^[0-9]/ { p; q; }'"
 
     task::sync 
 fi
