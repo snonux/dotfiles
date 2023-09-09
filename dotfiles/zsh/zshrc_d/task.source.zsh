@@ -14,7 +14,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         task active
         task due.before:$(date +%Y-%m-%d --date '7 days')
     }
-    alias due=task::due
+    alias tdue=task::due
     task::due
 
     task::done::due () {
