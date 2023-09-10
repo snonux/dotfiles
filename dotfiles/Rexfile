@@ -177,6 +177,11 @@ task 'home_calendar', sub {
   }
 };
 
+desc 'Install my Pipewire tuned for High-Res config';
+task 'home_pipewire', sub {
+  ensure "$DOT/pipewire/pipewire.conf" => "$HOME/.config/pipewire.conf", '0600';
+};
+
 desc 'Install all my ~ files';
 task 'home', sub {
   require Rex::TaskList;
