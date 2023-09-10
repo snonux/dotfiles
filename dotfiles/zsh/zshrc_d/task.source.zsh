@@ -77,10 +77,20 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
 
     task::dice () {
         local -r filter=$1
-        task=$(task $filter ready | sort -R | sed -n '/^[0-9]/ { p; q; }' | cut -d' ' -f1)
-        task $task
+        diced_task=$(task $filter ready | sort -R | sed -n '/^[0-9]/ { p; q; }' | cut -d' ' -f1)
+        task $diced_task
     }
     alias tdice=task::dice
+
+    task::dice::next () {
+        if [ -z "$diced_task" ]; then
+            echo "No diced task ID!"
+            return 1
+        fi
+        task done $diced_task
+        task::dice
+    }
+    alias tnext=task::dice::next
 
     task::sync 
 fi
