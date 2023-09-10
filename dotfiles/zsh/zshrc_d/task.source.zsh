@@ -76,7 +76,8 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias tsync='task::sync force'
 
     task::dice () {
-        task=$(task ready | sort -R | sed -n '/^[0-9]/ { p; q; }' | cut -d' ' -f1)
+        local -r filter=$1
+        task=$(task $filter ready | sort -R | sed -n '/^[0-9]/ { p; q; }' | cut -d' ' -f1)
         task $task
     }
     alias tdice=task::dice
