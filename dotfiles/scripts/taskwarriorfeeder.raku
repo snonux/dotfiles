@@ -42,9 +42,13 @@ sub MAIN(:$notes-dir = %*ENV<HOME> ~ '/Notes', Bool :$dry-mode = False) {
     'Wisdoms' => 'Wisdom',
   }
 
-  for %habits.kv -> $k, $v {
-    next unless Bool.pick; # Randomly do it.
-    my $random-habit = "$notes-dir/HabitsAndQuotes/$k.md".IO.slurp.split("\n").grep( /^\* /).pick.subst('* ', '');
-    add-task $dry-mode, $v, $random-habit, due($v);
+  my @habits = gather {
+    for %habits.kv -> $k, $v {
+      next unless Bool.pick; # Randomly do it.
+      take my $random-habit = "$notes-dir/HabitsAndQuotes/$k.md".IO.slurp.split("\n").grep( /^\* /).pick.subst('* ', '');
+      add-task $dry-mode, $v, $random-habit, due($v);
+    }
   }
+
+  .say for @habits;
 }
