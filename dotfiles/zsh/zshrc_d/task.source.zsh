@@ -93,7 +93,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias tnext=task::dice::next
 
     task::fuzzy_find () {
-        task_id=$(task $filter ready | sort -R | sed -n '/^[0-9]/p' | sort -rn | fzf | cut -d' ' -f1)
+        task_id=$(task ready | sed -n '/^[0-9]/p' | sort -rn | fzf | cut -d' ' -f1)
         task $task_id
     }
     alias tfind=task::fuzzy_find
