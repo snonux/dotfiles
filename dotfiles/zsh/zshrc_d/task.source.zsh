@@ -2,6 +2,19 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias t='task'
     alias j='task add +journal'
 
+    task::_confirm () {
+        local -r message="$1"; shift
+        # bash:
+        # read -p "$message? (y/n)" answer
+        # zsh:
+        read "answer?$message? (y/n)"
+        if [ "$answer" = y ]; then
+            return 0
+        else
+            return 1
+        fi
+    }
+
     task::rakurize () {
         if [ -d ~/Notes ]; then
             cd ~/Notes
@@ -17,12 +30,17 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias tdue=task::due
     task::due
 
-    task::done::due () {
-        local -i task_id="$1"; shift
-        task $task_id done
-        task due.before:$(date +%Y-%m-%d --date '7 days')
+    task::done () {
+        if [ ! -z "$1" ]; then
+            task_id=$1
+        fi
+        task $task_id
+        if task::_confirm "Mark task $task_id as done"; then
+            task $task_id done
+            task::due
+        fi
     }
-    alias tdone=task::done::due
+    alias tdone=task::done
 
     task::random::due_date () {
         local -i due_days=$(($RANDOM % 365))
