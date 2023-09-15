@@ -73,7 +73,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
 
         echo $now > $stamp_file
     }
-    alias tsync='task::sync force'
+    alias tsync='task::sync force; task::due'
 
     task::dice () {
         local -r filter=$1
@@ -92,11 +92,21 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }
     alias tnext=task::dice::next
 
-    task::fuzzy_find () {
-        task_id=$(task ready | sed -n '/^[0-9]/p' | sort -rn | fzf | cut -d' ' -f1)
+    task::fuzzy::_select () {
+        sed -n '/^[0-9]/p' | sort -rn | fzf | cut -d' ' -f1
+    }
+
+    task::fuzzy::find () {
+        task_id=$(task ready | task::fuzzy::_select)
         task $task_id
     }
-    alias tfind=task::fuzzy_find
+    alias tfind=task::fuzzy::find
+
+    task::fuzzy::due () {
+        task_id=$(task due.before:$(date +%Y-%m-%d --date '7 days') | task::fuzzy::_select)
+        task $task_id
+    }
+    alias tfdue=task::fuzzy::due
 
     task::sync 
 fi
