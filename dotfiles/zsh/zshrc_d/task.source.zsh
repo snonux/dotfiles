@@ -4,6 +4,10 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
 
     task::_confirm () {
         local -r message="$1"; shift
+        if [ "$TASK_AUTO_CONFIRM" = yes ]; then
+            echo "Auto confirming"
+            return 0
+        fi
         # bash:
         # read -p "$message? (y/n)" answer
         # zsh:
