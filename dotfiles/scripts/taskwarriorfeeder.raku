@@ -2,7 +2,7 @@
 #
 # Script to move NextCloud notes to taskwarrior DB.
 
-our @categories = <Work Log Task Soon Habit Wisdom>;
+our @categories = <Work Log Task Soon Habit Wisdom Now>;
 
 sub add-task(Bool $dry-mode, Str $category, Str $content, Str $due) returns Bool {
   my $trimmed = $content.subst("'", '', :g).trim;
@@ -18,7 +18,7 @@ sub add-task(Bool $dry-mode, Str $category, Str $content, Str $due) returns Bool
 
 sub due(Str $category) {
     my $pick = $category eq any('Soon', 'Work', 'Log') ?? 14 !!
-               $category eq 'Habit' ?? 2 !! 365;
+               $category eq any('Habit', 'Now') ?? 2 !! 365;
     return DateTime.now(
       formatter => { sprintf 'due:%04d-%02d-%02d', .year, .month, .day }
     ).later(days => (1..$pick).pick).Str;
