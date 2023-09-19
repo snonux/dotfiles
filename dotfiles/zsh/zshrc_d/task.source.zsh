@@ -128,7 +128,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         task_id=$(task due.before:$(date +%Y-%m-%d --date '7 days') | task::fuzzy::_select)
         task $task_id
     }
-    alias tfdue=task::fuzzy::due
+    alias fdue=task::fuzzy::due
 
     task::sync 
 fi
