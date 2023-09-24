@@ -47,18 +47,20 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias tdone=task::done
 
     task::random::due_date () {
-        local -i due_days=$(($RANDOM % 365))
+        local -i seed="$1"
+        local -i due_days=$(( ($RANDOM + $seed) % 365))
         date +%Y-%m-%d --date "$due_days days"
     }
 
     task::randomize () {
         local -i task_id="$1"; shift
+        local -i seed="$1"
 
         echo 'Tasks without due date:'
         task due:
 
         echo "Setting random due date for task $task_id"
-        task $task_id modify due:$(task::random::due_date)
+        task $task_id modify due:$(task::random::due_date $seed)
     }
     alias trand=task::randomize
 
