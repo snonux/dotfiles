@@ -46,6 +46,14 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }
     alias tdone=task::done
 
+    task::start () {
+        if [ ! -z "$1" ]; then
+            task_id=$1
+        fi
+        task $task_id start
+    }
+    alias tstart=task::start
+
     task::random::due_date () {
         local -i seed="$1"
         local -i due_days=$(( ($RANDOM + $seed) % 365))
