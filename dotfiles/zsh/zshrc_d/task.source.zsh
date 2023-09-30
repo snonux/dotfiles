@@ -135,7 +135,9 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias tfind=task::fuzzy::find
 
     task::fuzzy::due () {
-        task_id=$(task due.before:$(date +%Y-%m-%d --date '7 days') | task::fuzzy::_select)
+        task_id=$(task limit:0 due.before:$(date +%Y-%m-%d --date '7 days') |
+            sed -E '/^$/d; /^[[:digit:]]+ tasks/d' |
+            task::fuzzy::_select)
         task $task_id
     }
     alias fdue=task::fuzzy::due
