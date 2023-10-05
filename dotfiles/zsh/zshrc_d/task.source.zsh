@@ -63,6 +63,10 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     task::randomize () {
         local -i task_id="$1"; shift
         local -i seed="$1"
+        if [ ! -z "$1" ]; then
+            task_id=$1
+        fi
+        task $task_id
 
         echo 'Tasks without due date:'
         task due:
