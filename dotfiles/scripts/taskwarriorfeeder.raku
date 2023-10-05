@@ -24,8 +24,8 @@ sub MAIN(:$notes-dir = %*ENV<HOME> ~ '/Notes', Bool :$dry-mode = False) {
   # Backfill all tasks from Nextcloud ~/Notes dir to taskwarrior
   for dir $notes-dir, test => { .IO.f } -> $file {
     with $file.slurp.trim {
-      if / :i ^tw \s+ $<due-days> = (\d*) \s* $<tag> = (\D+?) \s+ $<body> = (.*) $ / {
-        $file.unlink if add-task $:dry-mode, due-days => +$<due-days>, tag => ~$<tag>, body => ~$<body>;
+      if / :i ^tw? \s+ $<due-days> = (\d*) \s* $<tag> = (\D+?) \s+ $<body> = (.*) $ / {
+        $file.unlink if add-task :$dry-mode, due-days => +$<due-days>, tag => ~$<tag>, body => ~$<body>;
       }
     }
   }
