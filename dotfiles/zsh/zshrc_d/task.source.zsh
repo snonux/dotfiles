@@ -46,6 +46,14 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }
     alias tdone=task::done
 
+    task::del () {
+        if [ ! -z "$1" ]; then
+            task_id=$1
+        fi
+        task $task_id delete
+    }
+    alias tdel=task::del
+
     task::start () {
         if [ ! -z "$1" ]; then
             task_id=$1
