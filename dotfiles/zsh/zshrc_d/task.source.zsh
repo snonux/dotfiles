@@ -147,12 +147,25 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias tfind=task::fuzzy::find
 
     task::fuzzy::due () {
+        local -r flag="$1"
+
         task_id=$(task limit:0 due.before:$(date +%Y-%m-%d --date '7 days') |
             sed -E '/^$/d; /^[[:digit:]]+ tasks/d' |
             task::fuzzy::_select)
-        task $task_id
+
+        if [ "$flag" != silent ]; then
+            task $task_id
+        fi
     }
     alias fdue=task::fuzzy::due
+
+    task::fuzzy::done () {
+        task::fuzzy::due silent
+        if task::_confirm "Mark task $task_id as done"; then
+            task $task_id done
+        fi
+    }
+    alias fdone=task::fuzzy::done
 
     task::sync 
 fi
