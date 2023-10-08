@@ -161,6 +161,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
 
     task::fuzzy::done () {
         task::fuzzy::due silent
+        task $task_id
         if task::_confirm "Mark task $task_id as done"; then
             task $task_id done
         fi
