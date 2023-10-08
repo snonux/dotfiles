@@ -33,7 +33,7 @@ sub MAIN(:$notes-dir = %*ENV<HOME> ~ '/Notes', Bool :$dry-mode = False) {
   # Add random habits to do to taskwarrior
   my %habits := {
     'SpiritualHabits' => 'spiritual',
-    'PhysicalHabits' => 'fitness',
+    'PhysicalHabits' => 'health',
     'Wisdoms' => 'wisdom',
     'Ema' => 'ema',
   }
