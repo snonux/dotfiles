@@ -35,39 +35,24 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     task::due
 
     task::done () {
-        if [ ! -z "$1" ]; then
-            task_id=$1
-        fi
-        task $task_id
-        if task::_confirm "Mark task $task_id as done"; then
-            task $task_id done
+        task::select
+        task $TASK_ID
+        if task::_confirm "Mark task $TASK_ID as done"; then
+            task $TASK_ID done
             task::due
         fi
     }
     alias tdone=task::done
 
-    task::start () {
-        if [ ! -z "$1" ]; then
-            task_id=$1
-        fi
-        task $task_id
-        task $task_id start
-    }
-    alias tstart=task::start
-
     task::del () {
-        if [ ! -z "$1" ]; then
-            task_id=$1
-        fi
-        task $task_id delete
+        task::select
+        task $TASK_ID delete
     }
     alias tdel=task::del
 
     task::start () {
-        if [ ! -z "$1" ]; then
-            task_id=$1
-        fi
-        task $task_id start
+        task::select
+        task $TASK_ID start
     }
     alias tstart=task::start
 
@@ -78,16 +63,14 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }
 
     task::randomize () {
-        if [ ! -z "$1" ]; then
-            task_id=$1
-        fi
+        task::select
         local -i seed="$2"
 
         echo 'Tasks without due date:'
         task due:
 
-        echo "Setting random due date for task $task_id"
-        task $task_id modify due:$(task::random::due_date $seed)
+        echo "Setting random due date for task $TASK_ID"
+        task $TASK_ID modify due:$(task::random::due_date $seed)
     }
     alias trand=task::randomize
 
@@ -128,17 +111,17 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
 
     task::dice () {
         local -r filter=$1
-        task_id=$(task $filter ready | sort -R | sed -n '/^[0-9]/ { p; q; }' | cut -d' ' -f1)
-        task $task_id
+        TASK_ID=$(task $filter ready | sort -R | sed -n '/^[0-9]/ { p; q; }' | cut -d' ' -f1)
+        task $TASK_ID
     }
     alias tdice=task::dice
 
     task::dice::next () {
-        if [ -z "$task_id" ]; then
+        if [ -z "$TASK_ID" ]; then
             echo "No diced task ID!"
             return 1
         fi
-        task done $task_id
+        task done $TASK_ID
         task::dice
     }
     alias tnext=task::dice::next
@@ -148,14 +131,16 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }
 
     task::fuzzy::find () {
-        task_id=$(task ready | task::fuzzy::_select)
-        task $task_id
+        TASK_ID=$(task ready | task::fuzzy::_select)
     }
     alias tfind=task::fuzzy::find
 
     task::select () {
-        local -r flag="$1"
-        if [[ "$flag" = '-' || -z "$task_id" ]]; then
+        local -r task_id="$1"
+        if [ ! -z "$task_id" ]; then
+            TASK_ID="$task_id"
+        fi
+        if [[ "$TASK_ID" = '-' || -z "$TASK_ID" ]]; then
             task::fuzzy::find
         fi
     }
@@ -164,21 +149,20 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     task::fuzzy::due () {
         local -r flag="$1"
 
-        task_id=$(task limit:0 due.before:$(date +%Y-%m-%d --date '7 days') |
+        TASK_ID=$(task limit:0 due.before:$(date +%Y-%m-%d --date '7 days') |
             sed -E '/^$/d; /^[[:digit:]]+ tasks/d' |
             task::fuzzy::_select)
 
         if [ "$flag" != silent ]; then
-            task $task_id
+            task $TASK_ID
         fi
     }
     alias fdue=task::fuzzy::due
 
     task::fuzzy::done () {
-        task::fuzzy::due silent
-        task $task_id
-        if task::_confirm "Mark task $task_id as done"; then
-            task $task_id done
+        task::select
+        if task::_confirm "Mark task $TASK_ID as done"; then
+            task $TASK_ID done
         fi
     }
     alias fdone=task::fuzzy::done
