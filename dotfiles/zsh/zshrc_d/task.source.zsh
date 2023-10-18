@@ -56,6 +56,12 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }
     alias tstart=task::start
 
+    task::annotate () {
+        task::select "$1"; shift
+        task $TASK_ID annotate "$@"
+    }
+    alias tanon=task::annotate
+
     task::random::due_date () {
         local -i seed="$1"
         local -i due_days=$(( ($RANDOM + $seed) % 365))
