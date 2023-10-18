@@ -46,6 +46,15 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }
     alias tdone=task::done
 
+    task::start () {
+        if [ ! -z "$1" ]; then
+            task_id=$1
+        fi
+        task $task_id
+        task $task_id start
+    }
+    alias tstart=task::start
+
     task::del () {
         if [ ! -z "$1" ]; then
             task_id=$1
@@ -143,6 +152,14 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         task $task_id
     }
     alias tfind=task::fuzzy::find
+
+    task::select () {
+        local -r flag="$1"
+        if [[ "$flag" = '-' || -z "$task_id" ]]; then
+            task::fuzzy::find
+        fi
+    }
+    alias tsel=task::select
 
     task::fuzzy::due () {
         local -r flag="$1"
