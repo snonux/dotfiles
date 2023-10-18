@@ -35,7 +35,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     task::due
 
     task::done () {
-        task::select
+        task::select "$1"
         task $TASK_ID
         if task::_confirm "Mark task $TASK_ID as done"; then
             task $TASK_ID done
@@ -45,13 +45,13 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias tdone=task::done
 
     task::del () {
-        task::select
+        task::select "$1"
         task $TASK_ID delete
     }
     alias tdel=task::del
 
     task::start () {
-        task::select
+        task::select "$1"
         task $TASK_ID start
     }
     alias tstart=task::start
@@ -63,7 +63,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }
 
     task::randomize () {
-        task::select
+        task::select "$1"
         local -i seed="$2"
 
         echo 'Tasks without due date:'
@@ -160,7 +160,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias fdue=task::fuzzy::due
 
     task::fuzzy::done () {
-        task::select
+        task::select "$1"
         if task::_confirm "Mark task $TASK_ID as done"; then
             task $TASK_ID done
         fi
