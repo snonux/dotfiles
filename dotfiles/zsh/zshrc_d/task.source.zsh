@@ -56,6 +56,12 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }
     alias tstart=task::start
 
+    task::stop () {
+        task::select "$1"
+        task $TASK_ID stop
+    }
+    alias tstop=task::stop
+
     task::annotate () {
         task::select "$1"; shift
         task $TASK_ID annotate "$@"
