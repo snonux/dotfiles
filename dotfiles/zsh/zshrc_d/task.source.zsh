@@ -46,11 +46,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
 
     task::edit () {
         task::select "$1"
-        task $TASK_ID
-        if task::_confirm "Mark task $TASK_ID as edit"; then
-            task $TASK_ID edit
-            task::due
-        fi
+        task $TASK_ID edit
     }
     alias tedit=task::edit
 
