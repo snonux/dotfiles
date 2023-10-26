@@ -44,6 +44,16 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }
     alias tdone=task::done
 
+    task::edit () {
+        task::select "$1"
+        task $TASK_ID
+        if task::_confirm "Mark task $TASK_ID as edit"; then
+            task $TASK_ID edit
+            task::due
+        fi
+    }
+    alias tedit=task::edit
+
     task::del () {
         task::select "$1"
         task $TASK_ID delete
