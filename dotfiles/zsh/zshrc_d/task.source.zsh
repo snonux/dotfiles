@@ -120,7 +120,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
 
         for remote in git@git1.buetow.org git@git2.buetow.org; do
             echo "Syncing task status to $remote"
-            rsync --delete -av ~/.task/ $remote:.task
+            rsync --delete -av ~/.taskempty/ $remote:.task
         done
 
         echo $now > $stamp_file
