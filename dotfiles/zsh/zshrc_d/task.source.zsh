@@ -117,12 +117,6 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         fi
 
         task::rakurize
-
-        for remote in git@git1.buetow.org git@git2.buetow.org; do
-            echo "Syncing task status to $remote"
-            rsync --delete -av ~/.taskempty/ $remote:.task
-        done
-
         echo $now > $stamp_file
     }
     alias tsync='task::sync force; task::due'
