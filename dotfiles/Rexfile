@@ -93,7 +93,6 @@ task 'pkg_fedora', sub {
     ack
     bat
     ctags
-    exa 
     fzf 
     golang 
     golang-x-tools-gopls 
@@ -104,7 +103,6 @@ task 'pkg_fedora', sub {
     lynx 
     make 
     neovim 
-    nextcloud-client 
     nodejs 
     perl-File-Slurp
     procs 
@@ -180,6 +178,9 @@ task 'home_calendar', sub {
 
 desc 'Install my Pipewire tuned for High-Res config';
 task 'home_pipewire', sub {
+  file "$HOME/.config/pipewire" =>
+    ensure => 'directory',
+    mode => '0750';
   ensure "$DOT/pipewire/pipewire.conf" => "$HOME/.config/pipewire/pipewire.conf", '0600';
 };
 
