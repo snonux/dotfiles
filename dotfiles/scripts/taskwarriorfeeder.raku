@@ -22,9 +22,9 @@ sub random-due-date(Int $pick = 365 -->Str) {
 
 sub MAIN(:$notes-dir = %*ENV<HOME> ~ '/Notes', Bool :$dry-mode = False) {
   # Backfill all tasks from Nextcloud ~/Notes dir to taskwarrior
-  for dir $notes-dir, test => { .IO.f } -> $file {
+  for dir $notes-dir, test => { /ql\-.*\.md/ } -> $file {
     with $file.slurp.trim {
-      if / :i ^tw? \s+ $<due-days> = (\d*) \s* $<tag> = (\D+?) \s+ $<body> = (.*) $ / {
+      if / :i ^ $<due-days> = (\d*) \s* $<tag> = (\D+?) \s+ $<body> = (.*) $ / {
         $file.unlink if add-task :$dry-mode, due-days => +$<due-days>, tag => ~$<tag>, body => ~$<body>;
       }
     }
