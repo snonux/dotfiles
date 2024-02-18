@@ -2,7 +2,7 @@ use Rex -feature => ['1.14', 'exec_autodie'];
 use Rex::Logger;
 
 our $HOME = $ENV{HOME};
-# In a public Git repository.
+# In a public Git rapository.
 our $DOT = "$HOME/git/rexfiles/dotfiles";
 # In a private Git repository.
 our $DOT_PRIVATE = "$HOME/git/rexfiles_private/dotfiles";
@@ -89,6 +89,7 @@ task 'pkg_freebsd', sub {
 desc 'Install packages on Fedora Linux';
 task 'pkg_fedora', sub {
   my @pkgs = qw/
+    syncthing
     ncdu
     ack
     bat
