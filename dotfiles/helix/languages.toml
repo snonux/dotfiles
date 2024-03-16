@@ -8,6 +8,22 @@ language-servers = [ "gopls", "golangci-lint-lsp" ]
 [language-server.gopls]
 command = "gopls"
 
+[[language]]
+name = "c"
+scope = "source.c"
+injection-regex = "c"
+file-types = ["c"] # TODO: ["h"]
+comment-token = "//"
+language-servers = [ "clangd" ]
+indent = { tab-width = 2, unit = "  " }
+
+[[grammar]]
+name = "c"
+source = { git = "https://github.com/tree-sitter/tree-sitter-c", rev = "7175a6dd5fc1cee660dce6fe23f6043d75af424a" }
+
+[language-server.clangd]
+command = "clangd"
+
 [language-server.gopls.config.hints]
 assignVariableTypes = true
 compositeLiteralFields = true
