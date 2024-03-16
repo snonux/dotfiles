@@ -1,5 +1,6 @@
 export EDITOR=hx
 export VISUAL=$EDITOR
+export GIT_EDITOR=$EDITOR
 
 editor::nvim::cd () {
     cd ~/.config/nvim
