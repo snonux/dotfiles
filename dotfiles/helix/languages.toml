@@ -3,35 +3,21 @@ name = "go"
 auto-format= true
 diagnostic-severity = "Hint"
 formatter = { command = "goimports" }
+language-servers = [ "gopls", "golangci-lint-lsp" ]
 
-[[language]]
-name = "perl"
-file-types = ["pl", "pm", "Rexfile"]
+[language-server.gopls]
+command = "gopls"
 
-[[language]]
-name = "bash"
-indent = { tab-width = 4, unit = "    " }
+[language-server.gopls.config.hints]
+assignVariableTypes = true
+compositeLiteralFields = true
+constantValues = true
+functionTypeParameters = true
+parameterNames = true
+rangeVariableTypes = true
 
-[[language]]
-name = "raku"
-auto-format = true
-scope = "source.raku"
-roots = ["raku"]
-file-types = ["raku"]
-language-server = { command = "node", args = ["/home/paul/git/RakuNavigator/server/out/server.js", "--stdio"] }
+[language-server.golangci-lint-lsp]
+command = "golangci-lint-langserver"
 
-[[language]]
-name = "puppet"
-auto-format = true
-scope = "source.pp"
-roots = ["Manifest"]
-file-types = ["pp", "epp"]
-language-server = { command = "puppet-languageserver", args = ["--stdio"] }
-formatter = { command = "puppet-debugserver", args = ["--stdio"] }
-
-[[language]]
-name = "spellcheck"
-language-server = { command = "ltex-ls" }
-file-types = ["txt"]
-scope = "source.spellcheck"
-roots = []
+[language-server.golangci-lint-lsp.config]
+command = ["golangci-lint", "run", "--out-format", "json", "--issues-exit-code=1"]
