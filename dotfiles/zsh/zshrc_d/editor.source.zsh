@@ -1,4 +1,4 @@
-export EDITOR=nvim
+export EDITOR=hx
 export VISUAL=$EDITOR
 
 editor::nvim::cd () {
