@@ -3,7 +3,7 @@ theme = "autumn"
 [editor]
 rulers = [80, 100, 120, 140]
 line-number = "relative"
-
+    
 [editor.statusline]
 left = ["mode", "spinner", "file-name", "position", "version-control"]
 center = ["diagnostics"]
@@ -17,8 +17,10 @@ normal = "block"
 insert = "underline"
 select = "bar"
 
-[editor.whitespace]
-render = "all"
+[editor.whitespace.render]
+space = "none"
+tab = "none"
+newline = "none"
 
 [keys.normal]
 D = ["ensure_selections_forward", "extend_to_line_end"]
