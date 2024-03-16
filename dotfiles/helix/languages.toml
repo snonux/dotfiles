@@ -146,3 +146,12 @@ grammar = "markdown_inline"
 [[grammar]]
 name = "markdown_inline"
 source = { git = "https://github.com/MDeiml/tree-sitter-markdown", rev = "aaf76797aa8ecd9a5e78e0ec3681941de6c945ee", subpath = "tree-sitter-markdown-inline" }
+
+[[language]]
+name = "gemini"
+scope = "source.gmi"
+file-types = ["gmi", "tpl"]
+
+[[grammar]]
+name = "gemini"
+source = { git = "https://git.sr.ht/~nbsp/tree-sitter-gemini", rev = "3cc5e4bdf572d5df4277fc2e54d6299bd59a54b3" }
