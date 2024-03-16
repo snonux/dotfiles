@@ -21,3 +21,26 @@ command = "golangci-lint-langserver"
 
 [language-server.golangci-lint-lsp.config]
 command = ["golangci-lint", "run", "--out-format", "json", "--issues-exit-code=1"]
+
+[[language]]
+name = "perl"
+scope = "source.perl"
+file-types = ["pl", "pm", "t", "psgi", "raku", "rakumod", "rakutest", "rakudoc", "nqp", "p6", "pl6", "pm6", "Rexfile"]
+shebangs = ["perl"]
+comment-token = "#"
+language-servers = [ "perlnavigator" ]
+indent = { tab-width = 2, unit = "  " }
+
+[[grammar]]
+name = "perl"
+source = { git = "https://github.com/tree-sitter-perl/tree-sitter-perl", rev = "e99bb5283805db4cb86c964722d709df21b0ac16" }
+
+[[language]]
+name = "pod"
+scope = "source.pod"
+injection-regex = "pod"
+file-types = ["pod"]
+
+[[grammar]]
+name = "pod"
+source = { git = "https://github.com/tree-sitter-perl/tree-sitter-pod", rev = "39da859947b94abdee43e431368e1ae975c0a424" }
