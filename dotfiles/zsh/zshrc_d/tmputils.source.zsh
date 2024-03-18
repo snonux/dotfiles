@@ -41,6 +41,18 @@ tmpcat () {
 }
 alias Cat=tmpcat
 
+tmpedit () {
+    local -r name=$1
+
+    if [ -z $name ]; then
+        $EDITOR $(tmpfile)
+        return
+    fi
+
+    $EDITOR $TMPUTILS_DIR/$name
+}
+alias Edit=tmpedit
+
 tmpgrep () {
     local -r name=$1 ; shift
     tmcpat $name | grep "$@"
