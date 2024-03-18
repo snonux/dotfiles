@@ -10,6 +10,8 @@ tmpls () {
 }
 alias Ls=tmpls
 
+alias cdtmp="cd $TMPUTILS_DIR"
+
 tmptee () {
     local name=$1
 
