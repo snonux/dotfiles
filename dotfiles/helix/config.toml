@@ -1,6 +1,7 @@
 theme = "noctis"
 
 [editor]
+bufferline = "always"
 rulers = [80, 100, 120, 140]
 line-number = "relative"
 mouse = true
@@ -26,19 +27,15 @@ newline = "none"
 [keys.normal]
 D = ["ensure_selections_forward", "extend_to_line_end"]
 
-y = "yank_main_selection_to_clipboard"
-p = "paste_clipboard_before"
+C-c = "yank_main_selection_to_clipboard"
+C-v = "paste_clipboard_before"
 
-C-l = ":open ~/.config/helix/languages.toml"
-C-c = ":open ~/.config/helix/config.toml"
-C-r = ":config-reload"
 C-h = ":open ~/Notes/Linux-and-Unix-Tricks/Helix.md"
 
-C-o = [":log-open", "goto_file_end"]
+C-l = [":log-open", "goto_file_end"]
 C-q = ":buffer-close"
-C-x = [ ":update", ":buffer-close" ]
 
-A-s = { e = ":set-option soft-wrap.enable true", d = ":set-option soft-wrap.enable false" }
+C-s = { e = ":set-option soft-wrap.enable true", d = ":set-option soft-wrap.enable false" }
 
 # Testing
 T = ["save_selection", "goto_file_start", "jump_backward"] 
