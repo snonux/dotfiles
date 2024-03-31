@@ -32,7 +32,6 @@ C-v = "paste_clipboard_before"
 
 C-h = ":open ~/Notes/Linux-and-Unix-Tricks/Helix.md"
 
-C-l = [":log-open", "goto_file_end"]
 C-q = ":buffer-close"
 
 C-s = { e = ":set-option soft-wrap.enable true", d = ":set-option soft-wrap.enable false" }
