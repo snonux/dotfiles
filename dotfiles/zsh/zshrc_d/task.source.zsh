@@ -170,14 +170,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         fi
     }
     alias fdue=task::fuzzy::due
-
-    task::fuzzy::done () {
-        task::select "$1"
-        if task::_confirm "Mark task $TASK_ID as done"; then
-            task $TASK_ID done
-        fi
-    }
-    alias fdone=task::fuzzy::done
+    alias fdone='task::fuzzy::due && task::done'
 
     task::sync 
 fi
