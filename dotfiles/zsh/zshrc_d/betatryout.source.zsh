@@ -2,6 +2,6 @@
 
 # Shell genie
 shellgenie::ask () {
-    shell-genie ask "$@" --explain
+    shell-genie ask "$*" --explain
 }
 alias g=shellgenie::ask
