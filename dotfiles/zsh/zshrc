@@ -238,6 +238,6 @@ if [ -f ~/git/worktime/worktime.source.zsh ]; then
     source ~/git/worktime/worktime.source.zsh
 fi
 
-# Add RVM to PATH for scripting. Make sure this is the last PATH variable change.
-#export PATH="$HOME/.rvm/bin:$PATH"
-# [[ /usr/local/bin/kubectl ]] && source <(kubectl completion zsh)
+if [ -f ~/.zshrc_local ]; then
+    source ~/.zshrc_local
+fi
