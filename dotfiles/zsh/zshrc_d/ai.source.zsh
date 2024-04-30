@@ -5,7 +5,7 @@
 ai::shellgenie::ask () {
     shell-genie ask "$*" --explain
 }
-alias sga=ai::shellgenie::ask
+alias genie=ai::shellgenie::ask
 
 # ChatGPT command line tool.
 alias gpt=chatgpt
