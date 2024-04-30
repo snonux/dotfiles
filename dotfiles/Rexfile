@@ -139,6 +139,12 @@ task 'home_scripts', sub { ensure "$DOT/scripts/*" => "$HOME/scripts/", '0750' }
 desc 'Install ~/.ssh files';
 task 'home_ssh', sub { ensure "$DOT/ssh/config" => "$HOME/.ssh/config", '0600' };
 
+desc 'Install vit configuration';
+task 'home_vit', sub {
+  file "$HOME/.vit" => ensure => 'directory', mode => '0750';
+  ensure "$DOT/vit/config.ini" => "$HOME/.vit/config.ini", '0600';
+};
+
 desc 'Install ZSH configuration';
 task 'home_zsh', sub {
   ensure "$DOT/zsh/zshrc" => "$HOME/.zshrc";

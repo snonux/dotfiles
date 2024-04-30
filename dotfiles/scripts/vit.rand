@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# Used by vit command alias to set a random due date.
+
+declare -r TASK_ID=$1
+if [ -z "$TASK_ID" ]; then
+    echo "Usage: $0 <task-id>"
+    exit 1
+fi
+
+# Generate a random number between 1 and 30
+declare -i DAYS=$(( ( RANDOM % 400 )  + 1 ))
+
+# Using `date` to compute the new due date
+declare -r NEW_DUE_DATE=$(date -d "+$DAYS days" +%Y-%m-%d)
+
+# Command to set the due date for the task
+task $TASK_ID modify due:$NEW_DUE_DATE
