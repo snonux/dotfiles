@@ -462,3 +462,4 @@ functions () {
 }
 
 alias tf=terraform
+alias search=ddgr
