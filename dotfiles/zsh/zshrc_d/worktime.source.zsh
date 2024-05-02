@@ -81,7 +81,7 @@ if [ -d $WORKTIME_DIR ]; then
         fi
 
         touch ~/.wtloggedin
-        worktime::login --what $what
+        worktime --login --what $what
         worktime::deepwork_reminder
     }
     alias wtlogin=worktime::login
