@@ -131,12 +131,12 @@ if [ -d $WORKTIME_DIR ]; then
     }
     alias pl=worktime::log::personal
 
-    worktime::log:work () {
+    worktime::log::work () {
         cd $WORKTIME_DIR
         echo "$@" > "wl-$(date +%s).txt"
         git add wl-*.txt
         git commit -m "Add work log" wl-*.txt
         cd -
     }
-    alias wl=worktime::worklog
+    alias wl=worktime::log::work
 fi
