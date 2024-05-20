@@ -21,7 +21,7 @@ sub random-due-date(Int $pick = 365 -->Str) {
 }
 
 sub add-notes(Str $dir, Bool :$dry-mode) {
-  for dir $dir, test => { /ql\-.*\./ } -> $file {
+  for dir $dir, test => { /pl\-.*\./ } -> $file {
     with $file.slurp.trim {
       if / :i ^ $<due-days> = (\d*) \s* $<tag> = (\D+?) \s+ $<body> = (.*) $ / {
         $file.unlink if add-task :$dry-mode, due-days => +$<due-days>, tag => ~$<tag>, body => ~$<body>;

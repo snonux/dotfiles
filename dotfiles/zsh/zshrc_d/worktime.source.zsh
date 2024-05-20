@@ -112,43 +112,31 @@ if [ -d $WORKTIME_DIR ]; then
 
         if [ -f ~/.wtloggedin ]; then
             echo "You are logged in"
-            if [ ! -f $WORKTIME_DIR/worklog.txt ]; then
-                return
+            local -i num_worklog=$(ls $WORKTIME_DIR | grep wl- | wc -l)
+            if [ $num_worklog -gt 0 ]; then
+                echo "$num_worklog entries in the worklog"
             fi
-            echo 'Entries in the worklog (wle to edit):'
-            wc -l $WORKTIME_DIR/worklog.txt
         else
             echo "You are not logged in"
         fi
     }
     alias wtstatus=worktime::status
 
-    worktime::quicklog () {
+    worktime::log::personal () {
         cd $WORKTIME_DIR
-        echo "$@" > "ql-$(date +%s).txt"
-        git add ql-*.txt
-        git commit -m "Add quicklog" *.txt
+        echo "$@" > "pl-$(date +%s).txt"
+        git add pl-*.txt
+        git commit -m "Add personal log" pl-*.txt
         cd -
     }
-    alias ql=worktime::quicklog
+    alias pl=worktime::log::personal
 
-    worktime::worklog () {
+    worktime::log:work () {
         cd $WORKTIME_DIR
-        date >> worklog.txt
-        echo "$@" >> worklog.txt
-        echo >> worklog.txt
-            git add worklog.txt
-        git commit -m "Add worklog" *.txt
+        echo "$@" > "wl-$(date +%s).txt"
+        git add wl-*.txt
+        git commit -m "Add work log" wl-*.txt
         cd -
     }
     alias wl=worktime::worklog
-
-    worklog::edit () {
-        cd $WORKTIME_DIR
-        $EDITOR worklog.txt
-        git add worklog.txt
-        git commit -m "Edi worklog" *.txt
-        cd -
-    }
-    alias wle=worklog::edit
 fi
