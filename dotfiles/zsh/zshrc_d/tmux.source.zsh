@@ -22,7 +22,7 @@ tmux::new () {
 
     tmux::cleanup_default
     if [ -z "$session" ]; then
-        tmux::new T$($date +%N)
+        tmux::new T$($date +%s)
     else
         tmux new-session -d -s $session
         tmux -2 attach-session -t $session | tmux -2 switch-client -t $session
