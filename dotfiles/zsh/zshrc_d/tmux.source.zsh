@@ -25,7 +25,7 @@ tmux::new () {
         tmux::new T$($date +%s)
     else
         tmux new-session -d -s $session
-        tmux -2 attach-session -t $session | tmux -2 switch-client -t $session
+        tmux -2 attach-session -t $session || tmux -2 switch-client -t $session
     fi
 }
 
