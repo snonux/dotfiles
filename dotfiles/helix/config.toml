@@ -34,7 +34,7 @@ C-h = ":open ~/Notes/Linux-and-Unix-Tricks/Helix.md"
 
 C-q = ":buffer-close"
 
-C-s = { e = ":set-option soft-wrap.enable true", d = ":set-option soft-wrap.enable false" }
+C-s = { e = ":set-option soft-wrap.enable true", d = ":set-option soft-wrap.enable false", s = "save_selection" }
 
 C-r = ":pipe gpt correct this sentence and only print out the corrected text"
 
