@@ -133,6 +133,19 @@ if [ -d $WORKTIME_DIR ]; then
 
     worktime::log::work () {
         cd $WORKTIME_DIR
+
+        if [ -z "$@" ]; then
+            grep . wl-*.txt
+            cd -
+             return
+        elif [ "$@" = clear ]; then
+            git rm wl-*.txt
+            git commit -m 'Cleaning up work log'
+            cd -
+            return
+        fi
+            
+        cd $WORKTIME_DIR
         echo "$@" > "wl-$(date +%s).txt"
         git add wl-*.txt
         git commit -m "Add work log" wl-*.txt
