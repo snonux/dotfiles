@@ -1,7 +1,5 @@
 alias tm=tmux
 alias tl='tmux list-sessions'
-alias tn=tmux::new
-alias ta=tmux::attach
 
 tmux::cleanup_default () {
     local s
@@ -28,6 +26,7 @@ tmux::new () {
         tmux -2 attach-session -t $session || tmux -2 switch-client -t $session
     fi
 }
+alias tn=tmux::new
 
 tmux::attach () {
     readonly session=$1
@@ -38,6 +37,7 @@ tmux::attach () {
         tmux attach-session -t $session || tmux::new $session
     fi
 }
+alias ta=tmux::attach
 
 # Create new session and directly SSH into the given server
 tx () {
