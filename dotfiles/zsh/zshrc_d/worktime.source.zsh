@@ -19,7 +19,7 @@ if [ -d $WORKTIME_DIR ]; then
     }
 
     worktime::report () {
-        if [ $(uname) = Darwin ]; then
+        if [ -f ~/.wtloggedin ]; then
             worktime --report | tee $WORKTIME_DIR/report.txt
             worktime::deepwork_reminder
         fi

@@ -26,6 +26,7 @@ newline = "none"
 
 [keys.normal]
 D = ["ensure_selections_forward", "extend_to_line_end"]
+S = ["ensure_selections_forward", "extend_to_line_start"]
 
 C-c = "yank_main_selection_to_clipboard"
 C-v = "paste_clipboard_before"
