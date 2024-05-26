@@ -465,5 +465,5 @@ alias tf=terraform
 alias search=ddgr
 
 touchtype () {
-    sort -R | head -n 1 | tt --showwpm --bold --theme $(tt -list themes | sort -R | head -n1) 
+    tt --showwpm --bold --theme $(tt -list themes | sort -R | head -n1) 
 }
