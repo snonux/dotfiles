@@ -20,7 +20,12 @@ if [ -d $WORKTIME_DIR ]; then
 
     worktime::report () {
         if [ -f ~/.wtloggedin ]; then
-            worktime --report | tee $WORKTIME_DIR/report.txt
+            if [ -f ~/.wtmaster ]; then
+                # Avoiding merge conflicts
+                worktime --report | tee $WORKTIME_DIR/report.txt
+            else
+                worktime --report 
+            fi
             worktime::deepwork_reminder
         fi
     }
