@@ -54,8 +54,8 @@ uprecords::collect () {
         # OpenBSD
         records_path=/var/db/uptimed/records
     else
-        # MacPorts @ Mac OS X
-	    records_path=/usr/local/var/uptimed/records
+        # Homebrew (MacOS)
+	      records_path=/opt/homebrew/var/uptimed/records
     fi
 
     cp $records_path ./stats/$hostname.records
