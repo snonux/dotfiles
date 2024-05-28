@@ -26,7 +26,7 @@ uprecords::collect () {
     readonly stamp_file=~/.uprecords.last
     local -i max_age=604800 # 1w
     local -i now=$(date +'%s')
-    readonly hostname=$(hostname | cut -d. -f1 | sed s/..-lon-mb/mega/)
+    readonly hostname=$(hostname | cut -d. -f1 | sed 's/..-lon-mb/mega/; s/MBDVXJ4XKH9C/mega-m3-pro/;')
 
     if [ $(whoami) = root ]; then
         return 1
