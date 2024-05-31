@@ -40,19 +40,14 @@ tmux::attach () {
 alias ta=tmux::attach
 
 # Create new session and directly SSH into the given server
-tx () {
+tmux::remote () {
     readonly server=$1
     tmux new -s $server "ssh -t $server 'tmux attach-session || tmux'" || tmux attach-session -d -t $server
 }
-
-# Create new session and directly SSH into the given server (GNU Screen version)
-txs () {
-    readonly server=$1
-    tmux new -s $server "ssh -t $server 'screen -d -RR -m -S default'" || tmux attach-session -d -t $server
-}
+alias tx=tmux::remote
 
 # Fuzzy search tmux session and attach or switch to it.
-ts () {
+tmux::search () {
     local -r session=$(tmux list-sessions | fzf | cut -d: -f1)
     if [ -z "$TMUX" ]; then
         tmux attach-session -t $session
@@ -60,9 +55,10 @@ ts () {
         tmux switch -t $session
     fi
 }
+alias ts=tmux::search
 
 # SSH into multiple servers, one tmux pane per server.
-tssh () {
+tmux::cluster_ssh () {
     if [ -f "$1" ]; then
         tmux::tssh_from_file $1
         return
@@ -70,6 +66,7 @@ tssh () {
 
     tmux::tssh_from_argument $@
 }
+alias tssh=tmux::cluster_ssh
 
 # Create a new tmux session with many servers in it
 tmux::tssh_from_argument () {
