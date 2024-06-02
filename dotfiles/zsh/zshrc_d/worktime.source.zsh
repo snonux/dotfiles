@@ -128,14 +128,15 @@ if [ -d $WORKTIME_DIR ]; then
     }
     alias wtstatus=worktime::status
 
-    worktime::log::personal () {
+    worktime::log::personal::quick () {
         cd $WORKTIME_DIR
-        echo "$@" > "pl-$(date +%s).txt"
-        git add pl-*.txt
-        git commit -m "Add personal log" pl-*.txt
+        echo "$@" > "ql-$(date +%s).txt"
+        git add ql-*.txt
+        git commit -m "Add personal log" ql-*.txt
         cd -
     }
-    alias pl=worktime::log::personal
+    alias ql=worktime::log::personal::quick
+    alias pl=worktime::log::personal::quick
 
     worktime::log::work () {
         cd $WORKTIME_DIR
