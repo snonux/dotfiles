@@ -30,9 +30,10 @@ S = ["ensure_selections_forward", "extend_to_line_start"]
 
 C-c = "yank_main_selection_to_clipboard"
 C-v = "paste_clipboard_before"
+A-c = "toggle_comments" # Was originally C-c, so mapped to ALT now
 
 # Helix related helpers
-C-h = { c = ":config-open", r = ":config-reload", C = ":open ~/git/rexfiles/dotfiles/helix/config.toml", h = ":open ~/Notes/Linux-and-Unix-Tricks/Helix.md" }
+C-h = { c = ":config-open", r = ":config-reload", C = ":run-shell-command cp -v ~/.config/helix/config.toml ~/git/rexfiles/dotfiles/helix/config.toml", h = ":open ~/Notes/Linux-and-Unix-Tricks/Helix.md" }
 
 # Various helpers
 C-s = { e = ":set-option soft-wrap.enable true", d = ":set-option soft-wrap.enable false", s = "save_selection" }
@@ -41,4 +42,4 @@ C-s = { e = ":set-option soft-wrap.enable true", d = ":set-option soft-wrap.enab
 C-q = ":buffer-close"
 
 # AI stuff
-C-a = ":pipe gpt correct this sentence and only print out the corrected text"
+C-a = { c = ":pipe gpt correct this sentence and only print out the corrected text", r = ":pipe gpt reword and clarify this sentence and only print out the reworded text" }
