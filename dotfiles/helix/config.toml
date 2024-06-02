@@ -1,4 +1,4 @@
-theme = "default"
+theme = "noctis"
 
 [editor]
 bufferline = "always"
@@ -28,39 +28,17 @@ newline = "none"
 D = ["ensure_selections_forward", "extend_to_line_end"]
 S = ["ensure_selections_forward", "extend_to_line_start"]
 
-# Copy and paste
 C-c = "yank_main_selection_to_clipboard"
 C-v = "paste_clipboard_before"
-
-[editor]
-bufferline = "always"
-rulers = [80, 100, 120, 140]
-line-number = "relative"
-mouse = true
-    
-[editor.statusline]
-left = ["mode", "spinner", "file-name", "position", "version-control"]
-center = ["diagnostics"]
-right = ["selections", "file-encoding", "file-line-ending", "file-type"]
-
-[editor.lsp]
-display-messages = true
 
 # Helix related helpers
 C-h = { c = ":config-open", r = ":config-reload", C = ":open ~/git/rexfiles/dotfiles/helix/config.toml", h = ":open ~/Notes/Linux-and-Unix-Tricks/Helix.md" }
 
-# AI stuff
-C-a = ":pipe gpt correct this sentence and only print out the corrected text"
-
 # Various helpers
 C-s = { e = ":set-option soft-wrap.enable true", d = ":set-option soft-wrap.enable false", s = "save_selection" }
 
-# Comments stuff
-A-c = "toggle_comments"
-
 # Buffer stuff
 C-q = ":buffer-close"
-A-c = "toggle_comments"
 
-# Buffer stuff
-C-q = ":buffer-close"
+# AI stuff
+C-a = ":pipe gpt correct this sentence and only print out the corrected text"
