@@ -4,9 +4,9 @@ alias tl='tmux list-sessions'
 tmux::cleanup_default () {
     local s
     tmux list-sessions | grep '^T.*: ' | grep -F -v attached |
-    cut -d: -f1 | while read s; do
-        echo Killing $s
-        tmux kill-session -t $s
+    cut -d: -f1 | while read -r s; do
+        echo "Killing $s"
+        tmux kill-session -t "$s"
     done
 }
 
