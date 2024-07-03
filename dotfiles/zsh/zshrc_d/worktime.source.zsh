@@ -143,11 +143,11 @@ if [ -d $WORKTIME_DIR ]; then
         cd $WORKTIME_DIR
 
         if [ -z "$@" ]; then
-            grep . wl-*.txt
+            grep . wl-*.txt 2>/dev/null
             cd -
              return
         elif [ "$@" = clear ]; then
-            git rm wl-*.txt
+            git rm wl-*.txt 2>/dev/null
             git commit -m 'Cleaning up work log'
             cd -
             return
