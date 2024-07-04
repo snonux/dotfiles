@@ -42,4 +42,4 @@ C-s = { e = ":set-option soft-wrap.enable true", d = ":set-option soft-wrap.enab
 C-q = ":buffer-close"
 
 # AI stuff
-C-a = { c = ":pipe gpt correct this sentence and only print out the corrected text", r = ":pipe gpt reword and clarify this sentence and only print out the reworded text" }
+C-a = { c = ":pipe chatgpt correct this sentence and only print out the corrected text", r = ":pipe chatgpt restructure and reword the input and dont leave information out and only print out the new text" }

@@ -7,5 +7,8 @@ ai::shellgenie::ask () {
 }
 alias genie=ai::shellgenie::ask
 
-# ChatGPT command line tool.
-alias gpt=chatgpt
+ai::chatgpt () {
+    chatgpt "$@" | less
+}
+
+alias gpt=ai::chatgpt

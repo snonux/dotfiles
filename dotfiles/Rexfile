@@ -99,6 +99,8 @@ task 'pkg_fedora', sub {
     fzf 
     golang 
     golang-x-tools-gopls 
+    terraform
+    terraform-ls
     gpaste 
     gron 
     htop 
