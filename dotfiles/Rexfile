@@ -9,6 +9,7 @@ our $DOT_PRIVATE = "$HOME/git/rexfiles_private/dotfiles";
 
 sub ensure_dir {
   my ($src_glob, $dst_dir, $file_mode) = @_;
+  Rex::Logger::info("Ensure dir glob $src_glob");
 
   file $dst_dir,
     ensure => 'directory',
