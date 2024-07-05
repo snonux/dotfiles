@@ -41,5 +41,18 @@ C-s = { e = ":set-option soft-wrap.enable true", d = ":set-option soft-wrap.enab
 # Buffer stuff
 C-q = ":buffer-close"
 
-# AI stuff
-C-a = { c = ":pipe chatgpt correct this sentence and only print out the corrected text", r = ":pipe chatgpt restructure and reword the input and dont leave information out and only print out the new text" }
+# AI minor mode
+[keys.normal.A]
+c = ":pipe chatgpt correct this sentence and only print out the corrected text"
+r = ":pipe chatgpt restructure and reword the input and dont leave information out and only print out the new text" 
+
+# Git minor mode
+[keys.normal.G]
+t = ":run-shell-command tmux new-window -n hx-git-tig tig"
+d = ":run-shell-command git diff"
+c = ":run-shell-command tmux split-window -v 'git commit -a'"
+
+# Build minor mode
+[keys.normal.B]
+m = ":run-shell-command make"
+d = ":run-shell-command go-task dev"
