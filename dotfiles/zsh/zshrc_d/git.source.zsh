@@ -18,3 +18,15 @@ git::quickpush () {
     git push
 }
 alias gp=git::quickpush
+
+
+git::fzf::init () {
+    if [ -f ~/git/fzf-git.sh/fzf-git.sh ]; then
+        source ~/git/fzf-git.sh/fzf-git.sh
+        return
+    fi    
+    echo 'fzf-git not on this system'
+}
+
+git::fzf::init
+
