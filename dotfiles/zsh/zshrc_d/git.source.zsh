@@ -18,3 +18,23 @@ git::quickpush () {
     git push
 }
 alias gp=git::quickpush
+
+
+git::fzf::init () {
+    # Uses `bat` command for syntax highlighting
+    if [ -f ~/git/fzf-git.sh/fzf-git.sh ]; then
+        source ~/git/fzf-git.sh/fzf-git.sh
+        return
+    fi    
+    echo 'fzf-git not on this system'
+}
+
+git::init () {
+    git::fzf::init
+    if [ ! where delta 2>/dev/null ]; then
+        echo 'git-delta not installed'
+    fi
+}
+
+git::init
+
