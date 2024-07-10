@@ -80,7 +80,7 @@ file-types = [
 ]
 shebangs = ["ruby"]
 comment-token = "#"
-language-servers = [ "solargraph" ]
+language-servers = [ "ruby-lsp", "solargraph", "rubocop" ]
 indent = { tab-width = 2, unit = "  " }
 
 [[grammar]]
@@ -123,6 +123,8 @@ source = { git = "https://github.com/tree-sitter/tree-sitter-bash", rev = "275ef
 [language-server]
 bash-language-server = { command = "bash-language-server", args = ["start"] }
 vale-ls = { command = "vale-ls" }
+ruby-lsp = { command = "ruby-lsp "}
+rubocop = { command = "rubocop", args = ["--lsp"] }
 
 [[language]]
 name = "markdown"
