@@ -35,10 +35,25 @@ def random_quote(md_file)
   yield tag, quote.chomp, "#{rand(0..timespan)}d"
 end
 
-def taskwarrior!(tag, quote, due, dry)
-  cmd = "task add due:#{due} +#{tag.capitalize} '#{quote.gsub("'", '"')}'"
+def run!(cmd, dry)
   puts cmd
   puts %x{#{cmd}} unless dry
+end
+
+def task_add!(tag, quote, due, dry)
+  run! "task add due:#{due} +#{tag.capitalize} '#{quote.gsub("'", '"')}'", dry
+end
+
+def task_schedule!(id, due, dry)
+  run! "task modify #{id} due:#{due}", dry
+end
+
+def unscheduled_tasks
+  lines = %x{task due:}.split("\n").drop(1)
+  lines.pop
+  lines.map{ |line| line.split.first }.each do |id|
+    yield id if id.to_i > 0
+  end  
 end
 
 begin
@@ -67,17 +82,21 @@ begin
       puts opts
       exit
     end
-  end
+ end
 
   opt_parser.parse!(ARGV)
 
   notes(options[:notes_dirs].split(','), options[:dry_run]) do |tag, note, due|
-    taskwarrior!(tag, note, due, options[:dry_run])
+    task_add!(tag, note, due, options[:dry_run])
   end
 
   Dir["#{options[:quotes_dir]}/*.md"].each do |md_file|
     random_quote(md_file) do |tag, quote, due| 
-      taskwarrior!(tag, quote, due, options[:dry_run])
+      task_add!(tag, quote, due, options[:dry_run])
     end
   end
+
+  unscheduled_tasks do |id|
+    task_schedule!(id, "#{rand(0..DEFAULT_TIMESPAN_D)}d", options[:dry_run])
+  end  
 end
