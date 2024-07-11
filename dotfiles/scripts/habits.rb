@@ -2,11 +2,28 @@
 
 require 'optparse'
 
-# Gets a random item from the quotes file
-class RandomQuote
-  def initialize(md_path)
-    @md_path = md_path
-  end
+DEFAULT_TIMESPAN_D = 365
+AUTO_PREFIX = 'auto'.freeze
+
+def random_quote(md_file)
+  return unless [true, false].sample
+
+  category = File.basename(md_file, '.md').downcase
+  lines = File.readlines(md_file)
+
+  match = lines.first.match(/\((\d+)\)/)
+  timespan = match ? match[1].to_i : DEFAULT_TIMESPAN_D
+
+  quote = lines.select { |l| l.start_with? '*' }
+               .map { |l| l.sub(/\* +/, '') }
+               .sample
+
+  yield category, quote, "#{rand(0..timespan)}d"
+end
+
+def taskwarrior!(category, quote, due)
+  cmd = "task add due:#{due} +#{AUTO_PREFIX}_#{category} '#{quote.gsub("'", '"')}'"
+  puts cmd
 end
 
 begin
@@ -15,13 +32,12 @@ begin
   }
 
   opt_parser = OptionParser.new do |opts|
-    opts.banner = "Usage: ruby habits.rb [options]"
+    opts.banner = 'Usage: ruby habits.rb [options]'
 
     opts.on('-d', '--quotes-dir DIR', 'The quotes directory') do |name|
       options[:quotes_dir] = name
     end
 
-    # Define any other options as needed
     opts.on_tail('-h', '--help', 'Show this help message and exit') do
       puts opts
       exit
@@ -29,4 +45,10 @@ begin
   end
 
   opt_parser.parse!(ARGV)
+
+  Dir["#{options[:quotes_dir]}/*.md"].each do |md_file|
+    random_quote(md_file) do |category, quote, due| 
+      taskwarrior!(category, quote, due)
+    end
+  end
 end
