@@ -62,46 +62,33 @@ def unscheduled_tasks
 end
 
 begin
-  options = {
+  opts = {
     quotes_dir: "#{ENV['HOME']}/Notes/HabitsAndQuotes",
     notes_dirs: "#{ENV['HOME']}/Notes,#{ENV['HOME']}/git/worktime",
     dry_run: false,
   }
 
-  opt_parser = OptionParser.new do |opts|
-    opts.banner = 'Usage: ruby habits.rb [options]'
-
-    opts.on('-d', '--quotes-dir DIR', 'The quotes directory') do |value|
-      options[:quotes_dir] = value
-    end
-
-    opts.on('-n', '--notes-dirs DIR1,DIR2,...', 'The notes directories') do |value|
-      options[:notes_dirs] = value
-    end
-
-    opts.on('-D', '--dry-run', 'Dry run mode') do
-      options[:dry_run] = true
-    end
-
-    opts.on_tail('-h', '--help', 'Show this help message and exit') do
-      puts opts
-      exit
-    end
+  opt_parser = OptionParser.new do |o|
+    o.banner = 'Usage: ruby taskwarriorfeeder.rb [options]'
+    o.on('-d', '--quotes-dir DIR', 'The quotes directory') { |v| opts[:quotes_dir] = v }
+    o.on('-n', '--notes-dirs DIR1,DIR2,...', 'The notes directories') { |v| opts[:notes_dirs] = v }
+    o.on('-D', '--dry-run', 'Dry run mode') { opts[:dry_run] = true }
+    o.on_tail('-h', '--help', 'Show this help message and exit') { puts o; exit }
   end
 
   opt_parser.parse!(ARGV)
 
-  notes(options[:notes_dirs].split(','), options[:dry_run]) do |tag, note, due|
-    task_add!(tag, note, due, options[:dry_run])
+  notes(opts[:notes_dirs].split(','), opts[:dry_run]) do |tag, note, due|
+    task_add!(tag, note, due, opts[:dry_run])
   end
 
-  Dir["#{options[:quotes_dir]}/*.md"].each do |md_file|
+  Dir["#{opts[:quotes_dir]}/*.md"].each do |md_file|
     random_quote(md_file) do |tag, quote, due| 
-      task_add!(tag, quote, due, options[:dry_run])
+      task_add!(tag, quote, due, opts[:dry_run])
     end
   end
 
   unscheduled_tasks do |id|
-    task_schedule!(id, "#{rand(0..DEFAULT_TIMESPAN_D)}d", options[:dry_run])
+    task_schedule!(id, "#{rand(0..DEFAULT_TIMESPAN_D)}d", opts[:dry_run])
   end  
 end
