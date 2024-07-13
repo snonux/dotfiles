@@ -5,10 +5,13 @@ MIN_PERCENTAGE = 80
 MIN_LENGTH = 10
 
 class String
-  CLEAN_PATTERN = [ /\d\d\d-\d\d-\d\d/, /[^A-Za-z0-9!.;,?'" ]/, /\S+\.gmi/, /^\./, /^\d/ ]
+  CLEAN_PATTERN = [ 
+    /\d\d\d-\d\d-\d\d/, /[^A-Za-z0-9!.;,?'" @]/, 
+    /http.?:\/\/\S+/, /\S+\.gmi/, /^\./, /^\d/,
+  ]
   def clean
     CLEAN_PATTERN.each {|p| gsub! p, '' }
-    strip
+    gsub(/\s+/, ' ').strip
   end
   def letter_percentage?(threshold) = threshold <= (100 * count("A-Za-z")) / length  
 end
@@ -19,6 +22,7 @@ begin
            .map(&:clean)
            .select{ |l| l.length >= MIN_LENGTH }
            .reject{ |l| l.match?(/Published at/) }
+           .reject{ |l| l.match?(/'|" book notes/) }
            .select{ |l| l.letter_percentage?(MIN_PERCENTAGE) }
            .sample
 end

@@ -471,6 +471,9 @@ touchtype () {
 }
 
 touchtype::notes () {
-    ruby ~/scripts/randomnote.rb | touchtype
+    while : ; do 
+        ruby ~/scripts/randomnote.rb | touchtype
+        sleep 0.2
+    done    
 }
 alias ttn=touchtype::notes
