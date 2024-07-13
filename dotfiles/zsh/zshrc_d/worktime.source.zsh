@@ -131,9 +131,9 @@ if [ -d $WORKTIME_DIR ]; then
 
     worktime::log::personal::quick () {
         cd $WORKTIME_DIR
-        echo "$@" > "ql-$(date +%s).txt"
-        git add ql-*.txt
-        git commit -m "Add personal log" ql-*.txt
+        echo "$@" > "pl-$(date +%s).txt"
+        git add pl-*.txt
+        git commit -m "Add personal log" pl-*.txt
         cd -
     }
     alias ql=worktime::log::personal::quick

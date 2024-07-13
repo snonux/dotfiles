@@ -19,11 +19,11 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         fi
     }
 
-    task::rakurize () {
-        if [ -d ~/Notes ]; then
-            cd ~/Notes
+    task::rubyize () {
+        if [ -f ~/scripts/taskwarriorfeeder.rb ]; then
             ruby ~/scripts/taskwarriorfeeder.rb
-            cd -
+        else
+            echo 'taskwarrior feeder script not installed!' >&2
         fi
     }
 
@@ -116,7 +116,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
             fi
         fi
 
-        task::rakurize
+        task::rubyize
         echo $now > $stamp_file
     }
     alias tsync='task::sync force; task::due'
