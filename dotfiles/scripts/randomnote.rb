@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 
 NOTES_DIR = "#{ENV['HOME']}/git/foo.zone-content/gemtext/notes"
+BOOK_PATH = "#{ENV['HOME']}/Buecher/Diverse/Search-Inside-Yourself.txt"
 MIN_PERCENTAGE = 80
 MIN_LENGTH = 10
 
@@ -17,11 +18,13 @@ class String
 end
 
 begin
-  puts File.read(Dir["#{NOTES_DIR}/*.gmi"].sample)
+  files = Dir["#{NOTES_DIR}/*.gmi"]
+  files << BOOK_PATH
+  puts File.read(files.sample)
            .split("\n")
            .map(&:clean)
            .select{ |l| l.length >= MIN_LENGTH }
-           .reject{ |l| l.match?(/Published at/) }
+           .reject{ |l| l.match?(/(Published at|EMail your comments/) }
            .reject{ |l| l.match?(/'|" book notes/) }
            .select{ |l| l.letter_percentage?(MIN_PERCENTAGE) }
            .sample
