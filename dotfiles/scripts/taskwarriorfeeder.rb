@@ -41,7 +41,7 @@ def run!(cmd, dry)
 end
 
 def task_add!(tag, quote, due, dry)
-  run! "task add due:#{due} +#{tag.capitalize} '#{quote.gsub("'", '"')}'", dry
+  run! "task add due:#{due} +#{tag.upcase} '#{quote.gsub("'", '"')}'", dry
 end
 
 def task_schedule!(id, due, dry)
