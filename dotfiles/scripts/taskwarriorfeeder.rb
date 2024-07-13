@@ -2,7 +2,8 @@
 
 require 'optparse'
 
-DEFAULT_TIMESPAN_D = 365
+PERSONAL_TIMESPAN_D = 365
+WORK_TIMESPAN_D = 14
 WORKTIME_DIR = "#{ENV['HOME']}/git/worktime".freeze
 
 def maybe?
@@ -19,8 +20,8 @@ def notes(notes_dirs, prefix, dry)
       match = File.read(notes_file).strip.match(/(?<due>\d+)? *(?<tag>[a-z]+) *(?<body>.*)/)
       next unless match
 
-      due = match[:due].nil? ? rand(0..DEFAULT_TIMESPAN_D) : match[:due]
-      yield [match[:tag],prefix], match[:body], "#{due}d"
+      due = match[:due].nil? ? rand(0..PERSONAL_TIMESPAN_D) : match[:due]
+      yield [match[:tag].upcase,prefix], match[:body], "#{due}d"
       File.delete(notes_file) unless dry
     end
   end
@@ -31,18 +32,24 @@ def random_quote(md_file)
   lines = File.readlines(md_file)
 
   match = lines.first.match(/\((\d+)\)/)
-  timespan = match ? match[1].to_i : DEFAULT_TIMESPAN_D
+  timespan = personal? ? PERSONAL_TIMESPAN_D : WORK_TIMESPAN_D
+  timespan = match ? match[1].to_i : timespan
 
-  quote = lines.select { |l| l.start_with? '*' }
-               .map { |l| l.sub(/\* +/, '') }
-               .sample
-
-  yield [tag, 'randomquote'], quote.chomp, "#{rand(0..timespan)}d"
+  quote = lines.select { |l| l.start_with? '*' }.map { |l| l.sub(/\* +/, '') }.sample
+  yield [tag.upcase, 'randomquote'], quote.chomp, "#{rand(0..timespan)}d"
 end
 
 def run!(cmd, dry)
   puts cmd
   puts %x(#{cmd}) unless dry
+end
+
+def worklog_add!(tag, quote, due, dry)
+  file = "#{WORKTIME_DIR}/wl-#{Time.now.to_i}n.txt"
+  content = "#{due.chomp 'd'} #{tag} #{quote}"
+
+  puts "#{file}: #{content}"
+  File.write(file, content) unless dry
 end
 
 def task_add!(tags, quote, due, dry)
@@ -80,7 +87,11 @@ begin
 
   (personal? ? %w[ql pl] : %w[wl]).each do |prefix|
     notes(opts[:notes_dirs].split(','), prefix, opts[:dry_run]) do |tags, note, due|
-      task_add!(tags, note, due, opts[:dry_run])
+      if tags.include? 'WORK'
+        worklog_add!(:log, note, due, opts[:dry_run])
+      else
+        task_add!(tags, note, due, opts[:dry_run])
+      end
     end
   end
 
@@ -93,6 +104,6 @@ begin
   end
 
   unscheduled_tasks do |id|
-    task_schedule!(id, "#{rand(0..DEFAULT_TIMESPAN_D)}d", opts[:dry_run])
+    task_schedule!(id, "#{rand(0..PERSONAL_TIMESPAN_D)}d", opts[:dry_run])
   end
 end

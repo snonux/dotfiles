@@ -40,8 +40,9 @@ if [ -d $WORKTIME_DIR ]; then
             git add Productivity.md 
         fi
 
+        find . -name \*.txt -exec git add {} \;
         git add db.*.json
-        git commit -a -m 'sync worktime'
+        git commit -a -m sync
         git pull origin master
         git push origin master
         cd -
