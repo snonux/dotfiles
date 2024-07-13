@@ -40,18 +40,6 @@ dotfiles::visual () {
 }
 alias .v=dotfiles::visual
 
-#dotfiles::backup::helix () {
-#  local -r prev_pwd="$(pwd)"
-#  cd ~/git/rexfiles/dotfiles/helix &&
-#    cp ~/.config/helix/*.toml . &&
-#    git add *.toml &&
-#    git commit -m "Updating Helix config" *.toml
-#  git pull
-#  git push
-#  cd "$prev_pwd"
-#}
-#alias .hx=dotfiles::backup::helix
-
 dotfiles::rexify () {
   local -r prev_pwd="$(pwd)"
   cd ~/git/rexfiles/dotfiles/

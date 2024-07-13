@@ -12,9 +12,9 @@ if [ -d $WORKTIME_DIR ]; then
     alias wt=worktime
     alias wtedit='worktime --edit'
 
-    worktime::deepwork_reminder () {
-        if [ $WORKTIME_DIR/DeepWork.md ]; then
-            sed -n '/^\* / { s/\* //; p; }' $WORKTIME_DIR/DeepWork.md | sort -R | head -n 1
+    worktime::productivity_reminder () {
+        if [ $WORKTIME_DIR/Productivity.md ]; then
+            sed -n '/^\* / { s/\* //; p; }' $WORKTIME_DIR/Productivity.md | sort -R | head -n 1
         fi
     }
 
@@ -26,7 +26,7 @@ if [ -d $WORKTIME_DIR ]; then
             else
                 worktime --report 
             fi
-            worktime::deepwork_reminder
+            worktime::productivity_reminder
         fi
     }
     alias wtreport=worktime::report
@@ -35,9 +35,9 @@ if [ -d $WORKTIME_DIR ]; then
 
     worktime::sync () {
         cd $WORKTIME_DIR
-        if [ -f ~/Notes/HabitsAndQuotes/DeepWork.md ]; then
-            cp ~/Notes/HabitsAndQuotes/DeepWork.md .
-            git add DeepWork.md 
+        if [ -f ~/Notes/HabitsAndQuotes/Productivity.md ]; then
+            cp ~/Notes/HabitsAndQuotes/Productivity.md .
+            git add Productivity.md 
         fi
 
         git add db.*.json
@@ -89,7 +89,7 @@ if [ -d $WORKTIME_DIR ]; then
 
         touch ~/.wtloggedin
         worktime --login --what $what
-        worktime::deepwork_reminder
+        worktime::productivity_reminder
     }
     alias wtlogin=worktime::login
 

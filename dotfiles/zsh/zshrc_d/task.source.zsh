@@ -22,7 +22,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     task::rakurize () {
         if [ -d ~/Notes ]; then
             cd ~/Notes
-            raku ~/scripts/taskwarriorfeeder.raku
+            ruby ~/scripts/taskwarriorfeeder.rb
             cd -
         fi
     }
