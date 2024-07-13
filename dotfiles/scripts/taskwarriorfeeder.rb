@@ -3,22 +3,27 @@
 require 'optparse'
 
 DEFAULT_TIMESPAN_D = 365
+WORKTIME_DIR = "#{ENV['HOME']}/git/worktime".freeze
 
-def notes(notes_dirs, dry)
+def maybe?
+  [true, false].sample
+end
+
+def personal?
+  %x(uname).chomp == 'Linux'
+end
+
+def notes(notes_dirs, prefix, dry)
   notes_dirs.each do |notes_dir|
-    Dir["#{notes_dir}/ql-*"].each do |notes_file|
+    Dir["#{notes_dir}/#{prefix}-*"].each do |notes_file|
       match = File.read(notes_file).strip.match(/(?<due>\d+)? *(?<tag>[a-z]+) *(?<body>.*)/)
       next unless match
 
       due = match[:due].nil? ? rand(0..DEFAULT_TIMESPAN_D) : match[:due]
-      yield match[:tag], match[:body], "#{due}d"
+      yield [match[:tag],prefix], match[:body], "#{due}d"
       File.delete(notes_file) unless dry
     end
   end
-end
-
-def maybe?
-  [true, false].sample
 end
 
 def random_quote(md_file)
@@ -32,7 +37,7 @@ def random_quote(md_file)
                .map { |l| l.sub(/\* +/, '') }
                .sample
 
-  yield tag, quote.chomp, "#{rand(0..timespan)}d"
+  yield [tag, 'randomquote'], quote.chomp, "#{rand(0..timespan)}d"
 end
 
 def run!(cmd, dry)
@@ -40,8 +45,8 @@ def run!(cmd, dry)
   puts %x(#{cmd}) unless dry
 end
 
-def task_add!(tag, quote, due, dry)
-  run! "task add due:#{due} +#{tag.capitalize} '#{quote.gsub("'", '"')}'", dry
+def task_add!(tags, quote, due, dry)
+  run! "task add due:#{due} +#{tags.join(' +')} '#{quote.gsub("'", '"')}'", dry
 end
 
 def task_schedule!(id, due, dry)
@@ -57,48 +62,37 @@ def unscheduled_tasks
 end
 
 begin
-  options = {
+  opts = {
     quotes_dir: "#{ENV['HOME']}/Notes/HabitsAndQuotes",
     notes_dirs: "#{ENV['HOME']}/Notes,#{ENV['HOME']}/git/worktime",
     dry_run: false
   }
 
-  opt_parser = OptionParser.new do |opts|
-    opts.banner = 'Usage: ruby habits.rb [options]'
-
-    opts.on('-d', '--quotes-dir DIR', 'The quotes directory') do |value|
-      options[:quotes_dir] = value
-    end
-
-    opts.on('-n', '--notes-dirs DIR1,DIR2,...', 'The notes directories') do |value|
-      options[:notes_dirs] = value
-    end
-
-    opts.on('-D', '--dry-run', 'Dry run mode') do
-      options[:dry_run] = true
-    end
-
-    opts.on_tail('-h', '--help', 'Show this help message and exit') do
-      puts opts
-      exit
-    end
+  opt_parser = OptionParser.new do |o|
+    o.banner = 'Usage: ruby taskwarriorfeeder.rb [options]'
+    o.on('-d', '--quotes-dir DIR', 'The quotes directory') { |v| opts[:quotes_dir] = v }
+    o.on('-n', '--notes-dirs DIR1,DIR2,...', 'The notes directories') { |v| opts[:notes_dirs] = v }
+    o.on('-D', '--dry-run', 'Dry run mode') { opts[:dry_run] = true }
+    o.on_tail('-h', '--help', 'Show this help message and exit') { puts o and exit }
   end
 
   opt_parser.parse!(ARGV)
 
-  notes(options[:notes_dirs].split(','), options[:dry_run]) do |tag, note, due|
-    task_add!(tag, note, due, options[:dry_run])
+  (personal? ? %w[ql pl] : %w[wl]).each do |prefix|
+    notes(opts[:notes_dirs].split(','), prefix, opts[:dry_run]) do |tags, note, due|
+      task_add!(tags, note, due, opts[:dry_run])
+    end
   end
 
-  Dir["#{options[:quotes_dir]}/*.md"].each do |md_file|
+  Dir["#{opts[:quotes_dir]}/*.md"].each do |md_file|
     next unless maybe?
 
-    random_quote(md_file) do |tag, quote, due|
-      task_add!(tag, quote, due, options[:dry_run])
+    random_quote(md_file) do |tags, quote, due|
+      task_add!(tags, quote, due, opts[:dry_run])
     end
   end
 
   unscheduled_tasks do |id|
-    task_schedule!(id, "#{rand(0..DEFAULT_TIMESPAN_D)}d", options[:dry_run])
+    task_schedule!(id, "#{rand(0..DEFAULT_TIMESPAN_D)}d", opts[:dry_run])
   end
 end
