@@ -3,21 +3,26 @@
 require 'optparse'
 
 DEFAULT_TIMESPAN_D = 365
+WORKTIME_DIR = "#{ENV['HOME']}/git/worktime"
+
+def maybe? = [true, false].sample
+def personal? = %x{uname}.chomp == 'Linux'
 
 def notes(notes_dirs, dry)
-  notes_dirs.each do |notes_dir|
-    Dir["#{notes_dir}/ql-*"].each do |notes_file|
-      match = File.read(notes_file).strip.match(/(?<due>\d+)? *(?<tag>[a-z]+) *(?<body>.*)/)
-      next unless match
+  prefixes = personal? ? %w{ql pl} : %w{wl} # Quicklog, personal log or work log?
+  prefixes.each do |prefix|
+    notes_dirs.each do |notes_dir|
+      Dir["#{notes_dir}/#{prefix}-*"].each do |notes_file|
+        match = File.read(notes_file).strip.match(/(?<due>\d+)? *(?<tag>[a-z]+) *(?<body>.*)/)
+        next unless match
 
-      due = match[:due].nil? ? rand(0..DEFAULT_TIMESPAN_D) : match[:due]
-      yield match[:tag], match[:body], "#{due}d"
-      File.delete(notes_file) unless dry
+        due = match[:due].nil? ? rand(0..DEFAULT_TIMESPAN_D) : match[:due]
+        yield match[:tag], match[:body], "#{due}d"
+        File.delete(notes_file) unless dry
+      end
     end
   end
 end
-
-def maybe? = [true, false].sample
 
 def random_quote(md_file)
   return unless maybe?
@@ -82,7 +87,7 @@ begin
       puts opts
       exit
     end
- end
+  end
 
   opt_parser.parse!(ARGV)
 
