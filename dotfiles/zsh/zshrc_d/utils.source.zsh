@@ -476,4 +476,4 @@ touchtype::notes () {
         sleep 0.2
     done    
 }
-alias ttn=touchtype::notes
+alias typing=touchtype::notes
