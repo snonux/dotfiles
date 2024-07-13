@@ -464,6 +464,13 @@ functions () {
 alias tf=terraform
 alias search=ddgr
 
+# Touch type commands
+
 touchtype () {
     tt --showwpm --bold --theme $(tt -list themes | sort -R | head -n1) 
 }
+
+touchtype::notes () {
+    ruby ~/scripts/randomnote.rb | touchtype
+}
+alias ttn=touchtype::notes
