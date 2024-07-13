@@ -18,9 +18,7 @@ class String
 end
 
 begin
-  files = Dir["#{NOTES_DIR}/*.gmi"]
-  files << BOOK_PATH
-  puts File.read(files.sample)
+  puts File.read((Dir["#{NOTES_DIR}/*.gmi"] + [BOOK_PATH]).sample)
            .split("\n")
            .map(&:clean)
            .select{ |l| l.length >= MIN_LENGTH }
