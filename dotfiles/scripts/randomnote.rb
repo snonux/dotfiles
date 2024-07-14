@@ -19,12 +19,12 @@ end
 
 begin
   srand Random.new_seed
-  puts File.read((Dir["#{NOTES_DIR}/*.gmi"] + [BOOK_PATH]).sample)
+  puts File.read((Dir["#{NOTES_DIR}/*.gmi"] + [BOOK_PATH]).shuffle.sample)
            .split("\n")
            .map(&:clean)
            .select{ |l| l.length >= MIN_LENGTH }
            .reject{ |l| l.match?(/(Published at|EMail your comments)/) }
-           .reject{ |l| l.match?(/'|" book notes/) }
+           .reject{ |l| l.match?(/'|book notes/) }
            .select{ |l| l.letter_percentage?(MIN_PERCENTAGE) }
-           .sample
+           .shuffle.sample
 end
