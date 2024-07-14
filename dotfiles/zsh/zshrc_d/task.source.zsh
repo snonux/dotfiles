@@ -2,6 +2,11 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias t='task'
     alias j='task add +journal'
 
+    local date=date
+    if where gdate &>/dev/null; then
+        date=gdate
+    fi
+
     task::_confirm () {
         local -r message="$1"; shift
         if [ "$TASK_AUTO_CONFIRM" = yes ]; then
@@ -29,7 +34,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
 
     task::due () { 
         task active
-        task due.before:$(date +%Y-%m-%d --date '7 days')
+        task due.before:$($date +%Y-%m-%d --date '7 days')
     }
     alias tdue=task::due
     task::due
@@ -77,7 +82,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     task::random::due_date () {
         local -i seed="$1"
         local -i due_days=$(( ($RANDOM + $seed) % 365))
-        date +%Y-%m-%d --date "$due_days days"
+        $date +%Y-%m-%d --date "$due_days days"
     }
 
     task::randomize () {
@@ -107,7 +112,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         readonly stamp_file=~/.tasksync.last
 
         local -i max_age=86400
-        local -i now=$(date +'%s')
+        local -i now=$($date +'%s')
 
         if [[ "$force" != 'force' && -f $stamp_file ]]; then
             local -i diff=$(( now - $(cat $stamp_file) ))
@@ -161,7 +166,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     task::fuzzy::due () {
         local -r flag="$1"
 
-        TASK_ID=$(task limit:0 due.before:$(date +%Y-%m-%d --date '7 days') |
+        TASK_ID=$(task limit:0 due.before:$($date +%Y-%m-%d --date '7 days') |
             sed -E '/^$/d; /^[[:digit:]]+ tasks/d' |
             task::fuzzy::_select)
 
