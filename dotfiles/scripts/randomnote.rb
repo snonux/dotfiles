@@ -18,12 +18,13 @@ class String
 end
 
 begin
-  puts File.read((Dir["#{NOTES_DIR}/*.gmi"] + [BOOK_PATH]).sample)
+  random =  Random.new
+  puts File.read((Dir["#{NOTES_DIR}/*.gmi"] + [BOOK_PATH]).sample(random))
            .split("\n")
            .map(&:clean)
            .select{ |l| l.length >= MIN_LENGTH }
            .reject{ |l| l.match?(/(Published at|EMail your comments)/) }
            .reject{ |l| l.match?(/'|" book notes/) }
            .select{ |l| l.letter_percentage?(MIN_PERCENTAGE) }
-           .sample
+           .sample(random)
 end
