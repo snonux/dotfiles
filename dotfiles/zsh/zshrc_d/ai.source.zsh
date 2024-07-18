@@ -12,3 +12,4 @@ ai::chatgpt () {
 }
 
 alias gpt=ai::chatgpt
+alias gpti='chatgpt --interactive'
