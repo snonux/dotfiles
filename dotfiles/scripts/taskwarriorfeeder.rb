@@ -21,7 +21,7 @@ def notes(notes_dirs, prefix, dry)
       next unless match
 
       due = match[:due].nil? ? rand(0..PERSONAL_TIMESPAN_D) : match[:due]
-      yield [match[:tag].upcase,prefix], match[:body], "#{due}d"
+      yield [match[:tag],prefix], match[:body], "#{due}d"
       File.delete(notes_file) unless dry
     end
   end
@@ -36,7 +36,7 @@ def random_quote(md_file)
   timespan = match ? match[1].to_i : timespan
 
   quote = lines.select { |l| l.start_with? '*' }.map { |l| l.sub(/\* +/, '') }.sample
-  yield [tag.upcase, 'randomquote'], quote.chomp, "#{rand(0..timespan)}d"
+  yield [tag, 'random'], quote.chomp, "#{rand(0..timespan)}d"
 end
 
 def run!(cmd, dry)
