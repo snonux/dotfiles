@@ -37,12 +37,25 @@ git::repos::index () {
 
 _git::fzf::index::cd () {
     local filter="$1"
+    local filter_file=~/.gitrepos.filter
+    
     if [ -z "$filter" ]; then
         filter=.
+        if [ -f "$filter_file" ]; then
+            filter="$(cat $filter_file)"
+        fi
+    elif [ "$filter" = '-' ]; then
+        filter=.
+        if [ -f "$filter_file" ]; then
+            rm "$filter_file"
+        fi
+    else
+        echo "$filter" > $filter_file
     fi
     
-    cd $(grep "$filter"  ~/.gitrepos.index | fzf)
+    cd "$(grep "$filter"  ~/.gitrepos.index | fzf)"
 }
+
 alias gcd=_git::fzf::index::cd
 zle -N _git::fzf::index::cd
 bindkey "^Gd" _git::fzf::index::cd
