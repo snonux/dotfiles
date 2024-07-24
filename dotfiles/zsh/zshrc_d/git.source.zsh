@@ -19,7 +19,6 @@ git::quickpush () {
 }
 alias gp=git::quickpush
 
-
 git::fzf::init () {
     # Uses `bat` command for syntax highlighting
     if [ -f ~/git/fzf-git.sh/fzf-git.sh ]; then
@@ -28,6 +27,26 @@ git::fzf::init () {
     fi    
     echo 'fzf-git not on this system'
 }
+
+# To quickly navigate to one of the repos
+git::repos::index () {
+    find ~/git -type d -name .git | sed 's|/.git||' > ~/.gitrepos.index
+    echo -n 'Indexed: '
+    wc -l ~/.gitrepos.index
+}
+
+git::fzf::index::cd () {
+    local filter="$1"
+    if [ -z "$filter" ]; then
+        filter=.
+    fi
+
+    if [ ! -f ~/.gitrepos.index ]; then
+        git::repos::index
+    fi    
+    cd $(grep "$filter"  ~/.gitrepos.index | fzf)
+}
+alias gc=git::fzf::index::cd
 
 git::init () {
     git::fzf::init

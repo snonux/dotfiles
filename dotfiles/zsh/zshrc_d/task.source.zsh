@@ -1,6 +1,5 @@
 if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias t='task'
-    alias j='task add +journal'
 
     local date=date
     if where gdate &>/dev/null; then
@@ -122,6 +121,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         fi
 
         task::rubyize
+        worktime::sync
         echo $now > $stamp_file
     }
     alias tsync='task::sync force; task::due'

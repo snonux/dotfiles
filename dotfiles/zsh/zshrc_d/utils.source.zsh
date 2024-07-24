@@ -335,29 +335,18 @@ commit_message() {
     echo "$message"
 }
 
-gc() {
-    git pull
-    git commit -a -m "$(commit_message "$@")"
-    git push
-}
-
-sc() {
+sc () {
     svn up
     svn commit -m "$(commit_message "$@")"
 }
 
-sm() {
-    svn commit -m "$(commit_message "$@")"
-}
-
-mmaps() {
+mmaps () {
     readonly pid=$1
     sudo cat /proc/$pid/maps | awk '/\// {print $6}' | sort | uniq
 }
 
 # Time helpers
-
-random() {
+random () {
     local -i upto=$1
     local -i random=$[$RANDOM % $upto]
     echo "Sleeping $random seconds"
