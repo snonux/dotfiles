@@ -201,9 +201,9 @@ alias -s git='git clone'
 ### LOAD MORE RC FILES ###
 
 # Load rc files
-for rcdir in $HOME/.zshrc_d \
-    $HOME/.zshrc_{local,private,private_local,work,work_local}_d; do
-    if [ -d $rcdir ]; then
+for rcdir in $HOME/.zshrc_d/ \
+    $HOME/.zshrc_{local,private,private_local,work,work_local}_d/; do
+    if [ -e $rcdir ]; then
         find $rcdir -name \*.source -delete
         find $rcdir -name \*.source.zsh -type f | sort |
         while read -r rcfile; do
