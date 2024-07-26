@@ -24,10 +24,18 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }
 
     task::rubyize () {
-        if [ -f ~/scripts/taskwarriorfeeder.rb ]; then
-            ruby ~/scripts/taskwarriorfeeder.rb
-        else
+        if [ ! -f ~/scripts/taskwarriorfeeder.rb ]; then
             echo 'taskwarrior feeder script not installed!' >&2
+            return
+        fi
+        ruby ~/scripts/taskwarriorfeeder.rb
+        if [ -d ~/git/worktime ]; then
+            cd ~/git/worktime
+            git pull
+            git add *.txt
+            git commit -a -m 'add stuff'
+            git push
+            cd -
         fi
     }
 
@@ -121,7 +129,6 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         fi
 
         task::rubyize
-        worktime::sync
         echo $now > $stamp_file
     }
     alias tsync='task::sync force; task::due'
