@@ -96,7 +96,7 @@ begin
   end
 
   Dir["#{opts[:quotes_dir]}/*.md"].each do |md_file|
-    next unless maybe?
+    next unless maybe? and maybe? # Double maybe 
 
     random_quote(md_file) do |tags, quote, due|
       task_add!(tags, quote, due, opts[:dry_run])
