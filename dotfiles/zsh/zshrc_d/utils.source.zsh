@@ -335,11 +335,6 @@ commit_message() {
     echo "$message"
 }
 
-sc () {
-    svn up
-    svn commit -m "$(commit_message "$@")"
-}
-
 mmaps () {
     readonly pid=$1
     sudo cat /proc/$pid/maps | awk '/\// {print $6}' | sort | uniq
