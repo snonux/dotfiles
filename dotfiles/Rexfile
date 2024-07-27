@@ -90,8 +90,6 @@ desc 'Install packages on Fedora Linux';
 task 'pkg_fedora', sub {
   my @pkgs = qw/
     syncthing
-    git-delta
-    ddgr
     ncdu
     ack
     bat
@@ -99,8 +97,6 @@ task 'pkg_fedora', sub {
     fzf 
     golang 
     golang-x-tools-gopls 
-    terraform
-    terraform-ls
     gpaste 
     gron 
     htop 
@@ -125,7 +121,10 @@ task 'pkg_fedora', sub {
     chromium
     strawberry
     gnumeric
-    tuba
+    sway-config-fedora
+    sway
+    waybar
+    rofi
     zathura
   /;
 
