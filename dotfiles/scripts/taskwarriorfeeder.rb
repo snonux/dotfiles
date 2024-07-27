@@ -7,7 +7,7 @@ WORK_TIMESPAN_D = 14
 WORKTIME_DIR = "#{ENV['HOME']}/git/worktime".freeze
 
 def maybe?
-  [true, false].sample
+  [true, false, false, false].sample
 end
 
 def personal?

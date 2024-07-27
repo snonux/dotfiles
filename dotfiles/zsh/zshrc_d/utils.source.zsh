@@ -461,3 +461,7 @@ touchtype::notes () {
     done    
 }
 alias typing=touchtype::notes
+
+sway_config_view () {
+    less /etc/sway/config
+}
