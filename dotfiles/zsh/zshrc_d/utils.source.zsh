@@ -460,6 +460,12 @@ touchtype::notes () {
         sleep 0.2
     done    
 }
+touchtype::fortune () {
+    while : ; do 
+        fortune | touchtype
+        sleep 0.2
+    done    
+}
 alias typing=touchtype::notes
 
 sway_config_view () {
