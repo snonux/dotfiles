@@ -7,7 +7,7 @@ WORK_TIMESPAN_D = 14
 WORKTIME_DIR = "#{ENV['HOME']}/git/worktime".freeze
 
 def maybe?
-  [true, false].sample
+  [true, false, false, false].sample
 end
 
 def personal?
@@ -96,7 +96,7 @@ begin
   end
 
   Dir["#{opts[:quotes_dir]}/*.md"].each do |md_file|
-    next unless maybe? and maybe? # Double maybe 
+    next unless maybe?
 
     random_quote(md_file) do |tags, quote, due|
       task_add!(tags, quote, due, opts[:dry_run])
