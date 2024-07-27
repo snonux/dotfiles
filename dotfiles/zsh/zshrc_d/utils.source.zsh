@@ -451,7 +451,7 @@ alias search=ddgr
 # Touch type commands
 
 touchtype () {
-    tt --showwpm --bold --theme $(tt -list themes | sort -R | head -n1) 
+    tt --noskip --noreport --showwpm --bold --theme $(tt -list themes | sort -R | head -n1) $@
 }
 
 touchtype::notes () {
@@ -460,13 +460,14 @@ touchtype::notes () {
         sleep 0.2
     done    
 }
-touchtype::fortune () {
+
+touchtype::quote () {
     while : ; do 
-        fortune | touchtype
+        touchtype -quotes en
         sleep 0.2
     done    
 }
-alias typing=touchtype::notes
+alias typing=touchtype::quote
 
 sway_config_view () {
     less /etc/sway/config
