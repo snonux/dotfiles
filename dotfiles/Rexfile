@@ -177,6 +177,7 @@ task 'home_tmux', sub {
 desc 'Install Sway configuration';
 task 'home_sway', sub {
   ensure "$DOT/sway/config.d/*" => "$HOME/.config/sway/config.d/";
+  ensure "$DOT/waybar/*" => "$HOME/.config/waybar/";
 };
 
 desc 'Install my signature';
