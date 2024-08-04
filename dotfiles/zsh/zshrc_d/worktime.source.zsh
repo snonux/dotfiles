@@ -31,7 +31,7 @@ if [ -d $WORKTIME_DIR ]; then
     }
     alias wtreport=worktime::report
     # wtreport force
-    alias wrf='worktime --report'
+    alias wtf='worktime --report'
 
     worktime::sync () {
         cd $WORKTIME_DIR
