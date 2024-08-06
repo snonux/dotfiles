@@ -90,9 +90,8 @@ task 'pkg_freebsd', sub {
 desc 'Install packages on Fedora Linux';
 task 'pkg_fedora', sub {
   my @pkgs = qw/
+    fortune-mod
     syncthing
-    git-delta
-    ddgr
     ncdu
     ack
     bat
@@ -100,8 +99,6 @@ task 'pkg_fedora', sub {
     fzf 
     golang 
     golang-x-tools-gopls 
-    terraform
-    terraform-ls
     gpaste 
     gron 
     htop 
@@ -118,6 +115,7 @@ task 'pkg_fedora', sub {
     ruby 
     strace 
     task
+    vit
     tig 
     tmux 
     zsh 
@@ -125,7 +123,9 @@ task 'pkg_fedora', sub {
     chromium
     strawberry
     gnumeric
-    tuba
+    sway-config-fedora
+    sway
+    waybar
     zathura
   /;
 
@@ -172,6 +172,12 @@ desc 'Install tmux configuration';
 task 'home_tmux', sub {
   ensure "$DOT/tmux/tmux.local.conf" => "$HOME/.tmux.local.conf";
   ensure "$DOT/tmux/tmux.conf" => "$HOME/.tmux.conf";
+};
+
+desc 'Install Sway configuration';
+task 'home_sway', sub {
+  ensure "$DOT/sway/config.d/*" => "$HOME/.config/sway/config.d/";
+  ensure "$DOT/waybar/*" => "$HOME/.config/waybar/";
 };
 
 desc 'Install my signature';

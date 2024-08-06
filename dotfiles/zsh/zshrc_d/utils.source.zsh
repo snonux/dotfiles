@@ -335,11 +335,6 @@ commit_message() {
     echo "$message"
 }
 
-sc () {
-    svn up
-    svn commit -m "$(commit_message "$@")"
-}
-
 mmaps () {
     readonly pid=$1
     sudo cat /proc/$pid/maps | awk '/\// {print $6}' | sort | uniq
@@ -456,7 +451,7 @@ alias search=ddgr
 # Touch type commands
 
 touchtype () {
-    tt --showwpm --bold --theme $(tt -list themes | sort -R | head -n1) 
+    tt --noskip --noreport --showwpm --bold --theme $(tt -list themes | sort -R | head -n1) $@
 }
 
 touchtype::notes () {
@@ -465,4 +460,15 @@ touchtype::notes () {
         sleep 0.2
     done    
 }
-alias typing=touchtype::notes
+
+touchtype::quote () {
+    while : ; do 
+        touchtype -quotes en
+        sleep 0.2
+    done    
+}
+alias typing=touchtype::quote
+
+sway_config_view () {
+    less /etc/sway/config
+}
