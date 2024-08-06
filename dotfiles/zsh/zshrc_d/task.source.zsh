@@ -29,14 +29,6 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
             return
         fi
         ruby ~/scripts/taskwarriorfeeder.rb
-        if [ -d ~/git/worktime ]; then
-            cd ~/git/worktime
-            git pull
-            git add *.txt
-            git commit -a -m 'add stuff'
-            git push
-            cd -
-        fi
     }
 
     task::due () { 
@@ -121,14 +113,24 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         local -i max_age=86400
         local -i now=$($date +'%s')
 
-        if [[ "$force" != 'force' && -f $stamp_file ]]; then
+        if [[ "$force" != force && -f $stamp_file ]]; then
             local -i diff=$(( now - $(cat $stamp_file) ))
             if [ $diff -lt $max_age ]; then
                 return 0
             fi
         fi
 
-        task::rubyize
+        if [ "$force" != force ]; then
+            task::rubyize
+        fi
+        if [ -d ~/git/worktime ]; then
+            cd ~/git/worktime
+            git pull
+            git add *.txt *.json
+            git commit -a -m 'add stuff'
+            git push
+            cd -
+        fi
         echo $now > $stamp_file
     }
     alias tsync='task::sync force; task::due'
@@ -157,7 +159,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     task::fuzzy::find () {
         TASK_ID=$(task ready | task::fuzzy::_select)
     }
-    alias tfind=task::fuzzy::find
+    alias tfind=task::fuzzy::
 
     task::select () {
         local -r task_id="$1"
@@ -183,6 +185,18 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }
     alias fdue=task::fuzzy::due
     alias fdone='task::fuzzy::due && task::done'
+
+    task::export () {
+        if [ ! -d ~/git/worktime ]; then
+            echo 'No worktime directory'
+            return
+        fi
+
+        task export > ~/git/worktime/taskwarrior-export-"$(hostname)-$(date +%s)".json
+        echo 'exported database'
+        task::sync force
+        task delete
+    }
 
     task::sync 
 fi
