@@ -7,7 +7,7 @@ line-number = "relative"
 mouse = true
     
 [editor.statusline]
-left = ["mode", "spinner", "file-name", "position", "version-control"]
+left = ["version-control", "mode", "spinner", "file-name", "position" ]
 center = ["diagnostics"]
 right = ["selections", "file-encoding", "file-line-ending", "file-type"]
 

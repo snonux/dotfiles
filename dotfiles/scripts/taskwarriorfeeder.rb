@@ -87,7 +87,7 @@ begin
 
   (personal? ? %w[ql pl] : %w[wl]).each do |prefix|
     notes(opts[:notes_dirs].split(','), prefix, opts[:dry_run]) do |tags, note, due|
-      if tags.include? 'WORK'
+      if tags.include? 'work'
         worklog_add!(:log, note, due, opts[:dry_run])
       else
         task_add!(tags, note, due, opts[:dry_run])
