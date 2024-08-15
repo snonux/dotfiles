@@ -11,7 +11,8 @@ games::colorscript () {
         ~/bin/colorscript --random
     else
         # https://gitlab.com/dwt1/shell-color-scripts
-        echo 'No colorscripts installed.'
+        echo 'No colorscripts installed. Go to:'
+        echo ' https://gitlab.com/dwt1/shell-color-scripts'
     fi
 }
 
