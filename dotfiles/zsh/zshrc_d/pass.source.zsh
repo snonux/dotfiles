@@ -11,7 +11,7 @@ pass::push () {
     cd - &>/dev/null
 }
 
-pw () {
+pass::pw () {
     if [ $1 = commit ]; then
         shift
         pass::commit $@
