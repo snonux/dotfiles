@@ -161,4 +161,17 @@ if [ -d $WORKTIME_DIR ]; then
         cd -
     }
     alias wl=worktime::log::work
+
+    # For collecting my skills, e.g. for my CV
+    worktime::skill::add () {
+        cd $WORKTIME_DIR
+        echo "$@" >> skills.txt
+        sort -u skills.txt | tee skills.txt.new
+        mv skills.txt.new skills.txt
+        git add skills.txt
+        git commit -m "Add skill" skills.txt
+        cd -
+    }
+
+    alias skill=worktime::skill::add
 fi
