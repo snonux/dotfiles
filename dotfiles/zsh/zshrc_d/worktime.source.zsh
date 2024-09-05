@@ -173,5 +173,5 @@ if [ -d $WORKTIME_DIR ]; then
         cd -
     }
 
-    alias skill=worktime::skill::add
+    alias skilladd=worktime::skill::add
 fi
