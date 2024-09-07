@@ -12,9 +12,9 @@ if [ -d $WORKTIME_DIR ]; then
     alias wt=worktime
     alias wtedit='worktime --edit'
 
-    worktime::productivity_reminder () {
-        if [ $WORKTIME_DIR/Productivity.md ]; then
-            sed -n '/^\* / { s/\* //; p; }' $WORKTIME_DIR/Productivity.md | sort -R | head -n 1
+    worktime::wisdom_reminder () {
+        if [ $WORKTIME_DIR/work-wisdoms.md ]; then
+            sed -n '/^\* / { s/\* //; p; }' $WORKTIME_DIR/work-wisdoms.md | sort -R | head -n 1
         fi
     }
 
@@ -26,7 +26,7 @@ if [ -d $WORKTIME_DIR ]; then
             else
                 worktime --report 
             fi
-            worktime::productivity_reminder
+            worktime::wisdom_reminder
         fi
     }
     alias wtreport=worktime::report
@@ -35,10 +35,13 @@ if [ -d $WORKTIME_DIR ]; then
 
     worktime::sync () {
         cd $WORKTIME_DIR
-        if [ -f ~/Notes/HabitsAndQuotes/Productivity.md ]; then
-            cp ~/Notes/HabitsAndQuotes/Productivity.md .
-            git add Productivity.md 
-        fi
+        echo > work-wisdoms.md.tmp
+        for notes in ~/Notes/HabitsAndQuotes/{Productivity,Mentoring}.md; do  
+            grep -F '^* ' $notes >> work-wisdoms.md.tmp
+        done
+        sort -u work-wisdoms.md.tmp > work-wisdoms.md
+        rm work-wisdoms.md.tmp
+        git add work-wisdoms.md 
 
         find . -name \*.txt -exec git add {} \;
         git add db.*.json
@@ -90,7 +93,7 @@ if [ -d $WORKTIME_DIR ]; then
 
         touch ~/.wtloggedin
         worktime --login --what $what
-        worktime::productivity_reminder
+        worktime::wisdom_reminder
     }
     alias wtlogin=worktime::login
 

@@ -48,7 +48,7 @@ C-a = { c = ":pipe chatgpt correct this sentence and only print out the correcte
 C-g = { d = ":run-shell-command git diff", p = ":run-shell-command git pull", u = ":run-shell-command git push", t = ":run-shell-command tmux new-window -n hx-git-tig tig", c = ":run-shell-command tmux split-window -v 'git commit -a'" }
 
 # Build commands
-C-u = { m = ":run-shell-command make", d = ":run-shell-command go-task dev", r = ":run-shell-command tmux new-window -n hx-go-task-run 'go-task run'" }
+C-l = { m = ":run-shell-command make", d = ":run-shell-command go-task dev", r = ":run-shell-command tmux new-window -n hx-go-task-run 'go-task run'" }
 
 [keys.select]
 "{" = "goto_prev_paragraph"
