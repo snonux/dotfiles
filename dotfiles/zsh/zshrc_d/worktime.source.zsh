@@ -37,7 +37,7 @@ if [ -d $WORKTIME_DIR ]; then
         cd $WORKTIME_DIR
         echo > work-wisdoms.md.tmp
         for notes in ~/Notes/HabitsAndQuotes/{Productivity,Mentoring}.md; do  
-            grep -F '^* ' $notes >> work-wisdoms.md.tmp
+            grep '^\* ' $notes >> work-wisdoms.md.tmp
         done
         sort -u work-wisdoms.md.tmp > work-wisdoms.md
         rm work-wisdoms.md.tmp
