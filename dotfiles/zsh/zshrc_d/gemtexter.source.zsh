@@ -1,6 +1,5 @@
 declare GEMTEXTER_DIR=$HOME/git/gemtexter
 declare GEMTEXTER_FOO_DIR=$HOME/git/foo.zone-content/gemtext
-declare GEMTEXTER_PAUL_DIR=$HOME/git/paul.buetow.org-content/gemtext
 
 if [ -d $GEMTEXTER_DIR ]; then
     gemtexter::edit () {
@@ -23,10 +22,4 @@ if [ -d $GEMTEXTER_DIR ]; then
     }
     alias .gfe=gemtexter::foo::edit
     alias .gfp=gemtexter::publish "$GEMTEXTER_DIR/gemtexter.conf"
-
-    gemtexter::paul::edit () {
-        gemtexter::edit "$GEMTEXTER_PAUL_DIR"
-    }
-    alias .gpe=gemtexter::paul::edit
-    alias .gpp="gemtexter::publish '$GEMTEXTER_DIR/gemtexter-paul.buetow.org.conf'"
 fi
