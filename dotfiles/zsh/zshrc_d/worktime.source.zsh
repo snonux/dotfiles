@@ -35,13 +35,15 @@ if [ -d $WORKTIME_DIR ]; then
 
     worktime::sync () {
         cd $WORKTIME_DIR
-        echo > work-wisdoms.md.tmp
-        for notes in ~/Notes/HabitsAndQuotes/{Productivity,Mentoring}.md; do  
-            grep '^\* ' $notes >> work-wisdoms.md.tmp
-        done
-        sort -u work-wisdoms.md.tmp > work-wisdoms.md
-        rm work-wisdoms.md.tmp
-        git add work-wisdoms.md 
+        if [ -d ~/Notes/HabitsAndQuotes ]; then
+            echo > work-wisdoms.md.tmp
+            for notes in ~/Notes/HabitsAndQuotes/{Productivity,Mentoring}.md; do  
+                grep '^\* ' $notes >> work-wisdoms.md.tmp
+            done
+            sort -u work-wisdoms.md.tmp > work-wisdoms.md
+            rm work-wisdoms.md.tmp
+            git add work-wisdoms.md 
+        fi
 
         find . -name \*.txt -exec git add {} \;
         git add db.*.json
