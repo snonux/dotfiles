@@ -1,23 +1,25 @@
 #!/usr/bin/env ruby
 
 require 'optparse'
+require 'digest'
 
 PERSONAL_TIMESPAN_D = 365
 WORK_TIMESPAN_D = 14
 WORKTIME_DIR = "#{ENV['HOME']}/git/worktime".freeze
+GOS_INCOMING_DIR = "#{ENV['HOME']}/Notes/GosIncoming".freeze
 
 def maybe?
   [true, false, false, false, false].sample
 end
 
-def personal?
+def run_from_personal_device?
   %x(uname).chomp == 'Linux'
 end
 
 def notes(notes_dirs, prefix, dry)
   notes_dirs.each do |notes_dir|
     Dir["#{notes_dir}/#{prefix}-*"].each do |notes_file|
-      match = File.read(notes_file).strip.match(/(?<due>\d+)? *(?<tag>[a-z]+) *(?<body>.*)/)
+      match = File.read(notes_file).strip.match(/(?<due>\d+)? *(?<tag>[a-z]+) *(?<body>.*)/m)
       next unless match
 
       due = match[:due].nil? ? rand(0..PERSONAL_TIMESPAN_D) : match[:due]
@@ -32,7 +34,7 @@ def random_quote(md_file)
   lines = File.readlines(md_file)
 
   match = lines.first.match(/\((\d+)\)/)
-  timespan = personal? ? PERSONAL_TIMESPAN_D : WORK_TIMESPAN_D
+  timespan = run_from_personal_device? ? PERSONAL_TIMESPAN_D : WORK_TIMESPAN_D
   timespan = match ? match[1].to_i : timespan
 
   quote = lines.select { |l| l.start_with? '*' }.map { |l| l.sub(/\* +/, '') }.sample
@@ -50,6 +52,13 @@ def worklog_add!(tag, quote, due, dry)
 
   puts "#{file}: #{content}"
   File.write(file, content) unless dry
+end
+
+def gos_add!(message, dry)
+  digest = Digest::SHA256.hexdigest(message)
+  file = "#{GOS_INCOMING_DIR}/ql-#{digest}.txt"
+  puts "Writing #{file}"
+  File.write(file, message) unless dry
 end
 
 def task_add!(tags, quote, due, dry)
@@ -85,10 +94,12 @@ begin
 
   opt_parser.parse!(ARGV)
 
-  (personal? ? %w[ql pl] : %w[wl]).each do |prefix|
+  (run_from_personal_device? ? %w[ql pl] : %w[wl]).each do |prefix|
     notes(opts[:notes_dirs].split(','), prefix, opts[:dry_run]) do |tags, note, due|
       if tags.include? 'work'
         worklog_add!(:log, note, due, opts[:dry_run])
+      elsif tags.include? 'share'
+        gos_add!(note, opts[:dry_run])
       else
         task_add!(tags, note, due, opts[:dry_run])
       end
