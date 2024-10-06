@@ -198,5 +198,10 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         task delete
     }
 
+    gos::compose () {
+        hx ~/Notes/GosIncoming/$(date +%s).txt
+    }
+    alias gosc=gos::compose
+
     task::sync 
 fi
