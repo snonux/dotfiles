@@ -199,7 +199,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }
 
     gos::compose () {
-        hx ~/Notes/GosIncoming/${EDITOR}-$(date +%s).txt
+        hx ~/Notes/GosIncoming/$(date +%s).txt
     }
     alias gosc=gos::compose
 
