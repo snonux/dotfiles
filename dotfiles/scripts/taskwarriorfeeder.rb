@@ -19,11 +19,11 @@ end
 def notes(notes_dirs, prefix, dry)
   notes_dirs.each do |notes_dir|
     Dir["#{notes_dir}/#{prefix}-*"].each do |notes_file|
-      match = File.read(notes_file).strip.match(/(?<due>\d+)? *(?<tag>[a-z]+) *(?<body>.*)/m)
+      match = File.read(notes_file).strip.match(/(?<due>\d+)? *(?<tag>[a-z,-]+) *(?<body>.*)/m)
       next unless match
 
       due = match[:due].nil? ? rand(0..PERSONAL_TIMESPAN_D) : match[:due]
-      yield [match[:tag],prefix], match[:body], "#{due}d"
+      yield match[:tag].split(',')+[prefix], match[:body], "#{due}d"
       File.delete(notes_file) unless dry
     end
   end
@@ -54,9 +54,16 @@ def worklog_add!(tag, quote, due, dry)
   File.write(file, content) unless dry
 end
 
-def gos_add!(message, dry)
-  digest = Digest::SHA256.hexdigest(message)
-  file = "#{GOS_INCOMING_DIR}/ql-#{digest}.txt"
+def gos_add!(tags, message, dry)
+  share_with = []
+  platforms = { 'li' => :linkedin, 'ma' => :mastodon, 'x' => :xcom }
+  platforms.each do |short, long|
+    share_with << long if tags.include?(short) || tags.include?("#{long}")
+    share_with << "-#{long}" if tags.include?("-#{short}") || tags.include?("-#{long}")
+  end
+  share_with = share_with.empty? ? '' : ".share:#{share_with.join(':')}"
+
+  file = "#{GOS_INCOMING_DIR}/ql-#{Digest::MD5.hexdigest(message)}#{share_with}.txt"
   puts "Writing #{file}"
   File.write(file, message) unless dry
 end
@@ -99,7 +106,7 @@ begin
       if tags.include? 'work'
         worklog_add!(:log, note, due, opts[:dry_run])
       elsif tags.include? 'share'
-        gos_add!(note, opts[:dry_run])
+        gos_add!(tags, note, opts[:dry_run])
       else
         task_add!(tags, note, due, opts[:dry_run])
       end
