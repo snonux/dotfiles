@@ -22,4 +22,9 @@ if [ -d $GEMTEXTER_DIR ]; then
     }
     alias .gfe=gemtexter::foo::edit
     alias .gfp=gemtexter::publish "$GEMTEXTER_DIR/gemtexter.conf"
+
+    gemtexter::random::note () {
+        amfora $(find ~/git/foo.zone-content/gemtext/notes -name \*.gmi | sort -R | head -n 1 | sed 's|.*foo.zone-content/gemtext|gemini://foo.zone/|')
+    }
+    alias .grn=gemtexter::random::note
 fi
