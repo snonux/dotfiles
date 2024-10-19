@@ -6,7 +6,7 @@ require 'digest'
 PERSONAL_TIMESPAN_D = 365
 WORK_TIMESPAN_D = 14
 WORKTIME_DIR = "#{ENV['HOME']}/git/worktime".freeze
-GOS_INCOMING_DIR = "#{ENV['HOME']}/Notes/GosIncoming".freeze
+GOS_DIR = "#{ENV['HOME']}/Notes/GosDir".freeze
 
 def maybe?
   [true, false, false, false, false].sample
@@ -63,7 +63,7 @@ def gos_add!(tags, message, dry)
   end
   share_with = share_with.empty? ? '' : ".share:#{share_with.join(':')}"
 
-  file = "#{GOS_INCOMING_DIR}/ql-#{Digest::MD5.hexdigest(message)}#{share_with}.txt"
+  file = "#{GOS_DIR}/ql-#{Digest::MD5.hexdigest(message)}#{share_with}.txt"
   puts "Writing #{file}"
   File.write(file, message) unless dry
 end

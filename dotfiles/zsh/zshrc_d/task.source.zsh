@@ -31,6 +31,20 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         ruby ~/scripts/taskwarriorfeeder.rb
     }
 
+    task::gos::compose () {
+        hx ~/Notes/GosDir/$(date +%s).txt
+    }
+    alias gosc=task::gos::compose
+
+    task::gos::run () {
+        if [ ! -f ~/go/bin/gos ]; then
+            echo "gos not installed?"
+            return
+        fi
+        ~/go/bin/gos -gosDir ~/Notes/GosDir
+    }
+    alias gosr=task::gos::run
+
     task::due () { 
         task active
         task due.before:$($date +%Y-%m-%d --date '7 days')
@@ -106,6 +120,8 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }
     alias log=task::add::log 
 
+    # Maybe one day refactor this as this is doing more than syncing tasks.
+    # It is also running rubyize and gos.
     task::sync () {
         readonly force="$1"
         readonly stamp_file=~/.tasksync.last
@@ -122,6 +138,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
 
         if [ "$force" != force ]; then
             task::rubyize
+            task::gos::run
         fi
         if [ -d ~/git/worktime ]; then
             cd ~/git/worktime
@@ -197,11 +214,6 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         task::sync force
         task delete
     }
-
-    gos::compose () {
-        hx ~/Notes/GosIncoming/$(date +%s).txt
-    }
-    alias gosc=gos::compose
 
     task::sync 
 fi
