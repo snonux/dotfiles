@@ -2,6 +2,7 @@
 
 require 'optparse'
 require 'digest'
+require 'set'
 
 PERSONAL_TIMESPAN_D = 365
 WORK_TIMESPAN_D = 14
@@ -44,6 +45,23 @@ end
 def run!(cmd, dry)
   puts cmd
   puts %x(#{cmd}) unless dry
+end
+
+def skill_add!(skills_str, dry)
+  skills = {}
+  skills_file = "#{WORKTIME_DIR}/skills.txt"
+  skills_str.split(',').map(&:strip).each { |skill| skills[skill.to_s.downcase] = skill }
+
+  File.foreach(skills_file) do |line|
+    line.chomp!
+    skills[line.downcase] = line
+  end
+  File.open("#{skills_file}.tmp", 'w') do |file|
+    skills.each_value { |skill| file.puts(skill) }
+  end
+  return if dry
+
+  File.rename("#{skills_file}.tmp", skills_file)
 end
 
 def worklog_add!(tag, quote, due, dry)
@@ -114,7 +132,9 @@ begin
 
   (run_from_personal_device? ? %w[ql pl] : %w[wl]).each do |prefix|
     notes(opts[:notes_dirs].split(','), prefix, opts[:dry_run]) do |tags, note, due|
-      if tags.include? 'work'
+      if tags.include?('skill') || tags.include?('skills')
+        skill_add!(note, opts[:dry_run])
+      elsif tags.include? 'work'
         worklog_add!(:log, note, due, opts[:dry_run])
       elsif tags.include? 'share'
         gos_queue!(tags, note, opts[:dry_run])
