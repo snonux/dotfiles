@@ -54,16 +54,25 @@ def worklog_add!(tag, quote, due, dry)
   File.write(file, content) unless dry
 end
 
-def gos_add!(tags, message, dry)
-  share_with = []
+# Queue to Gos https://codeberg.org/snonux/gos
+def gos_queue!(tags, message, dry)
+  share_tag = []
   platforms = { 'li' => :linkedin, 'ma' => :mastodon, 'x' => :xcom }
   platforms.each do |short, long|
-    share_with << long if tags.include?(short) || tags.include?("#{long}")
-    share_with << "-#{long}" if tags.include?("-#{short}") || tags.include?("-#{long}")
+    share_tag << long if tags.include?(short) || tags.include?(long.to_s)
+    share_tag << "-#{long}" if tags.include?("-#{short}") || tags.include?("-#{long}")
   end
-  share_with = share_with.empty? ? '' : ".share:#{share_with.join(':')}"
+  share_tag = share_tag.empty? ? '' : ".share:#{share_tag.join(':')}"
 
-  file = "#{GOS_DIR}/ql-#{Digest::MD5.hexdigest(message)}#{share_with}.txt"
+  # All tags other than the share tag
+  other_tags = tags.reject do |t|
+    t.start_with?('-') ||
+      t == 'share' ||
+      platforms.keys.include?(t.downcase) ||
+      platforms.values.include?(t.downcase.to_sym)
+  end
+
+  file = "#{GOS_DIR}/#{Digest::MD5.hexdigest(message)}.#{other_tags.join('.')}#{share_tag}.txt"
   puts "Writing #{file}"
   File.write(file, message) unless dry
 end
@@ -88,7 +97,8 @@ begin
   opts = {
     quotes_dir: "#{ENV['HOME']}/Notes/HabitsAndQuotes",
     notes_dirs: "#{ENV['HOME']}/Notes,#{ENV['HOME']}/git/worktime",
-    dry_run: false
+    dry_run: false,
+    no_random: false
   }
 
   opt_parser = OptionParser.new do |o|
@@ -96,6 +106,7 @@ begin
     o.on('-d', '--quotes-dir DIR', 'The quotes directory') { |v| opts[:quotes_dir] = v }
     o.on('-n', '--notes-dirs DIR1,DIR2,...', 'The notes directories') { |v| opts[:notes_dirs] = v }
     o.on('-D', '--dry-run', 'Dry run mode') { opts[:dry_run] = true }
+    o.on('-R', '--no-randoms', 'No random entries') { opts[:no_random] = true }
     o.on_tail('-h', '--help', 'Show this help message and exit') { puts o and exit }
   end
 
@@ -106,18 +117,20 @@ begin
       if tags.include? 'work'
         worklog_add!(:log, note, due, opts[:dry_run])
       elsif tags.include? 'share'
-        gos_add!(tags, note, opts[:dry_run])
+        gos_queue!(tags, note, opts[:dry_run])
       else
         task_add!(tags, note, due, opts[:dry_run])
       end
     end
   end
 
-  Dir["#{opts[:quotes_dir]}/*.md"].each do |md_file|
-    next unless maybe?
+  unless opts[:no_random]
+    Dir["#{opts[:quotes_dir]}/*.md"].each do |md_file|
+      next unless maybe?
 
-    random_quote(md_file) do |tags, quote, due|
-      task_add!(tags, quote, due, opts[:dry_run])
+      random_quote(md_file) do |tags, quote, due|
+        task_add!(tags, quote, due, opts[:dry_run])
+      end
     end
   end
 
