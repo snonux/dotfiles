@@ -64,7 +64,7 @@ def skill_add!(skills_str, dry)
   File.rename("#{skills_file}.tmp", skills_file)
 end
 
-def worklog_add!(tag, quote, due, dry)
+def workhog_add!(tag, quote, due, dry)
   file = "#{WORKTIME_DIR}/wl-#{Time.now.to_i}n.txt"
   content = "#{due.chomp 'd'} #{tag} #{quote}"
 
