@@ -10,7 +10,7 @@ WORKTIME_DIR = "#{ENV['HOME']}/git/worktime".freeze
 GOS_DIR = "#{ENV['HOME']}/Notes/GosDir".freeze
 
 def maybe?
-  [true, false, false, false, false].sample
+  [true, false, false].sample
 end
 
 def run_from_personal_device?
