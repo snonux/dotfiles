@@ -5,9 +5,7 @@ games::funky () {
 }
 
 games::colorscript () {
-    if [ -f /usr/bin/colorscript ]; then
-        /usr/bin/colorscript --random
-    elif [ -f ~/bin/colorscript ]; then
+    if [ -e ~/bin/colorscript ]; then
         ~/bin/colorscript --random
     else
         # https://gitlab.com/dwt1/shell-color-scripts
