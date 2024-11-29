@@ -20,11 +20,11 @@ end
 def notes(notes_dirs, prefix, dry)
   notes_dirs.each do |notes_dir|
     Dir["#{notes_dir}/#{prefix}-*"].each do |notes_file|
-      match = File.read(notes_file).strip.match(/(?<due>\d+)? *(?<tag>[a-z,-]+) *(?<body>.*)/m)
+      match = File.read(notes_file).strip.match(/(?<due>\d+)? *(?<tag>[A-Z]?[a-z,-:]+) *(?<body>.*)/m)
       next unless match
 
       due = match[:due].nil? ? rand(0..PERSONAL_TIMESPAN_D) : match[:due]
-      yield match[:tag].split(',')+[prefix], match[:body], "#{due}d"
+      yield match[:tag].downcase.split(',')+[prefix], match[:body], "#{due}d"
       File.delete(notes_file) unless dry
     end
   end
@@ -114,7 +114,7 @@ end
 begin
   opts = {
     quotes_dir: "#{ENV['HOME']}/Notes/HabitsAndQuotes",
-    notes_dirs: "#{ENV['HOME']}/Notes,#{ENV['HOME']}/git/worktime",
+    notes_dirs: "#{ENV['HOME']}/Notes,#{ENV['HOME']}/Notes/Quicklogger,#{ENV['HOME']}/git/worktime",
     dry_run: false,
     no_random: false
   }
