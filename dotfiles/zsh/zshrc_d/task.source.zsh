@@ -123,7 +123,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     task::add::track () {
         task add +track "$@" due:eow
     }
-    alias track=task::add:track
+    alias track=task::add::track
 
     # Maybe one day refactor this as this is doing more than syncing tasks.
     # It is also running rubyize and gos.
