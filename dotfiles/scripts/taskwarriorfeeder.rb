@@ -14,7 +14,7 @@ def maybe?
 end
 
 def run_from_personal_device?
-  %x(uname).chomp == 'Linux'
+  `uname`.chomp == 'Linux'
 end
 
 def notes(notes_dirs, prefix, dry)
@@ -23,8 +23,13 @@ def notes(notes_dirs, prefix, dry)
       match = File.read(notes_file).strip.match(/(?<due>\d+)? *(?<tag>[A-Z]?[a-z,-:]+) *(?<body>.*)/m)
       next unless match
 
-      due = match[:due].nil? ? rand(0..PERSONAL_TIMESPAN_D) : match[:due]
-      yield match[:tag].downcase.split(',')+[prefix], match[:body], "#{due}d"
+      tags = match[:tag].downcase.split(',') + [prefix]
+      due = if match[:due].nil?
+              tags.include?('track') ? 'eow' : "#{rand(0..PERSONAL_TIMESPAN_D)}d"
+            else
+              "#{match[:due]}d"
+            end
+      yield tags, match[:body], due
       File.delete(notes_file) unless dry
     end
   end
