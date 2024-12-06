@@ -24,6 +24,8 @@ def notes(notes_dirs, prefix, dry)
       next unless match
 
       tags = match[:tag].downcase.split(',') + [prefix]
+      tags << 'track' if tags.include?('tr') # tr is shorthand for track
+
       due = if match[:due].nil?
               tags.include?('track') ? 'eow' : "#{rand(0..PERSONAL_TIMESPAN_D)}d"
             else
