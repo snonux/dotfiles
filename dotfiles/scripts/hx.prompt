@@ -1,0 +1,14 @@
+#!/usr/bin/env zsh
+
+declare -r REPLY_FILE=~/.hx-prompt-reply
+if [ -f "$REPLY_FILE" ]; then
+  rm "$REPLY_FILE"
+fi
+
+tmux split-window -v "REPLY_FILE=$REPLY_FILE hx.reply"
+
+while [ ! -f "$REPLY_FILE" ]; do
+  sleep 0.2
+done
+
+cat "$REPLY_FILE"

@@ -1,0 +1,5 @@
+#!/usr/bin/env zsh
+
+read REPLY\?"prompt> "
+echo "$REPLY" > $REPLY_FILE.tmp
+mv $REPLY_FILE.tmp $REPLY_FILE
