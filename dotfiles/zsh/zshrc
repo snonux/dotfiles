@@ -239,11 +239,6 @@ elif [ -f /usr/share/fzf/shell/key-bindings.zsh ]; then
     source /usr/share/fzf/shell/key-bindings.zsh
 fi
 
-# Worktime
-if [ -f ~/git/worktime/worktime.source.zsh ]; then
-    source ~/git/worktime/worktime.source.zsh
-fi
-
 if [ -f ~/.zshrc_local ]; then
     source ~/.zshrc_local
 fi

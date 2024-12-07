@@ -1,7 +1,3 @@
-motd () {
-    cat /etc/motd
-}
-
 fullest_h () {
     df -h | sort -n -k 5
 }
@@ -10,17 +6,8 @@ fullest_i () {
     df -i | sort -n -k 5
 }
 
-lshelpers () {
-    local -r what=$1
-    fgrep --color=auto ' () {' ~/.zshrc_*/$what.source.zsh | sed 's/ {//'
-}
-
 usortn () {
     sort | uniq -c | sort -n
-}
-
-gdbrun () {
-    gdb -ex=run --args $@
 }
 
 asum () {
@@ -32,39 +19,23 @@ hral () {
     awk '{ time=gensub(/.*audit.(.*)\..*/, "\\1", "g", $2); $2 = ""; printf "%s -> %s\n", strftime("%m%d-%H%M%S", time), $0; }'
 }
 
-compact_memory () {
-    sudo bash -c 'echo 1 > /proc/sys/vm/compact_memory'
-}
-
-svgoto () {
-    local -r file=$1
-    local -r goto=$2
-    sudo vim -c "goto $goto" $file
-}
-
-vgoto () {
-    local -r file=$1
-    local -r goto=$2
-    vim -c "goto $goto" $file
-}
-
 pof () {
     local -r pattern=$1
     sudo lsof -p $(pgrep -f $pattern)
 }
 
 if [ $UNAME = Linux ]; then
-    plimits() {
+    plimits () {
         local -r pattern=$1
         sudo cat /proc/$(pgrep -f $pattern)/limits
     }
 
-    ptop() {
+    ptop () {
         local -r pattern=$1
         sudo top -p $(sudo pgrep -f $pattern)
     }
 
-    swappy() {
+    swappy () {
         local count=$1
         s dd if=/dev/zero of=/swapfile$count bs=1024 count=$((1024 * 1024 * 4))
         s mkswap /swapfile$count
@@ -73,7 +44,7 @@ if [ $UNAME = Linux ]; then
         echo /swapfile$count swap swap defaults 0 0
     }
 
-    extfs_ratio() {
+    extfs_ratio () {
         readonly device=$1
 
         if [ -z $device ]; then
@@ -94,16 +65,16 @@ if [ $UNAME = Linux ]; then
         fi
     }
 
-    2dos() {
+    2dos () {
         sed 's/$'"/`echo \\\r`/" $@
     }
 
-    2dos_i() {
+    2dos_i () {
         sed -i 's/$'"/`echo \\\r`/" $@
     }
 fi # If Linux
 
-2unix() {
+2unix () {
     perl -pe 's/\r\n|\n|\r/\n/g'
 }
 
@@ -134,7 +105,7 @@ maint_banner () {
 END
 }
 
-maint() {
+maint () {
     readonly arg=$1
     all="$@"
     readonly maintfile=/root/.maint
@@ -166,22 +137,22 @@ maint() {
     fi
 }
 
-maint_until() {
+maint_until () {
     local -r at=$1 ; shift
     maint $@ " (Leaving maintenance mode at $at via atd)"
     unmaint_at $at
 }
 
-m11() {
+m11 () {
     maint $@
     unmaint_at 11pm
 }
 
-unmaint() {
+unmaint () {
     maint off
 }
 
-unmaint_at() {
+unmaint_at () {
     readonly at=$1
     readonly maintfile=/root/.maint
 
@@ -190,7 +161,7 @@ unmaint_at() {
 
 ### LOG TAIL HELPERS ###
 
-lt() {
+lt () {
     readonly today=$(date +'%Y%m%d')
     local cmd=$1
     local params
@@ -222,51 +193,32 @@ lt() {
     fi
 }
 
-le() {
-    lt $@ | fgrep ERROR
-}
-
-ltt() {
-    tail -n 100000 $(today).log
-}
-
 ### SERVICE HELPERS ###
 
-stop() {
+stop () {
     readonly service=$1 ; shift
     sudo service $service stop $@
 }
 
-start() {
+start () {
     readonly service=$1 ; shift
     sudo service $service start $@
 }
 
-restart() {
+restart () {
     readonly service=$1 ; shift
     sudo service $service restart $@
 }
 
-status() {
+status () {
     readonly service=$1 ; shift
     sudo service $service status $@
-}
-
-### SUDO HELPERS ###
-
-ask_sudo() {
-    echo -n "Want to run $@? (y/n) "
-    read yn
-    case $yn in
-        y*) sudo $@;;
-        *) echo Not doing it;;
-    esac
 }
 
 ### CD HELPERS
 
 # cd into newest directory
-cdn() {
+cdn () {
     readonly pattern="${1}" ; shift
     readonly dir=$(ls -tF | grep "$pattern.*/\$" | head -n 1)
 
@@ -278,7 +230,7 @@ cdn() {
 }
 
 # cd into parallel directory
-cdpal() {
+cdpal () {
     readonly from="${1}" ; shift
     readonly to="${1}"   ; shift
     readonly pwd=$(pwd)
@@ -287,7 +239,7 @@ cdpal() {
 }
 
 # Loop a command with interval (other than gnu-watch)
-loop() {
+loop () {
     local -i sleep=10
 
     if [ "$SLEEP" != '' ]; then
@@ -302,30 +254,30 @@ loop() {
     done
 }
 
-lsiowait() {
+lsiowait () {
     ps ax | awk '$3 ~ /D/ { print $0 }'
 }
 
 # Find helper
-f() {
+f () {
     find . -iname "*$@*"
 }
 
-scpf() {
+scpf () {
     readonly src=$1
     readonly file=$2
 
     sudo scp -r $USER@$src:$(pwd)/$file $file
 }
 
-cpf() {
+cpf () {
     readonly src=$1
     readonly file=$2
 
     scp -r $USER@$src:$(pwd)/$file $file
 }
 
-commit_message() {
+commit_message () {
     if [ -z "$1" ]; then
         which fortune && message="$(fortune)" || message='Quick commit'
     else
@@ -434,7 +386,6 @@ stopwatch () {
 weather () {
     curl http://wttr.in/
 }
-
 alias wetter=weather
 
 cheat () {

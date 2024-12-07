@@ -2,6 +2,7 @@ WORKTIME_DIR=~/git/worktime
 
 if [ -d $WORKTIME_DIR ]; then
     alias cdworktime="cd $WORKTIME_DIR"
+
     if [[ $(uname) = Darwin && ! -f ~/.wtloggedin ]]; then
         echo "Warn: Not logged in, run wtlogin"
     fi
@@ -151,7 +152,7 @@ if [ -d $WORKTIME_DIR ]; then
         if [ -z "$@" ]; then
             grep . wl-*.txt 2>/dev/null
             cd -
-             return
+            return
         elif [ "$@" = clear ]; then
             git rm wl-*.txt 2>/dev/null
             git commit -m 'Cleaning up work log'
