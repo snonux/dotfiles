@@ -63,6 +63,7 @@ source = { git = "https://github.com/tree-sitter-perl/tree-sitter-pod", rev = "3
 
 [[language]]
 name = "ruby"
+auto-format = true
 scope = "source.ruby"
 injection-regex = "ruby"
 file-types = [
