@@ -129,6 +129,13 @@ compinit
 autoload edit-command-line; zle -N edit-command-line
 bindkey -M vicmd v edit-command-line
 
+fish_like_suggestions=/usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+if [ -f $fish_like_suggestions ]; then
+    source "$fish_like_suggestions"
+else
+    echo 'zsh-autosuggestions for fish like suggestions not installed'
+fi
+
 ### ZSH STYLE ###
 
 zstyle ':completion:*' auto-description 'specify: %d'
@@ -216,7 +223,6 @@ done
 [ -f ~/.zshrc_local ] && source ~/.zshrc_local
 
 ### DISPLAY SOME INFOS ON NEW SHELL ###
-
 test "$OS" = FreeBSD && zpool list
 
 # Learn a new command
