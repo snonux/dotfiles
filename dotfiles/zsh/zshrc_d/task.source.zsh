@@ -47,7 +47,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
 
     task::due () { 
         task active
-        task due.before:$($date +%Y-%m-%d --date '7 days')
+        task due.before:$($date +%Y-%m-%d --date '0 days')
     }
     alias tdue=task::due
     task::due
@@ -125,26 +125,26 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }
     alias track=task::add::track
 
-    # Maybe one day refactor this as this is doing more than syncing tasks.
-    # It is also running rubyize and gos.
-    task::sync () {
-        readonly force="$1"
+    task::is_it_time_to_sync () {
         readonly stamp_file=~/.tasksync.last
 
         local -i max_age=86400
         local -i now=$($date +'%s')
 
-        if [[ "$force" != force && -f $stamp_file ]]; then
+        if [ -f $stamp_file ]; then
             local -i diff=$(( now - $(cat $stamp_file) ))
             if [ $diff -lt $max_age ]; then
                 return 0
             fi
         fi
 
-        if [ "$force" != force ]; then
-            task::rubyize
-            task::gos::run
-        fi
+        echo 'It is time to run tsync!!!'
+    }
+
+    task::sync () {
+        task::rubyize
+        task::gos::run
+
         if [ -d ~/git/worktime ]; then
             cd ~/git/worktime
             git pull
@@ -155,7 +155,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         fi
         echo $now > $stamp_file
     }
-    alias tsync='task::sync force; task::due'
+    alias tsync=task::sync
 
     task::dice () {
         local -r filter=$1
@@ -208,7 +208,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias fdue=task::fuzzy::due
     alias fdone='task::fuzzy::due && task::done'
 
-    task::export () {
+    task::export::danger () {
         if [ ! -d ~/git/worktime ]; then
             echo 'No worktime directory'
             return
@@ -216,9 +216,9 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
 
         task export > ~/git/worktime/taskwarrior-export-"$(hostname)-$(date +%s)".json
         echo 'exported database'
-        task::sync force
+        task::sync
         task delete
     }
 
-    task::sync 
+    task::is_it_time_to_sync
 fi
