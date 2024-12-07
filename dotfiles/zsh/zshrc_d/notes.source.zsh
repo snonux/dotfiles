@@ -37,4 +37,11 @@ if [ -e $NOTES_DIR ]; then
         sort -R $NOTES_DIR/HabitsAndQuotes/Exercise.md | grep -F '*' | head -n 1
     }
     alias ,nre=notes::random::exercise
+
+    notes::ranger () {
+        cd $NOTES_DIR
+        ranger
+        cd -
+    }
+    alias ,nr=notes::ranger
 fi
