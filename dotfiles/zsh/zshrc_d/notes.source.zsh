@@ -32,4 +32,9 @@ if [ -e $NOTES_DIR ]; then
         $EDITOR $note
     }
     alias ,nf=notes::quick::find
+
+    notes::random::exercise () {
+        sort -R $NOTES_DIR/HabitsAndQuotes/Exercise.md | grep -F '*' | head -n 1
+    }
+    alias ,nre=notes::random::exercise
 fi

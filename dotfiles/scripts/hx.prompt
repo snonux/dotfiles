@@ -5,7 +5,7 @@ if [ -f "$REPLY_FILE" ]; then
   rm "$REPLY_FILE"
 fi
 
-tmux split-window -v "hx $REPLY_FILE.tmp; mv $REPLY_FILE.tmp $REPLY_FILE"
+tmux split-window -v "touch $REPLY_FILE.tmp; hx $REPLY_FILE.tmp; mv $REPLY_FILE.tmp $REPLY_FILE"
 
 while [ ! -f "$REPLY_FILE" ]; do
   sleep 0.2
