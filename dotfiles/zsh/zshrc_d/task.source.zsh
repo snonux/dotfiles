@@ -1,4 +1,5 @@
 if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
+    TASK_STAMP_FILE=~/.tasksync.last
     alias t='task'
 
     local date=date
@@ -133,13 +134,11 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias track=task::add::track
 
     task::is_it_time_to_sync () {
-        readonly stamp_file=~/.tasksync.last
-
         local -i max_age=86400
         local -i now=$($date +'%s')
 
-        if [ -f $stamp_file ]; then
-            local -i diff=$(( now - $(cat $stamp_file) ))
+        if [ -f $TASK_STAMP_FILE ]; then
+            local -i diff=$(( now - $(cat $TASK_STAMP_FILE) ))
             if [ $diff -lt $max_age ]; then
                 return 0
             fi
@@ -160,7 +159,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
             git push
             cd -
         fi
-        echo $now > $stamp_file
+        echo $now > $TASK_STAMP_FILE
     }
     alias tsync=task::sync
 
