@@ -47,13 +47,17 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
 
     task::due () { 
         task active 2>/dev/null
+        task status:pending due.before:now
+    }
+    alias tdue=task::due
+
+    task::due::count () {
         local -i due_count=$(task status:pending due.before:now count)
         if [ $due_count -gt 0 ]; then
             echo "There are $due_count tasks due!"
         fi
     }
-    alias tdue=task::due
-    task::due
+    task::due::count
 
     task::done () {
         task::select "$1"
