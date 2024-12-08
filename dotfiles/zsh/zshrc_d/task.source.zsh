@@ -1,5 +1,5 @@
 if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
-    TASK_STAMP_FILE=~/.tasksync.last
+    export TASK_STAMP_FILE=~/.tasksync.last
     alias t='task'
 
     local date=date
@@ -159,6 +159,8 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
             git push
             cd -
         fi
+
+        local -i now=$($date +'%s')
         echo $now > $TASK_STAMP_FILE
     }
     alias tsync=task::sync
