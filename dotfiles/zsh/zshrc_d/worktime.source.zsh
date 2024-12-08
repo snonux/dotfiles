@@ -45,8 +45,8 @@ if [ -d $WORKTIME_DIR ]; then
             rm work-wisdoms.md.tmp
             git add work-wisdoms.md 
 
-            grep '^\* ' ~/Notes/HabitsAndQuotes/Exercise.md >> exercise.md
-            git add exercise.md
+            grep '^\* ' ~/Notes/HabitsAndQuotes/Exercise.md >> exercises.md
+            git add exercises.md
         fi
 
         find . -name \*.txt -exec git add {} \;
@@ -57,7 +57,7 @@ if [ -d $WORKTIME_DIR ]; then
         cd -
     }
     alias wtsync=worktime::sync
-    alias random_exercise="sort -R $WORKTIME_DIR/exercise.md | head -n 1"
+    alias random_exercise="sort -R $WORKTIME_DIR/exercises.md | head -n 1"
 
     worktime::add () {
         local -r seconds=$1
