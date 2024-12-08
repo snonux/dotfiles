@@ -46,8 +46,11 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias gosr=task::gos::run
 
     task::due () { 
-        task active
-        task due.before:$($date +%Y-%m-%d --date '0 days')
+        task active 2>/dev/null
+        local -i due_count=$(task status:pending due.before:now count)
+        if [ $due_count -gt 0 ]; then
+            echo "There are $due_count tasks due!"
+        fi
     }
     alias tdue=task::due
     task::due
