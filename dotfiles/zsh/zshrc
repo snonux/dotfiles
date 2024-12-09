@@ -129,9 +129,12 @@ compinit
 autoload edit-command-line; zle -N edit-command-line
 bindkey -M vicmd v edit-command-line
 
-fish_like_suggestions=/usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
-if [ -f $fish_like_suggestions ]; then
-    source "$fish_like_suggestions"
+zsh_autosuggestions_path=/usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+if [ Darwin = $UNAME ]; then
+    zsh_autosuggestions_path=$(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+fi
+if [ -f $zsh_autosuggestions_path ]; then
+    source "$zsh_autosuggestions_path"
 else
     echo 'zsh-autosuggestions for fish like suggestions not installed'
 fi
