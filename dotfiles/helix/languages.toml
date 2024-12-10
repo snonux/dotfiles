@@ -41,7 +41,7 @@ command = "clangd"
 [[language]]
 name = "perl"
 scope = "source.perl"
-file-types = ["pl", "pm", "t", "psgi", "raku", "rakumod", "rakutest", "rakudoc", "nqp", "p6", "pl6", "pm6", "Rexfile"]
+file-types = ["pl", "pm", "t", "psgi", "raku", "rakumod", "rakutest", "rakudoc", "nqp", "p6", "pl6", "pm6", { glob = "Rexfile" }]
 shebangs = ["perl"]
 comment-token = "#"
 language-servers = [ "perlnavigator" ]
@@ -68,16 +68,12 @@ scope = "source.ruby"
 injection-regex = "ruby"
 file-types = [
   "rb",
+  "rbs",
   "rake",
   "irb",
   "gemspec",
-  "rabl",
-  "jbuilder",
-  "jb",
-  "podspec",
-  "rjs",
-  "rbi",
-  "Rakefile"
+  { glob = "Gemfile" },
+  { glob = "Rakefile" }
 ]
 shebangs = ["ruby"]
 comment-token = "#"
