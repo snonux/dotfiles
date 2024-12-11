@@ -26,25 +26,30 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
 
     task::rubyize () {
         if [ ! -f ~/scripts/taskwarriorfeeder.rb ]; then
-            echo 'taskwarrior feeder script not installed!' >&2
             return
         fi
         ruby ~/scripts/taskwarriorfeeder.rb
     }
 
-    task::gos::compose () {
-        hx ~/Notes/GosDir/$(date +%s).txt
-    }
-    alias gosc=task::gos::compose
+    if [ -d ~/Notes/GosDir ]; then
+        task::gos::compose () {
+            hx ~/Notes/GosDir/$(date +%s).txt
+        }
+        alias gosc=task::gos::compose
 
-    task::gos::run () {
-        if [ ! -f ~/go/bin/gos ]; then
-            echo "gos not installed?"
-            return
-        fi
-        ~/go/bin/gos -gosDir ~/Notes/GosDir
-    }
-    alias gosr=task::gos::run
+        task::gos::run () {
+            if [ ! -f ~/go/bin/gos ]; then
+                echo "gos not installed?"
+                return
+            fi
+            ~/go/bin/gos -gosDir ~/Notes/GosDir
+        }
+        alias gosr=task::gos::run
+    else
+        task::gos::run () {
+            :
+        }
+    fi
 
     task::due () { 
         task active 2>/dev/null
