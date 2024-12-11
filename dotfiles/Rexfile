@@ -171,8 +171,8 @@ task 'home_vale', sub {
 
 desc 'Install tmux configuration';
 task 'home_tmux', sub {
-  ensure "$DOT/tmux/tmux.local.conf" => "$HOME/.tmux.local.conf";
-  ensure "$DOT/tmux/tmux.conf" => "$HOME/.tmux.conf";
+  ensure "$DOT/tmux/tmux.conf" => "$HOME/.config/tmux/tmux.conf";
+  ensure "$DOT/tmux/tmux.local.conf" => "$HOME/.config/tmux/tmux.local.conf";
 };
 
 desc 'Install Sway configuration';
