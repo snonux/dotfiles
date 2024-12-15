@@ -9,6 +9,7 @@ editor::helix::random_theme () {
     local -r theme_dir=/usr/share/helix/runtime/themes
     if [ ! -d $theme_dir ]; then
         echo "Helix theme dir $theme_dir doesnt exist"
+        return 1
     fi
 
     local -r config_file=$HELIX_CONFIG_DIR/config.toml
