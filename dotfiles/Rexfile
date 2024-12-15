@@ -115,7 +115,7 @@ task 'pkg_fedora', sub {
     ripgrep 
     ruby 
     strace 
-    task
+    task2
     vit
     tig 
     tmux 
