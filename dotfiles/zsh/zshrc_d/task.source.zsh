@@ -33,7 +33,8 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
 
     if [ -d ~/Notes/GosDir ]; then
         task::gos::compose () {
-            hx ~/Notes/GosDir/$(date +%s).txt
+            local -r compose_file=~/Notes/GosDir/$(date +%s).txt
+            hx $compose_file.tmp && mv $compose_file.tmp $compose_file
         }
         alias gosc=task::gos::compose
 
