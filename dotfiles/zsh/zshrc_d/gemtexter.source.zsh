@@ -1,5 +1,5 @@
-declare GEMTEXTER_DIR=$HOME/git/gemtexter
-declare GEMTEXTER_FOO_DIR=$HOME/git/foo.zone-content/gemtext
+export GEMTEXTER_DIR=$HOME/git/gemtexter
+export GEMTEXTER_FOO_DIR=$HOME/git/foo.zone-content/gemtext
 
 if [ -d $GEMTEXTER_DIR ]; then
     gemtexter::edit () {

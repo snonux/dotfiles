@@ -1,4 +1,4 @@
-declare UPRECORDS_REPO=git@codeberg.org:snonux/uprecords.git
+export UPRECORDS_REPO=git@codeberg.org:snonux/uprecords.git
 
 uprecords::os () {
     if [ $(uname) = FreeBSD ]; then
