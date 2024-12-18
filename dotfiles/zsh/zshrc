@@ -1,47 +1,21 @@
-### I want to be in tmux!
-
 if [[ ! -n "$TMUX" && ! -f ~/.tmux.disable ]]; then
     source ~/.zshrc_d/tmux.source.zsh
     tmux::new
 fi
 
-### SOME GLOBAL VARS ###
-#
+export HISTSIZE=999999
+export SAVEHIST=999999
+export HISTFILE=~/.zsh_history
 export UNAME=$(uname)
 export UNAME_R=$(uname -r)
-export EPOCHSTART=19700101
-
-if [ -f ~/motd ]; then
-  echo
-  echo "Local message of the day:"
-  cat ~/motd
-fi
-
-if [ -f /etc/fedora-release ]; then
-    export OS=Fedora
-elif [ -f /etc/centos-release ]; then
-    export OS=CentOS
-elif [ -f /etc/redhat-release ]; then
-    export OS=RedHat
-elif [ -f /etc/debian_version ]; then
-    export OS=Debian
-elif [ -f /etc/arch-release ]; then
-    export OS=Arch
-elif [ -d /data/data/com.termux ]; then
-    export OS=Termux
-else
-    export OS=$(uname)
-fi
-
-### SET ALL THE PATHS ###
 
 addpath_recursive () {
     readonly bin=$1
 
     if [ -e $bin ]; then
         find $bin -maxdepth 2 -type d | while read dir; do
-        grep -q '\.' <<< "$dir" || export PATH=$PATH:$dir
-    done
+            grep -q '\.' <<< "$dir" || export PATH=$PATH:$dir
+        done
     fi
 }
 
@@ -62,44 +36,29 @@ addpath_if_front () {
 }
 
 addpath_if $GOPATH/bin
-addpath_if $HOME/.local/bin
+# addpath_if $HOME/.local/bin
 addpath_if $HOME/bin
 addpath_if $HOME/go/bin
 addpath_if $HOME/scripts
 addpath_if /usr/games
 addpath_if /usr/local/go/bin
 addpath_if /usr/local/scripts
-addpath_if /home/paul/.cargo/bin
-
-addpath_if /opt/etc/init.d/
-addpath_if /opt/local/etc/init.d/
-addpath_if /opt/snonux/etc/init.d/
-addpath_if /opt/snonux/local/etc/init.d/
-
+# addpath_if /home/paul/.cargo/bin
+# addpath_if /opt/etc/init.d/
 addpath_recursive /opt/bin/
 addpath_if_front /opt/local/bin/
 addpath_recursive /opt/snonux/bin/
 addpath_recursive /opt/snonux/local/bin/
 addpath_if_front $HOME/pkg/bin
-
 addpath_if .
 
 export PATH=$PATH:/sbin:/usr/sbin:/usr/local/sbin
 export FACTERLIB=/var/lib/puppet/lib/facter
-#export GOPATH=$HOME/go
-test "$OS" = Darwin && export MANPATH=/opt/local/share/man:$MANPATH
 export CDPATH=$CDPATH:$HOME
+
 for dir in ~/svn ~/svn/modules ~/git ~/git/java ~/src; do
     test -d $dir && export CDPATH=$CDPATH:$dir
 done
-
-### GLOBAL VARS WHICH AFFECT ZSH BEHAVIOUR ###
-
-HISTSIZE=999999
-SAVEHIST=999999
-HISTFILE=~/.zsh_history
-
-### ZSH OPTIONS ###
 
 setopt histignorealldups sharehistory
 setopt nobeep # never ever beep
@@ -107,20 +66,12 @@ setopt autocd # running /etc actually does a cd /etc
 setopt cdablevars # avoid the need for an explicit $ in cd
 setopt listtypes # show types in completion
 setopt extendedglob # weird & wacky pattern matching - yay zsh!
-# setopt completeinword # not just at the end
-# setopt alwaystoend # when complete from middle, move cursor
 setopt correct # spelling correction
 setopt histverify # when using ! cmds, confirm first
-# setopt interactivecomments # escape commands so i can use them later
-# setopt recexact # recognise exact, ambiguous matches
 setopt printexitvalue # alert me if something's failed
-
-#### ZSH BINDKEYS ###
 
 bindkey -v
 bindkey "^R" history-incremental-search-backward
-
-### ZSH MODULES ###
 
 autoload -Uz compinit
 compinit
@@ -137,8 +88,6 @@ if [ -f $zsh_autosuggestions_path ]; then
 else
     echo 'zsh-autosuggestions for fish like suggestions not installed'
 fi
-
-### ZSH STYLE ###
 
 zstyle ':completion:*' auto-description 'specify: %d'
 zstyle ':completion:*' completer _expand _complete _correct _approximate
@@ -157,21 +106,14 @@ zstyle ':completion:*:kill:*' menu yes select
 zstyle ':completion:*:kill:*' force-list always
 zstyle ':completion:*:processes' command 'ps x -o pid,pcpu,tt,args'
 
-#### ALIASES ###
-
+alias loadzsh='rm ~/.zshrc_d_all.source; source ~/.zshrc'
 alias ll='ls -trl'
 alias la='ls -fA'
 alias l='ls -CF'
 alias ..='cd ..'
 alias ...='cd ../..'
 alias ....='cd ../../..'
-alias foo='screen -d -RR -m -S foo'
-alias bar='screen -d -RR -m -S bar'
-alias loadzsh='rm ~/.zshrc_d_all.source; source ~/.zshrc'
 alias s=sudo
-test -f /var/log/kern && alias kernm='sudo grep -v "rsyslogd: -- MARK --" /var/log/kern | less'
-test -f /var/log/kern && alias kern='sudo less /var/log/kern'
-test -f /var/log/messages && alias messages='sudo less /var/log/messages'
 alias tomorrow='date +%Y%m%d --date tomorrow'
 alias ttomorrow='date +%Y%m%d --date "2 days"'
 alias tttomorrow='date +%Y%m%d --date "3 days"'
@@ -187,13 +129,14 @@ alias ro='fgrep " ro," /proc/mounts'
 alias pl='pgrep -lf'
 alias pf='pgrep -f'
 alias first='awk "{ print \$1 }"'
+alias fst=first
 alias second='awk "{ print \$2 }"'
+alias snd=second
 alias third='awk "{ print \$3 }"'
+alias thrd=third
 alias lst='awk "{ print \$(NF) }"'
 alias prelst='awk "{ print \$(NF-1) }"'
 alias se='cut -d"|" -f2'
-
-### LOAD MORE RC FILES ###
 
 load_rc () {
     # Speeding up loading ZSH on the mac (Security scanners)
@@ -208,14 +151,12 @@ load_rc () {
     for rcdir in $HOME/.zshrc_d/ \
         $HOME/.zshrc_{local,private,private_local,work,work_local}_d/; do
         if [ -e $rcdir ]; then
-            find $rcdir -name \*.source -delete
             find $rcdir -name \*.source.zsh -type f | sort |
             while read -r rcfile; do
                 cat $rcfile
                 echo
             done
         fi
-        # Load additional local rc file
         [ -f ~/.zshrc_local ] && cal ~/.zshrc_local
     done > $all_sources.tmp
     mv $all_sources.tmp $all_sources
@@ -224,29 +165,10 @@ load_rc () {
 
 load_rc
 
-alias -s txt=$EDITOR
-alias -s pp=$EDITOR
-alias -s json=$EDITOR
-alias -s xml=$EDITOR
-alias -s erb=$EDITOR
-alias -s c=$EDITOR
-alias -s rb=$EDITOR
-alias -s git='git clone'
+test "$UNAME" = FreeBSD && zpool list
 
-### DISPLAY SOME INFOS ON NEW SHELL ###
-test "$OS" = FreeBSD && zpool list
-
-# Learn a new command
-learn () {
-    man $(ls /bin /sbin /usr/bin /usr/sbin 2>/dev/null | shuf -n 1)| sed -n "/^NAME/ { n;p;q }"
-}
-
-# FZF fuzzy finder
-if [ -f ~/.fzf.zsh ]; then
-    # brew/macOS
-    source ~/.fzf.zsh
-elif [ -f /usr/share/fzf/shell/key-bindings.zsh ]; then
-    # Fedora Linux
-    source /usr/share/fzf/shell/key-bindings.zsh
+if [ -f ~/motd ]; then
+  echo
+  echo "Local message of the day:"
+  cat ~/motd
 fi
-

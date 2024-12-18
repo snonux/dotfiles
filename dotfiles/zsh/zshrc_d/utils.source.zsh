@@ -1,3 +1,8 @@
+# Learn a new command
+learn () {
+    man $(ls /bin /sbin /usr/bin /usr/sbin 2>/dev/null | shuf -n 1)| sed -n "/^NAME/ { n;p;q }"
+}
+
 fullest_h () {
     df -h | sort -n -k 5
 }
@@ -423,3 +428,12 @@ alias typing=touchtype::quote
 sway_config_view () {
     less /etc/sway/config
 }
+
+# FZF fuzzy finder
+if [ -f ~/.fzf.zsh ]; then
+    # brew/macOS
+    source ~/.fzf.zsh
+elif [ -f /usr/share/fzf/shell/key-bindings.zsh ]; then
+    # Fedora Linux
+    source /usr/share/fzf/shell/key-bindings.zsh
+fi

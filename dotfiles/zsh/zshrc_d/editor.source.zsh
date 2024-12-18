@@ -25,3 +25,11 @@ editor::helix::random_theme () {
 if [ -f $HELIX_CONFIG_DIR/config.toml ]; then
     editor::helix::random_theme
 fi
+
+alias -s txt=$EDITOR
+alias -s pp=$EDITOR
+alias -s json=$EDITOR
+alias -s xml=$EDITOR
+alias -s erb=$EDITOR
+alias -s c=$EDITOR
+alias -s rb=$EDITOR

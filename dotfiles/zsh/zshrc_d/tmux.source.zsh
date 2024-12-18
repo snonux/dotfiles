@@ -1,7 +1,7 @@
 alias tm=tmux
 alias tl='tmux list-sessions'
 
-tmux::cleanup_default () {
+tmux::_cleanup_default () {
     local s
     tmux list-sessions | grep '^T.*: ' | grep -F -v attached |
     cut -d: -f1 | while read -r s; do
@@ -29,7 +29,7 @@ tmux::new () {
         date=gdate
     fi
 
-    tmux::cleanup_default
+    tmux::_cleanup_default
     if [ -z "$session" ]; then
         tmux::new T$($date +%s)
     else
@@ -109,3 +109,6 @@ tmux::tssh_from_file () {
 
     tmux::tssh_from_argument $session $(awk '{ print $1} ' $serverlist | sed 's/.lan./.lan/g')
 }
+
+alias foo='tmux::new foo'
+alias bar='tmux::new bar'
