@@ -51,7 +51,7 @@ end
 
 def run!(cmd, dry)
   puts cmd
-  puts %x(#{cmd}) unless dry
+  puts `#{cmd}` unless dry
 end
 
 def skill_add!(skills_str, dry)
@@ -111,7 +111,7 @@ def task_schedule!(id, due, dry)
 end
 
 def unscheduled_tasks
-  lines = %x(task due:).split("\n").drop(1)
+  lines = `task due:`.split("\n").drop(1)
   lines.pop
   lines.map { |line| line.split.first }.each do |id|
     yield id if id.to_i.positive?
