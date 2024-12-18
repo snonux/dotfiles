@@ -49,6 +49,8 @@ dotfiles::rexify () {
 alias .rex=dotfiles::rexify
 
 dotfiles::random::edit () {
-  $EDITOR $(find $DOTFILES_DIR -type f | sort -R | head -n 1) 
+    cd $DOTFILES_DIR
+    $EDITOR $(find . -type f | sort -R | head -n 1) 
+    cd -
 }
 alias .re=dotfiles::random::edit
