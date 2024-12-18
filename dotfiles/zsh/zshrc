@@ -36,15 +36,12 @@ addpath_if_front () {
 }
 
 addpath_if $GOPATH/bin
-# addpath_if $HOME/.local/bin
 addpath_if $HOME/bin
 addpath_if $HOME/go/bin
 addpath_if $HOME/scripts
 addpath_if /usr/games
 addpath_if /usr/local/go/bin
 addpath_if /usr/local/scripts
-# addpath_if /home/paul/.cargo/bin
-# addpath_if /opt/etc/init.d/
 addpath_recursive /opt/bin/
 addpath_if_front /opt/local/bin/
 addpath_recursive /opt/snonux/bin/
@@ -53,7 +50,6 @@ addpath_if_front $HOME/pkg/bin
 addpath_if .
 
 export PATH=$PATH:/sbin:/usr/sbin:/usr/local/sbin
-export FACTERLIB=/var/lib/puppet/lib/facter
 export CDPATH=$CDPATH:$HOME
 
 for dir in ~/svn ~/svn/modules ~/git ~/git/java ~/src; do
@@ -153,6 +149,7 @@ load_rc () {
         if [ -e $rcdir ]; then
             find $rcdir -name \*.source.zsh -type f | sort |
             while read -r rcfile; do
+                echo "Preparing $rcfile" >&2
                 cat $rcfile
                 echo
             done
