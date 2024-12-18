@@ -166,7 +166,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
             cd -
         fi
 
-        local -i now=$($date +'%s')
+        local -i now=$(date +'%s')
         echo $now > $TASK_STAMP_FILE
     }
     alias tsync=task::sync
