@@ -1,8 +1,8 @@
-export DOTFILES=~/git/rexfiles/dotfiles
+export DOTFILES_DIR=~/git/rexfiles/dotfiles
 
 dotfiles::update () {
     local -r prev_pwd="$(pwd)"
-    cd $DOTFILES
+    cd $DOTFILES_DIR
     rex home
     cd "$prev_pwd"
 }
@@ -10,7 +10,7 @@ alias .u=dotfiles::update
 
 dotfiles::update::git () {
     local -r prev_pwd="$(pwd)"
-    cd $DOTFILES
+    cd $DOTFILES_DIR
     git pull
     git commit -a
     git push
@@ -21,7 +21,7 @@ alias .ug=dotfiles::update::git
 
 dotfiles::fuzzy::edit () {
     local -r prev_pwd="$(pwd)"
-    cd $DOTFILES
+    cd $DOTFILES_DIR
     local -r dotfile="$(find . -type f -not -path '*/.git/*' | fzf)"
     $VISUAL "$dotfile"
     if grep -F -q source.zsh <<< "$dotfile"; then
@@ -34,7 +34,7 @@ alias .e=dotfiles::fuzzy::edit
 
 dotfiles::visual () {
     local -r prev_pwd="$(pwd)"
-    cd $DOTFILES
+    cd $DOTFILES_DIR
     $VISUAL
     cd "$prev_pwd"
 }
@@ -49,6 +49,6 @@ dotfiles::rexify () {
 alias .rex=dotfiles::rexify
 
 dotfiles::random::edit () {
-  $EDITOR $(find . -type f | sort -R | head -n 1) 
+  $EDITOR $(find $DOTFILES_DIR -type f | sort -R | head -n 1) 
 }
 alias .re=dotfiles::random::edit

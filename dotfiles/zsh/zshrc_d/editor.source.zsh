@@ -3,27 +3,27 @@ export VISUAL=$EDITOR
 export GIT_EDITOR=$EDITOR
 export HELIX_CONFIG_DIR=$HOME/.config/helix
 
-editor::helix::random_theme () {
-    # May add more theme search paths based on OS. This one is
-    # for Fedora Linux, but there is also MacOS, etc.
-    local -r theme_dir=/usr/share/helix/runtime/themes
-    if [ ! -d $theme_dir ]; then
-        echo "Helix theme dir $theme_dir doesnt exist"
-        return 1
-    fi
+editor::helix::theme::get_random () {
+    for dir in $(hx --health \
+        | awk '/^Runtime directories/ { print $3 }' | tr ';' ' '); do
+        if [ -d $dir/themes ]; then
+            ls $dir/themes
+        fi
+    done | grep -F .toml | sort -R | head -n 1 | cut -d. -f1
+}
+
+editor::helix::theme::set () {
+    local -r theme="$1"; shift
 
     local -r config_file=$HELIX_CONFIG_DIR/config.toml
-    local -r random_theme="$(basename "$(ls $theme_dir \
-        | grep -v random.toml | grep .toml | sort -R \
-        | head -n 1)" | cut -d. -f1)"
 
-    sed "/^theme =/ { s/.*/theme = \"$random_theme\"/; }" \
+    sed "/^theme =/ { s/.*/theme = \"$theme\"/; }" \
         $config_file > $config_file.tmp && 
         mv $config_file.tmp $config_file
 }
 
 if [ -f $HELIX_CONFIG_DIR/config.toml ]; then
-    editor::helix::random_theme
+    editor::helix::theme::set $(editor::helix::theme::get_random)
 fi
 
 alias -s txt=$EDITOR
