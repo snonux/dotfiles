@@ -15,6 +15,7 @@ dotfiles::update::git () {
     git commit -a
     git push
     rex home
+    loadzsh
     cd "$prev_pwd"
 }
 alias .ug=dotfiles::update::git

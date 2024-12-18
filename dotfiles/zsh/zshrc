@@ -154,8 +154,9 @@ load_rc () {
                 echo
             done
         fi
-        [ -f ~/.zshrc_local ] && cal ~/.zshrc_local
+        [ -f ~/.zshrc_local ] && cat ~/.zshrc_local
     done > $all_sources.tmp
+    chmod 600 $all_sources.tmp
     mv $all_sources.tmp $all_sources
     load_rc
 }
