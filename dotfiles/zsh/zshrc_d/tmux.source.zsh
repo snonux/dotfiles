@@ -10,6 +10,17 @@ tmux::cleanup_default () {
     done
 }
 
+tmux::_connect_command () {
+    local -r server_or_pod="$1"; shift
+
+    if [ -z "TMUX_KEXEC" ]; then
+        echo "ssh -t $server_or_pod"
+    else
+        echo "kubectl exec -it $server_or_pod -- /bin/bash"
+    fi
+}
+
+
 # Create new session and if alread exists attach to it
 tmux::new () {
     readonly session=$1
@@ -39,7 +50,7 @@ tmux::attach () {
 }
 alias ta=tmux::attach
 
-# Create new session and directly SSH into the given server
+# Create new session andthe given server or container
 tmux::remote () {
     readonly server=$1
     tmux new -s $server "ssh -t $server 'tmux attach-session || tmux'" || tmux attach-session -d -t $server
@@ -57,7 +68,7 @@ tmux::search () {
 }
 alias ts=tmux::search
 
-# SSH into multiple servers, one tmux pane per server.
+# Connect to multiple servers or containers, one tmux pane per target.
 tmux::cluster_ssh () {
     if [ -f "$1" ]; then
         tmux::tssh_from_file $1
@@ -71,20 +82,20 @@ alias tssh=tmux::cluster_ssh
 # Create a new tmux session with many servers in it
 tmux::tssh_from_argument () {
     local -r session=$1; shift
-    local first_server=$1; shift
+    local first_server_or_container=$1; shift
 
-    if [ -z "$first_server" ]; then
-        first_server=$session
+    if [ -z "$first_server_or_container" ]; then
+        first_server_or_container=$session
     fi
 
-    tmux new-session -d -s $session "ssh -t $first_server"
+    tmux new-session -d -s $session "$(tmux::_connect_command "$first_server_or_container")"
     if ! tmux list-session | grep "^$session:"; then
         echo "Could not create session $session"
         return 2
     fi
 
-    for server in "${@[@]}"; do
-        tmux split-window -t $session "tmux select-layout tiled; ssh -t $server"
+    for server_or_container in "${@[@]}"; do
+        tmux split-window -t $session "tmux select-layout tiled; $(tmux::_connect_command "$server_or_container")"
     done
 
     tmux setw -t $session synchronize-panes on

@@ -1,6 +1,5 @@
 ### I want to be in tmux!
 
-#set -x
 if [[ ! -n "$TMUX" && ! -f ~/.tmux.disable ]]; then
     source ~/.zshrc_d/tmux.source.zsh
     tmux::new
@@ -168,12 +167,8 @@ alias ...='cd ../..'
 alias ....='cd ../../..'
 alias foo='screen -d -RR -m -S foo'
 alias bar='screen -d -RR -m -S bar'
-alias loadzsh='source ~/.zshrc'
-alias loadrvm='source /usr/local/rvm/scripts/rvm'
-alias autopower='sudo powertop --auto-tune'
+alias loadzsh='rm ~/.zshrc_d_all.source; source ~/.zshrc'
 alias s=sudo
-alias sn='sudo ionice -c3 nice -n15'
-alias v='view -'
 test -f /var/log/kern && alias kernm='sudo grep -v "rsyslogd: -- MARK --" /var/log/kern | less'
 test -f /var/log/kern && alias kern='sudo less /var/log/kern'
 test -f /var/log/messages && alias messages='sudo less /var/log/messages'
@@ -186,7 +181,6 @@ alias yesterday='date +%Y%m%d --date yesterday'
 alias yyesterday='date +%Y%m%d --date "2 days ago"'
 alias yyyesterday='date +%Y%m%d --date "3 days ago"'
 alias rsync_nostrict='rsync -e "ssh -o StrictHostKeyChecking=no"'
-alias svntop='svn log --quiet | awk "/^r/ { print \$3 }" | sort | uniq -c | sort -n'
 alias g='grep -E -i'
 alias not='grep -E -i -v'
 alias ro='fgrep " ro," /proc/mounts'
@@ -199,6 +193,37 @@ alias lst='awk "{ print \$(NF) }"'
 alias prelst='awk "{ print \$(NF-1) }"'
 alias se='cut -d"|" -f2'
 
+### LOAD MORE RC FILES ###
+
+load_rc () {
+    # Speeding up loading ZSH on the mac (Security scanners)
+    local -r all_sources=~/.zshrc_d_all.source
+    
+    if [ -f $all_sources ]; then
+        source $all_sources
+        return
+    fi
+    
+    # Load rc files
+    for rcdir in $HOME/.zshrc_d/ \
+        $HOME/.zshrc_{local,private,private_local,work,work_local}_d/; do
+        if [ -e $rcdir ]; then
+            find $rcdir -name \*.source -delete
+            find $rcdir -name \*.source.zsh -type f | sort |
+            while read -r rcfile; do
+                cat $rcfile
+                echo
+            done
+        fi
+        # Load additional local rc file
+        [ -f ~/.zshrc_local ] && cal ~/.zshrc_local
+    done > $all_sources.tmp
+    mv $all_sources.tmp $all_sources
+    load_rc
+}
+
+load_rc
+
 alias -s txt=$EDITOR
 alias -s pp=$EDITOR
 alias -s json=$EDITOR
@@ -207,23 +232,6 @@ alias -s erb=$EDITOR
 alias -s c=$EDITOR
 alias -s rb=$EDITOR
 alias -s git='git clone'
-
-### LOAD MORE RC FILES ###
-
-# Load rc files
-for rcdir in $HOME/.zshrc_d/ \
-    $HOME/.zshrc_{local,private,private_local,work,work_local}_d/; do
-    if [ -e $rcdir ]; then
-        find $rcdir -name \*.source -delete
-        find $rcdir -name \*.source.zsh -type f | sort |
-        while read -r rcfile; do
-            source $rcfile
-        done
-    fi
-done
-
-# Load additional local rc file
-[ -f ~/.zshrc_local ] && source ~/.zshrc_local
 
 ### DISPLAY SOME INFOS ON NEW SHELL ###
 test "$OS" = FreeBSD && zpool list
@@ -242,6 +250,3 @@ elif [ -f /usr/share/fzf/shell/key-bindings.zsh ]; then
     source /usr/share/fzf/shell/key-bindings.zsh
 fi
 
-if [ -f ~/.zshrc_local ]; then
-    source ~/.zshrc_local
-fi
