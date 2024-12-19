@@ -10,7 +10,7 @@ _tmux::cleanup_default () {
 _tmux::connect_command () {
     local -r server_or_pod="$1"; shift
 
-    if [ -z "TMUX_KEXEC" ]; then
+    if [ -z "$TMUX_KEXEC" ]; then
         echo "ssh -t $server_or_pod"
     else
         echo "kubectl exec -it $server_or_pod -- /bin/bash"
