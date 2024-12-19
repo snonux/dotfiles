@@ -39,6 +39,7 @@ addpath_if $GOPATH/bin
 addpath_if $HOME/bin
 addpath_if $HOME/go/bin
 addpath_if $HOME/scripts
+addpath_if $HOME/.local/bin
 addpath_if /usr/games
 addpath_if /usr/local/go/bin
 addpath_if /usr/local/scripts

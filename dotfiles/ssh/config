@@ -1,4 +1,4 @@
-ControlPath ~/.ssh/%r@%h:%p
+ControlPath ~/.ssh/%C
 ControlMaster auto
 #UseKeychain yes
 AddKeysToAgent yes
