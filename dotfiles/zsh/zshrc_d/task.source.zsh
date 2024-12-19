@@ -7,7 +7,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         date=gdate
     fi
 
-    task::_confirm () {
+    _task::config () {
         local -r message="$1"; shift
         if [ "$TASK_AUTO_CONFIRM" = yes ]; then
             echo "Auto confirming"
@@ -69,7 +69,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     task::done () {
         task::select "$1"
         task $TASK_ID
-        if task::_confirm "Mark task $TASK_ID as done"; then
+        if _task::config "Mark task $TASK_ID as done"; then
             task $TASK_ID done
             task::due
         fi
