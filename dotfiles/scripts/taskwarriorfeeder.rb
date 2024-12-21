@@ -8,6 +8,7 @@ PERSONAL_TIMESPAN_D = 30
 WORK_TIMESPAN_D = 14
 WORKTIME_DIR = "#{ENV['HOME']}/git/worktime".freeze
 GOS_DIR = "#{ENV['HOME']}/Notes/GosDir".freeze
+MAX_PENDING_RANDOM_TASKS = 50
 
 def maybe?
   [true, false, false].sample
@@ -15,6 +16,10 @@ end
 
 def run_from_personal_device?
   `uname`.chomp == 'Linux'
+end
+
+def can_have_random?
+  `task status:pending +random count`.to_i < MAX_PENDING_RANDOM_TASKS
 end
 
 def notes(notes_dirs, prefix, dry)
@@ -151,7 +156,7 @@ begin
     end
   end
 
-  unless opts[:no_random]
+  if !opts[:no_random] && can_have_random?
     Dir["#{opts[:quotes_dir]}/*.md"].each do |md_file|
       next unless maybe?
 
