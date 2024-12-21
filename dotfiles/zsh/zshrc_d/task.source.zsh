@@ -141,8 +141,6 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }
     alias track=task::add::track
 
-    
-
     task::dice () {
         local -r filter=$1
         TASK_ID=$(task $filter ready | sort -R | sed -n '/^[0-9]/ { p; q; }' | cut -d' ' -f1)
@@ -167,7 +165,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     task::fuzzy::find () {
         TASK_ID=$(task ready | task::fuzzy::_select)
     }
-    alias tfind=task::fuzzy::
+    alias tfind=task::fuzzy::find
 
     task::select () {
         local -r task_id="$1"
