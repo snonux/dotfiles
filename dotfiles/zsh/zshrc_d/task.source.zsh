@@ -111,7 +111,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     task::random::due_date () {
         local -i seed="$1"
         local -i due_days=$(( ($RANDOM + $seed) % 30))
-        date +%Y-%m-%d --date "$due_days days"
+        $date +%Y-%m-%d --date "$due_days days"
     }
 
     task::randomize () {
@@ -243,7 +243,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
 
     task::is_it_time_to_sync () {
         local -i max_age=86400
-        local -i now=$($date +'%s')
+        local -i now=$(date +'%s')
 
         if [ -f $TASK_STAMP_FILE ]; then
             local -i diff=$(( now - $(cat $TASK_STAMP_FILE) ))

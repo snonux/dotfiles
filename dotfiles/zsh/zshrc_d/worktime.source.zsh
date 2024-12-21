@@ -63,7 +63,7 @@ if [ -d $WORKTIME_DIR ]; then
         local -r seconds=$1
         local what=$2
         local -r descr="$3"
-        local -r epoch=$($GDATE +%s)
+        local -r epoch=$(date +%s)
 
         if [ -z "$what" ]; then
             what=work
@@ -81,7 +81,7 @@ if [ -d $WORKTIME_DIR ]; then
     worktime::log () {
         local -r seconds=$1
         local what=$2
-        local -r epoch=$($GDATE +%s)
+        local -r epoch=$(date +%s)
 
         if [ -z "$what" ]; then
             what=work
