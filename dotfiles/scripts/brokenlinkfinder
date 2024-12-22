@@ -1,0 +1,71 @@
+require 'net/http'
+require 'uri'
+require 'nokogiri'
+require 'set'
+
+# Method to fetch and parse HTML from a URL
+def fetch_html(url)
+  response = Net::HTTP.get_response(URI(url))
+  response.body if response.is_a?(Net::HTTPSuccess)
+rescue StandardError => e
+  puts "Error fetching #{url}: #{e.message}"
+  nil
+end
+
+# Method to find and check links on a page
+def check_links(url, domain)
+  html = fetch_html(url)
+  return unless html
+
+  checked = Set.new
+  broken = Set.new
+
+  document = Nokogiri::HTML(html)
+  links = document.css('a').map { |link| link['href'] }.compact
+
+  internal_links = links.select do |link|
+    link.start_with?('/') || link.start_with?('./') || URI(link).host == domain
+  end
+  puts "Internal links: #{internal_links}"
+
+  internal_links.uniq.each do |link|
+    full_url = link.start_with?('/') || link.start_with?('./') ? "#{url}#{link}" : link
+    full_url.sub!('./', '/')
+    next if checked.include?(full_url)
+
+    broken << full_url unless check_link(full_url)
+    checked << full_url
+  end
+
+  broken
+end
+
+# Method to check if a link is broken
+def check_link(url)
+  uri = URI(url)
+  response = Net::HTTP.get_response(uri)
+
+  if response.is_a?(Net::HTTPSuccess)
+    puts "Working link: #{url}"
+    true
+  else
+    puts "Broken link: #{url} (HTTP #{response.code})"
+    false
+  end
+rescue StandardError => e
+  puts "Error checking #{url}: #{e.message}"
+  false
+end
+
+# Main program
+if ARGV.length != 1
+  puts 'Usage: ruby brokenlinkfinder.rb <URL>'
+  exit
+end
+
+start_url = ARGV.first
+domain = URI(start_url).host
+
+check_links(start_url, domain).each do |broken|
+  puts "Broken: #{broken}"
+end
