@@ -111,7 +111,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     task::random::due_date () {
         local -i seed="$1"
         local -i due_days=$(( ($RANDOM + $seed) % 30))
-        $date +%Y-%m-%d --date "$due_days days"
+        date +%Y-%m-%d --date "$due_days days"
     }
 
     task::randomize () {
