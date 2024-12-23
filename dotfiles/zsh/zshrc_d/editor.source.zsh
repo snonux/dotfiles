@@ -22,6 +22,23 @@ editor::helix::theme::set () {
         mv $config_file.tmp $config_file
 }
 
+editor::helix::open_with_lock () {
+    local -r file="$1"; shift
+    local -r lock="$file.lock"
+
+    if [ -f "$lock" ]; then
+        if pgrep -f hx; then
+            echo "File lock $lock exists! Another instance is editing it?"
+            return 2
+        fi
+    fi
+
+    touch $lock
+    hx $file $@
+    rm $lock
+}
+alias hxl=editor::helix::open_with_lock
+
 if [ -f $HELIX_CONFIG_DIR/config.toml ]; then
     editor::helix::theme::set $(editor::helix::theme::get_random)
 fi
