@@ -8,10 +8,10 @@ PERSONAL_TIMESPAN_D = 30
 WORK_TIMESPAN_D = 14
 WORKTIME_DIR = "#{ENV['HOME']}/git/worktime".freeze
 GOS_DIR = "#{ENV['HOME']}/Notes/GosDir".freeze
-MAX_PENDING_RANDOM_TASKS = 14
+MAX_PENDING_RANDOM_TASKS = 15
 
 def maybe?
-  [true, false, false].sample
+  [true, false].sample
 end
 
 def run_from_personal_device?
@@ -56,7 +56,10 @@ end
 
 def run!(cmd, dry)
   puts cmd
-  puts `#{cmd}` unless dry
+  return if dry
+
+  puts `#{cmd}`
+  raise "Command '#{cmd}' failed with #{$?.exitstatus}" if $?.exitstatus != 0
 end
 
 def skill_add!(skills_str, dry)
@@ -108,7 +111,11 @@ def gos_queue!(tags, message, dry)
 end
 
 def task_add!(tags, quote, due, dry)
-  run! "task add due:#{due} +#{tags.join(' +')} '#{quote.gsub("'", '"')}'", dry
+  if tags.include?('task')
+    run! "task #{quote}", dry
+  else
+    run! "task add due:#{due} +#{tags.join(' +')} '#{quote.gsub("'", '"')}'", dry
+  end
 end
 
 def task_schedule!(id, due, dry)
@@ -116,7 +123,7 @@ def task_schedule!(id, due, dry)
 end
 
 def unscheduled_tasks
-  lines = `task due:`.split("\n").drop(1)
+  lines = `task due: 2>/dev/null`.split("\n").drop(1)
   lines.pop
   lines.map { |line| line.split.first }.each do |id|
     yield id if id.to_i.positive?
