@@ -204,6 +204,13 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
 
     task::export () {
         _task::set_import_export_tags
+
+        local -i count=$(task +$TASK_EXPORT_TAG status:pending count)
+        if [ $count -eq 0 ]; then
+            return
+        fi
+
+        echo "Exporting $count tasks to $TASK_EXPORT_TAG"
         task +$TASK_EXPORT_TAG status:pending export > \
             "$WORKTIME_DIR/tw-$TASK_EXPORT_TAG-export-$(date +%s).json"
         yes | task +$TASK_EXPORT_TAG status:pending delete
