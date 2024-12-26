@@ -219,9 +219,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }    
 
     task::sync () {
-        if [ ! task::rubyize ]; then
-            return 2
-        fi    
+        task::rubyize
         task::export
 
         if [ -d $WORKTIME_DIR ]; then
