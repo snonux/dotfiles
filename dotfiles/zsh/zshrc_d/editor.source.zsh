@@ -39,6 +39,18 @@ editor::helix::open_with_lock () {
 }
 alias hxl=editor::helix::open_with_lock
 
+editor::helix::edit::remote () {
+    local -r local_path="$1"; shift
+    local -r remote_uri="$1"; shift
+
+    cat <<END >~/.hx.remote.source
+LOCAL_PATH=$local_path
+REMOTE_URI=$remote_uri
+END
+    hx $local_path
+}
+alias rhx=editor::helix::edit::remote
+
 if [ -f $HELIX_CONFIG_DIR/config.toml ]; then
     editor::helix::theme::set $(editor::helix::theme::get_random)
 fi
