@@ -1,4 +1,4 @@
-theme = "hex_steel"
+theme = "noctis"
 
 [editor]
 bufferline = "always"
@@ -42,6 +42,8 @@ A-c = "toggle_comments" # Was originally C-c, so mapped to ALT now
 
 # Helix related helpers
 C-h = { c = ":config-open", r = ":config-reload", C = ":run-shell-command cp -v ~/.config/helix/*.toml ~/git/rexfiles/dotfiles/helix/", l = ":open ~/.config/helix/languages.toml", h = ":open ~/Notes/Linux-and-Unix-Tricks/Helix.md", L = ":log-open", d = ":theme default" }
+
+C-r = [ ":write", ":run-shell-command sh -c 'source ~/.hx.remote.source; scp $LOCAL_PATH $REMOTE_URI && echo Uploaded to $REMOTE_URI || echo Failed uploading to $REMOTE_URI'"] 
 
 # Various helpers
 C-s = { e = ":set-option soft-wrap.enable true", d = ":set-option soft-wrap.enable false", s = "save_selection" }
