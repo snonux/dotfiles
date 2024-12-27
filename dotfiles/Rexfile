@@ -96,6 +96,7 @@ task 'pkg_fedora', sub {
     syncthing
     ncdu
     ack
+    fish
     bat
     ctags
     fzf 
@@ -163,6 +164,12 @@ task 'home_bash', sub {
   ensure "$DOT/bash/bash_profile" => "$HOME/.bash_profile";
   ensure "$DOT/bash/bashrc" => "$HOME/.bashrc";
 };
+
+desc 'Install fish configuration';
+task 'home_fish', sub {
+  ensure "$DOT/fish/conf.d/*" => "$HOME/.config/fish/conf.d/";
+};
+
 
 desc 'Vale and proselint';
 task 'home_vale', sub {
