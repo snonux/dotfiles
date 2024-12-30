@@ -90,8 +90,8 @@ task 'pkg_freebsd', sub {
 desc 'Install packages on Fedora Linux';
 task 'pkg_fedora', sub {
   my @pkgs = qw/
+    fd-find
     nodejs-bash-language-server
-    zsh-autosuggestions
     fortune-mod
     syncthing
     ncdu
