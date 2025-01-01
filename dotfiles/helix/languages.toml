@@ -107,6 +107,7 @@ file-types = [
   "tcshrc",
   "bashrc_Apple_Terminal",
   "zshrc_Apple_Terminal",
+  { glob = "*zshrc*" },
 ]
 shebangs = ["sh", "bash", "dash", "zsh"]
 comment-token = "#"

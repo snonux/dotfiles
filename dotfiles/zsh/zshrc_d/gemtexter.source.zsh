@@ -1,5 +1,5 @@
-declare GEMTEXTER_DIR=$HOME/git/gemtexter
-declare GEMTEXTER_FOO_DIR=$HOME/git/foo.zone-content/gemtext
+export GEMTEXTER_DIR=$HOME/git/gemtexter
+export GEMTEXTER_FOO_DIR=$HOME/git/foo.zone-content/gemtext
 
 if [ -d $GEMTEXTER_DIR ]; then
     gemtexter::edit () {
@@ -12,8 +12,19 @@ if [ -d $GEMTEXTER_DIR ]; then
 
     gemtexter::publish () {
         local -r config_file="$1"; shift
+
         cd "$GEMTEXTER_DIR"
         CONFIG_FILE_PATH="$config_file" ./gemtexter --publish
+        cd -
+    }
+
+    gemtexter::publish::file () {
+        local -r file="$1"; shift
+
+        cd "$GEMTEXTER_DIR"
+        ./gemtexter --generate "$file"
+        ./gemtexter --git
+        ./post_publish_hook.sh
         cd -
     }
 
@@ -22,6 +33,7 @@ if [ -d $GEMTEXTER_DIR ]; then
     }
     alias .gfe=gemtexter::foo::edit
     alias .gfp=gemtexter::publish "$GEMTEXTER_DIR/gemtexter.conf"
+    alias .gff=gemtexter::publish::file 
 
     gemtexter::random::note () {
         amfora $(find ~/git/foo.zone-content/gemtext/notes -name \*.gmi | sort -R | head -n 1 | sed 's|.*foo.zone-content/gemtext|gemini://foo.zone/|')

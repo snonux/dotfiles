@@ -1,5 +1,7 @@
 if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     export TASK_STAMP_FILE=~/.tasksync.last
+    export WORKTIME_DIR=~/git/worktime
+
     alias t='task'
 
     local date=date
@@ -7,7 +9,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         date=gdate
     fi
 
-    task::_confirm () {
+    _task::config () {
         local -r message="$1"; shift
         if [ "$TASK_AUTO_CONFIRM" = yes ]; then
             echo "Auto confirming"
@@ -33,7 +35,8 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
 
     if [ -d ~/Notes/GosDir ]; then
         task::gos::compose () {
-            hx ~/Notes/GosDir/$(date +%s).txt
+            local -r compose_file=~/Notes/GosDir/$(date +%s).txt
+            hx $compose_file.tmp && mv $compose_file.tmp $compose_file
         }
         alias gosc=task::gos::compose
 
@@ -68,7 +71,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     task::done () {
         task::select "$1"
         task $TASK_ID
-        if task::_confirm "Mark task $TASK_ID as done"; then
+        if _task::config "Mark task $TASK_ID as done"; then
             task $TASK_ID done
             task::due
         fi
@@ -108,7 +111,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     task::random::due_date () {
         local -i seed="$1"
         local -i due_days=$(( ($RANDOM + $seed) % 30))
-        $date +%Y-%m-%d --date "$due_days days"
+        date +%Y-%m-%d --date "$due_days days"
     }
 
     task::randomize () {
@@ -138,38 +141,6 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }
     alias track=task::add::track
 
-    task::is_it_time_to_sync () {
-        local -i max_age=86400
-        local -i now=$($date +'%s')
-
-        if [ -f $TASK_STAMP_FILE ]; then
-            local -i diff=$(( now - $(cat $TASK_STAMP_FILE) ))
-            if [ $diff -lt $max_age ]; then
-                return 0
-            fi
-        fi
-
-        echo 'It is time to run tsync!!!'
-    }
-
-    task::sync () {
-        task::rubyize
-        task::gos::run
-
-        if [ -d ~/git/worktime ]; then
-            cd ~/git/worktime
-            git pull
-            git add *.txt *.json
-            git commit -a -m 'add stuff'
-            git push
-            cd -
-        fi
-
-        local -i now=$($date +'%s')
-        echo $now > $TASK_STAMP_FILE
-    }
-    alias tsync=task::sync
-
     task::dice () {
         local -r filter=$1
         TASK_ID=$(task $filter ready | sort -R | sed -n '/^[0-9]/ { p; q; }' | cut -d' ' -f1)
@@ -194,7 +165,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     task::fuzzy::find () {
         TASK_ID=$(task ready | task::fuzzy::_select)
     }
-    alias tfind=task::fuzzy::
+    alias tfind=task::fuzzy::find
 
     task::select () {
         local -r task_id="$1"
@@ -221,17 +192,72 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias fdue=task::fuzzy::due
     alias fdone='task::fuzzy::due && task::done'
 
-    task::export::danger () {
-        if [ ! -d ~/git/worktime ]; then
-            echo 'No worktime directory'
+    _task::set_import_export_tags () {
+        if [ $(uname) = Darwin ]; then
+            export TASK_IMPORT_TAG=work
+            export TASK_EXPORT_TAG=personal
+        else
+            export TASK_IMPORT_TAG=personal
+            export TASK_EXPORT_TAG=work
+        fi
+    }
+
+    task::export () {
+        _task::set_import_export_tags
+
+        local -i count=$(task +$TASK_EXPORT_TAG status:pending count)
+        if [ $count -eq 0 ]; then
             return
         fi
 
-        task export > ~/git/worktime/taskwarrior-export-"$(hostname)-$(date +%s)".json
-        echo 'exported database'
-        task::sync
-        task delete
+        echo "Exporting $count tasks to $TASK_EXPORT_TAG"
+        task +$TASK_EXPORT_TAG status:pending export > \
+            "$WORKTIME_DIR/tw-$TASK_EXPORT_TAG-export-$(date +%s).json"
+        yes | task +$TASK_EXPORT_TAG status:pending delete
     }
 
+    task::import () {
+        _task::set_import_export_tags
+        find $WORKTIME_DIR -name "tw-$TASK_IMPORT_TAG-export-*.json" \
+            | while read -r import; do
+                task import $import
+                rm $import
+              done  
+    }    
+
+    task::sync () {
+        task::rubyize
+        task::export
+
+        if [ -d $WORKTIME_DIR ]; then
+            cd $WORKTIME_DIR
+            git pull
+            git add *.txt *.json
+            git commit -a -m 'do stuff'
+            git push
+            cd -
+        fi
+
+        task::import
+        task::gos::run
+
+        local -i now=$(date +'%s')
+        echo $now > $TASK_STAMP_FILE
+    }
+    alias tsync=task::sync
+
+    task::is_it_time_to_sync () {
+        local -i max_age=86400
+        local -i now=$(date +'%s')
+
+        if [ -f $TASK_STAMP_FILE ]; then
+            local -i diff=$(( now - $(cat $TASK_STAMP_FILE) ))
+            if [ $diff -lt $max_age ]; then
+                return 0
+            fi
+        fi
+
+        echo 'It is time to run tsync!!!'
+    }
     task::is_it_time_to_sync
 fi
