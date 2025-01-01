@@ -1,7 +1,7 @@
 [[language]]
 name = "go"
 auto-format= true
-diagnostic-severity = "hint"
+diagnostic-severity = "Hint"
 formatter = { command = "goimports" }
 language-servers = [ "gopls", "golangci-lint-lsp" ]
 
