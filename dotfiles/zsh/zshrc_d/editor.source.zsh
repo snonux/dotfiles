@@ -43,6 +43,8 @@ editor::helix::edit::remote () {
     local -r local_path="$1"; shift
     local -r remote_uri="$1"; shift
 
+    scp $local_path $remote_uri || return 1
+
     cat <<END >~/.hx.remote.source
 LOCAL_PATH=$local_path
 REMOTE_URI=$remote_uri
