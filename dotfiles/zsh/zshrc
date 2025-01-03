@@ -54,7 +54,11 @@ addpath_if .
 export PATH=$PATH:/sbin:/usr/sbin:/usr/local/sbin
 export CDPATH=$CDPATH:$HOME
 
-for dir in ~/svn ~/svn/modules ~/git ~/git/java ~/src ~/Notes; do
+for dir in \
+    ~/svn ~/svn/modules \
+    ~/git ~/git/java ~/git/foo.zone-content/gemtext \
+    ~/src \
+    ~/Notes ~/Data ~/data; do
     test -d $dir && export CDPATH=$CDPATH:$dir
 done
 
