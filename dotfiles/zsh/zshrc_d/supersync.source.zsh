@@ -15,6 +15,7 @@ supersync::is_it_time_to_sync () {
 }
 
 supersync::sync () {
+    uprecords::sync
     git::repos::index
     task::sync
     gos::run
