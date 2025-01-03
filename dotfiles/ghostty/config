@@ -1,9 +1,9 @@
-window-decoration false
-copy-on-select true
-quick-terminal-position bottom
-quick-terminal-screen mouse
-shell-integration zsh
-bold-is-bright true
+window-decoration = false
+copy-on-select = true
+quick-terminal-position = bottom
+quick-terminal-screen = mouse
+shell-integration = zsh
+bold-is-bright = true
 
 # Toggle window decorations only works on Linux!
 keybind = ctrl+shift+d=toggle_window_decorations
