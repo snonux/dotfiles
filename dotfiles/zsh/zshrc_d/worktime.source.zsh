@@ -1,4 +1,4 @@
-WORKTIME_DIR=~/git/worktime
+export WORKTIME_DIR=~/git/worktime
 
 if [ -d $WORKTIME_DIR ]; then
     alias cdworktime="cd $WORKTIME_DIR"

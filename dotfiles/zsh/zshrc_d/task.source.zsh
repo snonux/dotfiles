@@ -1,7 +1,4 @@
 if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
-    export TASK_STAMP_FILE=~/.tasksync.last
-    export WORKTIME_DIR=~/git/worktime
-
     alias t='task'
 
     local date=date
@@ -25,35 +22,6 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
             return 1
         fi
     }
-
-    task::rubyize () {
-        if [ ! -f ~/scripts/taskwarriorfeeder.rb ]; then
-            return
-        fi
-        ruby ~/scripts/taskwarriorfeeder.rb
-    }
-
-    if [ -d ~/Notes/GosDir ]; then
-        task::gos::compose () {
-            local -r compose_file=~/Notes/GosDir/$(date +%s).txt
-            hx $compose_file.tmp && mv $compose_file.tmp $compose_file
-        }
-        alias gosc=task::gos::compose
-
-        task::gos::run () {
-            if [ ! -f ~/go/bin/gos ]; then
-                echo "gos not installed?"
-                return
-            fi
-            ~/go/bin/gos -gosDir ~/Notes/GosDir
-        }
-        alias gosr=task::gos::run
-        alias cdgos='cd ~/Notes/GosDir'
-    else
-        task::gos::run () {
-            :
-        }
-    fi
 
     task::due () { 
         task active 2>/dev/null
@@ -227,7 +195,9 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }    
 
     task::sync () {
-        task::rubyize
+        if [ -f ~/scripts/taskwarriorfeeder.rb ]; then
+            ruby ~/scripts/taskwarriorfeeder.rb
+        fi
         task::export
 
         if [ -d $WORKTIME_DIR ]; then
@@ -240,25 +210,6 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         fi
 
         task::import
-        task::gos::run
-
-        local -i now=$(date +'%s')
-        echo $now > $TASK_STAMP_FILE
     }
     alias tsync=task::sync
-
-    task::is_it_time_to_sync () {
-        local -i max_age=86400
-        local -i now=$(date +'%s')
-
-        if [ -f $TASK_STAMP_FILE ]; then
-            local -i diff=$(( now - $(cat $TASK_STAMP_FILE) ))
-            if [ $diff -lt $max_age ]; then
-                return 0
-            fi
-        fi
-
-        echo 'It is time to run tsync!!!'
-    }
-    task::is_it_time_to_sync
 fi

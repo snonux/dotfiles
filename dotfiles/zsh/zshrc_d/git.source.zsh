@@ -61,29 +61,11 @@ zle -N _git::fzf::index::cd
 bindkey "^Gd" _git::fzf::index::cd
 
 git::init () {
-    local -i max_age=86400
-    local date=date
-    if where gdate &>/dev/null; then
-        date=gdate
-    fi
-
-    local -i now=$($date +'%s')
-    local index_file_stamp=~/.gitrepos.index.stamp
-    if [ ! -f $index_file_stamp ]; then
-        echo 0 > $index_file_stamp
-    fi
-
-    local -i diff=$(( now - $(cat $index_file_stamp) ))
-    if [ $diff -ge $max_age ]; then
-        git::repos::index
-        echo $now > $index_file_stamp
-    fi
-    
     git::fzf::init
     if [ ! where delta 2>/dev/null ]; then
         echo 'git-delta not installed'
     fi
 }
 
-git::init
+git::fzf::init
 

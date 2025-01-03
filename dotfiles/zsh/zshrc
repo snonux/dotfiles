@@ -54,7 +54,7 @@ addpath_if .
 export PATH=$PATH:/sbin:/usr/sbin:/usr/local/sbin
 export CDPATH=$CDPATH:$HOME
 
-for dir in ~/svn ~/svn/modules ~/git ~/git/java ~/src; do
+for dir in ~/svn ~/svn/modules ~/git ~/git/java ~/src ~/Notes; do
     test -d $dir && export CDPATH=$CDPATH:$dir
 done
 
@@ -102,6 +102,7 @@ alias ..='cd ..'
 alias ...='cd ../..'
 alias ....='cd ../../..'
 alias s=sudo
+alias d=doas
 alias tomorrow='date +%Y%m%d --date tomorrow'
 alias ttomorrow='date +%Y%m%d --date "2 days"'
 alias tttomorrow='date +%Y%m%d --date "3 days"'
@@ -123,37 +124,45 @@ alias snd=second
 alias third='awk "{ print \$3 }"'
 alias thrd=third
 alias lst='awk "{ print \$(NF) }"'
-alias prelst='awk "{ print \$(NF-1) }"'
+alias llst='awk "{ print \$(NF-1) }"'
+alias lllst='awk "{ print \$(NF-2) }"'
 alias se='cut -d"|" -f2'
 
-load_rc () {
-    # Speeding up loading ZSH on the mac (Security scanners)
-    local -r all_sources=~/.zshrc_d_all.source
+rcloader::prepare () {
+    local -r all_rcs="$1"; shift
     
-    if [ -f $all_sources ]; then
-        source $all_sources
-        return
-    fi
-    
-    # Load rc files
+    touch "$all_rcs.tmp" && chmod 600 "$all_rcs.tmp"
+
     for rcdir in $HOME/.zshrc_d/ \
         $HOME/.zshrc_{local,private,private_local,work,work_local}_d/; do
-        if [ -e $rcdir ]; then
-            find $rcdir -name \*.source.zsh -type f | sort |
-            while read -r rcfile; do
-                echo "Preparing $rcfile" >&2
-                cat $rcfile
-                echo
-            done
-        fi
+        if [ ! -e "$rcdir" ]; then
+            continue
+        fi    
+
+        find "$rcdir" -name \*.source.zsh -type f | sort |
+        while read -r rcfile; do
+            echo "Preparing $rcfile" >&2
+            cat "$rcfile"
+            echo
+        done
         [ -f ~/.zshrc_local ] && cat ~/.zshrc_local
-    done > $all_sources.tmp
-    chmod 600 $all_sources.tmp
-    mv $all_sources.tmp $all_sources
-    load_rc
+
+    done > "$all_rcs".tmp
+    mv "$all_rcs".tmp "$all_rcs"
 }
 
-load_rc
+rcloader::load () {
+    # Speeding up loading ZSH on the mac (Security scanners)
+    local -r all_rcs=~/.zshrc_d_all.source
+    
+    if [ ! -f "$all_rcs" ]; then
+        rcloader::prepare "$all_rcs"
+    fi
+
+    source "$all_rcs"
+}
+
+rcloader::load
 
 test "$UNAME" = FreeBSD && zpool list
 
@@ -162,3 +171,5 @@ if [ -f ~/motd ]; then
   echo "Local message of the day:"
   cat ~/motd
 fi
+
+supersync::is_it_time_to_sync
