@@ -142,6 +142,9 @@ task 'pkg_fedora', sub {
 desc 'Install ~/.config/helix';
 task 'home_helix', sub { ensure "$DOT/helix/*" => "$HOME/.config/helix/" };
 
+desc 'Install ~/.config/ghostty';
+task 'home_ghostty', sub { ensure "$DOT/ghostty/*" => "$HOME/.config/ghostty/" };
+
 desc 'Install ~/scripts';
 task 'home_scripts', sub { ensure "$DOT/scripts/*" => "$HOME/scripts/", '0750' };
 

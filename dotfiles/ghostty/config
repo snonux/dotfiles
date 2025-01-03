@@ -1,0 +1,3 @@
+# Toggle window decorations only works on Linux!
+keybind = ctrl+d=toggle_window_decorations
+keybind = ctrl+g=reload_config
