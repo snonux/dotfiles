@@ -1,3 +1,5 @@
 # Toggle window decorations only works on Linux!
 keybind = ctrl+d=toggle_window_decorations
+keybind = ctrl+f=toggle_fullscreen
 keybind = ctrl+g=reload_config
+keybind = ctrl+t=toggle_quick_terminal
