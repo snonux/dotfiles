@@ -1,5 +1,16 @@
+window-decoration false
+copy-on-select true
+quick-terminal-position bottom
+quick-terminal-screen mouse
+shell-integration zsh
+bold-is-bright true
+
 # Toggle window decorations only works on Linux!
-keybind = ctrl+d=toggle_window_decorations
-keybind = ctrl+f=toggle_fullscreen
-keybind = ctrl+g=reload_config
-keybind = ctrl+t=toggle_quick_terminal
+keybind = ctrl+shift+d=toggle_window_decorations
+keybind = ctrl+shift+f=toggle_fullscreen
+keybind = ctrl+shift+g=reload_config
+# Toggle quick terminal only supported for MacOS
+keybind = global:ctrl+shift+t=toggle_quick_terminal
+keybind = ctrl+shift+c=copy_to_clipboard
+keybind = ctrl+shift+v=pase_from_clipboard
+keybind = ctrl+shift+w=pase_from_selection
