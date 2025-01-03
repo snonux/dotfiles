@@ -48,6 +48,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
             ~/go/bin/gos -gosDir ~/Notes/GosDir
         }
         alias gosr=task::gos::run
+        alias cdgos='cd ~/Notes/GosDir'
     else
         task::gos::run () {
             :
