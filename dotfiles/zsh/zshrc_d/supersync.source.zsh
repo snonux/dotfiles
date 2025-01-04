@@ -18,7 +18,9 @@ supersync::sync () {
     uprecords::sync
     git::repos::index
     task::sync
-    gos::run
+    if [ -f $GOS_BIN ]; then
+        gos
+    fi
     echo $(date +%s)> $SUPERSYNC_STAMP_FILE
 }
 alias supersync=supersync::sync
