@@ -1,9 +1,11 @@
 export GEMTEXTER_DIR=$HOME/git/gemtexter
-export GEMTEXTER_FOO_DIR=$HOME/git/foo.zone-content/gemtext
 
 if [ -d $GEMTEXTER_DIR ]; then
+    export GEMTEXTER_FOO_DIR=$HOME/git/foo.zone-content/gemtext
+
     gemtexter::edit () {
         local -r dir="$1"; shift
+
         cd $dir
         $VISUAL "$(find . -type f -not -path '*/.git/*' | fzf)"
         git::quickpush

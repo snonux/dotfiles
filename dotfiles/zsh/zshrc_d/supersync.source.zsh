@@ -21,6 +21,7 @@ supersync::sync () {
     if [ -f $GOS_BIN ]; then
         gos
     fi
-    echo $(date +%s)> $SUPERSYNC_STAMP_FILE
+    echo $(date +%s)> $SUPERSYNC_STAMP_FILE.tmp
+    mv $SUPERSYNC_STAMP_FILE.tmp $SUPERSYNC_STAMP_FILE
 }
 alias supersync=supersync::sync

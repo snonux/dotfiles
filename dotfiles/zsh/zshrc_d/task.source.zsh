@@ -4,6 +4,8 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     local date=date
     if where gdate &>/dev/null; then
         date=gdate
+    else
+        echo 'GNU Date not installed'
     fi
 
     _task::config () {
@@ -80,7 +82,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     task::random::due_date () {
         local -i seed="$1"
         local -i due_days=$(( ($RANDOM + $seed) % 30))
-        date +%Y-%m-%d --date "$due_days days"
+        $date +%Y-%m-%d --date "$due_days days"
     }
 
     task::randomize () {
@@ -181,7 +183,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
 
         echo "Exporting $count tasks to $TASK_EXPORT_TAG"
         task +$TASK_EXPORT_TAG status:pending export > \
-            "$WORKTIME_DIR/tw-$TASK_EXPORT_TAG-export-$(date +%s).json"
+            "$WORKTIME_DIR/tw-$TASK_EXPORT_TAG-export-$($date +%s).json"
         yes | task +$TASK_EXPORT_TAG status:pending delete
     }
 
