@@ -1,4 +1,4 @@
-window-decoration = false
+window-decoration = true
 copy-on-select = true
 quick-terminal-position = bottom
 quick-terminal-screen = mouse
