@@ -4,7 +4,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     local date=date
     if where gdate &>/dev/null; then
         date=gdate
-    else
+    elif ! date --version | grep -q -v GNU; 
         echo 'GNU Date not installed'
     fi
 
