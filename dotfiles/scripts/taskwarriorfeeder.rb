@@ -30,6 +30,7 @@ def notes(notes_dirs, prefix, dry)
 
       tags = match[:tag].downcase.split(',') + [prefix]
       tags << 'track' if tags.include?('tr') # tr is shorthand for track
+      tags << 'sharefromfeeder' if match[:tag].include?('share:')
 
       due = if match[:due].nil?
               tags.include?('track') ? 'eow' : "#{rand(0..PERSONAL_TIMESPAN_D)}d"
@@ -155,7 +156,7 @@ begin
         skill_add!(note, opts[:dry_run])
       elsif tags.include? 'work'
         worklog_add!(:log, note, due, opts[:dry_run])
-      elsif tags.include? 'share'
+      elsif tags.include?('share') || tags.include?('sharefromfeeder')
         gos_queue!(tags, note, opts[:dry_run])
       else
         task_add!(tags, note, due, opts[:dry_run])
