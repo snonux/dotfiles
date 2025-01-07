@@ -30,7 +30,6 @@ def notes(notes_dirs, prefix, dry)
 
       tags = match[:tag].downcase.split(',') + [prefix]
       tags << 'track' if tags.include?('tr') # tr is shorthand for track
-      tags << 'feedershare' if match[:tag].include?('share:')
 
       due = if match[:due].nil?
               tags.include?('track') ? 'eow' : "#{rand(0..PERSONAL_TIMESPAN_D)}d"
@@ -90,23 +89,8 @@ end
 
 # Queue to Gos https://codeberg.org/snonux/gos
 def gos_queue!(tags, message, dry)
-  share_tag = []
-  platforms = { 'li' => :linkedin, 'ma' => :mastodon, 'x' => :xcom }
-  platforms.each do |short, long|
-    share_tag << long if tags.include?(short) || tags.include?(long.to_s)
-    share_tag << "-#{long}" if tags.include?("-#{short}") || tags.include?("-#{long}")
-  end
-  share_tag = share_tag.empty? ? '' : ".share:#{share_tag.join(':')}"
-
-  # All tags other than the share tag
-  other_tags = tags.reject do |t|
-    t.start_with?('-') ||
-      t == 'share' ||
-      platforms.keys.include?(t.downcase) ||
-      platforms.values.include?(t.downcase.to_sym)
-  end
-
-  file = "#{GOS_DIR}/#{Digest::MD5.hexdigest(message)}.#{other_tags.join('.')}#{share_tag}.txt"
+  message = "#{tags.join(',')} #{message}"
+  file = "#{GOS_DIR}/#{Digest::MD5.hexdigest(message)}.txt"
   puts "Writing #{file}"
   File.write(file, message) unless dry
 end
@@ -156,7 +140,7 @@ begin
         skill_add!(note, opts[:dry_run])
       elsif tags.include? 'work'
         worklog_add!(:log, note, due, opts[:dry_run])
-      elsif tags.include?('share') || tags.include?('feedershare')
+      elsif tags.any? { |tag| tag.start_with?('share') }
         gos_queue!(tags, note, opts[:dry_run])
       else
         task_add!(tags, note, due, opts[:dry_run])
