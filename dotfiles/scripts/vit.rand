@@ -9,7 +9,7 @@ if [ -z "$TASK_ID" ]; then
 fi
 
 # Generate a random number between 1 and 30
-declare -i DAYS=$(( ( RANDOM % 400 )  + 1 ))
+declare -i DAYS=$(( ( RANDOM % 30 )  + 1 ))
 
 # Using `date` to compute the new due date
 declare -r NEW_DUE_DATE=$(date -d "+$DAYS days" +%Y-%m-%d)
