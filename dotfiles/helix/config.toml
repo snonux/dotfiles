@@ -1,4 +1,4 @@
-theme = "noctis"
+theme = "monokai_pro_octagon"
 
 [editor]
 bufferline = "always"
@@ -52,7 +52,7 @@ C-s = { e = ":set-option soft-wrap.enable true", d = ":set-option soft-wrap.enab
 C-q = ":buffer-close"
 
 # AI commands
-C-a = { c = ":pipe chatgpt correct this sentence and only print out the corrected text", r = ":pipe chatgpt restructure and reword the input and dont leave information out and only print out the new text", a = ":pipe chatgpt rewrite this in a more casual style", p = ":pipe hx.chatgpt-prompt" }
+C-i = { c = ":pipe chatgpt correct this sentence and only print out the corrected text", r = ":pipe chatgpt restructure and reword the input and dont leave information out and only print out the new text", a = ":pipe chatgpt rewrite this in a more casual style", p = ":pipe hx.chatgpt-prompt" }
 
 # Git commands
 C-g = { d = ":run-shell-command git diff", p = ":run-shell-command git pull", u = ":run-shell-command git push", t = ":run-shell-command tmux new-window -n hx-git-tig tig", c = ":run-shell-command tmux split-window -v 'git commit -a'" }
