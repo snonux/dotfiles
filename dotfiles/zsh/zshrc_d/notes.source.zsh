@@ -1,4 +1,4 @@
-declare NOTES_DIR=$HOME/Notes
+declare NOTES_DIR=~/Notes
 
 if [ -e $NOTES_DIR ]; then
     notes::edit () {
@@ -32,11 +32,5 @@ if [ -e $NOTES_DIR ]; then
         $EDITOR $note
     }
     alias ,nf=notes::quick::find
-
-    notes::ranger () {
-        cd $NOTES_DIR
-        ranger
-        cd -
-    }
-    alias ,nr=notes::ranger
+    alias ,nr="ranger $NOTES_DIR"
 fi
