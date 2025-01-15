@@ -183,7 +183,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
 
         echo "Exporting $count tasks to $TASK_EXPORT_TAG"
         task +$TASK_EXPORT_TAG status:pending export > \
-            "$WORKTIME_DIR/tw-$TASK_EXPORT_TAG-export-$($date +%s).json"
+            "$WORKTIME_DIR/tw-$TASK_EXPORT_TAG-export-$(date +%s).json"
         yes | task +$TASK_EXPORT_TAG status:pending delete
     }
 
