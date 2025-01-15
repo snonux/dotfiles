@@ -29,8 +29,6 @@ def notes(notes_dirs, prefix, dry)
       next unless match
 
       tags = match[:tag].downcase.split(',') + [prefix]
-      tags << 'track' if tags.include?('tr') # tr is shorthand for track
-
       due = if match[:due].nil?
               tags.include?('track') ? 'eow' : "#{rand(0..PERSONAL_TIMESPAN_D)}d"
             else
@@ -96,6 +94,10 @@ def gos_queue!(tags, message, dry)
 end
 
 def task_add!(tags, quote, due, dry)
+  tags << 'track' if tags.include?('tr')
+  tags << 'work' if tags.include?('mentoring') || tags.include('productivity')
+  tags.uniq!
+
   if tags.include?('task')
     run! "task #{quote}", dry
   else
