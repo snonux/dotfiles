@@ -30,7 +30,7 @@ def notes(notes_dirs, prefix, dry)
 
       tags = match[:tag].downcase.split(',') + [prefix]
       due = if match[:due].nil?
-              tags.include?('track') ? 'eow' : "#{rand(0..PERSONAL_TIMESPAN_D)}d"
+              tags.includes?('track') ? 'eow' : "#{rand(0..PERSONAL_TIMESPAN_D)}d"
             else
               "#{match[:due]}d"
             end
@@ -94,11 +94,11 @@ def gos_queue!(tags, message, dry)
 end
 
 def task_add!(tags, quote, due, dry)
-  tags << 'track' if tags.include?('tr')
-  tags << 'work' if tags.include?('mentoring') || tags.include('productivity')
+  tags << 'track' if tags.includes?('tr')
+  tags << 'work' if tags.includes?('mentoring') || tags.includes('productivity')
   tags.uniq!
 
-  if tags.include?('task')
+  if tags.includes?('task')
     run! "task #{quote}", dry
   else
     run! "task add due:#{due} +#{tags.join(' +')} '#{quote.gsub("'", '"')}'", dry
@@ -138,9 +138,9 @@ begin
 
   (run_from_personal_device? ? %w[ql pl] : %w[wl]).each do |prefix|
     notes(opts[:notes_dirs].split(','), prefix, opts[:dry_run]) do |tags, note, due|
-      if tags.include?('skill') || tags.include?('skills')
+      if tags.includes?('skill') || tags.includes?('skills')
         skill_add!(note, opts[:dry_run])
-      elsif tags.include? 'work'
+      elsif tags.includes? 'work'
         worklog_add!(:log, note, due, opts[:dry_run])
       elsif tags.any? { |tag| tag.start_with?('share') }
         gos_queue!(tags, note, opts[:dry_run])
