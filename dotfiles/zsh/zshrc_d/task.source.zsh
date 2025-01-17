@@ -108,7 +108,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias log=task::add::log 
 
     task::add::track () {
-        task add priority:M +track "$@" due:eow
+        task add priority:L +track "$@" due:eow
     }
     alias track=task::add::track
 
