@@ -98,17 +98,17 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias trand=task::randomize
 
     task::add () {
-        task add "$@" due:$(task::random::due_date)
+        task add priority:L "$@" due:$(task::random::due_date)
     }
     alias a=task::add
 
     task::add::log () {
-        task add +log "$@" due:$(task::random::due_date)
+        task add priority:L +log "$@" due:$(task::random::due_date)
     }
     alias log=task::add::log 
 
     task::add::track () {
-        task add +track "$@" due:eow
+        task add priority:M +track "$@" due:eow
     }
     alias track=task::add::track
 
