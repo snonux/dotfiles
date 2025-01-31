@@ -58,6 +58,7 @@ if [ -d $WORKTIME_DIR ]; then
     }
     alias wtsync=worktime::sync
     alias random_exercise="sort -R $WORKTIME_DIR/exercises.md | head -n 1"
+    alias random_exercises="sort -R $WORKTIME_DIR/exercises.md | head -n 10"
 
     worktime::add () {
         local -r seconds=$1

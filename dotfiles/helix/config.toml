@@ -1,4 +1,4 @@
-theme = "tokyonight_day"
+theme = "new_moon"
 
 [editor]
 bufferline = "always"
@@ -35,6 +35,7 @@ newline = "none"
 [keys.normal]
 D = ["ensure_selections_forward", "extend_to_line_end"]
 S = ["ensure_selections_forward", "extend_to_line_start"]
+"ret" = "goto_word"
 
 C-c = "yank_main_selection_to_clipboard"
 C-v = { b = "paste_clipboard_before", a = "paste_clipboard_after", r = ":clipboard-paste-replace" }
