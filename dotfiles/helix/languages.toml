@@ -40,6 +40,8 @@ command = "clangd"
 
 [[language]]
 name = "perl"
+auto-format= true
+formatter = { command = "perltidy", args = ["-i=2"] }
 scope = "source.perl"
 file-types = ["pl", "pm", "t", "psgi", "raku", "rakumod", "rakutest", "rakudoc", "nqp", "p6", "pl6", "pm6", { glob = "Rexfile" }]
 shebangs = ["perl"]
