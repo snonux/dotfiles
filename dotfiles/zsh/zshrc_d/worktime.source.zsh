@@ -45,7 +45,7 @@ if [ -d $WORKTIME_DIR ]; then
             rm work-wisdoms.md.tmp
             git add work-wisdoms.md 
 
-            grep '^\* ' ~/Notes/HabitsAndQuotes/Exercise.md >> exercises.md
+            grep '^\* ' ~/Notes/HabitsAndQuotes/Exercise.md > exercises.md
             git add exercises.md
         fi
 
