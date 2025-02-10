@@ -61,8 +61,7 @@ def run!(cmd, dry)
 end
 
 def skill_add!(skills_str, dry)
-  skills = {}
-  skills_file = "#{WORKTIME_DIR}/skills.txt"
+  skills file = skills_filels_fileORKTIME_DIR}/skills.txt"
   skills_str.split(',').map(&:strip).each { |skill| skills[skill.to_s.downcase] = skill }
 
   File.foreach(skills_file) do |line|
