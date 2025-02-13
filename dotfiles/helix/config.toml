@@ -1,4 +1,4 @@
-theme = "flatwhite"
+theme = "iceberg-dark"
 
 [editor]
 bufferline = "always"

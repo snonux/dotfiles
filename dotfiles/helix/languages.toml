@@ -3,7 +3,7 @@ name = "go"
 auto-format= true
 diagnostic-severity = "hint"
 formatter = { command = "goimports" }
-language-servers = [ "gpt", "gopls", "golangci-lint-lsp" ]
+language-servers = [ "gopls", "golangci-lint-lsp" ]
 
 [language-server.gpt]
 command = "helix-gpt"
@@ -31,7 +31,7 @@ scope = "source.c"
 injection-regex = "c"
 file-types = ["c", "h"] # TODO: ["h"]
 comment-token = "//"
-language-servers = [ "gpt", "clangd" ]
+language-servers = [ "clangd" ]
 indent = { tab-width = 2, unit = "  " }
 
 [[grammar]]
@@ -49,7 +49,7 @@ scope = "source.perl"
 file-types = ["pl", "pm", "t", "psgi", "raku", "rakumod", "rakutest", "rakudoc", "nqp", "p6", "pl6", "pm6", { glob = "Rexfile" }]
 shebangs = ["perl"]
 comment-token = "#"
-language-servers = [ "gpt", "perlnavigator" ]
+language-servers = [ "perlnavigator" ]
 indent = { tab-width = 2, unit = "  " }
 
 [[grammar]]
@@ -82,7 +82,7 @@ file-types = [
 ]
 shebangs = ["ruby"]
 comment-token = "#"
-language-servers = [ "gpt", "ruby-lsp", "solargraph", "rubocop" ]
+language-servers = [ "ruby-lsp", "solargraph", "rubocop" ]
 indent = { tab-width = 2, unit = "  " }
 
 [[grammar]]
@@ -116,7 +116,7 @@ file-types = [
 ]
 shebangs = ["sh", "bash", "dash", "zsh"]
 comment-token = "#"
-language-servers = [ "gpt", "bash-language-server" ]
+language-servers = [ "bash-language-server" ]
 indent = { tab-width = 2, unit = "  " }
 
 [[grammar]]
@@ -135,7 +135,7 @@ scope = "source.md"
 injection-regex = "md|markdown"
 file-types = ["md", "markdown", "mkd", "mdwn", "mdown", "markdn", "mdtxt", "mdtext", "workbook", "gmi", "tpl" ]
 roots = [".marksman.toml"]
-language-servers = [ "gpt", "marksman", "markdown-oxide", "vale-ls"]
+language-servers = [ "marksman", "markdown-oxide", "vale-ls"]
 indent = { tab-width = 2, unit = "  " }
 
 [[grammar]]
@@ -168,7 +168,7 @@ scope = "source.java"
 injection-regex = "java"
 file-types = ["java", "jav", "pde"]
 roots = ["pom.xml", "build.gradle", "build.gradle.kts"]
-language-servers = [ "gpt", "jdtls" ]
+language-servers = [ "jdtls" ]
 indent = { tab-width = 2, unit = "  " }
 
 [[grammar]]
