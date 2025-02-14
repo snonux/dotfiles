@@ -1,4 +1,4 @@
-theme = "noctis"
+theme = "iceberg-dark"
 
 [editor]
 bufferline = "always"
@@ -35,6 +35,7 @@ newline = "none"
 [keys.normal]
 D = ["ensure_selections_forward", "extend_to_line_end"]
 S = ["ensure_selections_forward", "extend_to_line_start"]
+"ret" = "goto_word"
 
 C-c = "yank_main_selection_to_clipboard"
 C-v = { b = "paste_clipboard_before", a = "paste_clipboard_after", r = ":clipboard-paste-replace" }
@@ -52,7 +53,7 @@ C-s = { e = ":set-option soft-wrap.enable true", d = ":set-option soft-wrap.enab
 C-q = ":buffer-close"
 
 # AI commands
-C-a = { c = ":pipe chatgpt correct this sentence and only print out the corrected text", r = ":pipe chatgpt restructure and reword the input and dont leave information out and only print out the new text", a = ":pipe chatgpt rewrite this in a more casual style", p = ":pipe hx.chatgpt-prompt" }
+C-p = { c = ":pipe chatgpt correct this sentence and only print out the corrected text", r = ":pipe chatgpt restructure and reword the input and dont leave information out and only print out the new text", a = ":pipe chatgpt rewrite this in a more casual style", p = ":pipe hx.chatgpt-prompt" }
 
 # Git commands
 C-g = { d = ":run-shell-command git diff", p = ":run-shell-command git pull", u = ":run-shell-command git push", t = ":run-shell-command tmux new-window -n hx-git-tig tig", c = ":run-shell-command tmux split-window -v 'git commit -a'" }

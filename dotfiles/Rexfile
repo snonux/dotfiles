@@ -1,223 +1,230 @@
-use Rex -feature => ['1.14', 'exec_autodie'];
+use Rex -feature => [ '1.14', 'exec_autodie' ];
 use Rex::Logger;
 
 our $HOME = $ENV{HOME};
+
 # In a public Git rapository.
 our $DOT = "$HOME/git/rexfiles/dotfiles";
+
 # In a private Git repository.
 our $DOT_PRIVATE = "$HOME/git/rexfiles_private/dotfiles";
 
 sub ensure_dir {
-  my ($src_glob, $dst_dir, $file_mode) = @_;
-  Rex::Logger::info("Ensure dir glob $src_glob");
+    my ( $src_glob, $dst_dir, $file_mode ) = @_;
+    Rex::Logger::info("Ensure dir glob $src_glob");
 
-  file $dst_dir,
-    ensure => 'directory',
-    mode => '0700';
+    file $dst_dir,
+      ensure => 'directory',
+      mode   => '0700';
 
-  file "$dst_dir/" . basename($_),
-    ensure => 'present',
-    source => $_,
-    mode => $file_mode // '0640'
+    file "$dst_dir/" . basename($_),
+      ensure => 'present',
+      source => $_,
+      mode   => $file_mode // '0640'
       for glob $src_glob;
 }
 
 sub ensure_file {
-  my ($src_file, $dst_file, $file_mode) = @_;
+    my ( $src_file, $dst_file, $file_mode ) = @_;
 
-  file $dst_file, ensure => 'present',
-    source => $src_file,
-    mode => $file_mode // '0640';
+    file $dst_file,
+      ensure => 'present',
+      source => $src_file,
+      mode   => $file_mode // '0640';
 }
 
 sub ensure {
-  my ($src, $dst, $mode) = @_;
-  ($dst =~ /\/$/ ? \&ensure_dir : \&ensure_file)->($src, $dst, $mode);
+    my ( $src, $dst, $mode ) = @_;
+    ( $dst =~ /\/$/ ? \&ensure_dir : \&ensure_file )->( $src, $dst, $mode );
 }
 
 desc 'Install packages on Termux';
 task 'pkg_termux', sub {
-  my @pkgs = qw/
-    ack-grep
-    ctags
-    fzf
-    golang
-    htop
-    make
-    neovim
-    nodejs
-    ripgrep
-    rsync
-    ruby
-    starship
-    tig
-    zsh
-  /;
+    my @pkgs = qw/
+      ack-grep
+      ctags
+      fzf
+      golang
+      htop
+      make
+      neovim
+      nodejs
+      ripgrep
+      rsync
+      ruby
+      starship
+      tig
+      zsh
+      /;
 
-  for my $pkg (@pkgs) {
-    Rex::Logger::info("Installing package $pkg");
-    pkg $pkg, ensure => 'installed';
-  }
+    for my $pkg (@pkgs) {
+        Rex::Logger::info("Installing package $pkg");
+        pkg $pkg, ensure => 'installed';
+    }
 };
 
 desc 'Install packages on FreeBSD';
 task 'pkg_freebsd', sub {
-  my @pkgs = qw/
-    bat
-    ctags
-    fzf
-    gmake
-    go
-    gron
-    htop
-    lynx
-    neovim
-    node
-    p5-ack
-    ripgrep
-    starship
-    tig
-    tmux
-    zsh
-  /;
+    my @pkgs = qw/
+      bat
+      ctags
+      fzf
+      gmake
+      go
+      gron
+      htop
+      lynx
+      neovim
+      node
+      p5-ack
+      ripgrep
+      starship
+      tig
+      tmux
+      zsh
+      /;
 
-  for my $pkg (@pkgs) {
-    Rex::Logger::info("Installing package $pkg");
-    pkg $pkg, ensure => 'installed';
-  }
+    for my $pkg (@pkgs) {
+        Rex::Logger::info("Installing package $pkg");
+        pkg $pkg, ensure => 'installed';
+    }
 };
 
 desc 'Install packages on Fedora Linux';
 task 'pkg_fedora', sub {
-  my @pkgs = qw/
-    zsh-autosuggestions
-    fd-find
-    nodejs-bash-language-server
-    fortune-mod
-    syncthing
-    ncdu
-    ack
-    fish
-    bat
-    ctags
-    fzf 
-    golang 
-    golang-x-tools-gopls 
-    gpaste 
-    gron 
-    htop 
-    java-latest-openjdk-devel 
-    lynx 
-    make 
-    neovim 
-    nodejs 
-    perl-File-Slurp
-    procs 
-    rakudo 
-    Rex 
-    ripgrep 
-    ruby 
-    strace 
-    task2
-    vit
-    tig 
-    tmux 
-    zsh 
-    dialect
-    chromium
-    strawberry
-    gnumeric
-    sway-config-fedora
-    sway
-    waybar
-    zathura
-  /;
+    my @pkgs = qw/
+      zsh-autosuggestions
+      fd-find
+      nodejs-bash-language-server
+      fortune-mod
+      syncthing
+      ncdu
+      ack
+      fish
+      bat
+      ctags
+      fzf
+      golang
+      golang-x-tools-gopls
+      gpaste
+      gron
+      htop
+      java-latest-openjdk-devel
+      lynx
+      make
+      neovim
+      nodejs
+      perl-File-Slurp
+      procs
+      rakudo
+      Rex
+      ripgrep
+      ruby
+      strace
+      task2
+      vit
+      tig
+      tmux
+      zsh
+      dialect
+      chromium
+      strawberry
+      gnumeric
+      sway-config-fedora
+      sway
+      waybar
+      zathura
+      /;
 
-  for my $pkg (@pkgs) {
-    Rex::Logger::info("Installing package $pkg");
-    pkg $pkg, ensure => 'installed';
-  }
+    for my $pkg (@pkgs) {
+        Rex::Logger::info("Installing package $pkg");
+        pkg $pkg, ensure => 'installed';
+    }
 };
 
 desc 'Install ~/.config/helix';
 task 'home_helix', sub { ensure "$DOT/helix/*" => "$HOME/.config/helix/" };
 
 desc 'Install ~/.config/ghostty';
-task 'home_ghostty', sub { ensure "$DOT/ghostty/*" => "$HOME/.config/ghostty/" };
+task 'home_ghostty',
+  sub { ensure "$DOT/ghostty/*" => "$HOME/.config/ghostty/" };
 
 desc 'Install ~/scripts';
-task 'home_scripts', sub { ensure "$DOT/scripts/*" => "$HOME/scripts/", '0750' };
+task 'home_scripts',
+  sub { ensure "$DOT/scripts/*" => "$HOME/scripts/", '0750' };
 
 desc 'Install ~/.ssh files';
-task 'home_ssh', sub { ensure "$DOT/ssh/config" => "$HOME/.ssh/config", '0600' };
+task 'home_ssh',
+  sub { ensure "$DOT/ssh/config" => "$HOME/.ssh/config", '0600' };
 
 desc 'Install vit configuration';
 task 'home_vit', sub {
-  file "$HOME/.vit" => ensure => 'directory', mode => '0750';
-  ensure "$DOT/vit/config.ini" => "$HOME/.vit/config.ini", '0600';
+    file "$HOME/.vit" => ensure => 'directory', mode => '0750';
+    ensure "$DOT/vit/config.ini" => "$HOME/.vit/config.ini", '0600';
 };
 
 desc 'Install ZSH configuration';
 task 'home_zsh', sub {
-  ensure "$DOT/zsh/zshrc" => "$HOME/.zshrc";
-  ensure "$DOT/zsh/zshrc_d/*" => "$HOME/.zshrc_d/";
+    ensure "$DOT/zsh/zshrc"     => "$HOME/.zshrc";
+    ensure "$DOT/zsh/zshrc_d/*" => "$HOME/.zshrc_d/";
 };
 
 desc 'Install BASH configuration';
 task 'home_bash', sub {
-  ensure "$DOT/bash/bash_profile" => "$HOME/.bash_profile";
-  ensure "$DOT/bash/bashrc" => "$HOME/.bashrc";
+    ensure "$DOT/bash/bash_profile" => "$HOME/.bash_profile";
+    ensure "$DOT/bash/bashrc"       => "$HOME/.bashrc";
 };
 
 desc 'Install fish configuration';
 task 'home_fish', sub {
-  ensure "$DOT/fish/conf.d/*" => "$HOME/.config/fish/conf.d/";
+    ensure "$DOT/fish/conf.d/*" => "$HOME/.config/fish/conf.d/";
 };
-
 
 desc 'Vale and proselint';
 task 'home_vale', sub {
-  ensure "$DOT/vale.ini" => "$HOME/.vale.ini";
-  say 'Now you can run "vale sync"';
+    ensure "$DOT/vale.ini" => "$HOME/.vale.ini";
+    say 'Now you can run "vale sync"';
 };
 
 desc 'Install tmux configuration';
 task 'home_tmux', sub {
-  ensure "$DOT/tmux/*" => "$HOME/.config/tmux/";
+    ensure "$DOT/tmux/*" => "$HOME/.config/tmux/";
 };
 
 desc 'Install Sway configuration';
 task 'home_sway', sub {
-  ensure "$DOT/sway/config.d/*" => "$HOME/.config/sway/config.d/";
-  ensure "$DOT/waybar/*" => "$HOME/.config/waybar/";
+    ensure "$DOT/sway/config.d/*" => "$HOME/.config/sway/config.d/";
+    ensure "$DOT/waybar/*"        => "$HOME/.config/waybar/";
 };
 
 desc 'Install my signature';
 task 'home_signature', sub {
-  ensure "$DOT/signature" => "$HOME/.signature";
+    ensure "$DOT/signature" => "$HOME/.signature";
 };
 
 desc 'Install my calendar files';
 task 'home_calendar', sub {
-  unless (-d $DOT_PRIVATE) {
-    Rex::Logger::info("$DOT_PRIVATE not there, skipping task", 'warn')
-  } else {
-    ensure "$DOT_PRIVATE/calendar/*" => "$HOME/.calendar/";
-  }
+    unless ( -d $DOT_PRIVATE ) {
+        Rex::Logger::info( "$DOT_PRIVATE not there, skipping task", 'warn' );
+    }
+    else {
+        ensure "$DOT_PRIVATE/calendar/*" => "$HOME/.calendar/";
+    }
 };
 
 desc 'Install my Pipewire tuned for High-Res config';
 task 'home_pipewire', sub {
-  file "$HOME/.config/pipewire" =>
-    ensure => 'directory',
-    mode => '0750';
-  ensure "$DOT/pipewire/pipewire.conf" => "$HOME/.config/pipewire/pipewire.conf", '0600';
+    file "$HOME/.config/pipewire" => ensure => 'directory',
+      mode                        => '0750';
+    ensure
+      "$DOT/pipewire/pipewire.conf" => "$HOME/.config/pipewire/pipewire.conf",
+      '0600';
 };
 
 desc 'Install all my ~ files';
 task 'home', sub {
-  require Rex::TaskList;
-  run_task $_ for Rex::TaskList->create()->get_all_tasks('^home_');
+    require Rex::TaskList;
+    run_task $_ for Rex::TaskList->create()->get_all_tasks('^home_');
 };
 
 # vim: syntax=perl

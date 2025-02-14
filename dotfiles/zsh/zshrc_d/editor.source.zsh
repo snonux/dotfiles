@@ -3,6 +3,10 @@ export VISUAL=$EDITOR
 export GIT_EDITOR=$EDITOR
 export HELIX_CONFIG_DIR=$HOME/.config/helix
 
+# For https://github.com/leona/helix-gpt/blob/master/src/config.ts
+export OPENAI_MODEL=gpt-4o
+export OPENAI_MAX_TOKENS=14000
+
 editor::helix::theme::get_random () {
     for dir in $(hx --health \
         | awk '/^Runtime directories/ { print $3 }' | tr ';' ' '); do
@@ -42,6 +46,8 @@ alias hxl=editor::helix::open_with_lock
 editor::helix::edit::remote () {
     local -r local_path="$1"; shift
     local -r remote_uri="$1"; shift
+
+    scp $local_path $remote_uri || return 1
 
     cat <<END >~/.hx.remote.source
 LOCAL_PATH=$local_path

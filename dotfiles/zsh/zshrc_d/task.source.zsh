@@ -1,12 +1,11 @@
 if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
-    export TASK_STAMP_FILE=~/.tasksync.last
-    export WORKTIME_DIR=~/git/worktime
-
     alias t='task'
 
     local date=date
     if where gdate &>/dev/null; then
         date=gdate
+    elif ! date --version | grep -q -v GNU; then
+        echo 'GNU Date not installed'
     fi
 
     _task::config () {
@@ -25,34 +24,6 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
             return 1
         fi
     }
-
-    task::rubyize () {
-        if [ ! -f ~/scripts/taskwarriorfeeder.rb ]; then
-            return
-        fi
-        ruby ~/scripts/taskwarriorfeeder.rb
-    }
-
-    if [ -d ~/Notes/GosDir ]; then
-        task::gos::compose () {
-            local -r compose_file=~/Notes/GosDir/$(date +%s).txt
-            hx $compose_file.tmp && mv $compose_file.tmp $compose_file
-        }
-        alias gosc=task::gos::compose
-
-        task::gos::run () {
-            if [ ! -f ~/go/bin/gos ]; then
-                echo "gos not installed?"
-                return
-            fi
-            ~/go/bin/gos -gosDir ~/Notes/GosDir
-        }
-        alias gosr=task::gos::run
-    else
-        task::gos::run () {
-            :
-        }
-    fi
 
     task::due () { 
         task active 2>/dev/null
@@ -111,7 +82,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     task::random::due_date () {
         local -i seed="$1"
         local -i due_days=$(( ($RANDOM + $seed) % 30))
-        date +%Y-%m-%d --date "$due_days days"
+        $date +%Y-%m-%d --date "$due_days days"
     }
 
     task::randomize () {
@@ -127,17 +98,17 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias trand=task::randomize
 
     task::add () {
-        task add "$@" due:$(task::random::due_date)
+        task add priority:L "$@" due:$(task::random::due_date)
     }
     alias a=task::add
 
     task::add::log () {
-        task add +log "$@" due:$(task::random::due_date)
+        task add priority:L +log "$@" due:$(task::random::due_date)
     }
     alias log=task::add::log 
 
     task::add::track () {
-        task add +track "$@" due:eow
+        task add priority:L +track "$@" due:eow
     }
     alias track=task::add::track
 
@@ -226,7 +197,9 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }    
 
     task::sync () {
-        task::rubyize
+        if [ -f ~/scripts/taskwarriorfeeder.rb ]; then
+            ruby ~/scripts/taskwarriorfeeder.rb
+        fi
         task::export
 
         if [ -d $WORKTIME_DIR ]; then
@@ -239,25 +212,6 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         fi
 
         task::import
-        task::gos::run
-
-        local -i now=$(date +'%s')
-        echo $now > $TASK_STAMP_FILE
     }
     alias tsync=task::sync
-
-    task::is_it_time_to_sync () {
-        local -i max_age=86400
-        local -i now=$(date +'%s')
-
-        if [ -f $TASK_STAMP_FILE ]; then
-            local -i diff=$(( now - $(cat $TASK_STAMP_FILE) ))
-            if [ $diff -lt $max_age ]; then
-                return 0
-            fi
-        fi
-
-        echo 'It is time to run tsync!!!'
-    }
-    task::is_it_time_to_sync
 fi

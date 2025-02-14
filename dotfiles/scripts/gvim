@@ -1,0 +1,7 @@
+#!/bin/bash
+# Hack so qutebrowser starts an editor (Helix) in a new ghostty terminal.
+
+declare -r FILE_PATH="$2"
+#echo "$@" > /tmp/params.txt
+
+ghostty -e "hx $FILE_PATH"
