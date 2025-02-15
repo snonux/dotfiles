@@ -31,6 +31,7 @@ if [ -e $NOTES_DIR ]; then
 
         $EDITOR $note
     }
+
     alias ,nf=notes::quick::find
     alias ,nr="ranger $NOTES_DIR"
 fi

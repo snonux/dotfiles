@@ -18,8 +18,8 @@ def run_from_personal_device?
   `uname`.chomp == 'Linux'
 end
 
-def can_have_random?
-  `task status:pending +random count`.to_i < MAX_PENDING_RANDOM_TASKS
+def random_count
+  `task status:pending +random count`.to_i - MAX_PENDING_RANDOM_TASKS
 end
 
 def notes(notes_dirs, prefix, dry)
@@ -150,12 +150,16 @@ begin
     end
   end
 
-  if !opts[:no_random] && can_have_random?
-    Dir["#{opts[:quotes_dir]}/*.md"].each do |md_file|
+  unless opts[:no_random]
+    count = random_count
+
+    Dir["#{opts[:quotes_dir]}/*.md"].shuffle.each do |md_file|
       next unless maybe?
+      break if count <= 0
 
       random_quote(md_file) do |tags, quote, due|
         task_add!(tags, quote, due, opts[:dry_run])
+        count -= 1
       end
     end
   end
