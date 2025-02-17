@@ -8,8 +8,8 @@ if [ -z "$TASK_ID" ]; then
     exit 1
 fi
 
-# Generate a random number between 1 and 30
-declare -i DAYS=$(( ( RANDOM % 30 )  + 1 ))
+# Generate a random number between 7 and 67
+declare -i DAYS=$(( ( RANDOM % 60 )  + 7 ))
 
 # Using `date` to compute the new due date
 declare -r NEW_DUE_DATE=$(date -d "+$DAYS days" +%Y-%m-%d)

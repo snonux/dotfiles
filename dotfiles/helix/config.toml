@@ -1,4 +1,4 @@
-theme = "iceberg-dark"
+theme = "boo_berry"
 
 [editor]
 bufferline = "always"
@@ -60,6 +60,9 @@ C-g = { d = ":run-shell-command git diff", p = ":run-shell-command git pull", u 
 
 # Build commands
 C-l = { m = ":run-shell-command make", d = ":run-shell-command go-task dev", r = ":run-shell-command tmux new-window -n hx-go-task-run 'go-task run'" }
+
+[keys.normal.space]
+B = "file_picker_in_current_buffer_directory"
 
 [keys.select]
 "{" = "goto_prev_paragraph"
