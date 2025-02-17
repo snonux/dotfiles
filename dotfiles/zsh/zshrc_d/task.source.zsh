@@ -194,6 +194,11 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
                 task import $import
                 rm $import
               done  
+        find $WORKTIME_DIR -name "tw-$(hostname)-export-*.json" \
+            | while read -r import; do
+                task import $import
+                rm $import
+              done  
     }    
 
     task::sync () {
