@@ -19,15 +19,6 @@ git::quickpush () {
 }
 alias gp=git::quickpush
 
-git::fzf::init () {
-    # Uses `bat` command for syntax highlighting
-    if [ -f ~/git/fzf-git.sh/fzf-git.sh ]; then
-        source ~/git/fzf-git.sh/fzf-git.sh
-        return
-    fi    
-    echo 'fzf-git not on this system'
-}
-
 # To quickly navigate to one of the repos
 git::repos::index () {
     find ~/git -type d -name .git | sed 's|/.git||' > ~/.gitrepos.index
@@ -61,11 +52,8 @@ zle -N _git::fzf::index::cd
 bindkey "^Gd" _git::fzf::index::cd
 
 git::init () {
-    git::fzf::init
     if [ ! where delta 2>/dev/null ]; then
         echo 'git-delta not installed'
     fi
 }
-
-git::fzf::init
 
