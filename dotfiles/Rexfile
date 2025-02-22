@@ -47,7 +47,6 @@ task 'pkg_termux', sub {
       golang
       htop
       make
-      neovim
       nodejs
       ripgrep
       rsync
@@ -74,7 +73,6 @@ task 'pkg_freebsd', sub {
       gron
       htop
       lynx
-      neovim
       node
       p5-ack
       ripgrep
@@ -112,7 +110,6 @@ task 'pkg_fedora', sub {
       java-latest-openjdk-devel
       lynx
       make
-      neovim
       nodejs
       perl-File-Slurp
       procs
@@ -146,16 +143,13 @@ desc 'Install ~/.config/helix';
 task 'home_helix', sub { ensure "$DOT/helix/*" => "$HOME/.config/helix/" };
 
 desc 'Install ~/.config/ghostty';
-task 'home_ghostty',
-  sub { ensure "$DOT/ghostty/*" => "$HOME/.config/ghostty/" };
+task 'home_ghostty', sub { ensure "$DOT/ghostty/*" => "$HOME/.config/ghostty/" };
 
 desc 'Install ~/scripts';
-task 'home_scripts',
-  sub { ensure "$DOT/scripts/*" => "$HOME/scripts/", '0750' };
+task 'home_scripts', sub { ensure "$DOT/scripts/*" => "$HOME/scripts/", '0750' };
 
 desc 'Install ~/.ssh files';
-task 'home_ssh',
-  sub { ensure "$DOT/ssh/config" => "$HOME/.ssh/config", '0600' };
+task 'home_ssh', sub { ensure "$DOT/ssh/config" => "$HOME/.ssh/config", '0600' };
 
 desc 'Install vit configuration';
 task 'home_vit', sub {
@@ -226,5 +220,3 @@ task 'home', sub {
     require Rex::TaskList;
     run_task $_ for Rex::TaskList->create()->get_all_tasks('^home_');
 };
-
-# vim: syntax=perl
