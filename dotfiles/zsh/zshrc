@@ -41,14 +41,15 @@ addpath_if $HOME/go/bin
 addpath_if $HOME/scripts
 addpath_if $HOME/.local/bin
 addpath_if $HOME/.npm/node_modules/.bin
+addpath_if $HOME/.cargo/bin
+addpath_if $HOME/pkg/bin
 addpath_if /usr/games
 addpath_if /usr/local/go/bin
 addpath_if /usr/local/scripts
 addpath_recursive /opt/bin/
-addpath_if_front /opt/local/bin/
 addpath_recursive /opt/snonux/bin/
 addpath_recursive /opt/snonux/local/bin/
-addpath_if_front $HOME/pkg/bin
+addpath_if_front /opt/local/bin/
 addpath_if .
 
 export PATH=$PATH:/sbin:/usr/sbin:/usr/local/sbin
