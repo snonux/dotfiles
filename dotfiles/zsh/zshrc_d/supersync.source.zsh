@@ -17,7 +17,6 @@ supersync::is_it_time_to_sync () {
 supersync::sync () {
     worktime::sync
     uprecords::sync
-    git::repos::index
     task::sync
 
     if [ -f $GOS_BIN ]; then
