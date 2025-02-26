@@ -1,10 +1,8 @@
 if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias t='task'
 
-    local date=date
-    if where gdate &>/dev/null; then
-        date=gdate
-    elif ! date --version | grep -q -v GNU; then
+    export DATE=$(command -v gdate || echo date)
+    if ! $DATE --version | grep -q -v GNU; then
         echo 'GNU Date not installed'
     fi
 
@@ -82,7 +80,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     task::random::due_date () {
         local -i seed="$1"
         local -i due_days=$(( ($RANDOM + $seed) % 30))
-        $date +%Y-%m-%d --date "$due_days days"
+        $DATE +%Y-%m-%d --date "$due_days days"
     }
 
     task::randomize () {
@@ -152,7 +150,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     task::fuzzy::due () {
         local -r flag="$1"
 
-        TASK_ID=$(task limit:0 due.before:$($date +%Y-%m-%d --date '7 days') |
+        TASK_ID=$(task limit:0 due.before:$($DATE +%Y-%m-%d --date '7 days') |
             sed -E '/^$/d; /^[[:digit:]]+ tasks/d' |
             task::fuzzy::_select)
 
