@@ -437,3 +437,11 @@ elif [ -f /usr/share/fzf/shell/key-bindings.zsh ]; then
     # Fedora Linux
     source /usr/share/fzf/shell/key-bindings.zsh
 fi
+
+# tv (television)
+tv::git () {
+    cd $(tv git-repos)
+    zle accept-line
+}
+zle -N tv::git
+bindkey -M viins '^G' tv::git
