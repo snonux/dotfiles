@@ -445,3 +445,24 @@ tv::git () {
 }
 zle -N tv::git
 bindkey -M viins '^G' tv::git
+
+tv::files () {
+    cd $(tv files)
+    zle accept-line
+}
+zle -N tv::files
+bindkey -M viins '^t' tv::files
+
+tv::text () {
+    hx $(tv text)
+    zle accept-line
+}
+zle -N tv::text
+bindkey -M viins '^x' tv::text
+
+tv:: () {
+    hx $(tv )
+    zle accept-line
+}
+zle -N tv::
+bindkey -M viins '^x' tv::
