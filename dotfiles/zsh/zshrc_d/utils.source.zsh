@@ -459,10 +459,3 @@ tv::text () {
 }
 zle -N tv::text
 bindkey -M viins '^x' tv::text
-
-tv:: () {
-    hx $(tv )
-    zle accept-line
-}
-zle -N tv::
-bindkey -M viins '^x' tv::
