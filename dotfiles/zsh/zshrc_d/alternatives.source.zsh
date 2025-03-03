@@ -8,7 +8,7 @@ alternatives::init () {
         alias cat=bat
     fi
 
-    if command -v bat; then
+    if command -v bit; then
         alias Git=/usr/bin/git
         alias git=bit
     fi
