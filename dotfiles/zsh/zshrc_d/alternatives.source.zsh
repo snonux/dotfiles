@@ -3,18 +3,22 @@ alternatives::aliases () {
 }
 
 alternatives::init () {
-    if [[ -f /usr/bin/bat || -f /usr/local/bin/bat ]]; then
+    if command -v bat; then
         alias Cat=/usr/bin/cat
         alias cat=bat
     fi
 
-    if [[ -f /usr/bin/bit || -f /usr/local/bin/bit ]]; then
+    if command -v bat; then
         alias Git=/usr/bin/git
         alias git=bit
     fi
 
-    if [[ -f /usr/bin/procs || -f /usr/local/bin/procs ]]; then
+    if command -v procs; then
         alias p='procs'
+    fi
+
+    if command -v zoxide; then
+        source <(zoxide init zsh)
     fi
 }
 
