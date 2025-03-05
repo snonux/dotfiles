@@ -459,7 +459,3 @@ tv::text () {
 }
 zle -N tv::text
 bindkey -M viins '^x' tv::text
-<<<<<<< HEAD
-
-=======
->>>>>>> afa49348257597a6087692d0f80a80ccf8ea2273
