@@ -438,7 +438,7 @@ elif [ -f /usr/share/fzf/shell/key-bindings.zsh ]; then
     source /usr/share/fzf/shell/key-bindings.zsh
 fi
 
-# tv (television)
+# tv (television) fuzzy finder
 tv::git () {
     cd $(tv git-repos)
     zle accept-line
@@ -446,15 +446,16 @@ tv::git () {
 zle -N tv::git
 bindkey -M viins '^G' tv::git
 
-tv::files () {
-    cd $(tv files)
-    zle accept-line
+tv::files() {
+  BUFFER="$BUFFER $(tv files)"
+  zle end-of-line
+  zle accept-line
 }
 zle -N tv::files
 bindkey -M viins '^t' tv::files
 
 tv::text () {
-    hx $(tv text)
+    $EDITOR $(tv text)
     zle accept-line
 }
 zle -N tv::text
