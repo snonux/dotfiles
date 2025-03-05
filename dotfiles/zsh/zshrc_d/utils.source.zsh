@@ -447,14 +447,14 @@ zle -N tv::git
 bindkey -M viins '^G' tv::git
 
 tv::files () {
-    cd $(tv files)
+    tv files
     zle accept-line
 }
 zle -N tv::files
 bindkey -M viins '^t' tv::files
 
 tv::text () {
-    hx $(tv text)
+    $EDITOR $(tv text)
     zle accept-line
 }
 zle -N tv::text
