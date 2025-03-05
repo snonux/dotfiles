@@ -446,9 +446,10 @@ tv::git () {
 zle -N tv::git
 bindkey -M viins '^G' tv::git
 
-tv::files () {
-    tv files
-    zle accept-line
+tv::files() {
+  BUFFER="$BUFFER $(tv files)"
+  zle end-of-line
+  zle accept-line
 }
 zle -N tv::files
 bindkey -M viins '^t' tv::files
