@@ -118,7 +118,8 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
       fi
     }
     alias standup=task::add::standup
-    alias st=task::add::standup
+    # Virtual standup
+    alias V=task::add::standup
 
     task::dice () {
         local -r filter=$1
