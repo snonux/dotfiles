@@ -96,19 +96,29 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias trand=task::randomize
 
     task::add () {
-        task add priority:L "$@" due:$(task::random::due_date)
+        task add priority:L "$@"
     }
     alias a=task::add
 
     task::add::log () {
-        task add priority:L +log "$@" due:$(task::random::due_date)
+        task add priority:L +log "$@"
     }
     alias log=task::add::log 
 
     task::add::track () {
-        task add priority:L +track "$@" due:eow
+        task add priority:L +personal +track "$@" due:eow
     }
     alias track=task::add::track
+
+    task::add::standup() {
+      if [ "$#" -gt 0 ]; then
+        task add priority:L +work +standup "$@" due:tomorrow
+      else
+        task +standup
+      fi
+    }
+    alias standup=task::add::standup
+    alias st=task::add::standup
 
     task::dice () {
         local -r filter=$1
