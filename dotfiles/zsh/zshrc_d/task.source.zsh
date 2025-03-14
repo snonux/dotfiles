@@ -106,15 +106,20 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias log=task::add::log 
 
     task::add::track () {
+      if [ "$#" -gt 0 ]; then
         task add priority:L +personal +track "$@" due:eow
+      else
+        vit +track
+      fi
     }
     alias track=task::add::track
+    alias T=task::add::track
 
     task::add::standup() {
       if [ "$#" -gt 0 ]; then
-        task add priority:L +work +standup "$@" due:tomorrow
+        task add priority:L +work +standup "$@" due:3days
       else
-        task +standup
+        vit +standup
       fi
     }
     alias standup=task::add::standup
