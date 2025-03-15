@@ -109,8 +109,9 @@ def task_schedule!(id, due, dry)
   run! "task modify #{id} due:#{due}", dry
 end
 
+# Randomly schedule all unscheduled tasks but the ones with the +unsched tag
 def unscheduled_tasks
-  lines = `task due: 2>/dev/null`.split("\n").drop(1)
+  lines = `task -unsched due: 2>/dev/null`.split("\n").drop(1)
   lines.pop
   lines.map { |line| line.split.first }.each do |id|
     yield id if id.to_i.positive?
