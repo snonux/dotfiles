@@ -460,3 +460,8 @@ tv::text () {
 }
 zle -N tv::text
 bindkey -M viins '^x' tv::text
+
+ssh::force () {
+    local -r server="$1"; shift
+    ssh-keygen -R $server && ssh -A $server
+}
