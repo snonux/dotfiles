@@ -128,6 +128,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias V=task::add::standup
     alias Vst='vit +standup +storage'
     alias Vsr='vit +standup +sre'
+    alias Vsre='vit +standup +sre'
 
     task::dice () {
         local -r filter=$1
