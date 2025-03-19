@@ -117,14 +117,17 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
 
     task::add::standup() {
       if [ "$#" -gt 0 ]; then
-        task add priority:L +work +standup "$@" due:3days
+        task add priority:L +work +standup +sre +nosched "$@"
+        task add priority:L +work +standup +storage +nosched "$@"
       else
-        vit +standup
+        vit +standup 
       fi
     }
     alias standup=task::add::standup
     # Virtual standup
     alias V=task::add::standup
+    alias Vst='vit +standup +storage'
+    alias Vsr='vit +standup +sre'
 
     task::dice () {
         local -r filter=$1
