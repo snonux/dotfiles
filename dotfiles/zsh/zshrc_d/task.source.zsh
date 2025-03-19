@@ -24,8 +24,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }
 
     task::due () { 
-        task active 2>/dev/null
-        task status:pending due.before:now
+        vit status:pending due.before:now
     }
     alias tdue=task::due
 
