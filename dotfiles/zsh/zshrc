@@ -37,7 +37,6 @@ addpath_if_front () {
 
 addpath_if $GOPATH/bin
 addpath_if $HOME/bin
-addpath_if $HOME/go/bin
 addpath_if $HOME/scripts
 addpath_if $HOME/.local/bin
 addpath_if $HOME/.npm/node_modules/.bin
@@ -50,6 +49,7 @@ addpath_recursive /opt/bin/
 addpath_recursive /opt/snonux/bin/
 addpath_recursive /opt/snonux/local/bin/
 addpath_if_front /opt/local/bin/
+addpath_if_front $HOME/go/bin
 addpath_if .
 
 export PATH=$PATH:/sbin:/usr/sbin:/usr/local/sbin
