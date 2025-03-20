@@ -5,8 +5,10 @@ games::funky () {
 }
 
 games::colorscript () {
-    if [ -e ~/bin/colorscript ]; then
-        ~/bin/colorscript --random
+    if [ -e ~/git/shell-color-scripts ]; then
+        cd ~/git/shell-color-scripts
+        DEV=1 ./colorscript.sh --random
+        cd -
     else
         # https://gitlab.com/dwt1/shell-color-scripts
         echo 'No colorscripts installed. Go to:'
