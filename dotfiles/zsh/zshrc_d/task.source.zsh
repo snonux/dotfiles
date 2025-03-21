@@ -23,10 +23,8 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         fi
     }
 
-    task::due () { 
-        vit status:pending due.before:now
-    }
-    alias tdue=task::due
+    alias tdue='vit status:pending due.before:now'
+    alias thome='vit +home'
 
     task::due::count () {
         local -i due_count=$(task status:pending due.before:now count)
@@ -125,8 +123,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     alias standup=task::add::standup
     # Virtual standup
     alias V=task::add::standup
-    alias Vst='vit +standup +storage'
-    alias Vsr='vit +standup +sre'
+    alias Vstorage='vit +standup +storage'
     alias Vsre='vit +standup +sre'
 
     task::dice () {
