@@ -7,3 +7,14 @@ ai::chatgpt () {
 
 alias gpt=ai::chatgpt
 alias gpti='chatgpt --interactive'
+
+copilot::suggest () {
+    gh copilot suggest "$@"
+}
+
+copilot::explain () {
+    gh copilot explain "$@"
+}
+
+alias suggest=copilot::suggest
+alias explain=copilot::explain
