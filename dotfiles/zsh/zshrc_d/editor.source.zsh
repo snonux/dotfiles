@@ -4,8 +4,10 @@ export GIT_EDITOR=$EDITOR
 export HELIX_CONFIG_DIR=$HOME/.config/helix
 
 # For https://github.com/leona/helix-gpt/blob/master/src/config.ts
-export OPENAI_MODEL=gpt-4o
-export OPENAI_MAX_TOKENS=14000
+# export OPENAI_MODEL=gpt-4o
+# export OPENAI_MAX_TOKENS=14000
+export COPILOT_MODEL=gpt-4o
+export HANDLER=copilot 
 
 editor::helix::theme::get_random () {
     for dir in $(hx --health \

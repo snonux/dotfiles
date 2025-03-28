@@ -1,4 +1,4 @@
-theme = "ayu_dark"
+theme = "monokai_pro_octagon"
 
 [editor]
 bufferline = "always"

@@ -3,10 +3,11 @@ name = "go"
 auto-format= true
 diagnostic-severity = "hint"
 formatter = { command = "goimports" }
-language-servers = [ "gopls", "golangci-lint-lsp" ]
+language-servers = [ "gopls", "golangci-lint-lsp", "gpt" ]
 
 [language-server.gpt]
 command = "helix-gpt"
+args = [ "--logFile", "helix-gpt.log"]
 
 [language-server.gopls]
 command = "gopls"
@@ -31,7 +32,7 @@ scope = "source.c"
 injection-regex = "c"
 file-types = ["c", "h"] # TODO: ["h"]
 comment-token = "//"
-language-servers = [ "clangd" ]
+language-servers = [ "clangd", "gpt" ]
 indent = { tab-width = 2, unit = "  " }
 
 [[grammar]]
@@ -49,7 +50,7 @@ scope = "source.perl"
 file-types = ["pl", "pm", "t", "psgi", "raku", "rakumod", "rakutest", "rakudoc", "nqp", "p6", "pl6", "pm6", { glob = "Rexfile" }]
 shebangs = ["perl"]
 comment-token = "#"
-language-servers = [ "perlnavigator" ]
+language-servers = [ "perlnavigator", "gpt" ]
 indent = { tab-width = 2, unit = "  " }
 
 [[grammar]]
@@ -82,7 +83,7 @@ file-types = [
 ]
 shebangs = ["ruby"]
 comment-token = "#"
-language-servers = [ "ruby-lsp", "solargraph", "rubocop" ]
+language-servers = [ "ruby-lsp", "solargraph", "rubocop", "gpt" ]
 indent = { tab-width = 2, unit = "  " }
 
 [[grammar]]
@@ -116,7 +117,7 @@ file-types = [
 ]
 shebangs = ["sh", "bash", "dash", "zsh"]
 comment-token = "#"
-language-servers = [ "bash-language-server" ]
+language-servers = [ "bash-language-server", "gpt" ]
 indent = { tab-width = 2, unit = "  " }
 
 [[grammar]]
@@ -135,7 +136,7 @@ scope = "source.md"
 injection-regex = "md|markdown"
 file-types = ["md", "markdown", "mkd", "mdwn", "mdown", "markdn", "mdtxt", "mdtext", "workbook", "gmi", "tpl" ]
 roots = [".marksman.toml"]
-language-servers = [ "marksman", "markdown-oxide", "vale-ls"]
+language-servers = [ "marksman", "markdown-oxide", "vale-ls", "gpt"]
 indent = { tab-width = 2, unit = "  " }
 
 [[grammar]]
@@ -168,7 +169,7 @@ scope = "source.java"
 injection-regex = "java"
 file-types = ["java", "jav", "pde"]
 roots = ["pom.xml", "build.gradle", "build.gradle.kts"]
-language-servers = [ "jdtls" ]
+language-servers = [ "jdtls", "gpt" ]
 indent = { tab-width = 2, unit = "  " }
 
 [[grammar]]
