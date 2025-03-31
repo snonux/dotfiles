@@ -6,8 +6,8 @@ formatter = { command = "goimports" }
 language-servers = [ "gopls", "golangci-lint-lsp", "gpt" ]
 
 [language-server.gpt]
-command = "helix-gpt"
-args = [ "--logFile", "helix-gpt.log"]
+command = "helix-cop"
+args = [ "--logFile", "helix-cop.log"]
 
 [language-server.gopls]
 command = "gopls"
