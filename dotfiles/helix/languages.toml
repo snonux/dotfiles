@@ -23,8 +23,9 @@ rangeVariableTypes = true
 [language-server.golangci-lint-lsp]
 command = "golangci-lint-langserver"
 
+# golangci-lint-langserver depepds/calls golangci-lint 
 [language-server.golangci-lint-lsp.config]
-command = ["golangci-lint-langserver", "run", "--out-format", "json", "--issues-exit-code=1"]
+command = ["golangci-lint", "run", "--out-format", "json", "--issues-exit-code=1"]
 
 [[language]]
 name = "c"
