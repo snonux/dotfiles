@@ -6,6 +6,8 @@ formatter = { command = "goimports" }
 language-servers = [ "gopls", "golangci-lint-lsp", "gpt" ]
 
 [language-server.gpt]
+# Fork from https://github.com/sigmaSd/helix-gpt
+# deno run --allow-net --allow-env $HOME/git/helix-gpt/src/app.ts --handler copilot
 command = "helix-gpt"
 args = [ "--logFile", "helix-gpt.log"]
 
