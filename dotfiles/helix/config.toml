@@ -1,4 +1,4 @@
-theme = "monokai_pro_octagon"
+theme = "kanagawa"
 
 [editor]
 bufferline = "always"
@@ -25,7 +25,7 @@ right = ["selections", "file-encoding", "file-line-ending", "file-type"]
 
 [editor.lsp]
 display-messages = true
-# display-inlay-hints = true
+display-inlay-hints = true
 
 [editor.cursor-shape]
 normal = "block"
