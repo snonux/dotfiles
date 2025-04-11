@@ -7,7 +7,7 @@ language-servers = [ "gopls", "golangci-lint-lsp", "gpt" ]
 
 [language-server.gpt]
 command = "helix-gpt"
-args = [ "--logFile", "helix-gpt.log"]
+args = [ "--logFile", "/tmp/helix-gpt.log"]
 
 [language-server.gopls]
 command = "gopls"
@@ -31,7 +31,7 @@ command = ["golangci-lint", "run", "--out-format", "json", "--issues-exit-code=1
 name = "c"
 scope = "source.c"
 injection-regex = "c"
-file-types = ["c", "h"] # TODO: ["h"]
+file-types = ["c", "h"]
 comment-token = "//"
 language-servers = [ "clangd", "gpt" ]
 indent = { tab-width = 2, unit = "  " }
@@ -135,7 +135,7 @@ rubocop = { command = "rubocop", args = ["--lsp"] }
 name = "markdown"
 scope = "source.md"
 injection-regex = "md|markdown"
-file-types = ["md", "markdown", "mkd", "mdwn", "mdown", "markdn", "mdtxt", "mdtext", "workbook", "gmi", "tpl" ]
+file-types = ["md", "markdown", "mkd", "mdwn", "mdown", "markdn", "mdtxt", "mdtext", "workbook", "gmi", "tpl", "txt" ]
 roots = [".marksman.toml"]
 language-servers = [ "marksman", "markdown-oxide", "vale-ls", "gpt"]
 indent = { tab-width = 2, unit = "  " }

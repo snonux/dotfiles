@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# Used by vit command alias to undo due dates
+
+declare -r TASK_ID=$1
+if [ -z "$TASK_ID" ]; then
+    echo "Usage: $0 <task-id>"
+    exit 1
+fi
+
+task $TASK_ID modify +nosched due:
