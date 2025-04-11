@@ -6,6 +6,8 @@ formatter = { command = "goimports" }
 language-servers = [ "gopls", "golangci-lint-lsp", "gpt" ]
 
 [language-server.gpt]
+# Fork from https://github.com/sigmaSd/helix-gpt
+# deno run --allow-net --allow-env $HOME/git/helix-gpt/src/app.ts --handler copilot
 command = "helix-gpt"
 args = [ "--logFile", "/tmp/helix-gpt.log"]
 
@@ -20,10 +22,12 @@ functionTypeParameters = true
 parameterNames = true
 rangeVariableTypes = true
 
+# go install github.com/nametake/golangci-lint-langserver@latest                                                          │
 [language-server.golangci-lint-lsp]
 command = "golangci-lint-langserver"
 
 # golangci-lint-langserver depepds/calls golangci-lint 
+# go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 [language-server.golangci-lint-lsp.config]
 command = ["golangci-lint", "run", "--out-format", "json", "--issues-exit-code=1"]
 
