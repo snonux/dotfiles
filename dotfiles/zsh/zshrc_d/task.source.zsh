@@ -105,20 +105,36 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
 
     task::add::track () {
       if [ "$#" -gt 0 ]; then
-        task add priority:L +personal +track "$@" due:eow
+          task add priority:L +personal +track "$@" due:eow
       else
-        vit +track
+          vit +track
       fi
     }
     alias track=task::add::track
     alias T=task::add::track
 
+    task::summarize::track () {
+        task +track status:pending export | jq -r '.[].description' | awk '
+            {
+                num=$1
+                $1=""
+                keys[$0] += num
+            }
+
+            END {
+                for (key in keys)
+                    printf "%s %d\n", key, keys[key]
+            }
+        '
+    }
+    alias Tsummarize=task::summarize::track
+
     task::add::standup() {
       if [ "$#" -gt 0 ]; then
-        task add priority:L +work +standup +sre +nosched "$@"
-        task add priority:L +work +standup +storage +nosched "$@"
+          task add priority:L +work +standup +sre +nosched "$@"
+          task add priority:L +work +standup +storage +nosched "$@"
       else
-        vit +standup 
+          vit +standup 
       fi
     }
 
@@ -206,7 +222,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
 
         echo "Exporting $count tasks to $TASK_EXPORT_TAG"
         task +$TASK_EXPORT_TAG status:pending export > \
-            "$WORKTIME_DIR/tw-$TASK_EXPORT_TAG-export-$(date +%s).json"
+            "$WORKTIME_DIR/tw-$TASK_EXPORT_TAG-export-$($DATE +%s).json"
         yes | task +$TASK_EXPORT_TAG status:pending delete
     }
 
@@ -214,15 +230,15 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         _task::set_import_export_tags
         find $WORKTIME_DIR -name "tw-$TASK_IMPORT_TAG-export-*.json" \
             | while read -r import; do
-                task import $import
-                rm $import
+                  task import $import
+                  rm $import
               done  
         find $WORKTIME_DIR -name "tw-$(hostname)-export-*.json" \
             | while read -r import; do
-                task import $import
-                rm $import
+                  task import $import
+                  rm $import
               done  
-    }    
+    }
 
     task::sync () {
         if [ -f ~/scripts/taskwarriorfeeder.rb ]; then
