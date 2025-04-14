@@ -25,6 +25,7 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
 
     alias tdue='vit status:pending due.before:now'
     alias thome='vit +home'
+    alias tasks='vit -track'
 
     task::due::count () {
         local -i due_count=$(task status:pending due.before:now count)
@@ -120,11 +121,19 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
         vit +standup 
       fi
     }
+
+    task::add::standup::editor () {
+        local -r tmpfile=$(mktemp /tmp/standup.XXXXXX.txt) && \
+            $EDITOR $tmpfile && \
+            task::add::standup "$(cat $tmpfile)"
+    }
+
     alias standup=task::add::standup
     # Virtual standup
     alias V=task::add::standup
     alias Vstorage='vit +standup +storage'
     alias Vsre='vit +standup +sre'
+    alias Ved=task::add::standup::editor
 
     task::dice () {
         local -r filter=$1

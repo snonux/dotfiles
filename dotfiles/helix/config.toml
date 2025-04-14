@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 theme = "rose_pine_dawn"
-=======
-theme = "kaolin-light"
->>>>>>> ecec08530240c4c7a81d4335b37bcd7eef3cd923
 
 [editor]
 bufferline = "always"
