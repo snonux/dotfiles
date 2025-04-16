@@ -51,6 +51,23 @@ if [[ -f ~/.taskrc && -f ~/.task.enable ]]; then
     }
     alias tedit=task::edit
 
+    task::url::open () {
+        task::select "$1"
+        local -r desc=$(task +track status:pending export | jq -r '.[].description')
+        local -r url=$(extractUrlFromString "$desc")
+        open -a "Google Chrome" "$url"
+    }
+
+    extractUrlFromString () {
+        local -r str="$1"
+        local -r regex="(https?://[a-zA-Z0-9.-]+(/[a-zA-Z0-9._%+-/?&=]*))"
+        if [[ $str =~ $regex ]]; then
+            echo "${BASH_REMATCH[1]}"
+        else
+            echo "No URL found"
+        fi
+    }
+
     task::del () {
         task::select "$1"
         task $TASK_ID delete
