@@ -49,7 +49,9 @@ def random_quote(md_file)
   timespan = match ? match[1].to_i : timespan
 
   quote = lines.select { |l| l.start_with? '*' }.map { |l| l.sub(/\* +/, '') }.sample
-  yield [tag, 'random'], quote.chomp, "#{rand(0..timespan)}d"
+  tags = [tag, 'random']
+  tags << 'work' if maybe?
+  yield tags, quote.chomp, "#{rand(0..timespan)}d"
 end
 
 def run!(cmd, dry)
