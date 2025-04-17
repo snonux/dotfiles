@@ -8,7 +8,7 @@ PERSONAL_TIMESPAN_D = 30
 WORK_TIMESPAN_D = 14
 WORKTIME_DIR = "#{ENV['HOME']}/git/worktime".freeze
 GOS_DIR = "#{ENV['HOME']}/Notes/GosDir".freeze
-MAX_PENDING_RANDOM_TASKS = 10
+MAX_PENDING_RANDOM_TASKS = 7
 
 def maybe?
   [true, false].sample
@@ -50,7 +50,7 @@ def random_quote(md_file)
 
   quote = lines.select { |l| l.start_with? '*' }.map { |l| l.sub(/\* +/, '') }.sample
   tags = [tag, 'random']
-  tags << 'work' if maybe?
+  tags << 'work' if maybe? && maybe?
   yield tags, quote.chomp, "#{rand(0..timespan)}d"
 end
 
