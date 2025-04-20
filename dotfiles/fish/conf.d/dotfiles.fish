@@ -36,8 +36,7 @@ function dotfiles::rexify
 end
 
 function dotfiles::random::edit
-    $EDITOR (find . -type f | sort -R | head -n 1)
-    cd -
+    $EDITOR (find $DOTFILES_DIR -type f -not -path '*/.git/*' | shuf -n 1)
 end
 
 abbr -a .u 'dotfiles::update'
