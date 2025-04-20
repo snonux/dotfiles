@@ -9,7 +9,6 @@ else
     abbr -a s sudo
 end
 
-
 # Git stuff
 abbr -a gl 'git log --pretty=oneline --graph --decorate --all'
 abbr -a gp 'begin; git commit -a; and git pull; and git push; end'
