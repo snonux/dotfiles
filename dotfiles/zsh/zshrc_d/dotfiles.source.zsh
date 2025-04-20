@@ -24,7 +24,7 @@ dotfiles::fuzzy::edit () {
     local -r prev_pwd="$(pwd)"
     cd $DOTFILES_DIR
     local -r dotfile="$(find . -type f -not -path '*/.git/*' | fzf)"
-    $VISUAL "$dotfile"
+    $EDITOR "$dotfile"
     if grep -F -q source.zsh <<< "$dotfile"; then
         echo "Sourcing $dotfile"
         source "$dotfile"
