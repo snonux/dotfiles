@@ -1,0 +1,11 @@
+# TODO: Migrate away from ZSH (Ruby? Golang? Fish?)
+abbr -a tn 'Z tmux::new'
+abbr -a ta 'Z tmux::attach'
+abbr -a tx 'Z tmux::remote'
+abbr -a ts 'Z tmux::search'
+abbr -a tssh 'Z tmux::cluster_ssh'
+abbr -a tm 'Z tmux'
+abbr -a tl 'Z tmux list-sessions'
+abbr -a foo 'Z tmux::new foo'
+abbr -a bar 'Z tmux::new bar'
+abbr -a baz 'Z tmux::new baz'
