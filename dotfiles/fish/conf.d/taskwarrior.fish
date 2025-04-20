@@ -88,3 +88,5 @@ abbr -a Vsre 'vit +standup +sre'
 abbr -a Ved 'taskwarrior::add::standup::editor'
 abbr -a track 'taskwarrior::add::track'
 abbr -a T 'taskwarrior::add::track'
+
+taskwarrior::due::count
