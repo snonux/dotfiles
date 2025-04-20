@@ -125,6 +125,18 @@ comment-token = "#"
 language-servers = [ "bash-language-server", "gpt" ]
 indent = { tab-width = 2, unit = "  " }
 
+[[language]]
+name = "fish"
+# scope = "source.fish"
+# injection-regex = "(fish)"
+# file-types = [
+#   "fish",
+# ]
+# shebangs = ["fish" ]
+# comment-token = "#"
+language-servers = [ "fish-lsp", "gpt" ]
+# indent = { tab-width = 4, unit = "  " }
+
 [[grammar]]
 name = "bash"
 source = { git = "https://github.com/tree-sitter/tree-sitter-bash", rev = "275effdfc0edce774acf7d481f9ea195c6c403cd" }
