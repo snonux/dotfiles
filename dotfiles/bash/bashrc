@@ -1,15 +1,15 @@
 # If shell is interactive
-if [[ ! -z "$PS1" && ! -f $HOME/.nozsh ]]; then
-  # Use ZSH if it's installed
-  if [ -e /opt/local/bin/zsh ]; then
-    exec /opt/local/bin/zsh
-  elif [ -e /bin/zsh ]; then
-    exec /bin/zsh
-  elif [ -e /usr/bin/zsh ]; then
-    exec /usr/bin/zsh
-  elif [ -e /data/data/com.termux/files/usr/bin/zsh ]; then
-    exec /data/data/com.termux/files/usr/bin/zsh
+if [[ ! -z "$PS1" && ! -f $HOME/.nofish ]]; then
+  # Use fish if it's installed
+  if [ -e /opt/local/bin/fish ]; then
+    exec /opt/local/bin/fish
+  elif [ -e /bin/fish ]; then
+    exec /bin/fish
+  elif [ -e /usr/bin/fish ]; then
+    exec /usr/bin/fish
+  elif [ -e /data/data/com.termux/files/usr/bin/fish ]; then
+    exec /data/data/com.termux/files/usr/bin/fish
   fi
 
-  echo 'I might want to install zsh on this host'
+  echo 'I might want to install fish on this host'
 fi

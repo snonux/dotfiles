@@ -1,5 +1,6 @@
 function taskwarrior::due::count
     set -l due_count (task status:pending due.before:now count)
+
     if test $due_count -gt 0
         echo "There are $due_count tasks due!"
     end
@@ -7,8 +8,10 @@ end
 
 function taskwarrior::url::open
     taskwarrior::select $argv[1]
+
     set -l desc (task +track status:pending export | jq -r '.[].description')
     set -l url (extractUrlFromString "$desc")
+
     if test (uname) = Darwin
         open -a "Google Chrome" "$url"
     else if test (uname) = Linux
@@ -58,9 +61,11 @@ end
 function taskwarrior::export
     _taskwarrior::set_import_export_tags
     set -l count (task +$TASK_EXPORT_TAG status:pending count)
+
     if test $count -eq 0
         return
     end
+
     echo "Exporting $count tasks to $TASK_EXPORT_TAG"
     task +$TASK_EXPORT_TAG status:pending export >"$WORKTIME_DIR/tw-$TASK_EXPORT_TAG-export-"($DATE +%s)".json"
     yes | task +$TASK_EXPORT_TAG status:pending delete
@@ -68,10 +73,12 @@ end
 
 function taskwarrior::import
     _taskwarrior::set_import_export_tags
+
     find $WORKTIME_DIR -name "tw-$TASK_IMPORT_TAG-export-*.json" | while read -l import
         task import $import
         rm $import
     end
+
     find $WORKTIME_DIR -name "tw-(hostname)-export-*.json" | while read -l import
         task import $import
         rm $import
@@ -79,14 +86,16 @@ function taskwarrior::import
 end
 
 abbr -a t task
+abbr -a L 'task add +log'
 abbr -a tdue 'vit status:pending due.before:now'
 abbr -a thome 'vit +home'
 abbr -a tasks 'vit -track'
+abbr -a track 'taskwarrior::add::track'
+
+# Virtual standup abbrs
 abbr -a V 'taskwarrior::add::standup'
 abbr -a Vstorage 'vit +standup +storage'
 abbr -a Vsre 'vit +standup +sre'
 abbr -a Ved 'taskwarrior::add::standup::editor'
-abbr -a track 'taskwarrior::add::track'
-abbr -a T 'taskwarrior::add::track'
 
 taskwarrior::due::count
