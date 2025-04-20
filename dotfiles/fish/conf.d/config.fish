@@ -3,7 +3,12 @@ fish_vi_key_bindings
 # Add paths to PATH
 set -U fish_user_paths ~/bin ~/go/bin ~/.cargo/bin $fish_user_paths
 
-abbr -a s sudo
+if command -q -v doas >/dev/null
+    abbr -a s doas
+else
+    abbr -a s sudo
+end
+
 
 # Git stuff
 abbr -a gl 'git log --pretty=oneline --graph --decorate --all'

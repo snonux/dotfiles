@@ -91,7 +91,7 @@ task 'pkg_freebsd', sub {
 desc 'Install packages on Fedora Linux';
 task 'pkg_fedora', sub {
     my @pkgs = qw/
-      zsh-autosuggestions
+      opendoas
       fd-find
       nodejs-bash-language-server
       fortune-mod
