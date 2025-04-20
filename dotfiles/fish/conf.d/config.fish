@@ -1,8 +1,5 @@
 fish_vi_key_bindings
 
-set -g EDITOR hx
-set -g VISUAL hx
-
 # Add paths to PATH
 set -U fish_user_paths ~/bin ~/go/bin ~/.cargo/bin $fish_user_paths
 
