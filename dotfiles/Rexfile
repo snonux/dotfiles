@@ -171,7 +171,15 @@ task 'home_bash', sub {
 
 desc 'Install fish configuration';
 task 'home_fish', sub {
-    ensure "$DOT/fish/conf.d/*" => "$HOME/.config/fish/conf.d/";
+
+    # ensure "$DOT/fish/conf.d/*" => "$HOME/.config/fish/conf.d/";
+    my $dest_dir = "$HOME/.config/fish/conf.d";
+    if ( -d $dest_dir ) {
+        rename $dest_dir, "$dest_dir.old"
+          or die "Could not rename $dest_dir: $!";
+    }
+    symlink "$DOT/fish/conf.d" => $dest_dir
+      or die "Could not create symlink: $!";
 };
 
 desc 'Vale and proselint';
