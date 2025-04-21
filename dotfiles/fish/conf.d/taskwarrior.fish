@@ -1,3 +1,21 @@
+function taskwarrior::fuzzy::_select
+    sed -n '/^[0-9]/p' | sort -rn | fzf | cut -d' ' -f1
+end
+
+function taskwarrior::fuzzy::find
+    set -g TASK_ID (task ready | taskwarrior::fuzzy::_select)
+end
+
+function taskwarrior::select
+    set -l task_id "$argv[1]"
+    if test -n "$task_id"
+        set -g TASK_ID "$task_id"
+    end
+    if test "$TASK_ID" = - -o -z "$TASK_ID"
+        taskwarrior::fuzzy::find
+    end
+end
+
 function taskwarrior::due::count
     set -l due_count (task status:pending due.before:now count)
 
@@ -9,8 +27,8 @@ end
 function taskwarrior::url::open
     taskwarrior::select $argv[1]
 
-    set -l desc (task +track status:pending export | jq -r '.[].description')
-    set -l url (extractUrlFromString "$desc")
+    set -l desc (task $TASK_ID export | jq -r '.[].description')
+    set -l url (taskwarrior::url::extract "$desc")
 
     if test (uname) = Darwin
         open -a "Google Chrome" "$url"
@@ -19,10 +37,9 @@ function taskwarrior::url::open
     end
 end
 
-function extractUrlFromString
+function taskwarrior::url::extract
     set -l str "$argv[1]"
-    set -l regex "(https?://[a-zA-Z0-9.-]+(/[a-zA-Z0-9._%+-/?&=]*))"
-    echo $str | string match -r $regex
+    echo $str | sed -E 's|.*(https?://.+) .*|\1|'
 end
 
 function taskwarrior::add::track
@@ -91,6 +108,8 @@ abbr -a tdue 'vit status:pending due.before:now'
 abbr -a thome 'vit +home'
 abbr -a tasks 'vit -track'
 abbr -a track 'taskwarrior::add::track'
+abbr -a tfind 'taskwarrior::fuzzy::find'
+abbr -a topen 'taskwarrior::url::open'
 
 # Virtual standup abbrs
 abbr -a V 'taskwarrior::add::standup'
