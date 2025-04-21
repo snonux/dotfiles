@@ -88,3 +88,5 @@ function sync
     date +%s >$SYNC_STAMP_FILE.tmp
     mv $SYNC_STAMP_FILE.tmp $SYNC_STAMP_FILE
 end
+
+abbr -g supersync sync
