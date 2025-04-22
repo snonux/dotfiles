@@ -1,10 +1,10 @@
-set -x SYNC_STAMP_FILE ~/.sync.last
+set -x SUPERSYNC_STAMP_FILE ~/.supersync.last
 
-function sync::is_it_time_to_sync
+function supersync::is_it_time_to_sync
     set -l max_age 86400
     set -l now (date +%s)
-    if test -f $SYNC_STAMP_FILE
-        set -l diff (math $now - (cat $SYNC_STAMP_FILE))
+    if test -f $SUPERSYNC_STAMP_FILE
+        set -l diff (math $now - (cat $SUPERSYNC_STAMP_FILE))
         if test $diff -lt $max_age
             return 0
         end
@@ -13,7 +13,7 @@ function sync::is_it_time_to_sync
 end
 
 # Only sync the HabitsAndQuotes when it's asked for via function parameter
-function sync::worktime
+function supersync::worktime
     set -l worktime_dir ~/git/worktime
 
     if not test -d $worktime_dir
@@ -46,7 +46,7 @@ function sync::worktime
     cd -
 end
 
-function sync::uprecords
+function supersync::uprecords
     set -l uprecords_dir ~/git/uprecords
     set -l uprecords_repo git@codeberg.org:snonux/uprecords.git
 
@@ -64,7 +64,7 @@ function sync::uprecords
     cd -
 end
 
-function sync::taskwarrior
+function supersync::taskwarrior
     if test -f ~/scripts/taskwarriorfeeder.rb
         ruby ~/scripts/taskwarriorfeeder.rb
     else
@@ -75,18 +75,16 @@ function sync::taskwarrior
     taskwarrior::import
 end
 
-function sync
-    sync::worktime sync_quotes
-    sync::taskwarrior
-    sync::worktime no_sync_quotes
-    sync::uprecords
+function supersync
+    supersync::worktime sync_quotes
+    supersync::taskwarrior
+    supersync::worktime no_sync_quotes
+    supersync::uprecords
 
     if which gos >/dev/null
         gos
     end
 
-    date +%s >$SYNC_STAMP_FILE.tmp
-    mv $SYNC_STAMP_FILE.tmp $SYNC_STAMP_FILE
+    date +%s >$SUPERSYNC_STAMP_FILE.tmp
+    mv $SUPERSYNC_STAMP_FILE.tmp $SUPERSYNC_STAMP_FILE
 end
-
-abbr -g supersync sync

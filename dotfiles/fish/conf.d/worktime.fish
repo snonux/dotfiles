@@ -8,6 +8,14 @@ function worktime
     ruby $WORKTIME_DIR/worktime.rb $argv
 end
 
+function worktime::sync
+    cd $WORKTIME_DIR
+    git commit -a -m sync
+    git pull
+    git push
+    cd -
+end
+
 function worktime::wisdom_reminder
     if test -f $WORKTIME_DIR/work-wisdoms.md
         sed -n '/^\* / { s/\* //; p; }' $WORKTIME_DIR/work-wisdoms.md | sort -R | head -n 1
@@ -105,6 +113,7 @@ abbr -a wtlog 'worktime::log'
 abbr -a wtlogin 'worktime::login'
 abbr -a wtlogout 'worktime::logout'
 abbr -a wtstatus 'worktime::status'
+abbr -a wtsync 'worktime::sync'
 abbr -a wtf 'worktime --report'
 abbr -a random_exercise "sort -R $WORKTIME_DIR/exercises.md | head -n 1"
 abbr -a random_exercises "sort -R $WORKTIME_DIR/exercises.md | head -n 10"
