@@ -1,3 +1,18 @@
+if [ ! -f $HOME/.nofish ]; then
+  # Use fish if it's installed
+  if [ -e /opt/homebrew/fish ]; then
+    exec /opt/homebrew/fish
+  elif [ -e /bin/fish ]; then
+    exec /bin/fish
+  elif [ -e /usr/bin/fish ]; then
+    exec /usr/bin/fish
+  elif [ -e /data/data/com.termux/files/usr/bin/fish ]; then
+    exec /data/data/com.termux/files/usr/bin/fish
+  fi
+
+  echo 'I might want to install fish on this host'
+fi
+
 if [[ ! -n "$TMUX" && ! -f ~/.tmux.disable ]]; then
     source ~/.zshrc_d/tmux.source.zsh
     tmux::new
