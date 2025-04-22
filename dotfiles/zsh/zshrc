@@ -1,7 +1,7 @@
-if [ ! -f $HOME/.nofish ]; then
-  # Use fish if it's installed
-  if [ -e /opt/homebrew/fish ]; then
-    exec /opt/homebrew/fish
+  # Use fish if it's installed and it's an interactive session
+if [[ ! -z "$PS1" && ! -f $HOME/.nofish ]]; then
+  if [ -e /opt/homebrew/bin/fish ]; then
+    exec /opt/homebrew/bin/fish
   elif [ -e /bin/fish ]; then
     exec /bin/fish
   elif [ -e /usr/bin/fish ]; then
