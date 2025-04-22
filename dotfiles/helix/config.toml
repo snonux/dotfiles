@@ -72,4 +72,3 @@ B = "file_picker_in_current_buffer_directory"
 [keys.select]
 "{" = "goto_prev_paragraph"
 "}" = "goto_next_paragraph"
-
