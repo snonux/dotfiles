@@ -68,6 +68,7 @@ C-l = { m = ":run-shell-command make", d = ":run-shell-command go-task dev", r =
 
 [keys.normal.space]
 B = "file_picker_in_current_buffer_directory"
+Q = [ ":cd ~/QuickEdit",  "file_picker_in_current_directory" ]
 
 [keys.select]
 "{" = "goto_prev_paragraph"
