@@ -2,9 +2,14 @@ set -gx QUICKEDIT_DIR ~/QuickEdit
 
 function quickedit
     set -l prev_dir (pwd)
+    set -l grep_pattern .
+
+    if test (count $argv) -gt 0
+        set grep_pattern $argv[1]
+    end
 
     cd $QUICKEDIT_DIR
-    set -l file_path (find -L . -type f -not -path '*/.*' | fzf)
+    set -l file_path (find -L . -type f -not -path '*/.*' | grep "$grep_pattern" | fzf)
     $EDITOR $file_path
 
     # Go to git toplevel dir (if exists)
@@ -24,6 +29,7 @@ function quickedit
 
     cd $prev_dir
 end
+
 
 abbr -a cdquickedit "cd $QUICKEDIT_DIR"
 abbr -a ,qe quickedit
