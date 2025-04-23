@@ -12,7 +12,7 @@ function kpod
     if test -n "$argv[1]"
         set pattern "$argv[1]"
     end
-    set -x POD (kubectl get pods | grep "$pattern" | sort -R | head -n 1 | cut -d' ' -f1)
+    set -gx POD (kubectl get pods | grep "$pattern" | sort -R | head -n 1 | cut -d' ' -f1)
     echo "Pod is $POD"
 end
 
