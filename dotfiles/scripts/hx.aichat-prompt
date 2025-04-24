@@ -1,0 +1,3 @@
+#!/usr/bin/env zsh
+
+aichat "$(hx.prompt). Answer only. If it is code, code only without code-block at the beginning and the end."
