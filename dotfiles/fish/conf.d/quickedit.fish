@@ -38,8 +38,6 @@ function quickedit
     cd $QUICKEDIT_DIR
     set -l file_path (
             find -L . -type f \
-                \( -name "*.txt" -o -name "*.md" -o -name "Makefile" \
-                -o -name "*.xml" -o -name "*.json" \) \
                 -not -path '*/.*' \
             | grep "$grep_pattern" \
             | fzf
