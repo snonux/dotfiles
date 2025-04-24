@@ -15,8 +15,10 @@ function quickedit::postaction
     if test $status -eq 0
         cd $git_dir
     end
-    if not $make_run -eq 1 -a test -f Makefile
-        make
+    if not test $make_run -eq 1
+        if test -f Makefile
+            make
+        end
     end
     if test -d .git
         git commit -a -m Update
@@ -41,8 +43,6 @@ function quickedit
     cd $prev_dir
 end
 
-
 abbr -a cdquickedit "cd $QUICKEDIT_DIR"
-abbr -a ,qe quickedit
-abbr -a ,ne quickedit
-abbr -a ,qr "ranger $QUICKEDIT_DIR"
+abbr -a e quickedit
+abbr -a er "ranger $QUICKEDIT_DIR"
