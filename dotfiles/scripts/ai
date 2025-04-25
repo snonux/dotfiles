@@ -1,0 +1,7 @@
+#!/usr/bin/env zsh
+
+if [ $(uname) = Darwin ]; then
+    exec hx.nvim-copilot-prompt "$@"
+else
+    exec hx.aichat-prompt "$@"
+fi
