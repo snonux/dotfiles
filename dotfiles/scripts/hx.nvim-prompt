@@ -1,17 +1,26 @@
 #!/usr/bin/env zsh
 
 declare -r STDIN_FILE=~/.hx-prompt-nvim-stdin
+declare -r INPUT_FILE=~/.copilot_chat_input.txt
+declare -r OUTPUT_FILE=~/.copilot_chat_output.txt
+
 cat > $STDIN_FILE &>/dev/null
 declare -r PROMPT="$(hx.prompt)"
-
-declare -r REPLY_FILE=~/.copilot_chat_output.txt
-if [ -f $REPLY_FILE.done ]; then
-  rm $REPLY_FILE.done
+if [ -f $OUTPUT_FILE.done ]; then
+  rm $OUTPUT_FILE.done
 fi
 
-tmux split-window -v "nvim +':CopilotChat $PROMPT for the following: $(cat $STDIN_FILE). If the result is code, code only without \`\`\`-markers at the beginning and the end.'; mv $REPLY_FILE $REPLY_FILE.done"
+cat <<INPUT_FILE > $INPUT_FILE
+$PROMPT for the following:
 
-while [ ! -f "$REPLY_FILE.done" ]; do
+$(cat $STDIN_FILE).
+
+If the result is code, code only without \`\`\`-markers at the beginning and the end.
+INPUT_FILE
+
+tmux split-window -v "nvim +':CopilotAskFromInputFile'; mv $OUTPUT_FILE $OUTPUT_FILE.done"
+
+while [ ! -f "$OUTPUT_FILE.done" ]; do
   sleep 0.2
 done
-sed -n '/^## Copilot/,/^## User/ { /^## Copilot/d; /\[file:/d; /^## User/d; p; }' $REPLY_FILE.done
+sed -n '/^## Copilot/,/^## User/ { /^## Copilot/d; /\[file:/d; /^## User/d; p; }' $OUTPUT_FILE.done

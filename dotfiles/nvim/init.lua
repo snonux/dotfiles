@@ -47,3 +47,16 @@ vim.api.nvim_create_autocmd("BufEnter", {
         end
     end,
 })
+
+vim.api.nvim_create_user_command('CopilotAskFromInputFile', function()
+    local chat = require("CopilotChat")
+    local input_file = os.getenv("HOME") .. "/.copilot_chat_input.txt"
+    local file = io.open(input_file, "r")
+    if file then
+        local input = file:read("*all")
+        file:close()
+        chat.ask(input)
+    else
+        print("Error: Unable to open input file.")
+    end
+end, { force = true, range = true })
