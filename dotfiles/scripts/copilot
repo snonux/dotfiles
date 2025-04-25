@@ -1,0 +1,32 @@
+#!/usr/bin/env zsh
+
+declare -r STDIN_FILE=~/.copilot_prompt_stdin.txt
+declare -r INPUT_FILE=~/.copilot_chat_input.txt
+declare -r OUTPUT_FILE=~/.copilot_chat_output.txt
+declare INPUT_PROMPT
+
+if [ -f $OUTPUT_FILE.done ]; then
+  rm $OUTPUT_FILE.done
+fi
+cat > $STDIN_FILE &>/dev/null
+
+if [ $# -eq 0 ]; then
+  INPUT_PROMPT="$(hx.prompt)"
+else
+  INPUT_PROMPT="$@"
+fi
+
+cat <<INPUT_FILE > $INPUT_FILE
+$INPUT_PROMPT for the following:
+
+$(cat $STDIN_FILE)
+
+If the result is code, print out the code only, don't print the \`\`\`-markers around the code block.
+INPUT_FILE
+
+tmux split-window -v "nvim +':CopilotAsk'; mv $OUTPUT_FILE $OUTPUT_FILE.done"
+
+while [ ! -f "$OUTPUT_FILE.done" ]; do
+  sleep 0.2
+done
+sed -n '/^## Copilot/,/^## User/ { /^## Copilot/d; /\[file:/d; /^## User/d; p; }' $OUTPUT_FILE.done
