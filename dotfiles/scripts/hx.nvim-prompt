@@ -9,9 +9,9 @@ if [ -f $REPLY_FILE.done ]; then
   rm $REPLY_FILE.done
 fi
 
-tmux split-window -v "nvim +':CopilotChat $PROMPT for the following: $(cat $STDIN_FILE). If the result is code, code only without code-block at the beginning and the end. End the output with COPILOT_END.'; mv $REPLY_FILE $REPLY_FILE.done"
+tmux split-window -v "nvim +':CopilotChat $PROMPT for the following: $(cat $STDIN_FILE). If the result is code, code only without \`\`\`-markers at the beginning and the end.'; mv $REPLY_FILE $REPLY_FILE.done"
 
 while [ ! -f "$REPLY_FILE.done" ]; do
   sleep 0.2
 done
-sed -n '/## Copilot/,/^COPILOT_END/ { /^## Copilot/d; /\[file:/d; /^COPILOT_END/d; p; }' $REPLY_FILE.done
+sed -n '/^## Copilot/,/^## User/ { /^## Copilot/d; /\[file:/d; /^## User/d; p; }' $REPLY_FILE.done

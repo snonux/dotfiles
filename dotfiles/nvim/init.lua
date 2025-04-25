@@ -1,3 +1,4 @@
+
 require("CopilotChat").setup {
   -- See Configuration section for options
 }
@@ -20,16 +21,20 @@ vim.api.nvim_create_autocmd("BufEnter", {
                     local lines = vim.api.nvim_buf_get_lines(copilot_chat_buf, 0, -1, false)
                     
                     -- Check for the stopping condition
+                    local user_line_count = 0
                     for _, line in ipairs(lines) do
-                        if line:find("^COPILOT_END") then
-                            print("Stopping write process: 'COPILOT_END' detected.")
-                            timer:stop()
-                            -- Write the buffer content to the file
-                            vim.api.nvim_buf_call(copilot_chat_buf, function()
-                                vim.cmd("write! " .. file_path)
-                            end)
-                            vim.cmd("qa!")
-                            return
+                        if line:find("^## User") then
+                            user_line_count = user_line_count + 1
+                            if user_line_count >= 2 then
+                                print("Stopping write process: Two '## User' lines detected.")
+                                timer:stop()
+                                -- Write the buffer content to the file
+                                vim.api.nvim_buf_call(copilot_chat_buf, function()
+                                    vim.cmd("write! " .. file_path)
+                                end)
+                                vim.cmd("qa!")
+                                return
+                            end
                         end
                     end
                     
