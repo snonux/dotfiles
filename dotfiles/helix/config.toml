@@ -58,7 +58,7 @@ C-s = { e = ":set-option soft-wrap.enable true", d = ":set-option soft-wrap.enab
 C-q = ":buffer-close"
 
 # AI commands are good here.
-C-p = { c = ":pipe aichat correct this sentence and only print out the corrected text", r = ":pipe aichat restructure and reword the input and dont leave information out and only print out the new text", a = ":pipe aichat rewrite this in a more casual style", n = ":pipe aichat these are book notes of mine. correct the grammar and re-organize the notes. use bullet points for short information and whole paragraphs for longer one. the output must be in Gemini Gemtext format with the star * as the bullet point symbol and not the minus - . dont leave out any content.", p = ":pipe hx.aichat-prompt" }
+C-p = { c = ":pipe ai correct this sentence and only print out the corrected text", r = ":pipe ai restructure and reword the input and dont leave information out and only print out the new text", a = ":pipe ai rewrite this in a more casual style", n = ":pipe ai these are book notes of mine. correct the grammar and re-organize the notes. use bullet points for short information and whole paragraphs for longer one. the output must be in Gemini Gemtext format with the star * as the bullet point symbol and not the minus - . dont leave out any content.", p = ":pipe ai" }
 
 # Git commands
 C-g = { d = ":run-shell-command git diff", p = ":run-shell-command git pull", u = ":run-shell-command git push", t = ":run-shell-command tmux new-window -n hx-git-tig tig", c = ":run-shell-command tmux split-window -v 'git commit -a'" }
