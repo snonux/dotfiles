@@ -21,3 +21,10 @@ for dir in ~/.config/fish/conf.d.work ~/.config/fish/conf.d.local
         end
     end
 end
+
+if test -d /home/linuxbrew/.linuxbrew
+    if status is-interactive
+        # Commands to run in interactive sessions can go here
+    end
+    eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+end
