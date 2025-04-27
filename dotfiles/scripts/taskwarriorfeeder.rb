@@ -113,7 +113,7 @@ end
 
 # Randomly schedule all unscheduled tasks but the ones with the +unsched tag
 def unscheduled_tasks
-  lines = `task -unsched -nosched -notes -note -meeting due: 2>/dev/null`.split("\n").drop(1)
+  lines = `task -unsched -nosched -notes -note -meeting -track due: 2>/dev/null`.split("\n").drop(1)
   lines.pop
   lines.map { |line| line.split.first }.each do |id|
     yield id if id.to_i.positive?
