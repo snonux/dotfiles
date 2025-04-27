@@ -81,7 +81,7 @@ function supersync
     supersync::worktime no_sync_quotes
     supersync::uprecords
 
-    if which gos >/dev/null
+    if test -f ~/.gos_enable
         gos
     end
 

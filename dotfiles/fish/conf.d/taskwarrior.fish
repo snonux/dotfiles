@@ -44,7 +44,7 @@ end
 
 function taskwarrior::add::track
     if test (count $argv) -gt 0
-        task add priority:L +personal +track +nosched $argv
+        task add priority:L +personal +track $argv
     else
         vit +track
     end
