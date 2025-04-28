@@ -134,3 +134,9 @@ function ssh::force
     ssh-keygen -R $server
     ssh -A $server
 end
+
+if test -f ~/git/geheim/geheim.rb
+    function geheim
+        ruby ~/git/geheim/geheim.rb $argv
+    end
+end
