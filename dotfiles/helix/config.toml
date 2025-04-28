@@ -1,4 +1,4 @@
-theme = "snazzy"
+theme = "default"
 
 [editor]
 bufferline = "always"
