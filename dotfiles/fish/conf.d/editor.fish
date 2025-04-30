@@ -15,8 +15,10 @@ function editor::helix::open_with_lock
         end
     end
     touch $lock
+    function cleanup_lock --on-process-exit hx
+        rm -f $lock
+    end
     hx $file $argv[2..-1]
-    rm $lock
 end
 
 function editor::helix::edit::remote
