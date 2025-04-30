@@ -9,16 +9,12 @@ function editor::helix::open_with_lock
     set -l file $argv[1]
     set -l lock "$file.lock"
     if test -f "$lock"
-        if pgrep -f hx
-            echo "File lock $lock exists! Another instance is editing it?"
-            return 2
-        end
+        echo "File lock $lock exists! Another instance is editing it?"
+        return 2
     end
     touch $lock
-    function cleanup_lock --on-process-exit hx
-        rm -f $lock
-    end
     hx $file $argv[2..-1]
+    rm $lock
 end
 
 function editor::helix::edit::remote
@@ -29,5 +25,6 @@ function editor::helix::edit::remote
     hx $local_path
 end
 
+abbr -a lhx 'editor::helix::open_with_lock'
 abbr -a hxl 'editor::helix::open_with_lock'
 abbr -a rhx 'editor::helix::edit::remote'

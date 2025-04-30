@@ -42,9 +42,12 @@ function quickedit
             | grep "$grep_pattern" \
             | fzf
         )
-    $EDITOR $file_path
+    hx
 
-    quickedit::postaction $file_path
+    if editor::helix::open_with_lock $file_path
+        quickedit::postaction $file_path
+    end
+
     cd $prev_dir
 end
 
