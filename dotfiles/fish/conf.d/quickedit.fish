@@ -50,6 +50,17 @@ function quickedit
     cd $prev_dir
 end
 
+function quickedit::scratchpad
+    cd ~/Notes
+
+    if editor::helix::open_with_lock scratchpad.md
+        quickedit::postaction scratchpad.md
+    end
+
+    cd -
+end
+
 abbr -a cdquickedit "cd $QUICKEDIT_DIR"
 abbr -a e quickedit
 abbr -a er "ranger $QUICKEDIT_DIR"
+abbr -a scratch "quickedit::scratchpad"
