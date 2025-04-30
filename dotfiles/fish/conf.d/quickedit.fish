@@ -52,7 +52,7 @@ end
 
 function quickedit::direct
     set -l dir $argv[1]
-    set -l file$argv[1]
+    set -l file $argv[2]
     cd $dir
 
     if editor::helix::open_with_lock $file
