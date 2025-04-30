@@ -28,3 +28,4 @@ end
 abbr -a lhx 'editor::helix::open_with_lock'
 abbr -a hxl 'editor::helix::open_with_lock'
 abbr -a rhx 'editor::helix::edit::remote'
+abbr -a x hx
