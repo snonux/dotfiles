@@ -53,8 +53,8 @@ end
 function quickedit::scratchpad
     cd ~/Notes
 
-    if editor::helix::open_with_lock scratchpad.md
-        quickedit::postaction scratchpad.md
+    if editor::helix::open_with_lock Scratchpad.md
+        quickedit::postaction Scratchpad.md
     end
 
     cd -
