@@ -39,7 +39,7 @@ function quickedit
     set -l file_path (
             find -L . -type f \
                 -not -path '*/.*' \
-            | grep "$grep_pattern" \
+            | grep -E "$grep_pattern" \
             | fzf
         )
 
