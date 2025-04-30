@@ -42,7 +42,6 @@ function quickedit
             | grep "$grep_pattern" \
             | fzf
         )
-    hx
 
     if editor::helix::open_with_lock $file_path
         quickedit::postaction $file_path
