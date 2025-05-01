@@ -50,18 +50,30 @@ function quickedit
     cd $prev_dir
 end
 
-function quickedit::scratchpad
-    cd ~/Notes
+function quickedit::direct
+    set -l dir $argv[1]
+    set -l file $argv[2]
+    cd $dir
 
-    if editor::helix::open_with_lock scratchpad.md
-        quickedit::postaction scratchpad.md
+    if editor::helix::open_with_lock $file
+        quickedit::postaction $file
     end
 
     cd -
 end
 
-abbr -a cdquickedit "cd $QUICKEDIT_DIR"
+function quickedit::scratchpad
+    quickedit::direct ~/Notes Scratchpad.md
+end
+
+function quickedit::quicknote
+    quickedit::direct ~/Notes QuickNote.md
+end
+
 abbr -a e quickedit
+abbr -a scratch quickedit::scratchpad
+abbr -a S quickedit::scratchpad
+abbr -a quicknote quickedit::quicknote
 abbr -a er "ranger $QUICKEDIT_DIR"
-abbr -a scratch "quickedit::scratchpad"
-abbr -a S "quickedit::scratchpad"
+abbr -a cdquickedit "cd $QUICKEDIT_DIR"
+abbr -a cdnotes 'cd ~/Notes'
