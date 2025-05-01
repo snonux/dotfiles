@@ -8,7 +8,7 @@ end
 function _tmux::connect_command
     set -l server_or_pod $argv[1]
     if test -z "$TMUX_KEXEC"
-        echo "ssh -t $server_or_pod"
+        echo "ssh -A -t $server_or_pod"
     else
         echo "kubectl exec -it $server_or_pod -- /bin/bash"
     end
@@ -36,7 +36,7 @@ end
 
 function tmux::remote
     set -l server $argv[1]
-    tmux new -s $server "ssh -t $server 'tmux attach-session || tmux'" || tmux attach-session -d -t $server
+    tmux new -s $server "ssh -A -t $server 'tmux attach-session || tmux'" || tmux attach-session -d -t $server
 end
 
 function tmux::search
