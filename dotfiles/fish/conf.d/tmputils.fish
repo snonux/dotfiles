@@ -1,4 +1,3 @@
-
 set -gx TMPUTILS_DIR ~/data/tmp
 set -gx TMPUTILS_TMPFILE ~/.tmpfile
 
