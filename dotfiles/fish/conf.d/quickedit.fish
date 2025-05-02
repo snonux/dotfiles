@@ -77,3 +77,4 @@ abbr -a quicknote quickedit::quicknote
 abbr -a er "ranger $QUICKEDIT_DIR"
 abbr -a cdquickedit "cd $QUICKEDIT_DIR"
 abbr -a cdnotes 'cd ~/Notes'
+abbr -a cdfish 'cd ~/.config/fish/conf.d'
