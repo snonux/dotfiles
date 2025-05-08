@@ -54,6 +54,15 @@ function taskwarrior::add::standup
     if test (count $argv) -gt 0
         task add priority:L +work +standup +sre +nosched $argv
         task add priority:L +work +standup +storage +nosched $argv
+
+        if test -f ~/git/helpers/jira/jira.rb
+            echo "Do you want to raise a Jira ticket? (y/n)"
+            read -l user_input
+            if test "$user_input" = y
+                ruby ~/git/helpers/jira/jira.rb --raise "$argv"
+            end
+        end
+
     else
         vit +standup
     end
