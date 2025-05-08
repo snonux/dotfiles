@@ -30,7 +30,7 @@ def notes(notes_dirs, prefix, dry)
 
       tags = match[:tag].downcase.split(',') + [prefix]
       due = if match[:due].nil?
-              tags.include?('track') ? 'eow' : "#{rand(0..PERSONAL_TIMESPAN_D)}d"
+              tags.include?('track') ? '1year' : "#{rand(0..PERSONAL_TIMESPAN_D)}d"
             else
               "#{match[:due]}d"
             end
