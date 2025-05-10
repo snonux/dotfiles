@@ -50,7 +50,7 @@ def random_quote(md_file)
 
   quote = lines.select { |l| l.start_with? '*' }.map { |l| l.sub(/\* +/, '') }.sample
   tags = [tag, 'random']
-  tags << 'work' if maybe and maybe?
+  tags << 'work' if maybe? and maybe?
   yield tags, quote.chomp, "#{rand(0..timespan)}d"
 end
 
