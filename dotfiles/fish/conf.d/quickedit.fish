@@ -36,6 +36,9 @@ function quickedit
     end
 
     cd $QUICKEDIT_DIR
+    find -L . -type f \
+        -not -path '*/.*' \
+    | grep -E "$grep_pattern" \
     set -l file_path (
             find -L . -type f \
                 -not -path '*/.*' \
