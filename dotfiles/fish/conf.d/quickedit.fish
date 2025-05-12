@@ -36,15 +36,17 @@ function quickedit
     end
 
     cd $QUICKEDIT_DIR
-    find -L . -type f \
-        -not -path '*/.*' \
-    | grep -E "$grep_pattern" \
-    set -l file_path (
-            find -L . -type f \
-                -not -path '*/.*' \
-            | grep -E "$grep_pattern" \
-            | fzf
-        )
+    set files (find -L . -type f -not -path '*/.*' | grep -E "$grep_pattern")
+
+    switch (count $files)
+        case 0
+            echo No result found
+            return
+        case 1
+            set file_path $files[1]
+        case '*'
+            set file_path (printf '%s\n' $files | fzf)
+    end
 
     if editor::helix::open_with_lock $file_path
         quickedit::postaction $file_path
