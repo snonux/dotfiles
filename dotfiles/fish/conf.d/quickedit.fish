@@ -68,11 +68,11 @@ function quickedit::direct
 end
 
 function quickedit::scratchpad
-    quickedit::direct ~/Notes Scratchpad.md
+    quickedit::direct ~/Notes/Scratchpad.md
 end
 
 function quickedit::quicknote
-    quickedit::direct ~/Notes QuickNote.md
+    quickedit::direct ~/Notes/QuickNote.md
 end
 
 abbr -a e quickedit
