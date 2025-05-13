@@ -2,7 +2,8 @@ set -gx EDITOR hx
 set -gx VISUAL $EDITOR
 set -gx GIT_EDITOR $EDITOR
 set -gx HELIX_CONFIG_DIR $HOME/.config/helix
-set -gx COPILOT_MODEL gpt-4o
+# set -gx COPILOT_MODEL gpt-4o
+set -gx COPILOT_MODEL gpt-4.1
 set -gx HANDLER copilot
 
 function editor::helix::open_with_lock
