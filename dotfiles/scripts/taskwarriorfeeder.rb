@@ -170,12 +170,8 @@ begin
 
   if Dir.exist?(GOS_DIR) && !opts[:dry_run]
     Dir["#{WORKTIME_DIR}/tw-gos-*.json"].each do |tw_gos|
-      JSON.parse(File.read(tw_gos)).each_with_index do |entry, i|
-        File.write("#{GOS_DIR}/tw-#{Time.now.to_i}-#{i}.txt", <<~GOS_ENTRY)
-          #{entry['tags'].join(',')}
-
-          #{entry['description']}
-        GOS_ENTRY
+      JSON.parse(File.read(tw_gos)).each do |entry|
+        gos_queue!(entry['tags'], entry['description'], opts[:dry_run])
       end
       File.delete(tw_gos)
     end
