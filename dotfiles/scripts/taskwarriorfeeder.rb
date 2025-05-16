@@ -168,7 +168,7 @@ begin
     end
   end
 
-  if Dir.exist?(GOS_DIR)
+  if Dir.exist?(GOS_DIR) && !opts[:dry_run]
     Dir["#{WORKTIME_DIR}/tw-gos-*.json"].each do |tw_gos|
       JSON.parse(File.read(tw_gos)).each_with_index do |entry, i|
         File.write("#{GOS_DIR}/tw-#{Time.now.to_i}-#{i}.txt", <<~GOS_ENTRY)
@@ -176,8 +176,8 @@ begin
 
           #{entry['description']}
         GOS_ENTRY
-        File.delete(tw_gos)
       end
+      File.delete(tw_gos)
     end
   end
 
