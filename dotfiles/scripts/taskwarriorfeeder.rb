@@ -90,21 +90,23 @@ end
 # Queue to Gos https://codeberg.org/snonux/gos
 def gos_queue!(tags, message, dry)
   tags.delete('share')
-  platforms = %w[linkedin li mastodon ma].select { tags.include?(_1) }
+  platforms = []
+  %w[linkedin li mastodon ma].select { tags.include?(_1) }.each do |platform|
+    platforms << platform
+    tags.delete(platform)
+  end
   unless platforms.empty?
-    platforms = %w[share] + platforms unless platforms.empty?
+    platforms = %w[share] + platforms
     tags = ["#{platforms.join(':')}"] + tags
   end
+  tags = %w[share] + tags if tags.size == 1 && !tags.first.start_with?('share')
   tags_str = tags.join(',')
 
   message = "#{tags_str.empty? ? '' : "#{tags_str} "}#{message}"
   file = "#{GOS_DIR}/#{Digest::MD5.hexdigest(message)}.txt"
-  puts "Writing #{file}"
+  puts "Writing #{file} with #{message}"
   File.write(file, message) unless dry
 end
-
-gos_queue!(%w[share], 'This is a test', true)
-exit 0
 
 def task_add!(tags, quote, due, dry)
   tags << 'track' if tags.include?('tr')
