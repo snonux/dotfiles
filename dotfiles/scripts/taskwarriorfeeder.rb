@@ -18,6 +18,10 @@ def run_from_personal_device?
   `uname`.chomp == 'Linux'
 end
 
+def gos_there?
+  Dir.exist?(GOS_DIR)
+end
+
 def random_count
   MAX_PENDING_RANDOM_TASKS - `task status:pending +random count`.to_i
 end
@@ -138,6 +142,13 @@ begin
   end
 
   opt_parser.parse!(ARGV)
+  if gos_there?
+    Dir["#{GOS_DIR}/tw-gos-*.json"].each do |tw_gos|
+      p tw_gos
+    end
+  end
+
+  exit 0
 
   (run_from_personal_device? ? %w[ql pl] : %w[wl]).each do |prefix|
     notes(opts[:notes_dirs].split(','), prefix, opts[:dry_run]) do |tags, note, due|
