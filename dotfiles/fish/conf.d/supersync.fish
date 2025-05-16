@@ -46,9 +46,6 @@ function supersync::worktime
     cd -
 end
 
-function supersync::uprecords::darwin
-end
-
 function supersync::uprecords
     set -l uprecords_dir ~/git/uprecords
     set -l uprecords_repo git@codeberg.org:snonux/uprecords.git
@@ -75,6 +72,7 @@ function supersync::taskwarrior
     end
 
     taskwarrior::export
+    taskwarrior::export::gos
     taskwarrior::import
 end
 

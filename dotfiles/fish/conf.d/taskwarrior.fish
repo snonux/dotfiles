@@ -85,7 +85,7 @@ function _taskwarrior::set_import_export_tags
 end
 
 function taskwarrior::export::gos
-    task +share status:pending >"$WORKTIME_DIR/tw-gos-export-$(date +%s).json"
+    task +share status:pending export >"$WORKTIME_DIR/tw-gos-export-$(date +%s).json"
     yes | task +share status:pending delete
 end
 
