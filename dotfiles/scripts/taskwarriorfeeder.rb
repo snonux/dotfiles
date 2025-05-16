@@ -2,6 +2,7 @@
 
 require 'optparse'
 require 'digest'
+require 'json'
 require 'set'
 
 PERSONAL_TIMESPAN_D = 30
@@ -16,10 +17,6 @@ end
 
 def run_from_personal_device?
   `uname`.chomp == 'Linux'
-end
-
-def gos_there?
-  Dir.exist?(GOS_DIR)
 end
 
 def random_count
@@ -117,7 +114,7 @@ end
 
 # Randomly schedule all unscheduled tasks but the ones with the +unsched tag
 def unscheduled_tasks
-  lines = `task -unsched -nosched -notes -note -meeting -track due: 2>/dev/null`.split("\n").drop(1)
+  lines = `task -lowhigh -unsched -nosched -notes -note -meeting -track due: 2>/dev/null`.split("\n").drop(1)
   lines.pop
   lines.map { |line| line.split.first }.each do |id|
     yield id if id.to_i.positive?
@@ -142,13 +139,6 @@ begin
   end
 
   opt_parser.parse!(ARGV)
-  if gos_there?
-    Dir["#{GOS_DIR}/tw-gos-*.json"].each do |tw_gos|
-      p tw_gos
-    end
-  end
-
-  exit 0
 
   (run_from_personal_device? ? %w[ql pl] : %w[wl]).each do |prefix|
     notes(opts[:notes_dirs].split(','), prefix, opts[:dry_run]) do |tags, note, due|
@@ -174,6 +164,19 @@ begin
       random_quote(md_file) do |tags, quote, due|
         task_add!(tags, quote, due, opts[:dry_run])
         count -= 1
+      end
+    end
+  end
+
+  if Dir.exist?(GOS_DIR)
+    Dir["#{WORKTIME_DIR}/tw-gos-*.json"].each do |tw_gos|
+      JSON.parse(File.read(tw_gos)).each_with_index do |entry, i|
+        File.write("#{GOS_DIR}/tw-#{Time.now.to_i}-#{i}.txt", <<~GOS_ENTRY)
+          #{entry['tags'].join(',')}
+
+          #{entry['description']}
+        GOS_ENTRY
+        File.delete(tw_gos)
       end
     end
   end
