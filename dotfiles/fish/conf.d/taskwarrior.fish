@@ -84,6 +84,11 @@ function _taskwarrior::set_import_export_tags
     end
 end
 
+function taskwarrior::export::gos
+    task +share status:pending >"$WORKTIME_DIR/tw-gos-export-$(date +%s).json"
+    yes | task +share status:pending delete
+end
+
 function taskwarrior::export
     _taskwarrior::set_import_export_tags
     set -l count (task +$TASK_EXPORT_TAG status:pending count)
