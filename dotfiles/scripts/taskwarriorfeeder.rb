@@ -89,11 +89,22 @@ end
 
 # Queue to Gos https://codeberg.org/snonux/gos
 def gos_queue!(tags, message, dry)
-  message = "#{tags.join(',')} #{message}"
+  tags.delete('share')
+  platforms = %w[linkedin li mastodon ma].select { tags.include?(_1) }
+  unless platforms.empty?
+    platforms = %w[share] + platforms unless platforms.empty?
+    tags = ["#{platforms.join(':')}"] + tags
+  end
+  tags_str = tags.join(',')
+
+  message = "#{tags_str.empty? ? '' : "#{tags_str} "}#{message}"
   file = "#{GOS_DIR}/#{Digest::MD5.hexdigest(message)}.txt"
   puts "Writing #{file}"
   File.write(file, message) unless dry
 end
+
+gos_queue!(%w[share], 'This is a test', true)
+exit 0
 
 def task_add!(tags, quote, due, dry)
   tags << 'track' if tags.include?('tr')
