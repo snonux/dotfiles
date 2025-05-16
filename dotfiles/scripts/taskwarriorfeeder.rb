@@ -9,7 +9,7 @@ PERSONAL_TIMESPAN_D = 30
 WORK_TIMESPAN_D = 14
 WORKTIME_DIR = "#{ENV['HOME']}/git/worktime".freeze
 GOS_DIR = "#{ENV['HOME']}/Notes/GosDir".freeze
-MAX_PENDING_RANDOM_TASKS = 15
+MAX_PENDING_RANDOM_TASKS = 10
 
 def maybe?
   [true, false].sample
@@ -110,6 +110,7 @@ end
 
 def task_add!(tags, quote, due, dry)
   tags << 'track' if tags.include?('tr')
+  tags.delete('tr')
   tags << 'work' if tags.include?('mentoring') || tags.include?('productivity')
   tags.uniq!
 
