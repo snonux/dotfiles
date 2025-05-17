@@ -9,7 +9,7 @@ PERSONAL_TIMESPAN_D = 30
 WORK_TIMESPAN_D = 14
 WORKTIME_DIR = "#{ENV['HOME']}/git/worktime".freeze
 GOS_DIR = "#{ENV['HOME']}/Notes/GosDir".freeze
-MAX_PENDING_RANDOM_TASKS = 10
+MAX_PENDING_RANDOM_TASKS = 11
 
 def maybe?
   [true, false].sample
@@ -65,7 +65,7 @@ end
 
 def skill_add!(skills_str, dry)
   skills_file = "#{WORKTIME_DIR}/skills.txt"
-  skills_str.split(',').map(&:strip).each { |skill| skills[skill.to_s.downcase] = skill }
+  skills_str.split(',').map(&:strip).each { skills[_1.to_s.downcase] = _1 }
 
   File.foreach(skills_file) do |line|
     line.chomp!
@@ -109,8 +109,10 @@ def gos_queue!(tags, message, dry)
 end
 
 def task_add!(tags, quote, due, dry)
-  tags << 'track' if tags.include?('tr')
-  tags.delete('tr')
+  if tags.include?('tr')
+    tags << 'track'
+    tags.delete('tr')
+  end
   tags << 'work' if tags.include?('mentoring') || tags.include?('productivity')
   tags.uniq!
 
@@ -130,7 +132,7 @@ end
 def unscheduled_tasks
   lines = `task -lowhigh -unsched -nosched -notes -note -meeting -track due: 2>/dev/null`.split("\n").drop(1)
   lines.pop
-  lines.map { |line| line.split.first }.each do |id|
+  lines.map { _1.split.first }.each do |id|
     yield id if id.to_i.positive?
   end
 end
