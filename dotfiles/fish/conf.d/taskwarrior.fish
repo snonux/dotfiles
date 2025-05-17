@@ -118,6 +118,8 @@ end
 
 abbr -a t task
 abbr -a L 'task add +log'
+abbr -a tlog 'task add +log'
+abbr -a log 'task add +log'
 abbr -a tdue 'vit status:pending due.before:now'
 abbr -a thome 'vit +home'
 abbr -a tasks 'vit -track'
