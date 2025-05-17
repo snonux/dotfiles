@@ -123,6 +123,7 @@ abbr -a thome 'vit +home'
 abbr -a tasks 'vit -track'
 abbr -a tread 'vit +read'
 abbr -a track 'taskwarrior::add::track'
+abbr -a tra 'taskwarrior::add::track'
 abbr -a tfind 'taskwarrior::fuzzy::find'
 abbr -a topen 'taskwarrior::url::open'
 
