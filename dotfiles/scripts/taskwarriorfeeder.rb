@@ -91,7 +91,7 @@ end
 def gos_queue!(tags, message, dry)
   tags.delete('share')
   platforms = []
-  %w[linkedin li mastodon ma].select { tags.include?(_1) }.each do |platform|
+  %w[linkedin li mastodon ma noop no].select { tags.include?(_1) }.each do |platform|
     platforms << platform
     tags.delete(platform)
   end
