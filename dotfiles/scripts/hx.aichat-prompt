@@ -1,3 +1,9 @@
 #!/usr/bin/env zsh
 
-aichat "$(hx.prompt). $@ Answer only. If it is code, code only without code-block at the beginning and the end."
+declare -xr INSTRUCTIONS='Answer only. If it is code, code only without code-block at the beginning and the end.'
+ 
+if [[ $# -eq 0 ]]; then
+  aichat "$(hx.prompt). $INSTRUCTIONS"
+else
+  aichat "$@. $INSTRUCTIONS"
+fi
