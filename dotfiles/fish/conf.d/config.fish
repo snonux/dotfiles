@@ -11,6 +11,7 @@ end
 
 abbr -a g 'grep -E -i'
 abbr -a no 'grep -E -i -v'
+abbr -a not 'grep -E -i -v'
 abbr -a gl 'git log --pretty=oneline --graph --decorate --all'
 abbr -a gp 'begin; git commit -a; and git pull; and git push; end'
 

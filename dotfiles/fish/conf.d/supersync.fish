@@ -89,3 +89,5 @@ function supersync
     date +%s >$SUPERSYNC_STAMP_FILE.tmp
     mv $SUPERSYNC_STAMP_FILE.tmp $SUPERSYNC_STAMP_FILE
 end
+
+alias ss supersync
