@@ -132,7 +132,7 @@ end
 def unscheduled_tasks
   lines = `task -lowhigh -unsched -nosched -notes -note -meeting -track due: 2>/dev/null`.split("\n").drop(1)
   lines.pop
-  lines.map { _1.split.first }.each do |id|
+  lines.map { |foo| foo.split.first }.each do |id|
     yield id if id.to_i.positive?
   end
 end
