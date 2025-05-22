@@ -87,7 +87,5 @@ function supersync::is_it_time_to_sync
             return 0
         end
     end
-    echo 'It is time to run sync!!!'
-    read -P "Run sync? (y/n) " answer; and test "$answer" = y; and supersync
+    read -P "It's time to run supersync! Run it? (y/n) " answer; and test "$answer" = y; and supersync
 end
-read -P "Run sync? (y/n) " answer; and test "$answer" = y; and supersync
