@@ -1,17 +1,5 @@
 set -x SUPERSYNC_STAMP_FILE ~/.supersync.last
 
-function supersync::is_it_time_to_sync
-    set -l max_age 86400
-    set -l now (date +%s)
-    if test -f $SUPERSYNC_STAMP_FILE
-        set -l diff (math $now - (cat $SUPERSYNC_STAMP_FILE))
-        if test $diff -lt $max_age
-            return 0
-        end
-    end
-    echo 'It is time to run sync!!!'
-end
-
 # Only sync the HabitsAndQuotes when it's asked for via function parameter
 function supersync::worktime
     set -l worktime_dir ~/git/worktime
@@ -89,3 +77,17 @@ function supersync
     date +%s >$SUPERSYNC_STAMP_FILE.tmp
     mv $SUPERSYNC_STAMP_FILE.tmp $SUPERSYNC_STAMP_FILE
 end
+
+function supersync::is_it_time_to_sync
+    set -l max_age 86400
+    set -l now (date +%s)
+    if test -f $SUPERSYNC_STAMP_FILE
+        set -l diff (math $now - (cat $SUPERSYNC_STAMP_FILE))
+        if test $diff -lt $max_age
+            return 0
+        end
+    end
+    echo 'It is time to run sync!!!'
+    read -P "Run sync? (y/n) " answer; and test "$answer" = y; and supersync
+end
+read -P "Run sync? (y/n) " answer; and test "$answer" = y; and supersync
