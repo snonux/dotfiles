@@ -4,11 +4,21 @@ abbr -a suggest 'gh copilot suggest'
 abbr -a explain 'gh copilot explain'
 abbr -a aic 'aichat -e'
 
+# helix-gpt env vars used
+set -gx COPILOT_MODEL gpt-4.1 # can be changed with aimodels function
+set -gx HANDLER copilot
+
+# TODO: also reconfigure aichat tool using this function
 function aimodels
+    # nvim for the ai tool wrapper so i can use Copilot Chat from the command line.
     set -l NVIM_DIR "$HOME/.config/nvim/"
     set -l COPILOT_CHAT_DIR "$NVIM_DIR/pack/copilotchat/start/CopilotChat.nvim/lua/CopilotChat"
 
-    printf "gpt-4o\ngpt-4.1\nclaude-3.7-sonnet\nclaude-3.7-sonnet-thought\n" >~/.aimodels
+    printf "gpt-4o
+gpt-4.1
+claude-3.7-sonnet
+claude-3.7-sonnet-thought" >~/.aimodels
+
     set -gx COPILOT_MODEL (cat ~/.aimodels | fzf)
 
     if test -d $COPILOT_CHAT_DIR
