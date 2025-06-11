@@ -68,17 +68,22 @@ function quickedit::direct
 end
 
 function quickedit::scratchpad
-    quickedit::direct ~/Notes/Scratchpad.md
+    quickedit::direct ~/Notes Scratchpad.md
 end
 
 function quickedit::quicknote
-    quickedit::direct ~/Notes/QuickNote.md
+    quickedit::direct ~/Notes QuickNote.md
+end
+
+function quickedit::performance
+    quickedit::direct ~/Notes Performance.md
 end
 
 abbr -a e quickedit
 abbr -a scratch quickedit::scratchpad
 abbr -a S quickedit::scratchpad
 abbr -a quicknote quickedit::quicknote
+abbr -a performance quickedit::performance
 abbr -a er "ranger $QUICKEDIT_DIR"
 abbr -a cdquickedit "cd $QUICKEDIT_DIR"
 abbr -a cdnotes 'cd ~/Notes'
