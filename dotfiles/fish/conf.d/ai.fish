@@ -5,7 +5,8 @@ abbr -a explain 'gh copilot explain'
 abbr -a aic 'aichat -e'
 
 # helix-gpt env vars used
-set -gx COPILOT_MODEL gpt-4.1 # can be changed with aimodels function
+# set -gx COPILOT_MODEL gpt-4.1 # can be changed with aimodels function
+set -gx COPILOT_MODEL o3 # can be changed with aimodels function
 set -gx HANDLER copilot
 
 # TODO: also reconfigure aichat tool using this function
@@ -15,6 +16,7 @@ function aimodels
     set -l COPILOT_CHAT_DIR "$NVIM_DIR/pack/copilotchat/start/CopilotChat.nvim/lua/CopilotChat"
 
     printf "gpt-4o
+gpt-o3
 gpt-4.1
 claude-3.7-sonnet
 claude-3.7-sonnet-thought" >~/.aimodels
