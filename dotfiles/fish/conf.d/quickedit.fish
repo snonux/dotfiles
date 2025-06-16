@@ -84,6 +84,7 @@ abbr -a scratch quickedit::scratchpad
 abbr -a S quickedit::scratchpad
 abbr -a quicknote quickedit::quicknote
 abbr -a performance quickedit::performance
+abbr -a goals quickedit::performance
 abbr -a er "ranger $QUICKEDIT_DIR"
 abbr -a cdquickedit "cd $QUICKEDIT_DIR"
 abbr -a cdnotes 'cd ~/Notes'
