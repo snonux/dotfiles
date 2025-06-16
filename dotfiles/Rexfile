@@ -53,7 +53,6 @@ task 'pkg_termux', sub {
       ruby
       starship
       tig
-      zsh
       /;
 
     for my $pkg (@pkgs) {
@@ -79,7 +78,6 @@ task 'pkg_freebsd', sub {
       starship
       tig
       tmux
-      zsh
       /;
 
     for my $pkg (@pkgs) {
@@ -122,7 +120,6 @@ task 'pkg_fedora', sub {
       vit
       tig
       tmux
-      zsh
       dialect
       chromium
       strawberry
@@ -155,12 +152,6 @@ desc 'Install vit configuration';
 task 'home_vit', sub {
     file "$HOME/.vit" => ensure => 'directory', mode => '0750';
     ensure "$DOT/vit/config.ini" => "$HOME/.vit/config.ini", '0600';
-};
-
-desc 'Install ZSH configuration';
-task 'home_zsh', sub {
-    ensure "$DOT/zsh/zshrc"     => "$HOME/.zshrc";
-    ensure "$DOT/zsh/zshrc_d/*" => "$HOME/.zshrc_d/";
 };
 
 desc 'Install BASH configuration';
