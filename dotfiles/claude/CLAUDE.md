@@ -1,0 +1,1 @@
+- Whenever updating code, also update the comments in the code to reflect the reality and the reasoning.
