@@ -46,7 +46,7 @@ function taskwarrior::add::track
     if test (count $argv) -gt 0
         task add priority:L +personal +track $argv
     else
-        vit +track
+        tasksamurai +track
     end
 end
 
@@ -64,7 +64,7 @@ function taskwarrior::add::standup
         end
 
     else
-        vit +standup
+        tasksamurai +standup
     end
 end
 
@@ -120,10 +120,10 @@ abbr -a t task
 abbr -a L 'task add +log'
 abbr -a tlog 'task add +log'
 abbr -a log 'task add +log'
-abbr -a tdue 'vit status:pending due.before:now'
-abbr -a thome 'vit +home'
-abbr -a tasks 'vit -track'
-abbr -a tread 'vit +read'
+abbr -a tdue 'tasksamurai status:pending due.before:now'
+abbr -a thome 'tasksamurai +home'
+abbr -a tasks 'tasksamurai -track'
+abbr -a tread 'tasksamurai +read'
 abbr -a track 'taskwarrior::add::track'
 abbr -a tra 'taskwarrior::add::track'
 abbr -a tfind 'taskwarrior::fuzzy::find'
@@ -131,8 +131,8 @@ abbr -a topen 'taskwarrior::url::open'
 
 # Virtual standup abbrs
 abbr -a V 'taskwarrior::add::standup'
-abbr -a Vstorage 'vit +standup +storage'
-abbr -a Vsre 'vit +standup +sre'
+abbr -a Vstorage 'tasksamurai +standup +storage'
+abbr -a Vsre 'tasksamurai +standup +sre'
 abbr -a Ved 'taskwarrior::add::standup::editor'
 
 taskwarrior::due::count
