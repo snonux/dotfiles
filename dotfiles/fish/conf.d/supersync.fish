@@ -64,6 +64,12 @@ function supersync::taskwarrior
     taskwarrior::import
 end
 
+function supersync::gitsyncer
+    if test -f ~/.gitsyncer_enable
+        ~/go/bin/gitsyncer --full
+    end
+end
+
 function supersync
     supersync::worktime sync_quotes
     supersync::taskwarrior
