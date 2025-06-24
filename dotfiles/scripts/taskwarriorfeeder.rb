@@ -155,6 +155,7 @@ begin
   end
 
   opt_parser.parse!(ARGV)
+  core_habits_md_file = "#{opts[:quotes_dir]}/CoreHabits.md"
 
   (run_from_personal_device? ? %w[ql pl] : %w[wl]).each do |prefix|
     notes(opts[:notes_dirs].split(','), prefix, opts[:dry_run]) do |tags, note, due|
@@ -171,6 +172,9 @@ begin
   end
 
   unless opts[:no_random]
+    random_quote(core_habits_md_file) do |tags, quote, due|
+      task_add!(tags, quote, due, opts[:dry_run])
+    end
     count = random_count
 
     Dir["#{opts[:quotes_dir]}/*.md"].shuffle.each do |md_file|
