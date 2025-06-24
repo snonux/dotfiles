@@ -166,6 +166,12 @@ task 'home_fish', sub {
     }
 };
 
+desc 'Install gitsyncer configuration';
+task 'home_gitsyncer', sub {
+    my $dest_dir = "$HOME/.config/gitsyncer";
+    symlink "$DOT/gitsyncer/" => $dest_dir or die "Could not create symlink: $!";
+};
+
 sub isFileSymlink() {
     my $file = shift;
     return -l $file && -e $file;
