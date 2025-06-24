@@ -1,1 +1,2 @@
 - Whenever updating code, also update the comments in the code to reflect the reality and the reasoning.
+- When a function reaches 50 lines of code or more, try to refactor it into several functions of about 30 lines each. In case of a go project, when main.go becomes too large, move code into the ./internal package.
