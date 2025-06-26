@@ -128,6 +128,7 @@ abbr -a track 'taskwarrior::add::track'
 abbr -a tra 'taskwarrior::add::track'
 abbr -a tfind 'taskwarrior::fuzzy::find'
 abbr -a topen 'taskwarrior::url::open'
+abbr -a ts tasksamurai
 
 # Virtual standup abbrs
 abbr -a V 'taskwarrior::add::standup'
