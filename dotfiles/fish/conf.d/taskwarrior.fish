@@ -24,30 +24,23 @@ function taskwarrior::due::count
     end
 end
 
-function taskwarrior::url::open
-    taskwarrior::select $argv[1]
-
-    set -l desc (task $TASK_ID export | jq -r '.[].description')
-    set -l url (taskwarrior::url::extract "$desc")
-
-    if test (uname) = Darwin
-        open -a "Google Chrome" "$url"
-    else if test (uname) = Linux
-        xdg-open "$url"
-    end
-end
-
-function taskwarrior::url::extract
-    set -l str "$argv[1]"
-    echo $str | sed -E 's|.*(https?://.+) .*|\1|'
-end
-
 function taskwarrior::add::track
     if test (count $argv) -gt 0
         task add priority:L +personal +track $argv
     else
         tasksamurai +track
     end
+end
+
+function taskwarrior::add::track::timr
+    timr stop
+    set -l minutes (timr status rawm)
+    if test $minutes -eq 0
+        echo "Nothing to track from timr"
+        return
+    end
+    taskwarrior::add::track "$minutes"min $argv
+    timr reset
 end
 
 function taskwarrior::add::standup
@@ -126,8 +119,8 @@ abbr -a tasks 'tasksamurai -track'
 abbr -a tread 'tasksamurai +read'
 abbr -a track 'taskwarrior::add::track'
 abbr -a tra 'taskwarrior::add::track'
+abbr -a trat 'taskwarrior::add::track::timr'
 abbr -a tfind 'taskwarrior::fuzzy::find'
-abbr -a topen 'taskwarrior::url::open'
 abbr -a ts tasksamurai
 
 # Virtual standup abbrs
