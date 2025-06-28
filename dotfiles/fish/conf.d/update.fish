@@ -2,8 +2,7 @@ function update::tools
     go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
     go install golang.org/x/tools/cmd/goimports@latest
     go install codeberg.org/snonux/tasksamurai/cmd/tasksamurai@latest
-    if [ "$(uname)" = Linux ]
-        then
+    if test (uname) = Linux
         echo "Installing gos from codeberg.org/snonux/gos/cmd/gos@latest"
         go install codeberg.org/snonux/gos/cmd/gos@latest
         echo "Installing gitsyncer from codeberg.org/snonux/gitsyncer/cmd/gitsyncer@latest"
@@ -14,6 +13,5 @@ function update::tools
         doas npm install -g @openai/codex
         echo "Installing @google/gemini-cli globally via npm"
         doas npm install -g @google/gemini-cli
-        fi
     end
 end
