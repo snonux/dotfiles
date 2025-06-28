@@ -1,17 +1,27 @@
 function update::tools
+    echo "Installing/updating golangci-lint"
     go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+    echo "Installing/updating goimports"
     go install golang.org/x/tools/cmd/goimports@latest
-    go install codeberg.org/snonux/tasksamurai/cmd/tasksamurai@latest
+    for prog in tasksamurai timr
+        echo "Installing/updating $prog from codeberg.org/snonux/$prog/cmd/$prog@latest"
+        go install codeberg.org/snonux/$prog/cmd/$prog@latest
+    end
     if test (uname) = Linux
-        echo "Installing gos from codeberg.org/snonux/gos/cmd/gos@latest"
-        go install codeberg.org/snonux/gos/cmd/gos@latest
-        echo "Installing gitsyncer from codeberg.org/snonux/gitsyncer/cmd/gitsyncer@latest"
-        go install codeberg.org/snonux/gitsyncer/cmd/gitsyncer@latest
-        echo "Installing @anthropic-ai/claude-code globally via npm"
-        doas npm i -g @anthropic-ai/claude-code
-        echo "Installing @openai/codex globally via npm"
+        for prog in gos gitsyncer
+            echo "Installing/updating $prog from codeberg.org/snonux/$prog/cmd/$prog@latest"
+            go install codeberg.org/snonux/$prog/cmd/$prog@latest
+        end
+        echo "Installing/updating @anthropic-ai/claude-code globally via npm"
+        doas npm uninstall -g @anthropic-ai/claude-code
+        doas npm install -g @anthropic-ai/claude-code
+
+        echo "Installing/updating @openai/codex globally via npm"
+        doas npm uninstall -g @openai/codex
         doas npm install -g @openai/codex
-        echo "Installing @google/gemini-cli globally via npm"
+
+        echo "Installing/updating @google/gemini-cli globally via npm"
+        doas npm uninstall -g @google/gemini-cli
         doas npm install -g @google/gemini-cli
     end
 end
