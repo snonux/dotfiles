@@ -12,6 +12,3 @@ end
 if type -q procs
     alias p='procs'
 end
-if type -q zoxide
-    zoxide init fish | source
-end
