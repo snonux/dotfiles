@@ -119,7 +119,7 @@ def task_add!(tags, quote, due, dry)
   if tags.include?('task')
     run! "task #{quote}", dry
   else
-    priority = tags.include?('high') ? 'H' : 'L'
+    priority = tags.include?('high') ? 'H' : ''
     run! "task add due:#{due} priority:#{priority} +#{tags.join(' +')} '#{quote.gsub("'", '"')}'", dry
   end
 end
