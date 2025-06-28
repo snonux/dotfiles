@@ -125,7 +125,7 @@ def task_add!(tags, quote, due, dry)
 end
 
 def task_schedule!(id, due, dry)
-  run! "task modify #{id} due:#{due}", dry
+  run! "timeout 5s task modify #{id} due:#{due}", dry
 end
 
 # Randomly schedule all unscheduled tasks but the ones with the +unsched tag
