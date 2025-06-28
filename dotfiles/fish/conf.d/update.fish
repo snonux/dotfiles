@@ -4,10 +4,16 @@ function update::tools
     go install codeberg.org/snonux/tasksamurai/cmd/tasksamurai@latest
     if [ "$(uname)" = Linux ]
         then
+        echo "Installing gos from codeberg.org/snonux/gos/cmd/gos@latest"
         go install codeberg.org/snonux/gos/cmd/gos@latest
+        echo "Installing gitsyncer from codeberg.org/snonux/gitsyncer/cmd/gitsyncer@latest"
         go install codeberg.org/snonux/gitsyncer/cmd/gitsyncer@latest
-        doas npm i -g @anthropic-ai/claude-code 2
-        dias npm install -g @openai/codex
+        echo "Installing @anthropic-ai/claude-code globally via npm"
+        doas npm i -g @anthropic-ai/claude-code
+        echo "Installing @openai/codex globally via npm"
+        doas npm install -g @openai/codex
+        echo "Installing @google/gemini-cli globally via npm"
+        doas npm install -g @google/gemini-cli
         fi
     end
 end
