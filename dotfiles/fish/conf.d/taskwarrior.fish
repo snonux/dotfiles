@@ -32,17 +32,6 @@ function taskwarrior::add::track
     end
 end
 
-function taskwarrior::add::track::timr
-    timr stop
-    set -l minutes (timr status rawm)
-    if test $minutes -eq 0
-        echo "Nothing to track from timr"
-        return
-    end
-    taskwarrior::add::track "$minutes"min $argv
-    timr reset
-end
-
 function taskwarrior::add::standup
     if test (count $argv) -gt 0
         task add priority:L +work +standup +sre +nosched $argv
@@ -119,7 +108,7 @@ abbr -a tasks 'tasksamurai -track'
 abbr -a tread 'tasksamurai +read'
 abbr -a track 'taskwarrior::add::track'
 abbr -a tra 'taskwarrior::add::track'
-abbr -a trat 'taskwarrior::add::track::timr'
+abbr -a trat 'timr track'
 abbr -a tfind 'taskwarrior::fuzzy::find'
 abbr -a ts tasksamurai
 
