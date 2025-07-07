@@ -61,6 +61,9 @@ def run!(cmd, dry)
 
   puts `#{cmd}`
   raise "Command '#{cmd}' failed with #{$?.exitstatus}" if $?.exitstatus != 0
+rescue StandardError => e
+  puts "Error running command '#{cmd}': #{e.message}"
+  exit 1
 end
 
 def skill_add!(skills_str, dry)
