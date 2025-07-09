@@ -15,7 +15,11 @@
   ],
   "repositories": [],
   "exclude_from_showcase": [
+    "bratwurstmitsenf",
     "Adv360-Pro-ZMK",
+    "katana",
+    "playground",
+    "pages",
     "nvim"
   ],
   "exclude_branches": [
