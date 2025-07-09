@@ -66,7 +66,7 @@ end
 
 function supersync::gitsyncer
     if test -f ~/.gitsyncer_enable
-        ~/go/bin/gitsyncer --full
+        ~/go/bin/gitsyncer --full --showcase
     end
 end
 
@@ -75,6 +75,7 @@ function supersync
     supersync::taskwarrior
     supersync::worktime no_sync_quotes
     supersync::uprecords
+    supersync::gitsyncer
 
     if test -f ~/.gos_enable
         gos
