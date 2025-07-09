@@ -66,7 +66,7 @@ end
 
 function supersync::gitsyncer
     if test -f ~/.gitsyncer_enable
-        ~/go/bin/gitsyncer --full --showcase
+        ~/go/bin/gitsyncer --batch-run
     end
 end
 
