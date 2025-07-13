@@ -66,7 +66,7 @@ end
 
 function supersync::gitsyncer
     if test -f ~/.gitsyncer_enable
-        ~/go/bin/gitsyncer --batch-run
+        ~/go/bin/gitsyncer sync bidirectional
     end
 end
 
