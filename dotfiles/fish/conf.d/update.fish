@@ -3,9 +3,15 @@ function update::tools
     go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
     echo "Installing/updating goimports"
     go install golang.org/x/tools/cmd/goimports@latest
+
+    set pids
     for prog in tasksamurai timr
         echo "Installing/updating $prog from codeberg.org/snonux/$prog/cmd/$prog@latest"
-        go install codeberg.org/snonux/$prog/cmd/$prog@latest
+        go install codeberg.org/snonux/$prog/cmd/$prog@latest &
+        set -a pids $last_pid
+    end
+    for pid in $pids
+        wait $pid
     end
     if test (uname) = Linux
         for prog in gos gitsyncer
