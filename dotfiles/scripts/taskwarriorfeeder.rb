@@ -112,6 +112,10 @@ def gos_queue!(tags, message, dry)
 end
 
 def task_add!(tags, quote, due, dry)
+  if quote.empty?
+    puts 'Not adding task with empty quote'
+    return
+  end
   if tags.include?('tr')
     tags << 'track'
     tags.delete('tr')
