@@ -29,5 +29,9 @@ function update::tools
         echo "Installing/updating @google/gemini-cli globally via npm"
         doas npm uninstall -g @google/gemini-cli
         doas npm install -g @google/gemini-cli
+
+        echo "Installing/updating opencode-ai globally via npm"
+        doas npm uninstall -g opencode-ai
+        doas npm install -g opencode-ai
     end
 end
