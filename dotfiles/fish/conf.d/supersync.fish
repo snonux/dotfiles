@@ -65,8 +65,22 @@ function supersync::taskwarrior
 end
 
 function supersync::gitsyncer
-    if test -f ~/.gitsyncer_enable
-        ~/go/bin/gitsyncer sync bidirectional
+    set enable_file ~/.gitsyncer_enable
+    set now (date +%s)
+    set weekly_interval (math 7 \* 24 \* 60 \* 60)
+
+    if not test -f $enable_file
+        echo $now >$enable_file
+    else
+        set last_run (cat $enable_file)
+        if test (math $now - $last_run) -lt $weekly_interval
+            return
+        end
+    end
+
+    ~/go/bin/gitsyncer sync bidirectional
+    if test $status -eq 0
+        date +%s >$enable_file
     end
 end
 
