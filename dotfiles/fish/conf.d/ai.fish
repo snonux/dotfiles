@@ -19,7 +19,9 @@ function aimodels
 gpt-o3
 gpt-4.1
 claude-3.7-sonnet
-claude-3.7-sonnet-thought" >~/.aimodels
+claude-3.7-sonnet-thought
+claude-4.0-sonnet
+gemini-2.5-pro" >~/.aimodels
 
     set -gx COPILOT_MODEL (cat ~/.aimodels | fzf)
 
