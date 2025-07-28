@@ -201,6 +201,8 @@ begin
         gos_queue!(entry['tags'], entry['description'], opts[:dry_run])
       end
       File.delete(tw_gos)
+    rescue StandardError => e
+      puts e
     end
   end
 
