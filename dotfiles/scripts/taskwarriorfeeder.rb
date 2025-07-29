@@ -179,8 +179,10 @@ begin
   end
 
   unless opts[:no_random]
-    random_quote(core_habits_md_file) do |tags, quote, due|
-      task_add!(tags, quote, due, opts[:dry_run])
+    if File.exist(core_habits_md_file)
+      random_quote(core_habits_md_file) do |tags, quote, due|
+        task_add!(tags, quote, due, opts[:dry_run])
+      end
     end
     count = random_count
 
