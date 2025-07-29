@@ -179,7 +179,7 @@ begin
   end
 
   unless opts[:no_random]
-    if File.exist(core_habits_md_file)
+    if File.exist?(core_habits_md_file)
       random_quote(core_habits_md_file) do |tags, quote, due|
         task_add!(tags, quote, due, opts[:dry_run])
       end
