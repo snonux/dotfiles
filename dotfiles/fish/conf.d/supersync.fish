@@ -78,7 +78,9 @@ function supersync::gitsyncer
         end
     end
 
-    ~/go/bin/gitsyncer sync bidirectional && ~/go/bin/gitsyncer showcase
+    if test -f ~/go/bin/gitsyncer
+        ~/go/bin/gitsyncer sync bidirectional && ~/go/bin/gitsyncer showcase
+    end
     if test $status -eq 0
         date +%s >$enable_file
     end
