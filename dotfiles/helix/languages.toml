@@ -17,7 +17,7 @@ diagnostic-severity = "hint"
 formatter = { command = "goimports" }
 language-servers = [ "gopls", "golangci-lint-lsp", "lsp-ai", "gpt" ]
 
-[languagei]
+[language-server.lsp-ai]
 command = "lsp-ai"
 
 [language-server.lsp-ai.config.memory]
@@ -117,7 +117,7 @@ injection-regex = "c"
 file-types = ["c", "h"]
 comment-token = "//"
 language-servers = [ "clangd", "lsp-ai", "gpt" ]
-indent = { = 2, unit = "  " }
+indent = { tab-width = 2, unit = "  " }
 
 [[grammar]]
 name = "c"
@@ -135,7 +135,7 @@ file-types = ["pl", "pm", "t", "psgi", "raku", "rakumod", "rakutest", "rakudoc",
 shebangs = ["perl"]
 comment-token = "#"
 language-servers = [ "perlnavigator", "lsp-ai", "gpt" ]
-indent = { = 2, unit = "  " }
+indent = { tab-width = 2, unit = "  " }
 
 [[grammar]]
 name = "perl"
@@ -202,7 +202,7 @@ file-types = [
 shebangs = ["sh", "bash", "dash", "zsh"]
 comment-token = "#"
 language-servers = [ "bash-language-server", "lsp-ai", "gpt" ]
-indent = { = 2, unit = "  " }
+indent = { tab-width = 2, unit = "  " }
 
 [[language]]
 name = "fish"
@@ -233,7 +233,7 @@ injection-regex = "md|markdown"
 file-types = ["md", "markdown", "mkd", "mdwn", "mdown", "markdn", "mdtxt", "mdtext", "workbook", "gmi", "tpl", "txt" ]
 roots = [".marksman.toml"]
 language-servers = [ "marksman", "markdown-oxide", "vale-ls", "lsp-ai", "gpt"]
-indent = { ta= 2, unit = "  " }
+indent = { tab-width = 2, unit = "  " }
 
 [[grammar]]
 name = "markdown"
@@ -266,7 +266,7 @@ injection-regex = "java"
 file-types = ["java", "jav", "pde"]
 roots = ["pom.xml", "build.gradle", "build.gradle.kts"]
 language-servers = [ "jdtls", "lsp-ai", "gpt" ]
-indent = { = 2, unit = "  " }
+indent = { tab-width = 2, unit = "  " }
 
 [[grammar]]
 name = "java"
