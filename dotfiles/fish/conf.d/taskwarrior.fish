@@ -109,6 +109,10 @@ function taskwarrior::import
     end
 end
 
+function taskwarrior::db::prune
+    yes | task +random status:completed delete
+end
+
 abbr -a t task
 abbr -a L 'task add +log'
 abbr -a tlog 'task add +log'

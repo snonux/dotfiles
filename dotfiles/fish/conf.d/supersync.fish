@@ -64,6 +64,7 @@ function supersync::taskwarrior
     taskwarrior::export::gos
     taskwarrior::export::bd
     taskwarrior::import
+    taskwarrior::db::prune
 end
 
 function supersync::gitsyncer
