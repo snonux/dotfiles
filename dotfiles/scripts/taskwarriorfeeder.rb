@@ -20,7 +20,7 @@ def run_from_personal_device?
 end
 
 def random_count
-  MAX_PENDING_RANDOM_TASKS - `task status:pending +random count`.to_i
+  MAX_PENDING_RANDOM_TASKS - `task status:pending +random -work count`.to_i
 end
 
 def notes(notes_dirs, prefix, dry)
