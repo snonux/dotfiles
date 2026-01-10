@@ -9,7 +9,7 @@
       "name": "snonux"
     },
     {
-      "host": "ssh://git@r0:30022/repos/repos",
+      "host": "ssh://git@r0:30022/repos",
       "backupLocation": true
     }
   ],
