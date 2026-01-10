@@ -19,3 +19,8 @@ Port 22
 
 Host *.buetow.org
 Port 2
+
+Host git-server
+HostName r0
+Port 30022
+User git
