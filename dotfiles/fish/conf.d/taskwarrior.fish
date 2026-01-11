@@ -71,10 +71,8 @@ function taskwarrior::export::bd
     set -l outfile ~/Notes/Bulgarian/bd-(date +%s).txt
     task +bd status:pending export | jq -r '.[].description' >$outfile
     yes | task +bd status:pending delete
-    # Delete it if it is empty
-    if test -f $outfile; and test ! -s $outfile
-        rm $outfile
-    end
+    cat ~/Notes/Bulgarian/bd-*.txt | sort -u >~/Notes/Bulgarian/compact-(date +%s).tmp && rm ~/Notes/Bulgarian/bd-*.txt
+    sort -u ~/Notes/Bulgarian/compact-*.tmp >~/Notes/Bulgarian/bd-compacted.txt && rm ~/Notes/Bulgarian/compact-*.tmp
 end
 
 function taskwarrior::export::gos

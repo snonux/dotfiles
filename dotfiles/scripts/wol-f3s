@@ -1,17 +1,25 @@
 #!/bin/bash
-# Wake-on-LAN script for f3s cluster (f0, f1, f2)
+# Wake-on-LAN and shutdown script for f3s cluster (f0, f1, f2)
 #
 # Usage:
-#   wol-f3s        # Wake all three Beelinks
-#   wol-f3s f0     # Wake only f0
-#   wol-f3s f1     # Wake only f1
-#   wol-f3s f2     # Wake only f2
+#   wol-f3s              # Wake all three Beelinks
+#   wol-f3s f0           # Wake only f0
+#   wol-f3s f1           # Wake only f1
+#   wol-f3s f2           # Wake only f2
+#   wol-f3s shutdown     # Shutdown all three Beelinks
 
-# MAC addresses (fill these in after getting them from the Beelinks)
-# Run: ssh paul@192.168.1.130 "ifconfig re0 | grep ether" to get each MAC
+# MAC addresses
 F0_MAC="e8:ff:1e:d7:1c:ac"  # f0 (192.168.1.130)
 F1_MAC="e8:ff:1e:d7:1e:44"  # f1 (192.168.1.131)
 F2_MAC="e8:ff:1e:d7:1c:a0"  # f2 (192.168.1.132)
+
+# IP addresses
+F0_IP="192.168.1.130"
+F1_IP="192.168.1.131"
+F2_IP="192.168.1.132"
+
+# SSH user
+SSH_USER="paul"
 
 # Broadcast address for your LAN
 BROADCAST="192.168.1.255"
@@ -29,7 +37,19 @@ wake() {
     wol -i "$BROADCAST" "$mac"
 }
 
-case "${1:-all}" in
+shutdown_host() {
+    local name=$1
+    local ip=$2
+
+    echo "Shutting down $name ($ip)..."
+    ssh -o ConnectTimeout=5 "$SSH_USER@$ip" "doas poweroff" 2>/dev/null && \
+        echo "  ✓ Shutdown command sent to $name" || \
+        echo "  ✗ Failed to reach $name (already down?)"
+}
+
+ACTION="${1:-all}"
+
+case "$ACTION" in
     f0)
         wake "f0" "$F0_MAC"
         ;;
@@ -44,8 +64,16 @@ case "${1:-all}" in
         wake "f1" "$F1_MAC"
         wake "f2" "$F2_MAC"
         ;;
+    shutdown|poweroff|down)
+        shutdown_host "f0" "$F0_IP"
+        shutdown_host "f1" "$F1_IP"
+        shutdown_host "f2" "$F2_IP"
+        echo ""
+        echo "✓ Shutdown commands sent to all machines."
+        exit 0
+        ;;
     *)
-        echo "Usage: $0 [f0|f1|f2|all]"
+        echo "Usage: $0 [f0|f1|f2|all|shutdown]"
         exit 1
         ;;
 esac
