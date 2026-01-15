@@ -67,12 +67,14 @@ function _taskwarrior::set_import_export_tags
 end
 
 function taskwarrior::export::bd
-    # Export bulgarian dumi
-    set -l outfile ~/Notes/Bulgarian/bd-(date +%s).txt
-    task +bd status:pending export | jq -r '.[].description' >$outfile
-    yes | task +bd status:pending delete
-    cat ~/Notes/Bulgarian/bd-*.txt | sort -u >~/Notes/Bulgarian/compact-(date +%s).tmp && rm ~/Notes/Bulgarian/bd-*.txt
-    sort -u ~/Notes/Bulgarian/compact-*.tmp >~/Notes/Bulgarian/bd-compacted.txt && rm ~/Notes/Bulgarian/compact-*.tmp
+    if test -d ~/Notes/Bulgarian
+        # Export bulgarian dumi
+        set -l outfile ~/Notes/Bulgarian/bd-(date +%s).txt
+        task +bd status:pending export | jq -r '.[].description' >$outfile
+        yes | task +bd status:pending delete
+        cat ~/Notes/Bulgarian/bd-*.txt | sort -u >~/Notes/Bulgarian/compact-(date +%s).tmp && rm ~/Notes/Bulgarian/bd-*.txt
+        sort -u ~/Notes/Bulgarian/compact-*.tmp >~/Notes/Bulgarian/bd-compacted.txt && rm ~/Notes/Bulgarian/compact-*.tmp
+    end
 end
 
 function taskwarrior::export::gos
