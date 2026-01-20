@@ -234,7 +234,7 @@ task 'home_quickedit', sub {
         my %symlinks = (
             'data'             => "$HOME/data/",
             'Documents'        => "$HOME/Documents//",
-            'dotfiles'         => "$HOME/git/rexfiles/dotfiles/",
+            'dotfiles'         => "$HOME/git/conf/dotfiles/",
             'foo.zone-gemtext' => "$HOME/git/foo.zone-content/gemtext//",
             'Notes'            => "$HOME/Notes/",
             'public-snippets'  => "$HOME/git/conf/snippets//",
