@@ -224,7 +224,7 @@ task 'home_pipewire', sub {
 
 desc 'Manage ~/QuickEdit directory and symlinks';
 task 'home_quickedit', sub {
-    if ( is_os('linux') || is_os('freebsd') ) {
+    if ( $^O eq 'linux' || $^O eq 'freebsd' ) {
         Rex::Logger::info('Setting up ~/QuickEdit');
         
         file "$HOME/QuickEdit",
@@ -261,7 +261,7 @@ task 'home_quickedit', sub {
             }
         }
     }
-    elsif ( is_os('darwin') ) {
+    elsif ( $^O eq 'darwin' ) {
         Rex::Logger::info('QuickEdit placeholder for macOS (not yet implemented)');
         # TODO: Implement QuickEdit management for macOS
     }
