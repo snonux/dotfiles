@@ -64,6 +64,10 @@ task 'pkg_termux', sub {
 desc 'Install packages on FreeBSD';
 task 'pkg_freebsd', sub {
     my @pkgs = qw/
+      zoxide
+      dust
+      lazygit
+      taskwarrior
       bat
       ctags
       fzf
@@ -75,8 +79,8 @@ task 'pkg_freebsd', sub {
       node
       p5-ack
       ripgrep
-      starship
       tig
+      doas
       tmux
       /;
 
