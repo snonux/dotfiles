@@ -222,6 +222,51 @@ task 'home_pipewire', sub {
       '0600';
 };
 
+desc 'Manage ~/QuickEdit directory and symlinks';
+task 'home_quickedit', sub {
+    if ( is_os('linux') || is_os('freebsd') ) {
+        Rex::Logger::info('Setting up ~/QuickEdit');
+        
+        file "$HOME/QuickEdit",
+          ensure => 'directory',
+          mode   => '0700';
+        
+        my %symlinks = (
+            'data'             => "$HOME/data/",
+            'Documents'        => "$HOME/Documents//",
+            'dotfiles'         => "$HOME/git/rexfiles/dotfiles/",
+            'foo.zone-gemtext' => "$HOME/git/foo.zone-content/gemtext//",
+            'Notes'            => "$HOME/Notes/",
+            'public-snippets'  => "$HOME/git/conf/snippets//",
+            'worktime'         => "$HOME/git/worktime/",
+        );
+        
+        for my $name ( keys %symlinks ) {
+            my $link_path = "$HOME/QuickEdit/$name";
+            my $target    = $symlinks{$name};
+            
+            # Remove existing symlink if it points to a different target
+            if ( -l $link_path ) {
+                my $current_target = readlink($link_path);
+                if ( $current_target ne $target ) {
+                    unlink $link_path or die "Could not remove $link_path: $!";
+                    symlink $target => $link_path or die "Could not create symlink $link_path: $!";
+                }
+            }
+            elsif ( -e $link_path ) {
+                Rex::Logger::info("$link_path exists but is not a symlink, skipping", 'warn');
+            }
+            else {
+                symlink $target => $link_path or die "Could not create symlink $link_path: $!";
+            }
+        }
+    }
+    elsif ( is_os('darwin') ) {
+        Rex::Logger::info('QuickEdit placeholder for macOS (not yet implemented)');
+        # TODO: Implement QuickEdit management for macOS
+    }
+};
+
 desc 'Install all my ~ files';
 task 'home', sub {
     require Rex::TaskList;
