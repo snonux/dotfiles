@@ -56,8 +56,6 @@ end
 function supersync::taskwarrior
     if test -f ~/scripts/taskwarriorfeeder.rb
         ruby ~/scripts/taskwarriorfeeder.rb
-    else
-        echo "No taskwarrior feeder script, skipping"
     end
 
     taskwarrior::export
@@ -73,7 +71,7 @@ function supersync::gitsyncer
     set weekly_interval (math 7 \* 24 \* 60 \* 60)
 
     if not test -f $enable_file
-        echo Gitsyncer is not enabled
+        # echo Gitsyncer is not enabled
         return
     end
 
