@@ -65,6 +65,9 @@ case "$ACTION" in
         wake "f2" "$F2_MAC"
         ;;
     shutdown|poweroff|down)
+        # This is to mute Gogios alerts for a day
+        ssh rex@blowfish.buetow.org touch /tmp/f3s_taken_down
+        ssh rex@fishfinger.buetow.org touch /tmp/f3s_taken_down
         shutdown_host "f0" "$F0_IP"
         shutdown_host "f1" "$F1_IP"
         shutdown_host "f2" "$F2_IP"
