@@ -113,6 +113,13 @@ function taskwarrior::db::prune
     yes | task +random status:completed delete
 end
 
+function taskwarrior::invoke
+    if test -f ~/scripts/taskwarriorfeeder.rb
+        ruby ~/scripts/taskwarriorfeeder.rb
+    end
+    tasksamurai
+end
+
 abbr -a t task
 abbr -a L 'task add +log'
 abbr -a tlog 'task add +log'
@@ -125,7 +132,7 @@ abbr -a track 'taskwarrior::add::track'
 abbr -a tra 'taskwarrior::add::track'
 abbr -a trat 'timr track'
 abbr -a tfind 'taskwarrior::fuzzy::find'
-abbr -a ts tasksamurai
+abbr -a ts 'tasksamurai::invoke'
 
 # Virtual standup abbrs
 abbr -a V 'taskwarrior::add::standup'
