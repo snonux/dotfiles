@@ -123,6 +123,10 @@ function touchtype::quote
     end
 end
 
+function touchtype::scifi
+    find ~/git/scifi/summaries/ -type f -name \*.md | sort -R | head -n 1 | xargs cat | touchtype
+end
+
 function checkcert
     set host $argv[1]
     set port $argv[2]
