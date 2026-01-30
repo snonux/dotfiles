@@ -4,9 +4,3 @@ function Z
     zsh -i -c "$argv"
     rm ~/.nofish
 end
-
-function B
-    touch ~/.nofish
-    bash -i -c "$argv"
-    rm ~/.nofish
-end
