@@ -1,5 +1,5 @@
-ControlPath ~/.ssh/cp-%C
-ControlMaster auto
+#ControlPath ~/.ssh/cp-%C
+#ControlMaster auto
 #UseKeychain yes
 AddKeysToAgent yes
 ControlPersist 60m

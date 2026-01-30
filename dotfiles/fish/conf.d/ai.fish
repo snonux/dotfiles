@@ -5,12 +5,30 @@ abbr -a explain 'hexai explain'
 abbr -a aic 'aichat -e'
 
 # helix-gpt env vars used
-# set -gx COPILOT_MODEL gpt-4.1 # can be changed with aimodels function
-set -gx COPILOT_MODEL gpt-4o # can be changed with aimodels function
+set -gx COPILOT_MODEL gpt-4.1 # can be changed with aimodels function
+#set -gx COPILOT_MODEL gpt-4o # can be changed with aimodels function
 set -gx HANDLER copilot
 # set -gx HEXAI_PROVIDER copilot
 
-# TODO: also reconfigure aichat tool using this function
+function cur
+    set last_updated_file ~/.cursor_agent_last_updated
+    if not test -e $last_updated_file
+        cursor-agent update
+        touch $last_updated_file
+    else
+        set current_time (date +%s)
+        set file_time (stat -f %m $last_updated_file)
+        set time_diff (math $current_time - $file_time)
+        if test $time_diff -gt 86400
+            cursor-agent update
+            touch $last_updated_file
+        end
+    end
+    touch ~/.nozsh
+    cursor-agent
+end
+
+# TODO: Probably deprecated
 function aimodels
     # nvim for the ai tool wrapper so i can use Copilot Chat from the command line.
     set -l NVIM_DIR "$HOME/.config/nvim/"
