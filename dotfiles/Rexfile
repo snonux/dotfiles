@@ -157,6 +157,16 @@ task 'home_bash', sub {
     ensure "$DOT/bash/bashrc"       => "$HOME/.bashrc";
 };
 
+desc 'Install ZSH configuration';
+task 'home_zsh', sub {
+    if ( $^O eq 'darwin' ) {
+        ensure "$DOT/zsh/.zshrc" => "$HOME/.zshrc";
+    }
+    else {
+        Rex::Logger::info('Skipping ZSH configuration (not on macOS)', 'warn');
+    }
+};
+
 desc 'Install fish configuration';
 task 'home_fish', sub {
 
