@@ -10,7 +10,7 @@ set -gx COPILOT_MODEL gpt-4.1 # can be changed with aimodels function
 set -gx HANDLER copilot
 # set -gx HEXAI_PROVIDER copilot
 
-function cur
+function cool
     set last_updated_file ~/.cursor_agent_last_updated
     if not test -e $last_updated_file
         cursor-agent update
@@ -26,6 +26,10 @@ function cur
     end
     touch ~/.nofish
     cursor-agent
+end
+
+function cur
+    cool
 end
 
 # TODO: Probably deprecated
