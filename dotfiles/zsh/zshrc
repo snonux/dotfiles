@@ -2,7 +2,7 @@ if [ -f $HOME/.nofish ]; then
    current_time=$(date +%s)
    file_time=$(stat -f %m $HOME/.nofish)
    time_diff=$((current_time - file_time))
-   if [ $time_diff -gt 3600 ]; then
+   if [ $time_diff -gt 5 ]; then
       rm -vf $HOME/.nofish
    fi
 fi

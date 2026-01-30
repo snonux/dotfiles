@@ -160,10 +160,10 @@ task 'home_bash', sub {
 desc 'Install ZSH configuration';
 task 'home_zsh', sub {
     if ( $^O eq 'darwin' ) {
-        ensure "$DOT/zsh/.zshrc" => "$HOME/.zshrc";
+        ensure "$DOT/zsh/zshrc" => "$HOME/.zshrc";
     }
     else {
-        Rex::Logger::info('Skipping ZSH configuration (not on macOS)', 'warn');
+        Rex::Logger::info( 'Skipping ZSH configuration (not on macOS)', 'warn' );
     }
 };
 
@@ -236,11 +236,11 @@ desc 'Manage ~/QuickEdit directory and symlinks';
 task 'home_quickedit', sub {
     if ( $^O eq 'linux' || $^O eq 'freebsd' ) {
         Rex::Logger::info('Setting up ~/QuickEdit');
-        
+
         file "$HOME/QuickEdit",
           ensure => 'directory',
           mode   => '0700';
-        
+
         my %symlinks = (
             'data'             => "$HOME/data/",
             'Documents'        => "$HOME/Documents//",
@@ -250,11 +250,11 @@ task 'home_quickedit', sub {
             'public-snippets'  => "$HOME/git/conf/snippets//",
             'worktime'         => "$HOME/git/worktime/",
         );
-        
+
         for my $name ( keys %symlinks ) {
             my $link_path = "$HOME/QuickEdit/$name";
             my $target    = $symlinks{$name};
-            
+
             # Remove existing symlink if it points to a different target
             if ( -l $link_path ) {
                 my $current_target = readlink($link_path);
@@ -264,7 +264,7 @@ task 'home_quickedit', sub {
                 }
             }
             elsif ( -e $link_path ) {
-                Rex::Logger::info("$link_path exists but is not a symlink, skipping", 'warn');
+                Rex::Logger::info( "$link_path exists but is not a symlink, skipping", 'warn' );
             }
             else {
                 symlink $target => $link_path or die "Could not create symlink $link_path: $!";
@@ -273,6 +273,7 @@ task 'home_quickedit', sub {
     }
     elsif ( $^O eq 'darwin' ) {
         Rex::Logger::info('QuickEdit placeholder for macOS (not yet implemented)');
+
         # TODO: Implement QuickEdit management for macOS
     }
 };
