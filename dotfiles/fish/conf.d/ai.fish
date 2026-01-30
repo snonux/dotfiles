@@ -24,7 +24,7 @@ function cur
             touch $last_updated_file
         end
     end
-    touch ~/.nozsh
+    touch ~/.nofish
     cursor-agent
 end
 
