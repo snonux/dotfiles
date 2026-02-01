@@ -145,6 +145,12 @@ task 'home_helix', sub { ensure "$DOT/helix/*" => "$HOME/.config/helix/" };
 desc 'Install ~/.config/ghostty';
 task 'home_ghostty', sub { ensure "$DOT/ghostty/*" => "$HOME/.config/ghostty/" };
 
+desc 'Install ~/.cursor';
+task 'home_cursor', sub {
+    file "$HOME/.cursor" => ensure => 'directory', mode => '0750';
+    ensure "$DOT/cursor/commands/*" => "$HOME/.cursor/commands/", '0750';
+};
+
 desc 'Install ~/scripts';
 task 'home_scripts', sub { ensure "$DOT/scripts/*" => "$HOME/scripts/", '0750' };
 
