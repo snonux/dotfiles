@@ -7,8 +7,12 @@ function ai::cursor_agent
         touch $last_updated_file
     else
         set current_time (date +%s)
-        set file_time (stat -f %m $last_updated_file)
-        set time_diff (math $current_time - $file_time)
+        if test (uname) = Darwin
+            set file_time (stat -f %m $last_updated_file 2>/dev/null)
+        else
+            set file_time (stat -c %Y $last_updated_file 2>/dev/null)
+        end
+        set time_diff (math "$current_time - $file_time")
         if test $time_diff -gt 86400
             cursor-agent update
             touch $last_updated_file
