@@ -22,6 +22,9 @@ function ai::cursor_agent
     cursor-agent
 end
 
+function a
+    ai::cursor_agent
+end
+
 abbr -a suggest hexai
 abbr -a explain 'hexai explain'
-abbr -a a ai::cursor_agent
