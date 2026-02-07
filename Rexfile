@@ -4,7 +4,7 @@ use Rex::Logger;
 our $HOME = $ENV{HOME};
 
 # In a public Git rapository.
-our $DOT = "$HOME/git/conf/dotfiles";
+our $DOT = "$HOME/git/dotfiles";
 
 # In a private Git repository.
 our $DOT_PRIVATE = "$HOME/git/conf_private/dotfiles";
@@ -250,7 +250,7 @@ task 'home_quickedit', sub {
         my %symlinks = (
             'data'             => "$HOME/data/",
             'Documents'        => "$HOME/Documents//",
-            'dotfiles'         => "$HOME/git/conf/dotfiles/",
+            'dotfiles'         => "$HOME/git/dotfiles/",
             'foo.zone-gemtext' => "$HOME/git/foo.zone-content/gemtext//",
             'Notes'            => "$HOME/Notes/",
             'public-snippets'  => "$HOME/git/conf/snippets//",

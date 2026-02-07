@@ -1,4 +1,4 @@
-set -gx DOTFILES_DIR ~/git/conf/dotfiles
+set -gx DOTFILES_DIR ~/git/dotfiles
 
 function dotfiles::update
     set -l prev_pwd (pwd)
@@ -45,4 +45,4 @@ abbr -a .e 'dotfiles::fuzzy::edit'
 abbr -a .rex 'dotfiles::rexify'
 abbr -a .re 'dotfiles::random::edit'
 abbr -a cdconf "cd $HOME/git/conf"
-abbr -a cdotfiles "cd $HOME/git/conf/dotfiles"
+abbr -a cdotfiles "cd $HOME/git/dotfiles"
