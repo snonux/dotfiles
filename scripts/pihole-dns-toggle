@@ -1,0 +1,117 @@
+#!/bin/bash
+# Toggle Pi-hole DNS on/off for active network connection
+
+set -e
+
+# Pi-hole DNS servers
+PIHOLE_DNS="192.168.1.120 192.168.1.121 192.168.1.122 192.168.1.1"
+
+# Colors for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+# Get active connection name (excluding loopback)
+get_active_connection() {
+    nmcli -t -f NAME,DEVICE connection show --active | grep -v ':lo$' | head -1 | cut -d: -f1
+}
+
+# Check if Pi-hole DNS is currently enabled
+is_pihole_enabled() {
+    local connection="$1"
+    local ignore_auto_dns=$(nmcli -t -f ipv4.ignore-auto-dns connection show "$connection" | cut -d: -f2)
+    [[ "$ignore_auto_dns" == "yes" ]]
+}
+
+# Enable Pi-hole DNS
+enable_pihole() {
+    local connection="$1"
+    echo -e "${YELLOW}Enabling Pi-hole DNS for connection: $connection${NC}"
+    nmcli con mod "$connection" ipv4.dns "$PIHOLE_DNS"
+    nmcli con mod "$connection" ipv4.ignore-auto-dns yes
+    nmcli con up "$connection" > /dev/null 2>&1
+    echo -e "${GREEN}✓ Pi-hole DNS enabled${NC}"
+    echo "DNS servers: $PIHOLE_DNS"
+}
+
+# Disable Pi-hole DNS (use DHCP-provided DNS)
+disable_pihole() {
+    local connection="$1"
+    echo -e "${YELLOW}Disabling Pi-hole DNS for connection: $connection${NC}"
+    nmcli con mod "$connection" ipv4.dns ""
+    nmcli con mod "$connection" ipv4.ignore-auto-dns no
+    nmcli con up "$connection" > /dev/null 2>&1
+    echo -e "${GREEN}✓ Pi-hole DNS disabled (using DHCP DNS)${NC}"
+}
+
+# Show current DNS status
+show_status() {
+    local connection="$1"
+    echo -e "\n${YELLOW}Current DNS configuration:${NC}"
+    nmcli dev show | grep "IP4.DNS" | head -4
+}
+
+# Check if running on Fedora
+check_os() {
+    if [[ ! -f /etc/fedora-release ]]; then
+        echo -e "${RED}Error: This script is designed for Fedora Linux only${NC}"
+        if [[ -f /etc/os-release ]]; then
+            source /etc/os-release
+            echo "Detected OS: $NAME"
+        fi
+        exit 1
+    fi
+}
+
+# Main logic
+main() {
+    # Check OS compatibility
+    check_os
+
+    # Check if running as root
+    if [[ $EUID -eq 0 ]]; then
+        echo -e "${RED}Error: Do not run this script as root${NC}"
+        exit 1
+    fi
+
+    # Get active connection
+    CONNECTION=$(get_active_connection)
+    
+    if [[ -z "$CONNECTION" ]]; then
+        echo -e "${RED}Error: No active network connection found${NC}"
+        exit 1
+    fi
+
+    echo "Active connection: $CONNECTION"
+
+    # Handle command-line arguments
+    case "${1:-toggle}" in
+        on|enable)
+            enable_pihole "$CONNECTION"
+            show_status "$CONNECTION"
+            ;;
+        off|disable)
+            disable_pihole "$CONNECTION"
+            show_status "$CONNECTION"
+            ;;
+        status)
+            if is_pihole_enabled "$CONNECTION"; then
+                echo -e "${GREEN}Pi-hole DNS is currently ENABLED${NC}"
+            else
+                echo -e "${YELLOW}Pi-hole DNS is currently DISABLED${NC}"
+            fi
+            show_status "$CONNECTION"
+            ;;
+        toggle|*)
+            if is_pihole_enabled "$CONNECTION"; then
+                disable_pihole "$CONNECTION"
+            else
+                enable_pihole "$CONNECTION"
+            fi
+            show_status "$CONNECTION"
+            ;;
+    esac
+}
+
+main "$@"
