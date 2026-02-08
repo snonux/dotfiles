@@ -147,13 +147,14 @@ task 'home_ghostty', sub { ensure "$DOT/ghostty/*" => "$HOME/.config/ghostty/" }
 
 desc 'Install slash commands for Cursor and Claude';
 task 'home_slashcommands', sub {
+
     # Install to ~/.cursor/commands/ for Cursor
     file "$HOME/.cursor" => ensure => 'directory', mode => '0750';
-    ensure "$DOT/cursor/slashcommands/*" => "$HOME/.cursor/commands/", '0750';
+    ensure "$DOT/slashcommands/*" => "$HOME/.cursor/commands/", '0750';
 
     # Install to ~/.claude/commands/ for Claude Code global slash commands
     file "$HOME/.claude" => ensure => 'directory', mode => '0750';
-    ensure "$DOT/cursor/slashcommands/*" => "$HOME/.claude/commands/", '0750';
+    ensure "$DOT/slashcommands/*" => "$HOME/.claude/commands/", '0750';
 };
 
 desc 'Install ~/scripts';
