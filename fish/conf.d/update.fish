@@ -17,10 +17,15 @@ function update::tools
     go install golang.org/x/tools/cmd/goimports@latest &
     set -a pids $last_pid
 
-    for prog in hexai hexai-lsp hexai-tmux-action hexai-tmux-edit hexai-mcp-server
+    for prog in hexai hexai-lsp-server hexai-tmux-action hexai-tmux-edit hexai-mcp-server
         echo "Installing/updating $prog from codeberg.org/snonux/hexai/cmd/$prog@latest"
         go install codeberg.org/snonux/hexai/cmd/$prog@latest &
         set -a pids $last_pid
+    end
+
+    # Renamed to hexai-lsp-server
+    if test -f ~/go/bin/hexai-lsp
+        rm ~/go/bin/hexai-lsp
     end
 
     for prog in tasksamurai timr perc
