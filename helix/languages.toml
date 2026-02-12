@@ -204,3 +204,9 @@ indent = { tab-width = 2, unit = "  " }
 [[grammar]]
 name = "java"
 source = { git = "https://github.com/tree-sitter/tree-sitter-java", rev = "09d650def6cdf7f479f4b78f595e9ef5b58ce31e" }
+
+[[language]]
+name = "git-commit"
+rulers = [51, 73]
+text-width = 72
+language-servers = ["marksman", "markdown-oxide", "vale-ls", "hexai-lsp-server", "ltex-ls"]
