@@ -61,6 +61,7 @@ function supersync::taskwarrior
     taskwarrior::export
     taskwarrior::export::gos
     taskwarrior::export::bd
+    taskwarrior::export::pet
     taskwarrior::import
     taskwarrior::db::prune
 end

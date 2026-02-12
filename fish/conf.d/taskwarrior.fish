@@ -86,7 +86,7 @@ function taskwarrior::export::pet
         yes | task +pet -random status:pending delete
 
         set -l count (sort -u $petfile.tmp.1 | wc -l | tr -d ' ')
-        echo "# PetProjects ($count)" >$petfile.tmp.2
+        echo "# Pet ($count)" >$petfile.tmp.2
         echo '' >>$petfile.tmp.2
         sort -u $petfile.tmp.1 >>$petfile.tmp.2 && mv $petfile.tmp.2 $petfile && rm $petfile.tmp.1
     end
