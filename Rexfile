@@ -145,16 +145,24 @@ task 'home_helix', sub { ensure "$DOT/helix/*" => "$HOME/.config/helix/" };
 desc 'Install ~/.config/ghostty';
 task 'home_ghostty', sub { ensure "$DOT/ghostty/*" => "$HOME/.config/ghostty/" };
 
-desc 'Install slash commands for Cursor and Claude';
-task 'home_slashcommands', sub {
+desc 'Install promps links for AI tools';
+task 'home_prompts', sub {
+    if ( -d "$HOME/Notes/Prompts/commands" ) {
+        Rex::Logger::info("Installing prompt links");
 
-    # Install to ~/.cursor/commands/ for Cursor
-    file "$HOME/.cursor" => ensure => 'directory', mode => '0750';
-    ensure "$DOT/slashcommands/*" => "$HOME/.cursor/commands/", '0750';
+        # Install to ~/.cursor/commands/ for Cursor
+        file "$HOME/.cursor" => ensure => 'directory', mode => '0750';
+        symlink "$HOME/Notes/Prompts/commands" => "$HOME/.cursor/commands" or die "Could not create symlink: $!";
 
-    # Install to ~/.claude/commands/ for Claude Code global slash commands
-    file "$HOME/.claude" => ensure => 'directory', mode => '0750';
-    ensure "$DOT/slashcommands/*" => "$HOME/.claude/commands/", '0750';
+        file "$HOME/.claude" => ensure => 'directory', mode => '0750';
+        symlink "$HOME/Notes/Prompts/commands" => "$HOME/.claude/commands" or die "Could not create symlink: $!";
+
+        file "$HOME/.agents" => ensure => 'directory', mode => '0750';
+        symlink "$HOME/Notes/Prompts/commands" => "$HOME/.agents/commands" or die "Could not create symlink: $!";
+    }
+    else {
+        Rex::Logger::info("Not installing prompt links");
+    }
 };
 
 desc 'Install ~/scripts';
