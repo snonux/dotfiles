@@ -159,6 +159,9 @@ task 'home_prompts', sub {
 
         file "$HOME/.agents" => ensure => 'directory', mode => '0750';
         symlink "$HOME/Notes/Prompts/commands" => "$HOME/.agents/commands" or die "Could not create symlink: $!";
+
+        file "$HOME/.opencode" => ensure => 'directory', mode => '0750';
+        symlink "$HOME/Notes/Prompts/commands" => "$HOME/.opencode/commands" or die "Could not create symlink: $!";
     }
     else {
         Rex::Logger::info("Not installing prompt links");
