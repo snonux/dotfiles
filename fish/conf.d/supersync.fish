@@ -88,6 +88,22 @@ function supersync::gitsyncer
     end
 end
 
+function supersync::prompts
+    if not test (uname) = Linux
+        return
+    end
+    if not test -d ~/git/dotfiles/prompts
+        return
+    end
+
+    # Since files might have been added and/or modified withoug being
+    # committed to git yet.
+    cd ~/git/dotfiles/prompts
+    find . -type f -name \*.md | xargs git add
+    find . -type f -name \*.md | xargs git commit -m 'update prompt'
+    cd -
+end
+
 function supersync
     if test -f ~/.supersync_disable
         echo Supersync is disabled
@@ -98,6 +114,7 @@ function supersync
     supersync::taskwarrior
     supersync::worktime no_sync_quotes
     supersync::uprecords
+    supersync::prompts
 
     if test -f ~/.gos_enable
         gos
