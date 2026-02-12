@@ -77,6 +77,21 @@ function taskwarrior::export::bd
     end
 end
 
+function taskwarrior::export::pet
+    set -l petfile ~/Notes/random/Pet.md
+    if test -f $petfile
+        # Export all pet project tags
+        task +pet -random status:pending export | jq -r '.[].description' | sed 's/^/* /' >>$petfile.tmp.1
+        grep -F '* ' $petfile >>$petfile.tmp.1
+        yes | task +pet -random status:pending delete
+
+        set -l count (sort -u $petfile.tmp.1 | wc -l | tr -d ' ')
+        echo "# PetProjects ($count)" >$petfile.tmp.2
+        echo '' >>$petfile.tmp.2
+        sort -u $petfile.tmp.1 >>$petfile.tmp.2 && mv $petfile.tmp.2 $petfile && rm $petfile.tmp.1
+    end
+end
+
 function taskwarrior::export::gos
     task +share status:pending export >"$WORKTIME_DIR/tw-gos-export-$(date +%s).json"
     yes | task +share status:pending delete
