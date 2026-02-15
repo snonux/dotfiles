@@ -122,7 +122,7 @@ function supersync
     end
 
     supersync::gitsyncer
-    update::tools
+    # update::tools
 
     date +%s >$SUPERSYNC_STAMP_FILE.tmp
     mv $SUPERSYNC_STAMP_FILE.tmp $SUPERSYNC_STAMP_FILE
