@@ -90,19 +90,21 @@ function supersync::gitsyncer
 end
 
 function supersync::prompts
-    if not test (uname) = Linux
-        return
-    end
-    if not test -d ~/git/dotfiles/prompts
-        return
-    end
-
     # Since files might have been added and/or modified withoug being
     # committed to git yet.
-    cd ~/git/dotfiles/prompts
-    find . -type f -name \*.md | xargs git add
-    find . -type f -name \*.md | xargs git commit -m 'update prompt'
-    cd -
+    if test -d ~/git/dotfiles/prompts
+        cd ~/git/dotfiles/prompts
+        find . -type f -name \*.md | xargs git add
+        find . -type f -name \*.md | xargs git commit -m 'update prompts'
+        git push
+        cd -
+    else if test -d ~/git/helpers/prompts
+        cd ~/git/helpers/prompts
+        find . -type f -name \*.md | xargs git add
+        find . -type f -name \*.md | xargs git commit -m 'update prompts'
+        git push
+        cd -
+    end
 end
 
 function supersync
