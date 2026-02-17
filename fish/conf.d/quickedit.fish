@@ -18,6 +18,8 @@ function quickedit::postaction
     if not test $make_run -eq 1
         if test -f Makefile
             make
+        else if test -f Justfile
+            just
         end
     end
     if test -d .git
@@ -27,15 +29,21 @@ function quickedit::postaction
     end
 end
 
-function quickedit::current_dir
+function quickedit
+    set -l prev_dir (pwd)
     set -l grep_pattern .
 
     if test (count $argv) -gt 0
         set grep_pattern $argv[1]
     end
 
-    set files (find -L . -type f -not -path '*/.*' | grep -E "$grep_pattern")
+    cd $QUICKEDIT_DIR
+    if not test -f .index -o (math (date +%s) - (stat -c %Y .index)) -gt 86400
+        echo Indexing quickedit
+        find -L . -type f -not -path '*/.*' | sort >$QUICKEDIT_DIR/.index.tmp && mv $QUICKEDIT_DIR/.index.tmp $QUICKEDIT_DIR/.index
+    end
 
+    set files (grep -E "$grep_pattern" $QUICKEDIT_DIR/.index)
     switch (count $files)
         case 0
             echo No result found
@@ -49,70 +57,22 @@ function quickedit::current_dir
     if editor::helix::open_with_lock $file_path
         quickedit::postaction $file_path
     end
-end
-
-function quickedit
-    set -l prev_dir (pwd)
-
-    cd $QUICKEDIT_DIR
-    if test (count $argv) -gt 0
-        quickedit::current_dir $argv[1]
-    else
-        quickedit::current_dir
-    end
 
     cd $prev_dir
 end
 
-function quickedit::snippets
-    set -l prev_dir (pwd)
-
-    cd ~/Notes/snippets
-    if test (count $argv) -gt 0
-        set grep_pattern $argv[1]
-        quickedit::current_dir $argv[1]
-    else
-        quickedit::current_dir
+function quickedit::force_index
+    if test -f $QUICKEDIT_DIR/.index
+        rm $QUICKEDIT_DIR/.index
     end
-
-    cd $prev_dir
+    quickedit
 end
 
-function quickedit::direct
-    set -l dir $argv[1]
-    set -l file $argv[2]
-    cd $dir
-
-    if editor::helix::open_with_lock $file
-        quickedit::postaction $file
-    end
-
-    cd -
-end
-
-function quickedit::scratchpad
-    quickedit::direct ~/Notes Scratchpad.md
-end
-
-function quickedit::quicknote
-    quickedit::direct ~/Notes QuickNote.md
-end
-
-function quickedit::performance
-    quickedit::direct ~/Notes Performance.md
-end
-
+abbr -e E quickedit::force_index
 abbr -a e quickedit
-abbr -a scratch quickedit::scratchpad
-abbr -a S quickedit::scratchpad
-abbr -a quicknote quickedit::quicknote
-abbr -a perf quickedit::performance
-abbr -a performance quickedit::performance
-abbr -a goals quickedit::performance
 abbr -a er "ranger $QUICKEDIT_DIR"
 abbr -a cdquickedit "cd $QUICKEDIT_DIR"
 abbr -a cdnotes 'cd ~/Notes'
 abbr -a cdfish 'cd ~/.config/fish/conf.d'
 abbr -a cddocs 'cd ~/Documents'
 abbr -a cdocs 'cd ~/Documents'
-abbr -a snippets quickedit::snippets
