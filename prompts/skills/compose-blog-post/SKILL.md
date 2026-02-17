@@ -1,6 +1,17 @@
+---
+name: compose-blog-post
+description: Compose a blog post in gemtext format for foo.zone.
+---
+
 # Compose blog post
 
 Compose a blog post in ~/git/foo.zone-content/gemtext/gemfeed/ in gemtext format.
+
+## When to Use
+
+- Use this skill when the user wants to write or draft a new blog post for foo.zone.
+
+## Instructions
 
 1. Read 2-3 recent blog posts from the gemfeed directory to match the existing style (title, published date, TOC, links, closing).
 2. Use the filename format: `YYYY-MM-DD-slug.gmi.tpl` (ask for the date and slug if not specified).

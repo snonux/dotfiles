@@ -145,23 +145,24 @@ task 'home_helix', sub { ensure "$DOT/helix/*" => "$HOME/.config/helix/" };
 desc 'Install ~/.config/ghostty';
 task 'home_ghostty', sub { ensure "$DOT/ghostty/*" => "$HOME/.config/ghostty/" };
 
-desc 'Install promps links for AI tools';
+desc 'Install prompt links for AI tools';
 task 'home_prompts', sub {
     if ( -d "$HOME/Notes/Prompts/commands" ) {
         Rex::Logger::info("Installing prompt links");
 
-        # Install to ~/.cursor/commands/ for Cursor
-        file "$HOME/.cursor" => ensure => 'directory', mode => '0750';
-        symlink "$HOME/Notes/Prompts/commands" => "$HOME/.cursor/commands" or die "Could not create symlink: $!";
+        my @tool_dirs = ( '.cursor', '.claude', '.agents', '.opencode' );
 
-        file "$HOME/.claude" => ensure => 'directory', mode => '0750';
-        symlink "$HOME/Notes/Prompts/commands" => "$HOME/.claude/commands" or die "Could not create symlink: $!";
+        for my $tool_dir (@tool_dirs) {
+            file "$HOME/$tool_dir" => ensure => 'directory', mode => '0750';
 
-        file "$HOME/.agents" => ensure => 'directory', mode => '0750';
-        symlink "$HOME/Notes/Prompts/commands" => "$HOME/.agents/commands" or die "Could not create symlink: $!";
+            # Symlink commands directory
+            symlink "$HOME/Notes/Prompts/commands" => "$HOME/$tool_dir/commands"
+              or die "Could not create commands symlink for $tool_dir: $!";
 
-        file "$HOME/.opencode" => ensure => 'directory', mode => '0750';
-        symlink "$HOME/Notes/Prompts/commands" => "$HOME/.opencode/commands" or die "Could not create symlink: $!";
+            # Symlink skills directory
+            symlink "$HOME/Notes/Prompts/skills" => "$HOME/$tool_dir/skills"
+              or die "Could not create skills symlink for $tool_dir: $!";
+        }
     }
     else {
         Rex::Logger::info("Not installing prompt links");
