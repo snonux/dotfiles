@@ -22,7 +22,7 @@ function ai::cursor_agent
     cursor-agent
 end
 
-function agent
+function ca
     ai::cursor_agent
 end
 
