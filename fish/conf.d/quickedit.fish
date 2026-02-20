@@ -38,7 +38,15 @@ function quickedit
     end
 
     cd $QUICKEDIT_DIR
-    if not test -f .index -o (math (date +%s) - (stat -c %Y .index)) -gt 86400
+    set -l index_age 99999
+    if test -f .index
+        if test (uname) = Darwin
+            set index_age (math (date +%s) - (stat -f %m .index))
+        else
+            set index_age (math (date +%s) - (stat -c %Y .index))
+        end
+    end
+    if test $index_age -gt 86400
         echo Indexing quickedit
         find -L . -type f -not -path '*/.*' | sort >$QUICKEDIT_DIR/.index.tmp && mv $QUICKEDIT_DIR/.index.tmp $QUICKEDIT_DIR/.index
     end
@@ -61,14 +69,14 @@ function quickedit
     cd $prev_dir
 end
 
-function quickedit::force_index
+function slowedit
     if test -f $QUICKEDIT_DIR/.index
         rm $QUICKEDIT_DIR/.index
     end
-    quickedit
+    quickedit $argv
 end
 
-abbr -e E quickedit::force_index
+abbr -e E slowedit
 abbr -a e quickedit
 abbr -a er "ranger $QUICKEDIT_DIR"
 abbr -a cdquickedit "cd $QUICKEDIT_DIR"
