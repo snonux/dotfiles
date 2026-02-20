@@ -49,7 +49,7 @@ function update::tools
         go install github.com/aandrew-me/tgpt/v2@latest &
         set -a pids $last_pid
 
-        for prog in gos gitsyncer yoga totalrecall
+        for prog in gos gitsyncer yoga totalrecall goprecords
             echo "Installing/updating $prog from codeberg.org/snonux/$prog/cmd/$prog@latest"
             go install codeberg.org/snonux/$prog/cmd/$prog@latest
         end
