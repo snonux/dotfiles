@@ -126,6 +126,7 @@ end
 
 function taskwarrior::db::prune
     yes | task +random status:completed delete
+    yes | task +agent status:completed delete
 end
 
 function taskwarrior::invoke
