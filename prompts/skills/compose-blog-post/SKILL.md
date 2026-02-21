@@ -1,29 +1,62 @@
 ---
 name: compose-blog-post
-description: Compose a blog post in gemtext format for foo.zone.
+description: Compose a blog post in gemtext format for foo.zone. Use this skill when the user wants to write or draft a new post for the gemfeed; follow existing style (title, date, TOC, optional ASCII art, images, links, closing) and add the post to the gemfeed index.
 ---
 
 # Compose blog post
 
-Compose a blog post in ~/git/foo.zone-content/gemtext/gemfeed/ in gemtext format.
+Compose a blog post in gemtext (`.gmi`) for the foo.zone gemfeed. Output goes under `~/git/foo.zone-content/gemtext/gemfeed/`. Keep the skill generic so it works for any topic (how-to, review, setup, list, etc.).
 
 ## When to Use
 
-- Use this skill when the user wants to write or draft a new blog post for foo.zone.
+- Use when the user wants to write or draft a new blog post for foo.zone.
+- Use when they describe a topic, share notes, or ask to “write a post about X”.
 
 ## Instructions
 
-1. Read 2-3 recent blog posts from the gemfeed directory to match the existing style (title, published date, TOC, links, closing).
-2. Use the filename format: `YYYY-MM-DD-slug.gmi.tpl` (ask for the date and slug if not specified).
-3. Follow the gemtext conventions from existing posts:
-   - `# Title` as first line
-   - `> Published at` with ISO 8601 timestamp and timezone
-   - `<< template::inline::toc` after the intro paragraph
-   - `=> ./slug/image.ext Description` for images (create an asset directory named after the slug if images are needed)
-   - `=> URL Description` for external links
-   - Section headers with `##` and `###`
-   - Code blocks with triple backticks
-   - Closing with `E-Mail your comments to paul@nospam.buetow.org :-)` and related posts index
-   - `=> ../ Back to the main site` as the last line
-4. Ask what the blog post should be about if no topic is given.
-5. Show a preview before writing the file.
+1. **Match existing style.** Read 2–3 recent posts from `~/git/foo.zone-content/gemtext/gemfeed/*.gmi` to mirror:
+   - Title and published date format
+   - Optional ASCII art
+   - Table of Contents format
+   - Section levels and link style
+   - Closing (related posts, E-Mail, Back to main site)
+
+2. **Decide filename and date.** Use `YYYY-MM-DD-slug.gmi`. Ask for the publish date and slug if the user doesn’t specify them.
+
+3. **Structure the post** in this order:
+   - `# Title` (first line)
+   - `> Published at YYYY-MM-DDTHH:MM:SS+02:00` (ISO 8601 with timezone)
+   - Optional: ASCII art in a fenced code block (triple backticks). Suggest only if it fits the topic (e.g. diagram, device, logo).
+   - Short intro paragraph(s)
+   - First image (if any) and/or main product/external links
+   - **Table of Contents** (see below)
+   - Body with `##` and `###` sections
+   - Optional: “Other related posts:” with `=> ./YYYY-MM-DD-slug.gmi YYYY-MM-DD Title` lines
+   - `E-Mail your comments to \`paul@nospam.buetow.org\` :-)`
+   - `=> ../ Back to the main site` (last line)
+
+4. **Table of Contents.** Add a hand-written TOC after the intro/first image, before the first `##`:
+   - Heading: `## Table of Contents` then a blank line
+   - List with `* ⇢` and indentation by section level:
+     - `* ⇢ Post title` (one arrow = document title)
+     - `* ⇢ ⇢ Section name` (two arrows = each `##` section)
+     - `* ⇢ ⇢ ⇢ Subsection name` (three arrows = each `###` subsection)
+   - List every `##` and `###` in the same order as in the body.
+
+5. **Images.**
+   - Store images in a subfolder under the gemfeed (e.g. `gemfeed/slug-name/` or a name the user gives). Reference them as `=> ./slug-name/filename.jpg Description`.
+   - If the user provides or points to large image files (e.g. multi‑MB or very high resolution), suggest or perform resizing for web (e.g. longest side 1200px, JPEG quality 85) so the post stays fast to load.
+
+6. **Links.** Use gemtext link lines: `=> URL Description` for external links, `=> ./path Description` for internal/images. Include product or reference links when the post mentions specific items.
+
+7. **Gemtext conventions.**
+   - Sections: `##` and `###` (no `#` except the title).
+   - Code blocks: triple backticks; list blocks with `*` or `-`.
+   - No HTML; plain gemtext only.
+
+8. **Ask when unclear.** If the topic, date, slug, or need for ASCII art / images / related posts is missing, ask the user before writing.
+
+9. **Add to index.** After saving the post, add one line at the top of `~/git/foo.zone-content/gemtext/gemfeed/index.gmi`:  
+   `=> ./YYYY-MM-DD-slug.gmi YYYY-MM-DD - Post title`
+
+10. **Preview and confirm.** Show a short preview (e.g. title, TOC, and first section) before writing the file. After saving, confirm the path and that the index was updated.
