@@ -1,5 +1,7 @@
 fish_vi_key_bindings
 
+fzf --fish | source
+
 # Add paths to PATH
 set -U fish_user_paths ~/bin ~/scripts ~/go/bin ~/.cargo/bin $fish_user_paths
 
