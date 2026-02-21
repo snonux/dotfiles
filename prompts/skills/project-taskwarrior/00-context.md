@@ -1,0 +1,20 @@
+# Project Taskwarrior — shared context
+
+Load this with any of the action files (1–5) when working with tasks. It defines project scope and rules that apply to all task operations.
+
+## Project name
+
+Derive the project name from the git repository:
+
+```bash
+basename -s .git "$(git remote get-url origin 2>/dev/null)" 2>/dev/null || basename "$(git rev-parse --show-toplevel)"
+```
+
+Use it as `project:<name>` in every `task` command.
+
+## Rules that apply to all task commands
+
+- **EVERY `task` command MUST include `project:<name>`** — no exceptions. Never run a bare `task` without the project filter. When using a task ID, confirm the task belongs to the current project first.
+- **NEVER modify, delete, complete, start, or annotate tasks from other projects.** Only act on tasks where `project:<name>` matches the current git repo.
+- **One task in progress per project.** Do not start a second task while another is started and not completed, unless the user explicitly asks.
+- **Parallel work via sub-agents** — the agent may spawn sub-agents to work on tasks in parallel only **after the user approves**.
