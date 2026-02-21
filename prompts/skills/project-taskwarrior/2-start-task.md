@@ -1,6 +1,6 @@
 # Start task
 
-Use with `00-context.md`. Project name and global rules apply (including one task in progress per project unless the user says otherwise).
+Use with `00-context.md`. Project name and global rules apply (including one task in progress per project unless the user says otherwise). Only start tasks that have both `project:<name>` and the `+agent` tag — use task IDs from `project:<name> +agent` filtered lists.
 
 ## Start each new task with a fresh context
 

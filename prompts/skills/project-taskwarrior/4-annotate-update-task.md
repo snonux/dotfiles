@@ -1,6 +1,6 @@
 # Annotate / update task
 
-Use with `00-context.md`. Project name and global rules apply.
+Use with `00-context.md`. Project name and global rules apply. Only annotate, modify, or delete tasks that have both `project:<name>` and the `+agent` tag (use task IDs from `project:<name> +agent` filtered lists, or verify the task has `+agent` before acting).
 
 ## Reading task context
 
