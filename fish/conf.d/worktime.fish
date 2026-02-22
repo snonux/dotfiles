@@ -115,8 +115,6 @@ abbr -a wtlogout 'worktime::logout'
 abbr -a wtstatus 'worktime::status'
 abbr -a wtsync 'worktime::sync'
 abbr -a wtf 'worktime --report'
-abbr -a random_exercise "sort -R $WORKTIME_DIR/exercises.md | head -n 1"
-abbr -a random_exercises "sort -R $WORKTIME_DIR/exercises.md | head -n 10"
 abbr -a wl 'task add +work'
 abbr -a ql 'task add +personal'
 abbr -a pl 'task add +personal'
