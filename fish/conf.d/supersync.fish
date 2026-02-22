@@ -53,17 +53,6 @@ function supersync::uprecords
     cd -
 end
 
-function supersync::taskwarrior
-    taskwarrior::feeder
-
-    taskwarrior::export
-    taskwarrior::export::gos
-    taskwarrior::export::bd
-    taskwarrior::export::pet
-    taskwarrior::import
-    taskwarrior::db::prune
-end
-
 function supersync::gitsyncer
     set enable_file ~/.gitsyncer_enable
     set now (date +%s)
@@ -112,7 +101,7 @@ function supersync
     end
 
     supersync::worktime sync_quotes
-    supersync::taskwarrior
+    taskwarrior::invoke
     supersync::worktime no_sync_quotes
     supersync::uprecords
     supersync::prompts
