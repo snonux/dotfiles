@@ -150,19 +150,47 @@ task 'home_prompts', sub {
     if ( -d "$HOME/Notes/Prompts/commands" ) {
         Rex::Logger::info("Installing prompt links");
 
+        my $ensure_symlink = sub {
+            my ( $source, $target, $label ) = @_;
+
+            if ( -l $target ) {
+                my $existing = readlink $target;
+                if ( defined $existing && $existing eq $source ) {
+                    return;
+                }
+                CORE::unlink($target) or die "Could not replace $label symlink at $target: $!";
+            }
+            elsif ( -d $target ) {
+                my ($leaf) = $target =~ m{([^/]+)$};
+                my $nested = "$target/$leaf";
+                if ( -l $nested && readlink($nested) eq $source ) {
+                    CORE::unlink($nested) or die "Could not remove nested $label symlink at $nested: $!";
+                    rmdir $target or die "Could not remove legacy $label directory at $target: $!";
+                }
+                else {
+                    die "Refusing to overwrite existing directory at $target while linking $label";
+                }
+            }
+            elsif ( -e $target ) {
+                die "Refusing to overwrite existing path at $target while linking $label";
+            }
+
+            symlink $source => $target or die "Could not create $label symlink ($source -> $target): $!";
+        };
+
+        # For most agents, commands and skills live under ~/.<tool>/{commands,skills}.
         my @tool_dirs = ( '.cursor', '.claude', '.agents', '.opencode' );
 
         for my $tool_dir (@tool_dirs) {
             file "$HOME/$tool_dir" => ensure => 'directory', mode => '0750';
 
-            # Symlink commands directory
-            symlink "$HOME/Notes/Prompts/commands" => "$HOME/$tool_dir/commands"
-              or die "Could not create commands symlink for $tool_dir: $!";
-
-            # Symlink skills directory
-            symlink "$HOME/Notes/Prompts/skills" => "$HOME/$tool_dir/skills"
-              or die "Could not create skills symlink for $tool_dir: $!";
+            $ensure_symlink->( "$HOME/Notes/Prompts/commands", "$HOME/$tool_dir/commands", "$tool_dir commands" );
+            $ensure_symlink->( "$HOME/Notes/Prompts/skills",   "$HOME/$tool_dir/skills",   "$tool_dir skills" );
         }
+
+        # Codex CLI custom slash commands are loaded from ~/.codex/prompts.
+        file "$HOME/.codex" => ensure => 'directory', mode => '0750';
+        $ensure_symlink->( "$HOME/Notes/Prompts/commands", "$HOME/.codex/prompts", ".codex prompts" );
     }
     else {
         Rex::Logger::info("Not installing prompt links");
