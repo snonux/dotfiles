@@ -13,13 +13,13 @@ function supersync::worktime
     if test (count $argv) -gt 0 -a $argv[1] = sync_quotes
         if test -d ~/Notes/HabitsAndQuotes
             echo "" >work-wisdoms.md.tmp
-            for notes in ~/Notes/HabitsAndQuotes/{Productivity,Mentoring}.md
+            for notes in ~/Notes/random/{Productivity,Mentoring}.md
                 grep '^\* ' $notes >>work-wisdoms.md.tmp
             end
             sort -u work-wisdoms.md.tmp >work-wisdoms.md
             rm work-wisdoms.md.tmp
             git add work-wisdoms.md
-            grep '^\* ' ~/Notes/HabitsAndQuotes/Exercise.md >exercises.md
+            grep '^\* ' ~/Notes/random/Exercise.md >exercises.md
             git add exercises.md
         end
     end
