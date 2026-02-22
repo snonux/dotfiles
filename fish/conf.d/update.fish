@@ -1,4 +1,4 @@
-unction update::tools
+function update::tools
     set pids
 
     echo "Installing/updating gofumpt"

@@ -10,7 +10,7 @@ Compose a blog post in gemtext for the foo.zone gemfeed. **Only write or modify 
 ## When to Use
 
 - Use when the user wants to write or draft a new blog post for foo.zone.
-- Use when they describe a topic, share notes, or ask to “write a post about X”.
+- Use when they describe a topic, share notes, or ask to "write a post about X".
 
 ## Instructions
 
@@ -21,7 +21,7 @@ Compose a blog post in gemtext for the foo.zone gemfeed. **Only write or modify 
    - Section levels and link style
    - Closing (related posts, E-Mail, Back to main site)
 
-2. **Decide filename and date.** Use `YYYY-MM-DD-slug.gmi.tpl` for the template file. Ask for the publish date and slug if the user doesn’t specify them.
+2. **Decide filename and date.** Use `YYYY-MM-DD-slug.gmi.tpl` for the template file. Ask for the publish date and slug if the user doesn't specify them.
 
 3. **Structure the post** in this order:
    - `# Title` (first line)
@@ -31,7 +31,7 @@ Compose a blog post in gemtext for the foo.zone gemfeed. **Only write or modify 
    - First image (if any) and/or main product/external links
    - **Table of Contents** (see below)
    - Body with `##` and `###` sections
-   - Optional: “Other related posts:” with `=> ./YYYY-MM-DD-slug.gmi YYYY-MM-DD Title` lines
+   - Optional: "Other related posts:" with `=> ./YYYY-MM-DD-slug.gmi YYYY-MM-DD Title` lines
    - `E-Mail your comments to \`paul@nospam.buetow.org\` :-)`
    - `=> ../ Back to the main site` (last line)
 
@@ -56,7 +56,7 @@ Compose a blog post in gemtext for the foo.zone gemfeed. **Only write or modify 
 
 8. **Ask when unclear.** If the topic, date, slug, or need for ASCII art / images / related posts is missing, ask the user before writing.
 
-9. **Add to index.** After saving the post, add one line at the top of `~/git/foo.zone-content/gemtext/gemfeed/index.gmi`:  
+9. **Add to index.** After saving the post template, add one line at the top of `~/git/foo.zone-content/gemtext/gemfeed/index.gmi.tpl` only (do not edit `index.gmi`):  
    `=> ./YYYY-MM-DD-slug.gmi YYYY-MM-DD - Post title`
 
-10. **Preview and confirm.** Show a short preview (e.g. title, TOC, and first section) before writing the file. After saving, confirm the path and that the index was updated.
+10. **Preview and confirm.** Show a short preview (e.g. title, TOC, and first section) before writing the file. After saving, confirm that only `.gmi.tpl` files were created or modified (post template and index template) and that no `.gmi` files were changed.
