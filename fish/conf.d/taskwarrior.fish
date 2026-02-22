@@ -57,7 +57,8 @@ function taskwarrior::export::bd
         # Export bulgarian dumi
         set -l outfile ~/Notes/Bulgarian/bd-(date +%s).txt
         task +bd status:pending export | jq -r '.[].description' >$outfile
-        yes | task +bd status:pending delete
+        # Guard against "No tasks specified." when there is nothing to delete
+        test (task +bd status:pending count) -gt 0; and yes | task +bd status:pending delete
         cat ~/Notes/Bulgarian/bd-*.txt | sort -u >~/Notes/Bulgarian/compact-(date +%s).tmp && rm ~/Notes/Bulgarian/bd-*.txt
         sort -u ~/Notes/Bulgarian/compact-*.tmp >~/Notes/Bulgarian/bd-compacted.txt && rm ~/Notes/Bulgarian/compact-*.tmp
     end
@@ -69,7 +70,8 @@ function taskwarrior::export::pet
         # Export all pet project tags
         task +pet -random status:pending export | jq -r '.[].description' | sed 's/^/* /' >>$petfile.tmp.1
         grep -F '* ' $petfile >>$petfile.tmp.1
-        yes | task +pet -random status:pending delete
+        # Guard against "No tasks specified." when there is nothing to delete
+        test (task +pet -random status:pending count) -gt 0; and yes | task +pet -random status:pending delete
 
         set -l count (sort -u $petfile.tmp.1 | wc -l | tr -d ' ')
         echo "# Pet ($count)" >$petfile.tmp.2
@@ -113,13 +115,17 @@ function taskwarrior::import
 end
 
 function taskwarrior::cleanup
-    yes | task +random status:completed delete
-    yes | task +agent status:completed delete
+    # Guard against "No tasks specified." when there is nothing to delete
+    test (task +random status:completed count) -gt 0; and yes | task +random status:completed delete
+    test (task +agent status:completed count) -gt 0; and yes | task +agent status:completed delete
 end
 
 function taskwarrior::unscheduled
+    # _ids can emit a trailing empty line; skip empty values to avoid a no-filter modify
     for id in (task status:pending -unsched -nosched -meeting -track due: _ids)
-        echo imeout 5s task modify "$id" due:(builtin random 0 30)d
+        test -n "$id"; or continue
+        echo "timeout 5s task modify $id due:(builtin random 0 30)d"
+        timeout 5s task modify "$id" due:(builtin random 0 30)d
     end
 end
 
@@ -291,5 +297,6 @@ abbr -a tdue 'tasksamurai status:pending due.before:now'
 abbr -a tasks 'tasksamurai -track'
 abbr -a track 'taskwarrior::add::track'
 abbr -a ti 'taskwarrior::invoke'
+abbr -a ts 'taskwarrior::invoke; tasksamurai'
 
 taskwarrior::due_count
