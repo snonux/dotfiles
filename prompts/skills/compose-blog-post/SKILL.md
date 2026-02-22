@@ -1,11 +1,11 @@
 ---
 name: compose-blog-post
-description: Compose a blog post in gemtext format for foo.zone. Use this skill when the user wants to write or draft a new post for the gemfeed; follow existing style (title, date, TOC, optional ASCII art, images, links, closing) and add the post to the gemfeed index.
+description: Compose a blog post in gemtext format for foo.zone. Use this skill when the user wants to write or draft a new post for the gemfeed; follow existing style (title, date, TOC, optional ASCII art, images, links, closing) and add the post to the gemfeed index. Only create or edit .gmi.tpl template files—never write or modify .gmi files.
 ---
 
 # Compose blog post
 
-Compose a blog post in gemtext (`.gmi`) for the foo.zone gemfeed. Output goes under `~/git/foo.zone-content/gemtext/gemfeed/`. Keep the skill generic so it works for any topic (how-to, review, setup, list, etc.).
+Compose a blog post in gemtext for the foo.zone gemfeed. **Only write or modify `.gmi.tpl` template files** under `~/git/foo.zone-content/gemtext/gemfeed/`. Do not create or edit `.gmi` files (those are generated from templates). Keep the skill generic so it works for any topic (how-to, review, setup, list, etc.).
 
 ## When to Use
 
@@ -14,14 +14,14 @@ Compose a blog post in gemtext (`.gmi`) for the foo.zone gemfeed. Output goes un
 
 ## Instructions
 
-1. **Match existing style.** Read 2–3 recent posts from `~/git/foo.zone-content/gemtext/gemfeed/*.gmi` to mirror:
+1. **Match existing style.** Read 2–3 recent posts from `~/git/foo.zone-content/gemtext/gemfeed/*.gmi` or `*.gmi.tpl` (for style only; do not modify those .gmi files) to mirror:
    - Title and published date format
    - Optional ASCII art
    - Table of Contents format
    - Section levels and link style
    - Closing (related posts, E-Mail, Back to main site)
 
-2. **Decide filename and date.** Use `YYYY-MM-DD-slug.gmi`. Ask for the publish date and slug if the user doesn’t specify them.
+2. **Decide filename and date.** Use `YYYY-MM-DD-slug.gmi.tpl` for the template file. Ask for the publish date and slug if the user doesn’t specify them.
 
 3. **Structure the post** in this order:
    - `# Title` (first line)

@@ -4,6 +4,7 @@ Use with `00-context.md`. Project name and global rules apply. New tasks get `+a
 
 ## Rules for new tasks
 
+- **When creating a new task, always check whether the new task depends on other (existing) tasks.** If it does, add the dependency to the new task (e.g. `depends:<id>` or `depends:<id1>,<id2>`). Use IDs of tasks that have `+agent` in this project.
 - **Create tasks in smaller chunks that fit into the context window.** Break work into multiple tasks so that each task’s scope, description, and required context (refs, files, docs) can fit in one context window when the agent works on it with a fresh context. Do not create single tasks that would require more context than available.
 - **Every task MUST have at least one tag** for sub-project/feature/area (e.g. `+integrationtests`, `+flamegraph`, `+bpf`, `+cli`, `+refactor`, `+bugfix`).
 - **When an agent creates a task, always add the tag `+agent`** so agent-created tasks can be identified.
@@ -27,5 +28,6 @@ Multiple dependencies: `depends:<id1>,<id2>`.
 
 - **Keep tasks small:** each task should be a chunk that fits in the context window (description + refs + work to do). Split large efforts into multiple dependent tasks.
 - Pick or create a meaningful tag for the sub-project or feature.
+- **Always check for dependencies:** before adding a task, determine if it depends on other tasks in the project; if so, add `depends:<id>` (or multiple IDs) to the new task.
 - Add dependencies when one task must complete before another can start.
 - When creating a task, add references to all required context (files, docs, specs) so the task is self-contained for fresh-context work.
