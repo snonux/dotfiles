@@ -99,15 +99,19 @@ end
 
 function taskwarrior::export
     _taskwarrior::set_import_export_tags
-    set -l count (task +$TASK_EXPORT_TAG status:pending count)
+    set -l ts (date +%s)
 
-    if test $count -eq 0
-        return
+    for task_status in pending completed
+        set -l count (task +$TASK_EXPORT_TAG status:$task_status count)
+
+        if test $count -eq 0
+            continue
+        end
+
+        echo "Exporting $count $task_status tasks to $TASK_EXPORT_TAG"
+        task +$TASK_EXPORT_TAG status:$task_status export >"$WORKTIME_DIR/tw-$TASK_EXPORT_TAG-export-$ts-$task_status.json"
+        yes | task +$TASK_EXPORT_TAG status:$task_status delete
     end
-
-    echo "Exporting $count tasks to $TASK_EXPORT_TAG"
-    task +$TASK_EXPORT_TAG status:pending export >"$WORKTIME_DIR/tw-$TASK_EXPORT_TAG-export-$(date +%s).json"
-    yes | task +$TASK_EXPORT_TAG status:pending delete
 end
 
 function taskwarrior::import
