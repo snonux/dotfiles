@@ -76,7 +76,11 @@ function taskwarrior::feeder::is_personal_device
 end
 
 function taskwarrior::feeder::random_count
-    set -l pending (task status:pending +random -work count)
+    task status:pending +random -work count
+end
+
+function taskwarrior::feeder::random_slots_left
+    set -l pending (taskwarrior::feeder::random_count)
     math $TASKWARRIOR_FEEDER_MAX_PENDING_RANDOM_TASKS - $pending
 end
 
@@ -238,7 +242,7 @@ function taskwarrior::feeder::notes
             end
 
             set -l content (string trim -- (string join \n -- (cat "$notes_file")))
-            set -l matches (string match -r '^(?:([0-9]+)[[:space:]]*)?([A-Z]?[a-z,-:]+)[[:space:]]*(.*)' -- "$content")
+            set -l matches (string match -r '^(?:([0-9]+)[[:space:]]*)?([A-Za-z][A-Za-z0-9:-]*(?:,[A-Za-z][A-Za-z0-9:-]*)*)[[:space:]]*(.*)' -- "$content")
             if test (count $matches) -lt 3
                 continue
             end
@@ -264,7 +268,7 @@ function taskwarrior::feeder::notes
             else if contains -- track $tags
                 set due eow
             else
-                set due (random 0 $TASKWARRIOR_FEEDER_PERSONAL_TIMESPAN_D)d
+                set due (builtin random 0 $TASKWARRIOR_FEEDER_PERSONAL_TIMESPAN_D)d
             end
 
             $router_fn "$tags_csv" "$body" "$due"
@@ -297,10 +301,10 @@ function taskwarrior::feeder::random_quote
     end
 
     set -l tags "$tag,random"
-    if test (random 1 4) -eq 1
+    if test (builtin random 1 4) -eq 1
         set tags "$tags,work"
     end
-    set -l due (random 0 $timespan)d
+    set -l due (builtin random 0 $timespan)d
 
     $router_fn "$tags" "$quote" "$due"
 end
@@ -319,7 +323,7 @@ end
 function taskwarrior::feeder::schedule
     taskwarrior::feeder::schedule_ids "+track due:" eow
     for id in (task status:pending -unsched -nosched -meeting -track due: rc.verbose:nothing export | jq -r '.[] | (.id // 0) | select(. > 0)')
-        timeout 5s task modify "$id" due:(random 0 $TASKWARRIOR_FEEDER_PERSONAL_TIMESPAN_D)d
+        timeout 5s task modify "$id" due:(builtin random 0 $TASKWARRIOR_FEEDER_PERSONAL_TIMESPAN_D)d
     end
 end
 
@@ -376,13 +380,13 @@ function taskwarrior::feeder
         taskwarrior::feeder::notes "$notes_dirs" "$prefix" taskwarrior::feeder::router
     end
 
-    set -l count (taskwarrior::feeder::random_count)
+    set -l count (taskwarrior::feeder::random_slots_left)
     if test -d "$random_dir"
         for md_file in (find "$random_dir" -name '*.md' | sort -R)
             if test $count -le 0
                 break
             end
-            if test (random 0 1) -eq 0
+            if test (builtin random 0 1) -eq 0
                 continue
             end
 
