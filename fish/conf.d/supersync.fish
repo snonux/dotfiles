@@ -54,9 +54,7 @@ function supersync::uprecords
 end
 
 function supersync::taskwarrior
-    if test -f ~/scripts/taskwarriorfeeder.rb
-        ruby ~/scripts/taskwarriorfeeder.rb
-    end
+    taskwarrior::feeder
 
     taskwarrior::export
     taskwarrior::export::gos
