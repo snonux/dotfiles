@@ -309,7 +309,7 @@ function taskwarrior::feeder::schedule_ids
     set -l filter "$argv[1]"
     set -l due "$argv[2]"
     set -l filter_args (string split ' ' -- "$filter")
-    set -l ids (task $filter_args rc.verbose:nothing export | jq -r '.[]?.id')
+    set -l ids (task status:pending $filter_args rc.verbose:nothing export | jq -r '.[] | (.id // 0) | select(. > 0)')
 
     for id in $ids
         timeout 5s task modify "$id" due:$due
@@ -318,7 +318,7 @@ end
 
 function taskwarrior::feeder::schedule
     taskwarrior::feeder::schedule_ids "+track due:" eow
-    for id in (task -unsched -nosched -meeting -track due: rc.verbose:nothing export | jq -r '.[]?.id')
+    for id in (task status:pending -unsched -nosched -meeting -track due: rc.verbose:nothing export | jq -r '.[] | (.id // 0) | select(. > 0)')
         timeout 5s task modify "$id" due:(random 0 $TASKWARRIOR_FEEDER_PERSONAL_TIMESPAN_D)d
     end
 end

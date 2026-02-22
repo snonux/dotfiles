@@ -28,7 +28,7 @@ function update::tools
         rm ~/go/bin/hexai-lsp
     end
 
-    for prog in tasksamurai timr perc loadbars
+    for prog in tasksamurai timr perc loadbars foostore
         echo "Installing/updating $prog from codeberg.org/snonux/$prog/cmd/$prog@latest"
         go install codeberg.org/snonux/$prog/cmd/$prog@latest &
         set -a pids $last_pid
