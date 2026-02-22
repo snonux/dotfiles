@@ -173,8 +173,6 @@ begin
     notes(opts[:notes_dirs].split(','), prefix, opts[:dry_run]) do |tags, note, due|
       if tags.include?('skill') || tags.include?('skills')
         skill_add!(note, opts[:dry_run])
-      elsif tags.include? 'work'
-        worklog_add!(:log, note, due, opts[:dry_run])
       elsif tags.any? { |tag| tag.start_with?('share') }
         gos_queue!(tags, note, opts[:dry_run])
       else
