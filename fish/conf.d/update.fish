@@ -27,6 +27,9 @@ function update::tools
     if test -f ~/go/bin/hexai-lsp
         rm ~/go/bin/hexai-lsp
     end
+    if test -f ~/scripts/taskwarriorfeeder.rb
+        rm ~/scripts/taskwarriorfeeder.rb
+    end
 
     for prog in tasksamurai timr perc loadbars foostore
         echo "Installing/updating $prog from codeberg.org/snonux/$prog/cmd/$prog@latest"
@@ -45,11 +48,11 @@ function update::tools
     set -a pids $last_pid
 
     if test (uname) = Linux
-        echo "Installing/updating tgpt"
-        go install github.com/aandrew-me/tgpt/v2@latest &
-        set -a pids $last_pid
+        # echo "Installing/updating tgpt"
+        # go install github.com/aandrew-me/tgpt/v2@latest &
+        # set -a pids $last_pid
 
-        for prog in gos gitsyncer yoga totalrecall goprecords
+        for prog in gos gitsyncer totalrecall goprecords
             echo "Installing/updating $prog from codeberg.org/snonux/$prog/cmd/$prog@latest"
             go install codeberg.org/snonux/$prog/cmd/$prog@latest
         end
