@@ -115,9 +115,9 @@ function taskwarrior::import
 end
 
 function taskwarrior::cleanup
-    # Guard against "No tasks specified." when there is nothing to delete
-    test (task +random status:completed count) -gt 0; and yes | task +random status:completed delete
-    test (task +agent status:completed count) -gt 0; and yes | task +agent status:completed delete
+    # Delete only tasks completed over a week ago
+    test (task +random status:completed end.before:today-7days count) -gt 0; and yes | task +random status:completed end.before:today-7days delete
+    test (task +agent status:completed end.before:today-7days count) -gt 0; and yes | task +agent status:completed end.before:today-7days delete
 end
 
 function taskwarrior::unscheduled

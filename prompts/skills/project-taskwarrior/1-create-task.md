@@ -8,12 +8,19 @@ Use with `00-context.md`. Project name and global rules apply. New tasks get `+a
 - **Create tasks in smaller chunks that fit into the context window.** Break work into multiple tasks so that each task’s scope, description, and required context (refs, files, docs) can fit in one context window when the agent works on it with a fresh context. Do not create single tasks that would require more context than available.
 - **Every task MUST have at least one tag** for sub-project/feature/area (e.g. `+integrationtests`, `+flamegraph`, `+bpf`, `+cli`, `+refactor`, `+bugfix`).
 - **When an agent creates a task, always add the tag `+agent`** so agent-created tasks can be identified.
+- **After creating a task, add an annotation** so any agent working on the task is reminded to use this skill and to auto-progress: `task <id> annotate "Agent: be aware of project-taskwarrior skill. When all tests and sub-agent reviews pass, automatically progress to the next task in the list."` This ensures agents (including those with fresh context) know to load and follow the project-taskwarrior skill and to continue to the next task after completion.
 - **Include references to all context required** to work on the task. So that work can be done with a fresh context, every task must list or link everything needed: relevant files, docs, specs, other tasks, or project guidelines (e.g. paths, doc links, `AGENTS.md`, `README` sections). Put these in the task description or in an initial annotation so that an agent starting with no prior conversation has everything they need in the task itself.
 
 ## Add a task
 
 ```bash
 task add project:<name> +<tag> +agent "Description"
+```
+
+Then add the agent-awareness annotation (use the ID from the add output):
+
+```bash
+task <id> annotate "Agent: be aware of project-taskwarrior skill. When all tests and sub-agent reviews pass, automatically progress to the next task in the list."
 ```
 
 ## With dependency
@@ -23,6 +30,8 @@ task add project:<name> +<tag> +agent "Description" depends:<id>
 ```
 
 Multiple dependencies: `depends:<id1>,<id2>`.
+
+After adding (with or without dependency), run the same annotation: `task <id> annotate "Agent: be aware of project-taskwarrior skill. When all tests and sub-agent reviews pass, automatically progress to the next task in the list."`
 
 ## Conventions
 

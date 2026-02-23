@@ -27,6 +27,6 @@ Always load `00-context.md` first (project name resolution and global rules); th
 
 ## Task lifecycle (overview)
 
-1. Create task → 2. Start task → 3. Annotate as you go → 4. **Completion criteria** (best practices, compilable, all tests pass, negative tests where plausible) → 5. Sub-agent review (fresh context) → 6. Main agent addresses all review comments → 7. **Second sub-agent review** (fresh context again) to confirm fixes → 8. **Commit all changes to git** → 9. Complete task
+1. Create task → 2. Start task → 3. Annotate as you go → 4. **Completion criteria** (best practices, compilable, all tests pass, negative tests where plausible) → 5. Sub-agent review (fresh context) → 6. Main agent addresses all review comments → 7. **Second sub-agent review** (fresh context again) to confirm fixes → 8. **Commit all changes to git** → 9. Complete task → 10. **Automatically progress to the next task in the list** (when all tests and sub-agent reviews pass).
 
-A task is not done until criteria are met, all review comments are addressed, a second sub-agent review has confirmed the code, and all changes are committed to git. Details are in `3-complete-task.md`.
+A task is not done until criteria are met, all review comments are addressed, a second sub-agent review has confirmed the code, and all changes are committed to git. After completing a task, start the next task in the list (if any). Details are in `3-complete-task.md`.

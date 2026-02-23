@@ -48,6 +48,8 @@ If the answer suggests improvements or inconsistencies, address them first. Only
 task <id> done
 ```
 
+7. **Automatically progress to the next task in the list.** After marking the task done, if there are more agent-managed tasks in the project (e.g. `task project:<name> +agent list` shows pending/ready tasks), start the next one: load `00-context.md` and `2-start-task.md`, pick the next task from the list (respecting dependencies and "one task in progress" rule), and begin work on it. Do not stop after completing a task when a next task is available — continue to the next task in the list.
+
 ## Conventions
 
 - When creating or changing tests, add negative tests (invalid input, errors, failure paths) wherever plausible; the review sub-agent will check for this.
@@ -56,3 +58,4 @@ task <id> done
 - **On completion, commit all changes to git** before running `task <id> done`; do not leave uncommitted work when marking a task complete.
 - Complete with `task <id> done` only after completion criteria, self-review(s), first review, addressing all comments, follow-up sub-agent review, and git commit are satisfied.
 - When completing a task, note which tasks were unblocked (dependents that became ready), if any.
+- **After completing a task, automatically progress to the next task in the list** (when all tests and sub-agent reviews pass and the task is done). Start the next ready task in `project:<name> +agent`; do not stop unless no next task is available or the user asks to stop.
