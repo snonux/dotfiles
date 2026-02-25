@@ -35,10 +35,22 @@ task project:<name> +agent +READY list sort:priority-,urgency- limit:1
 
 (Or use `next limit:1` with a report that sorts priority first, then urgency, if your Taskwarrior config supports it.)
 
+Once you have chosen a task from one of these lists, **immediately resolve its UUID** and use that for all subsequent operations and handoffs:
+
+```bash
+task <id> _uuid
+# or, for a filtered selection:
+task project:<name> +agent +READY limit:1 uuids
+```
+
+When returning or recording the chosen task for another agent or a later step, **include its UUID**, and in follow-up commands prefer a UUID selector (for example, `task uuid:<uuid> ...`) instead of relying on the numeric ID from a previous report.
+
 ## View task details
 
 ```bash
 task <id>
+# or, when you already have the UUID:
+task uuid:<uuid>
 ```
 
 Only work with task IDs that came from the filtered lists above (project + `+agent`). Always read description, summary, and **all annotations** when working on or reviewing a task.

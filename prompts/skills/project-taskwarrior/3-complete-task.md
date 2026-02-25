@@ -16,7 +16,7 @@ If any of these fail, fix the issues and recheck. Do not mark the task complete 
 
 ## What the review sub-agent must check
 
-Review sub-agents (first and second review) **must always**:
+Review sub-agents **must always**:
 
 - **Unit test coverage** — double-check that coverage is as desired for the changed or added code (e.g. project expectations or thresholds are met).
 - **Tests are testing real things** — confirm that tests exercise real behavior and assertions, not only mocks. Flag tests that merely assert on mocks or stubs without verifying real logic, integration points, or outcomes. Tests should give confidence that the code actually works.
@@ -26,7 +26,7 @@ Include these checks in the sub-agent’s review report.
 
 ## Self-review before any sub-agent handoff
 
-**Before signing off work to sub-agents for review** (before the first review and again before the second), the main agent must **ask itself**:
+**Before signing off work to sub-agents for review** (before the first review, and again before a second review if needed), the main agent must **ask itself**:
 
 - Did everything I did make sense?
 - Isn’t there a better way to do it?
@@ -40,22 +40,24 @@ If the answer suggests improvements or inconsistencies, address them first. Only
 1. **Self-review** (see above). Then spawn a **sub-agent** with **fresh context** (no prior conversation).
 2. Sub-agent reviews the diff, code, or deliverables for the task (including test coverage and test quality — see “What the review sub-agent must check”) and **reports back** to the main agent (review comments, suggestions, issues).
 3. Main agent **addresses all review comments** from the sub-agent — no exceptions. Fix or respond to every point.
-4. **Self-review again** (see above). Then **spawn another sub-agent** (fresh context again) to **review the code again** (including test coverage and test quality) and confirm the fixes. If this second review finds further issues, address them and repeat the sub-agent review until the review is satisfied.
+4. If code changed after review comments were addressed: **Self-review again** (see above), then **spawn another sub-agent** (fresh context again) to **review the updated code** (including test coverage and test quality) and confirm the fixes. If this follow-up review finds further issues and additional code changes are made, repeat this step until the review is satisfied.
 5. **Commit all changes to git** (e.g. `git add` and `git commit` with a message that references the task). Do not mark the task complete with uncommitted changes.
 6. Only then:
 
 ```bash
-task <id> done
+task uuid:<uuid> done
 ```
+
+Use the UUID that identifies the task (for example, from its annotations or from the selection step), rather than relying on a numeric ID that may have been renumbered since the last report.
 
 7. **Automatically progress to the next task in the list.** After marking the task done, if there are more agent-managed tasks in the project (e.g. `task project:<name> +agent list` shows pending/ready tasks), start the next one: load `00-context.md` and `2-start-task.md`, pick the next task from the list (respecting dependencies and "one task in progress" rule), and begin work on it. Do not stop after completing a task when a next task is available — continue to the next task in the list.
 
 ## Conventions
 
 - When creating or changing tests, add negative tests (invalid input, errors, failure paths) wherever plausible; the review sub-agent will check for this.
-- A task is not done until: best practices met, code compiles, all tests pass, negative tests included where plausible, all first-round review comments addressed (including coverage and test-quality checks), a second sub-agent review has confirmed the code, **and all changes are committed to git**.
+- A task is not done until: best practices met, code compiles, all tests pass, negative tests included where plausible, and all first-round review comments are addressed (including coverage and test-quality checks), **and all changes are committed to git**. If code changed after review comments, a second sub-agent review must confirm the updated code.
 - Before every sub-agent review handoff, do the self-review: “Did it all make sense? Is there a better way?” Fix anything that comes up, then hand off.
 - **On completion, commit all changes to git** before running `task <id> done`; do not leave uncommitted work when marking a task complete.
-- Complete with `task <id> done` only after completion criteria, self-review(s), first review, addressing all comments, follow-up sub-agent review, and git commit are satisfied.
+- Complete with `task <id> done` only after completion criteria, self-review(s), first review, addressing all comments, and git commit are satisfied. Add a follow-up sub-agent review only when code changed after review comments.
 - When completing a task, note which tasks were unblocked (dependents that became ready), if any.
-- **After completing a task, automatically progress to the next task in the list** (when all tests and sub-agent reviews pass and the task is done). Start the next ready task in `project:<name> +agent`; do not stop unless no next task is available or the user asks to stop.
+- **After completing a task, automatically progress to the next task in the list** (when all tests and required sub-agent review(s) pass and the task is done). Start the next ready task in `project:<name> +agent`; do not stop unless no next task is available or the user asks to stop.

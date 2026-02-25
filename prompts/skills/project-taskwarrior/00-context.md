@@ -19,3 +19,5 @@ Use it as `project:<name>` in every `task` command.
 - **NEVER modify, delete, complete, start, or annotate tasks from other projects or tasks without `+agent`.** Only act on tasks where `project:<name>` matches the current git repo and the task has the `+agent` tag.
 - **One task in progress per project.** Do not start a second task while another is started and not completed, unless the user explicitly asks.
 - **Parallel work via sub-agents** — the agent may spawn sub-agents to work on tasks in parallel only **after the user approves**.
+- **IDs are ephemeral; use UUIDs for stability.** Taskwarrior numeric IDs are working-set indices and can be renumbered when the working set is rebuilt. Use numeric IDs only within a single `list` → immediate command sequence.
+- **Use UUIDs for any long-lived reference.** For anything that must survive beyond a single report (handoffs between agents, saved notes, dependencies you mention in text, “next task” pointers, etc.), resolve and use the task’s UUID (for example, `task <id> _uuid` or `task <filter> uuids`) and prefer `uuid:<uuid>` selectors in commands.

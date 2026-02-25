@@ -10,6 +10,8 @@ Use with `00-context.md`. Project name and global rules apply. New tasks get `+a
 - **When an agent creates a task, always add the tag `+agent`** so agent-created tasks can be identified.
 - **After creating a task, add an annotation** so any agent working on the task is reminded to use this skill and to auto-progress: `task <id> annotate "Agent: be aware of project-taskwarrior skill. When all tests and sub-agent reviews pass, automatically progress to the next task in the list."` This ensures agents (including those with fresh context) know to load and follow the project-taskwarrior skill and to continue to the next task after completion.
 - **Include references to all context required** to work on the task. So that work can be done with a fresh context, every task must list or link everything needed: relevant files, docs, specs, other tasks, or project guidelines (e.g. paths, doc links, `AGENTS.md`, `README` sections). Put these in the task description or in an initial annotation so that an agent starting with no prior conversation has everything they need in the task itself.
+- **Record the task’s UUID for future reference.** After creating a task, resolve its UUID (for example, `task <id> _uuid`) and include it in an annotation such as `UUID: <uuid>` so the exact task can be recovered even if IDs are renumbered.
+- When tasks refer to other tasks in free text (annotations, descriptions, docs, or commit messages), **use the other task’s UUID**, not just its numeric ID.
 
 ## Add a task
 
@@ -21,6 +23,12 @@ Then add the agent-awareness annotation (use the ID from the add output):
 
 ```bash
 task <id> annotate "Agent: be aware of project-taskwarrior skill. When all tests and sub-agent reviews pass, automatically progress to the next task in the list."
+```
+
+Also add an annotation that records the task’s UUID, for example:
+
+```bash
+task <id> annotate "UUID: $(task <id> _uuid)"
 ```
 
 ## With dependency
