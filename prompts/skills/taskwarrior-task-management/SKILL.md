@@ -23,16 +23,16 @@ When beginning a new task, **prefer running a compaction** over starting a compl
 
 | Action | Load |
 |--------|------|
-| **Create task** | `00-context.md` + `1-create-task.md` (include refs to all context required) |
-| **Start task** | `00-context.md` + `2-start-task.md` (start with fresh context; use task refs) |
-| **Complete task** | `00-context.md` + `3-complete-task.md` |
-| **Annotate / update task** | `00-context.md` + `4-annotate-update-task.md` |
-| **Review / overview tasks** | `00-context.md` + `5-review-overview-tasks.md` |
+| **Create task** | `references/00-context.md` + `references/1-create-task.md` (include refs to all context required) |
+| **Start task** | `references/00-context.md` + `references/2-start-task.md` (start with fresh context; use task refs) |
+| **Complete task** | `references/00-context.md` + `references/3-complete-task.md` |
+| **Annotate / update task** | `references/00-context.md` + `references/4-annotate-update-task.md` |
+| **Review / overview tasks** | `references/00-context.md` + `references/5-review-overview-tasks.md` |
 
-Always load `00-context.md` first (project name resolution and global rules); then load the one action file that matches what you are doing.
+Always load `references/00-context.md` first (project name resolution and global rules); then load the one action file that matches what you are doing.
 
 ## Task lifecycle (overview)
 
 1. Create task → 2. Start task → 3. Annotate as you go → 4. **Completion criteria** (best practices, compilable, all tests pass, negative tests where plausible) → 5. Sub-agent review (fresh context) → 6. Main agent addresses all review comments → 7. **Repeat sub-agent review + fixes until no issues are found** → 8. **Commit all changes to git** → 9. Complete task → 10. **Automatically progress to the next task in the list** (when all tests and required sub-agent review(s) pass).
 
-A task is not done until criteria are met, all review comments are addressed, **and the sub-agent review cycle has completed with no remaining issues**, and all changes are committed to git. After completing a task, start the next task in the list (if any). Details are in `3-complete-task.md`.
+A task is not done until criteria are met, all review comments are addressed, **and the sub-agent review cycle has completed with no remaining issues**, and all changes are committed to git. After completing a task, start the next task in the list (if any). Details are in `references/3-complete-task.md`.
