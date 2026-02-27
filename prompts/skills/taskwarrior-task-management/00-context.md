@@ -1,4 +1,4 @@
-# Project Taskwarrior — shared context
+# Taskwarrior task management — shared context
 
 Load this with any of the action files (1–5) when working with tasks. It defines project scope and rules that apply to all task operations.
 

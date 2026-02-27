@@ -1,9 +1,9 @@
 ---
-name: project-taskwarrior
+name: taskwarrior-task-management
 description: "Manage Taskwarrior tasks scoped to the current git project. Use when asked to list, add, start, complete, annotate, or organize tasks for the project. Prefer compaction over starting a new context when beginning a new task. May start work in parallel (e.g. multiple sub-agents on different tasks) as long as agents do not conflict with each other. Triggers on: tasks, todo, task list, pick next task, what's next."
 ---
 
-# Project Taskwarrior
+# Taskwarrior Task Management
 
 Taskwarrior tasks are scoped to the current git repository. **Load only the files you need** for the current action so the whole skill does not need to be in context.
 
