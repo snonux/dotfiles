@@ -236,6 +236,18 @@ function taskwarrior::quicklogger
     end
 end
 
+# Parses a random-quote entry. If it matches "word: description", echoes project then description (one per line); otherwise echoes empty then entry.
+function _taskwarrior::random_quote_parse_entry
+    set -l entry "$argv[1]"
+    if string match -q -r '^[^:]+: .+' -- $entry
+        echo (string lower -- (string trim -- (string replace -r '^([^:]+): (.+)$' '$1' -- $entry)))
+        echo (string replace -r '^([^:]+): (.+)$' '$2' -- $entry)
+    else
+        echo ""
+        echo $entry
+    end
+end
+
 # Fills available +random task slots by picking random bullet-point entries from
 # random .md files in the notes/random directory. Each slot gets one entry chosen
 # by selecting a random file and then a random "* "-prefixed line within it.
@@ -276,12 +288,11 @@ function taskwarrior::random_quote
 
         # Pick one entry at random and tag it with both +random and the source file tag
         set -l entry $entries[(builtin random 1 (count $entries))]
-
-        # 10% chance to also tag the task as +work (1-in-10 roll)
-        set -l extra_tags
-        test (builtin random 1 10) -eq 1; and set extra_tags --tag work
-
-        _taskwarrior::add_task --tag random --tag $file_tag $extra_tags $entry
+        set -l parsed (_taskwarrior::random_quote_parse_entry $entry)
+        set -l add_args --tag random --tag $file_tag
+        test -n "$parsed[1]"; and set -a add_args --project $parsed[1]
+        test (builtin random 1 10) -eq 1; and set -a add_args --tag work
+        _taskwarrior::add_task $add_args $parsed[2]
     end
 end
 
