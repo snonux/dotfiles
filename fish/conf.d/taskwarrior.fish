@@ -65,7 +65,7 @@ function taskwarrior::export::bd
 end
 
 function taskwarrior::export::maybe
-    set -l mayfile ~/Notes/random/Maybe.md
+    set -l maybefile ~/Notes/random/Maybe.md
     if test -f $maybefile
         # Export all maybe project tags
         for tag in m may maybe
