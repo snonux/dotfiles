@@ -64,19 +64,22 @@ function taskwarrior::export::bd
     end
 end
 
-function taskwarrior::export::pet
-    set -l petfile ~/Notes/random/Pet.md
-    if test -f $petfile
-        # Export all pet project tags
-        task +pet -random status:pending export | jq -r '.[].description' | sed 's/^/* /' >>$petfile.tmp.1
-        grep -F '* ' $petfile >>$petfile.tmp.1
-        # Guard against "No tasks specified." when there is nothing to delete
-        test (task +pet -random status:pending count) -gt 0; and yes | task +pet -random status:pending delete
+function taskwarrior::export::maybe
+    set -l mayfile ~/Notes/random/Maybe.md
+    if test -f $maybefile
+        # Export all maybe project tags
+        for tag in m may maybe
+            task +$tag -random status:pending export | jq -r '.[].description' | sed 's/^/* /' >>$maybefile.tmp.1
+            # Guard against "No tasks specified." when there is nothing to delete
+            test (task +$tag -random status:pending count) -gt 0; and yes | task +$tag -random status:pending delete
+        end
+        grep -F '* ' $maybefile >>$maybefile.tmp.1
 
-        set -l count (sort -u $petfile.tmp.1 | wc -l | tr -d ' ')
-        echo "# Pet ($count)" >$petfile.tmp.2
-        echo '' >>$petfile.tmp.2
-        sort -u $petfile.tmp.1 >>$petfile.tmp.2 && mv $petfile.tmp.2 $petfile && rm $petfile.tmp.1
+        echo "# Maybe (7)" >$maybefile.tmp.2
+        echo '' >>$maybefile.tmp.2
+        echo 'Thinks I maybe will do something about or maybe not' >>$maybefile.tmp.2
+        echo '' >>$maybefile.tmp.2
+        sort -u $maybefile.tmp.1 >>$maybefile.tmp.2 && mv $maybefile.tmp.2 $maybefile && rm $maybefile.tmp.1
     end
 end
 
@@ -97,7 +100,7 @@ function taskwarrior::export
     end
 
     taskwarrior::export::bd
-    taskwarrior::export::pet
+    taskwarrior::export::maybe
 end
 
 function taskwarrior::import
