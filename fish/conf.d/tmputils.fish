@@ -10,6 +10,12 @@ function tmpdir
     cd $dir
 end
 
+function tmpnew
+    set -l name $argv[1]
+    tmpdir $argv
+    tmux::attach $name
+end
+
 function tmpls
     if not test -d $TMPUTILS_DIR
         return
