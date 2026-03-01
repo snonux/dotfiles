@@ -1,3 +1,5 @@
+set -gx TMUX_FZF_GIT_INDEX ~/git/.index
+
 function _tmux::cleanup_default
     tmux list-sessions | string match -r '^T.*: ' | string match -v -r attached | string split ':' | while read -l s
         echo "Killing $s"
@@ -23,6 +25,46 @@ function tmux::new
         tmux new-session -d -s $session
         tmux -2 attach-session -t $session || tmux -2 switch-client -t $session
     end
+end
+
+function tmux::git_project
+    set -l filter (test -n "$argv[1]"; and echo $argv[1]; or echo .)
+    set -l git_dir ~/git
+
+    set -l index_age 0
+    if test -f $TMUX_FZF_GIT_INDEX
+        if test (uname) = Darwin
+            set $TMUX_FZF_GIT_INDEX_age (math (date +%s) - (stat -f %m $TMUX_FZF_GIT_INDEX))
+        else
+            set $TMUX_FZF_GIT_INDEX_age (math (date +%s) - (stat -c %Y $TMUX_FZF_GIT_INDEX))
+        end
+    end
+    if test $index_age -gt 86400
+        rm $TMUX_FZF_GIT_INDEX
+    end
+
+    if not test -f $TMUX_FZF_GIT_INDEX
+        find $git_dir -maxdepth 4 -type d -name .git \
+            | sed 's|/.git$||' | sed "s|$git_dir/||" \
+            | grep -F -v . >$TMUX_FZF_GIT_INDEX
+    end
+
+    set -l matches (grep "$filter" $TMUX_FZF_GIT_INDEX)
+    set -l session
+    if test (count $matches) -eq 1
+        set session $matches[1]
+    else
+        set session (printf "%s\n" $matches | fzf)
+    end
+    echo cd $git_dir/$session
+    echo tmux::attach $session
+end
+
+function tmux::git_project::reindex
+    if test -f $TMUX_FZF_GIT_INDEX
+        rm $TMUX_FZF_GIT_INDEX
+    end
+    tmux::git_project $argv
 end
 
 function tmux::attach
@@ -89,6 +131,7 @@ alias ts 'tmux::search'
 alias tssh 'tmux::cluster_ssh'
 alias tm tmux
 alias tl 'tmux list-sessions'
+alias tp 'tmux::git_project'
 alias foo 'tmux::new foo'
 alias bar 'tmux::new bar'
 alias baz 'tmux::new baz'
