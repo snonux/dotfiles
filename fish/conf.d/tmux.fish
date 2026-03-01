@@ -56,8 +56,8 @@ function tmux::git_project
     else
         set session (printf "%s\n" $matches | fzf)
     end
-    echo cd $git_dir/$session
-    echo tmux::attach $session
+    cd $git_dir/$session
+    tmux::attach $session
 end
 
 function tmux::git_project::reindex
