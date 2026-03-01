@@ -127,11 +127,10 @@ end
 alias tn 'tmux::new'
 alias ta 'tmux::attach'
 alias tx 'tmux::remote'
-alias ts 'tmux::search'
+alias tl 'tmux::search'
 alias tssh 'tmux::cluster_ssh'
-alias tm tmux
-alias tl 'tmux list-sessions'
 alias tp 'tmux::git_project'
 alias foo 'tmux::new foo'
 alias bar 'tmux::new bar'
 alias baz 'tmux::new baz'
+alias bay 'tmux::new bay'
