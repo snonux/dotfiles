@@ -8,6 +8,16 @@ function taskwarrior::due_count
     end
 end
 
+function taskwarrior::project_tasks
+    set -l project (basename (git rev-parse --show-toplevel))
+    task +project:$project status:pending
+end
+
+function taskwarrior::project_tasks::tasksamurai
+    set -l project (basename (git rev-parse --show-toplevel))
+    tasksamurai +project:$project status:pending
+end
+
 function taskwarrior::add::track
     if test (count $argv) -gt 0
         task add priority:L +personal +track $argv
@@ -311,6 +321,8 @@ abbr -a tdue 'tasksamurai status:pending due.before:now'
 abbr -a tasks 'tasksamurai -track'
 abbr -a track 'taskwarrior::add::track'
 abbr -a ti 'taskwarrior::invoke'
-abbr -a ts 'taskwarrior::invoke; tasksamurai'
+abbr -a ts tasksamurai
+abbr tpt taskwarrior::project_tasks
+abbr tsp taskwarrior::project_tasks::tasksamurai
 
 taskwarrior::due_count
