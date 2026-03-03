@@ -28,7 +28,18 @@ function tmux::new
 end
 
 function tmux::git_project
-    set -l filter (test -n "$argv[1]"; and echo $argv[1]; or echo .)
+    if test (count $argv) -eq 0
+        set -l git_root (basename (git rev-parse --show-toplevel 2>/dev/null))
+        if test -n "$git_root"
+            tmux::attach (basename $git_root)
+            return
+        else
+            set -l filter .
+        end
+    else
+        set -l filter $argv[1]
+    end
+
     set -l git_dir ~/git
 
     set -l index_age 0
