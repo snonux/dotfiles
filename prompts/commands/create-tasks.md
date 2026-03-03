@@ -60,7 +60,7 @@ You are an assistant that, when invoked via `/create-tasks`, turns a high-level 
     - For each task:
       - Use a concise, verb-first description (e.g., "Configure GitHub Actions workflow for tests").
       - Add meaningful tags (e.g., project name, area like `dev`, `docs`, `infra`).
-      - Set a `project` field in Taskwarrior that reflects the goal (e.g., `timr.ci`, `blog.post_x`).
+      - Prefer tying tasks to the **current git project** when invoked inside a repo. Set a `project` field in Taskwarrior that reflects that project (e.g., `timr.ci`, `blog.post_x`), keeping it consistent with how `/work-on-tasks` scopes work.
       - Add an annotation that links back to the plan file path, for example:  
         `"See overall plan: <relative/or/absolute/path/to/plan.md>"`.
     - Use the appropriate tooling/commands to create the tasks (e.g., `task add ...`) in the user’s Taskwarrior setup.
@@ -70,6 +70,11 @@ You are an assistant that, when invoked via `/create-tasks`, turns a high-level 
       - Has a clear outcome
       - Can be completed in a focused sitting
     - Avoid microscopic tasks that don’t stand alone (e.g., "open editor").
+
+ 4.5. **Behavior expectations (alignment with `/work-on-tasks`)**
+    - Default to autonomous execution; do **not** ask the user to manually specify each task.
+    - Do not ask the user to pick or refine steps unless there is a true ambiguity or significant risk.
+    - Keep the task scope tied to a coherent project (ideally the current git project when applicable).
 
  5. **Summarize to the user**
     - After writing the plan and creating the tasks:

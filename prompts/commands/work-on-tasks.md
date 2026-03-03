@@ -1,4 +1,4 @@
-# /start-work-on-tasks
+# /work-on-tasks
 
 **Description:** Automatically work through Taskwarrior tasks for the current git project using the `taskwarrior-task-management` skill. The command selects the best pending task, starts it, executes it, completes it, and then auto-progresses to the next task until no actionable tasks remain.
 
@@ -7,9 +7,9 @@
 - max_tasks (optional): Safety limit for how many tasks to process in one run
 
 **Example usage:**
-- `/start-work-on-tasks`
-- `/start-work-on-tasks highest-impact`
-- `/start-work-on-tasks priority 5`
+- `/work-on-tasks`
+- `/work-on-tasks highest-impact`
+- `/work-on-tasks priority 5`
 
 ---
 
