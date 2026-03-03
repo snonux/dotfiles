@@ -145,6 +145,9 @@ task 'home_helix', sub { ensure "$DOT/helix/*" => "$HOME/.config/helix/" };
 desc 'Install ~/.config/ghostty';
 task 'home_ghostty', sub { ensure "$DOT/ghostty/*" => "$HOME/.config/ghostty/" };
 
+desc 'Install ~/.config/lazygit';
+task 'home_lazygit', sub { ensure "$DOT/lazygit/*" => "$HOME/.config/lazygit/" };
+
 desc 'Install prompt links for AI tools';
 task 'home_prompts', sub {
     if ( -d "$HOME/Notes/Prompts/commands" ) {
