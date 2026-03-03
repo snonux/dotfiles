@@ -320,7 +320,7 @@ abbr -a log 'task add +log'
 abbr -a tdue 'tasksamurai status:pending due.before:now'
 abbr -a tasks 'tasksamurai -track'
 abbr -a track 'taskwarrior::add::track'
-abbr -a ti 'taskwarrior::invoke'
+abbr -a ti 'taskwarrior::invoke; tasksamurai'
 abbr -a ts tasksamurai
 abbr tpt taskwarrior::project_tasks
 abbr tsp taskwarrior::project_tasks::tasksamurai
