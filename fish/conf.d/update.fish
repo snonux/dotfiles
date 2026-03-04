@@ -31,10 +31,14 @@ function update::tools
         rm ~/scripts/taskwarriorfeeder.rb
     end
 
-    for prog in tasksamurai timr perc loadbars foostore
+    for prog in tasksamurai timesamurai perc loadbars foostore
         echo "Installing/updating $prog from codeberg.org/snonux/$prog/cmd/$prog@latest"
         go install codeberg.org/snonux/$prog/cmd/$prog@latest &
         set -a pids $last_pid
+    end
+
+    if test -f ~/git/bin/timr
+        rm ~/git/bin/timr
     end
 
     if test (uname) = Darwin
