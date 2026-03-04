@@ -1,7 +1,6 @@
 # Mistake #41: Substring and memory leaks
 
 #### TL;DR
-TL;DR
 
 Using copies instead of substrings can prevent memory leaks, as the string returned by a substring operation will be backed by the same byte array.
 

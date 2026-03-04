@@ -1,7 +1,6 @@
 # Mistake #39: Under-optimized strings concatenation
 
 #### TL;DR
-TL;DR
 
 Concatenating a list of strings should be done with `strings.Builder` to prevent allocating a new string during each iteration.
 
@@ -29,8 +28,7 @@ func concat(values []string) string {
 
 During each iteration, we constructed the resulting string by calling the `WriteString` method that appends the content of value to its internal buffer, hence minimizing memory copying.
 
-#### TL;DR
-Note
+#### Note
 
 `WriteString` returns an error as the second output, but we purposely ignore it. Indeed, this method will never return a non-nil error. So what’s the purpose of this method returning an error as part of its signature? `strings.Builder` implements the `io.StringWriter` interface, which contains a single method: `WriteString(s string) (n int, err error)`. Hence, to comply with this interface, `WriteString` must return an error.
 
@@ -38,7 +36,7 @@ Internally, `strings.Builder` holds a byte slice. Each call to `WriteString` res
 
 func concat(values []string) string {
     total := 0
-    for i := 0; i &lt; len(values); i++ {
+    for i := 0; i < len(values); i++ {
         total += len(values[i])
     }
 

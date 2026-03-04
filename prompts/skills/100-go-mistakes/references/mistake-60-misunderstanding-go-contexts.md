@@ -1,7 +1,6 @@
 # Mistake #60: Misunderstanding Go contexts
 
 #### TL;DR
-TL;DR
 
 Go contexts are also one of the cornerstones of concurrency in Go. A context allows you to carry a deadline, a cancellation signal, and/or a list of keys-values.
 
@@ -30,7 +29,7 @@ For example, if we use tracing, we may want different subfunctions to share the 
 
 Catching a context cancellation
 
-The `context.Context` type exports a `Done` method that returns a receive-only notification channel: `&lt;-chan struct{}`. This channel is closed when the work associated with the context should be canceled. For example,
+The `context.Context` type exports a `Done` method that returns a receive-only notification channel: `<-chan struct{}`. This channel is closed when the work associated with the context should be canceled. For example,
 
 * The Done channel related to a context created with `context.WithCancel` is closed when the cancel function is called.
 * The Done channel related to a context created with `context.WithDeadline` is closed when the deadline has expired.

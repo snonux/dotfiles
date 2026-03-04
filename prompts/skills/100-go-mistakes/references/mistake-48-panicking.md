@@ -1,7 +1,6 @@
 # Mistake #48: Panicking
 
 #### TL;DR
-TL;DR
 
 Using `panic` is an option to deal with errors in Go. However, it should only be used sparingly in unrecoverable conditions: for example, to signal a programmer error or when you fail to load a mandatory dependency.
 

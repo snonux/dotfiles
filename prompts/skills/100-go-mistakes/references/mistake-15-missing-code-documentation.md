@@ -1,7 +1,6 @@
 # Mistake #15: Missing code documentation
 
 #### TL;DR
-TL;DR
 
 To help clients and maintainers understand your code’s purpose, document exported elements.
 

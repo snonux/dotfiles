@@ -1,7 +1,6 @@
 # Mistake #29: Comparing values incorrectly
 
 #### TL;DR
-TL;DR
 
 To compare types in Go, you can use the == and != operators if two types are comparable: Booleans, numerals, strings, pointers, channels, and structs are composed entirely of comparable types. Otherwise, you can either use `reflect.DeepEqual` and pay the price of reflection or use custom implementations and libraries.
 
@@ -15,10 +14,9 @@ It’s essential to understand how to use `==` and `!=` to make comparisons effe
 * Pointers—Compare whether two pointers point to the same value in memory or if both are nil.
 * Structs and arrays—Compare whether they are composed of similar types.
 
-#### TL;DR
-Note
+#### Note
 
-We can also use the `?`, `&gt;=`, `&lt;`, and `&gt;` operators with numeric types to compare values and with strings to compare their lexical order.
+We can also use the `<=`, `>=`, `<`, and `>` operators with numeric types to compare values and with strings to compare their lexical order.
 
 If operands are not comparable (e.g., slices and maps), we have to use other options such as reflection. Reflection is a form of metaprogramming, and it refers to the ability of an application to introspect and modify its structure and behavior. For example, in Go, we can use `reflect.DeepEqual`. This function reports whether two elements are deeply equal by recursively traversing two values. The elements it accepts are basic types plus arrays, structs, slices, maps, pointers, interfaces, and functions. Yet, the main catch is the performance penalty.
 

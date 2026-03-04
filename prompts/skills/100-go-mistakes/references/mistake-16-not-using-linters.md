@@ -1,7 +1,6 @@
 # Mistake #16: Not using linters
 
 #### TL;DR
-TL;DR
 
 To improve code quality and consistency, use linters and formatters.
 

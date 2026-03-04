@@ -1,7 +1,6 @@
 # Mistake #2: Unnecessary nested code
 
 #### TL;DR
-TL;DR
 
 Avoiding nested levels and keeping the happy path aligned on the left makes building a mental code model easier.
 

@@ -1,7 +1,6 @@
 # Mistake #11: Not using the functional options pattern
 
 #### TL;DR
-TL;DR
 
 To handle options conveniently and in an API-friendly manner, use the functional options pattern.
 
@@ -18,10 +17,10 @@ type Option func(options *options) error
 
 func WithPort(port int) Option {
   return func(options *options) error {
-    if port &lt; 0 {
+    if port < 0 {
       return errors.New("port should be positive")
     }
-    options.port = &amp;port
+    options.port = &port
     return nil
   }
 }
@@ -29,7 +28,7 @@ func WithPort(port int) Option {
 func NewServer(addr string, opts ...Option) ( *http.Server, error) {
   var options options
   for _, opt := range opts {
-    err := opt(&amp;options)
+    err := opt(&options)
     if err != nil {
       return nil, err
     }

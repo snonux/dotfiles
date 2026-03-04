@@ -1,7 +1,6 @@
 # Mistake #1: Unintended variable shadowing
 
 #### TL;DR
-TL;DR
 
 Avoiding shadowed variables can help prevent mistakes like referencing the wrong variable or confusing readers.
 

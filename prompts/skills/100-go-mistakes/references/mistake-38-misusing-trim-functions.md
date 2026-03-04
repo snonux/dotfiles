@@ -1,7 +1,6 @@
 # Mistake #38: Misusing trim functions
 
 #### TL;DR
-TL;DR
 
 `strings.TrimRight`/`strings.TrimLeft` removes all the trailing/leading runes contained in a given set, whereas `strings.TrimSuffix`/`strings.TrimPrefix` returns a string without a provided suffix/prefix.
 

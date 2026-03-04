@@ -1,7 +1,6 @@
 # Mistake #61: Propagating an inappropriate context
 
 #### TL;DR
-TL;DR
 
 Understanding the conditions when a context can be canceled should matter when propagating it: for example, an HTTP handler canceling the context when the response has been sent.
 

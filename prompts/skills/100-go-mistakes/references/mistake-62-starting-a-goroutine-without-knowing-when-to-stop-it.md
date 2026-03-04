@@ -1,7 +1,6 @@
 # Mistake #62: Starting a goroutine without knowing when to stop it
 
 #### TL;DR
-TL;DR
 
 Avoiding leaks means being mindful that whenever a goroutine is started, you should have a plan to stop it eventually.
 

@@ -1,7 +1,6 @@
 # Mistake #33: Making wrong assumptions during map iterations (ordering and map insert during iteration)
 
 #### TL;DR
-TL;DR
 
 To ensure predictable outputs when using maps, remember that a map data structure:
 

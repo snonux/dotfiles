@@ -1,7 +1,6 @@
 # Mistake #49: Ignoring when to wrap an error
 
 #### TL;DR
-TL;DR
 
 Wrapping an error allows you to mark an error and/or provide additional context. However, error wrapping creates potential coupling as it makes the source error available for the caller. If you want to prevent that, don’t use error wrapping.
 

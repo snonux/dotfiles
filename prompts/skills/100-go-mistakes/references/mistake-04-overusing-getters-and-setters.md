@@ -1,7 +1,6 @@
 # Mistake #4: Overusing getters and setters
 
 #### TL;DR
-TL;DR
 
 Forcing the use of getters and setters isn’t idiomatic in Go. Being pragmatic and finding the right balance between efficiency and blindly following certain idioms should be the way to go.
 

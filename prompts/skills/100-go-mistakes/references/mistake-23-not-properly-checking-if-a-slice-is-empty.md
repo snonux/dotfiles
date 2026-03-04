@@ -1,7 +1,6 @@
 # Mistake #23: Not properly checking if a slice is empty
 
 #### TL;DR
-TL;DR
 
 To check if a slice doesn’t contain any element, check its length. This check works regardless of whether the slice is `nil` or empty. The same goes for maps. To design unambiguous APIs, you shouldn’t distinguish between nil and empty slices.
 

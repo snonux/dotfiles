@@ -1,7 +1,6 @@
 # Mistake #59: Not understanding the concurrency impacts of a workload type
 
 #### TL;DR
-TL;DR
 
 When creating a certain number of goroutines, consider the workload type. Creating CPU-bound goroutines means bounding this number close to the GOMAXPROCS variable (based by default on the number of CPU cores on the host). Creating I/O-bound goroutines depends on other factors, such as the external system.
 

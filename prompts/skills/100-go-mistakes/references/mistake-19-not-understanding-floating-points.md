@@ -1,7 +1,6 @@
 # Mistake #19: Not understanding floating-points
 
 #### TL;DR
-TL;DR
 
 Making floating-point comparisons within a given delta can ensure that your code is portable. When performing addition or subtraction, group the operations with a similar order of magnitude to favor accuracy. Also, perform multiplication and division before addition and subtraction.
 

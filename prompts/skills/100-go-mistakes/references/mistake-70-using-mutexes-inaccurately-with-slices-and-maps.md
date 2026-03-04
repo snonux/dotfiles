@@ -1,7 +1,6 @@
 # Mistake #70: Using mutexes inaccurately with slices and maps
 
 #### TL;DR
-TL;DR
 
 Remembering that slices and maps are pointers can prevent common data races.
 

@@ -1,7 +1,6 @@
 # Mistake #10: Not being aware of the possible problems with type embedding
 
 #### TL;DR
-TL;DR
 
 Using type embedding can also help avoid boilerplate code; however, ensure that doing so doesn’t lead to visibility issues where some fields should have remained hidden.
 

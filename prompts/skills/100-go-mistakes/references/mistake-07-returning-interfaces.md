@@ -1,7 +1,6 @@
 # Mistake #7: Returning interfaces
 
 #### TL;DR
-TL;DR
 
 To prevent being restricted in terms of flexibility, a function shouldn’t return interfaces but concrete implementations in most cases. Conversely, a function should accept interfaces whenever possible.
 

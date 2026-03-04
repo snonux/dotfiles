@@ -1,7 +1,6 @@
 # Mistake #42: Not knowing which type of receiver to use
 
 #### TL;DR
-TL;DR
 
 The decision whether to use a value or a pointer receiver should be made based on factors such as the type, whether it has to be mutated, whether it contains a field that can’t be copied, and how large the object is. When in doubt, use a pointer receiver.
 

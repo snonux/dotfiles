@@ -1,7 +1,6 @@
 # Mistake #36: Not understanding the concept of rune
 
 #### TL;DR
-TL;DR
 
 Understanding that a rune corresponds to the concept of a Unicode code point and that it can be composed of multiple bytes should be part of the Go developer’s core knowledge to work accurately with strings.
 

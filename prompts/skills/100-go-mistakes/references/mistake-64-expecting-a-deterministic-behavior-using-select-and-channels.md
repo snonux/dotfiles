@@ -1,7 +1,6 @@
 # Mistake #64: Expecting a deterministic behavior using select and channels
 
 #### TL;DR
-TL;DR
 
 Understanding that `select` with multiple channels chooses the case randomly if multiple options are possible prevents making wrong assumptions that can lead to subtle concurrency bugs.
 
@@ -10,17 +9,17 @@ One common mistake made by Go developers while working with channels is to make 
 For example, let's consider the following case (`disconnectCh` is a unbuffered channel):
 
 go func() {
-  for i := 0; i &lt; 10; i++ {
-      messageCh &lt;- i
+  for i := 0; i < 10; i++ {
+      messageCh <- i
     }
-    disconnectCh &lt;- struct{}{}
+    disconnectCh <- struct{}{}
 }()
 
 for {
     select {
-    case v := &lt;-messageCh:
+    case v := <-messageCh:
         fmt.Println(v)
-    case &lt;-disconnectCh:
+    case <-disconnectCh:
         fmt.Println("disconnection, return")
         return
     }

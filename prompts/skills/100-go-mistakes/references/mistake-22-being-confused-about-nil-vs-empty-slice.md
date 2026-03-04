@@ -1,7 +1,6 @@
 # Mistake #22: Being confused about nil vs. empty slice
 
 #### TL;DR
-TL;DR
 
 To prevent common confusions such as when using the `encoding/json` or the `reflect` package, you need to understand the difference between nil and empty slices. Both are zero-length, zero-capacity slices, but only a nil slice doesn’t require allocation.
 

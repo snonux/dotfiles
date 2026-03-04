@@ -1,7 +1,6 @@
 # Mistake #21: Inefficient slice initialization
 
 #### TL;DR
-TL;DR
 
 When creating a slice, initialize it with a given length or capacity if its length is already known. This reduces the number of allocations and improves performance.
 

@@ -1,7 +1,6 @@
 # Mistake #67: Being puzzled about channel size
 
 #### TL;DR
-TL;DR
 
 Carefully decide on the right channel type to use, given a problem. Only unbuffered channels provide strong synchronization guarantees. For buffered channels, you should have a good reason to specify a channel size other than one.
 
@@ -19,8 +18,8 @@ ch3 := make(chan int, 1)
 With a buffered channel, a sender can send messages while the channel isn’t full. Once the channel is full, it will block until a receiver goroutine receives a message:
 
 ch3 := make(chan int, 1)
-ch3 &lt;-1 // Non-blocking
-ch3 &lt;-2 // Blocking
+ch3 <-1 // Non-blocking
+ch3 <-2 // Blocking
 
 The first send isn’t blocking, whereas the second one is, as the channel is full at this stage.
 

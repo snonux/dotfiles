@@ -1,7 +1,6 @@
 # Mistake #65: Not using notification channels
 
 #### TL;DR
-TL;DR
 
 Send notifications using a `chan struct{}` type.
 

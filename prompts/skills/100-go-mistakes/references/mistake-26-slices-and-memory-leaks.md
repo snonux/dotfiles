@@ -1,7 +1,6 @@
 # Mistake #26: Slices and memory leaks
 
 #### TL;DR
-TL;DR
 
 Working with a slice of pointers or structs with pointer fields, you can avoid memory leaks by marking as nil the elements excluded by a slicing operation.
 

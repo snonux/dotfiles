@@ -1,7 +1,6 @@
 # Mistake #75: Providing a wrong time duration
 
 #### TL;DR
-TL;DR
 
 Remain cautious with functions accepting a `time.Duration`. Even though passing an integer is allowed, strive to use the time API to prevent any possible confusion.
 
@@ -12,7 +11,7 @@ A developer with experience in other languages might assume that the following c
 ticker := time.NewTicker(1000)
 for {
     select {
-    case &lt;-ticker.C:
+    case <-ticker.C:
         // Do something
     }
 }

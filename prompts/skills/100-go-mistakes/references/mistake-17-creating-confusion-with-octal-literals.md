@@ -1,7 +1,6 @@
 # Mistake #17: Creating confusion with octal literals
 
 #### TL;DR
-TL;DR
 
 When reading existing code, bear in mind that integer literals starting with `0` are octal numbers. Also, to improve readability, make octal integers explicit by prefixing them with `0o`.
 

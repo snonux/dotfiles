@@ -1,7 +1,6 @@
 # Mistake #68: Forgetting about possible side effects with string formatting
 
 #### TL;DR
-TL;DR
 
 Being aware that string formatting may lead to calling existing functions means watching out for possible deadlocks and other data races.
 
@@ -25,7 +24,7 @@ func (c *Customer) UpdateAge(age int) error {
     c.mutex.Lock() // Locks and defers unlock as we update Customer
     defer c.mutex.Unlock()
 
-    if age &lt; 0 { // Returns an error if age is negative
+    if age < 0 { // Returns an error if age is negative
         return fmt.Errorf("age should be positive for customer %v", c)
     }
 
@@ -44,7 +43,7 @@ The problem here may not be straightforward. If the provided age is negative, we
 One possible solution is to restrict the scope of the mutex lock:
 
 func (c *Customer) UpdateAge(age int) error {
-    if age &lt; 0 {
+    if age < 0 {
         return fmt.Errorf("age should be positive for customer %v", c)
     }
 
@@ -63,7 +62,7 @@ func (c *Customer) UpdateAge(age int) error {
     c.mutex.Lock()
     defer c.mutex.Unlock()
 
-    if age &lt; 0 {
+    if age < 0 {
         return fmt.Errorf("age should be positive for customer id %s", c.id)
     }
 

@@ -1,7 +1,6 @@
 # Mistake #83: Not enabling the race flag
 
 #### TL;DR
-TL;DR
 
 Enabling the `-race` flag is highly recommended when writing concurrent applications. Doing so allows you to catch potential data races that can lead to software bugs.
 

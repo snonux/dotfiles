@@ -1,7 +1,6 @@
 # Mistake #37: Inaccurate string iteration
 
 #### TL;DR
-TL;DR
 
 Iterating on a string with the `range` operator iterates on the runes with the index corresponding to the starting index of the rune’s byte sequence. To access a specific rune index (such as the third rune), convert the string into a `[]rune`.
 

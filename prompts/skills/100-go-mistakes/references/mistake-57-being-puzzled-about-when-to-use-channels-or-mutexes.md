@@ -1,7 +1,6 @@
 # Mistake #57: Being puzzled about when to use channels or mutexes
 
 #### TL;DR
-TL;DR
 
 Being aware of goroutine interactions can also be helpful when deciding between channels and mutexes. In general, parallel goroutines require synchronization and hence mutexes. Conversely, concurrent goroutines generally require coordination and orchestration and hence channels.
 

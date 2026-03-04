@@ -1,7 +1,6 @@
 # Mistake #95: Not understanding stack vs. heap
 
 #### TL;DR
-TL;DR
 
 Understanding the fundamental differences between heap and stack should also be part of your core knowledge when optimizing a Go application. Stack allocations are almost free, whereas heap allocations are slower and rely on the GC to clean the memory.
 

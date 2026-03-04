@@ -1,7 +1,6 @@
 # Mistake #46: Using a filename as a function input
 
 #### TL;DR
-TL;DR
 
 Designing functions to receive `io.Reader` types instead of filenames improves the reusability of a function and makes testing easier.
 

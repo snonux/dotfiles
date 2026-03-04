@@ -1,7 +1,6 @@
 # Mistake #9: Being confused about when to use generics
 
 #### TL;DR
-TL;DR
 
 Relying on generics and type parameters can prevent writing boilerplate code to factor out elements or behaviors. However, do not use type parameters prematurely, but only when you see a concrete need for them. Otherwise, they introduce unnecessary abstractions and complexity.
 
