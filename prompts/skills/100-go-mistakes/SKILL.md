@@ -1,6 +1,6 @@
 ---
 name: 100-go-mistakes
-description: Audits Go code repositories for common mistakes as identified in the "100 Go Mistakes and How to Avoid Them" book. Use this skill when asked to review Go code, check for best practices, or find common anti-patterns in Go.
+description: "Audits Go code for the 100 common mistakes from the book '100 Go Mistakes and How to Avoid Them' by Teiva Harsanyi. Use when asked to 'check for Go mistakes', 'audit Go code', 'find Go anti-patterns', 'run 100 Go mistakes check', or 'common Go pitfalls'. Covers error handling, concurrency, data types, control structures, strings, functions, project organization, testing, and optimization. Triggers on: 100 go mistakes, go mistakes, go anti-patterns, go pitfalls, go audit."
 ---
 
 # 100 Go Mistakes
