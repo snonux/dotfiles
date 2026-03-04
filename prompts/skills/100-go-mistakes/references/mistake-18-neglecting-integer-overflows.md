@@ -1,6 +1,5 @@
 # Mistake #18: Neglecting integer overflows
 
-#### TL;DR
 
 Because integer overflows and underflows are handled silently in Go, you can implement your own functions to catch them.
 

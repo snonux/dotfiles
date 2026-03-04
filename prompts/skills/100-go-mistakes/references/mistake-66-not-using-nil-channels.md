@@ -1,6 +1,5 @@
 # Mistake #66: Not using nil channels
 
-#### TL;DR
 
 Using nil channels should be part of your concurrency toolset because it allows you to remove cases from `select` statements, for example.
 

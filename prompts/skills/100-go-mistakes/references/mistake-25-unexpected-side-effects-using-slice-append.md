@@ -1,6 +1,5 @@
 # Mistake #25: Unexpected side effects using slice append
 
-#### TL;DR
 
 Using copy or the full slice expression is a way to prevent `append` from creating conflicts if two different functions use slices backed by the same array. However, only a slice copy prevents memory leaks if you want to shrink a large slice.
 

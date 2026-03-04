@@ -1,6 +1,5 @@
 # Mistake #89: Writing inaccurate benchmarks
 
-#### TL;DR
 
 Regarding benchmarks:
 

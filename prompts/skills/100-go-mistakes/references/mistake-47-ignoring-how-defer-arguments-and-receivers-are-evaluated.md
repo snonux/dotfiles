@@ -1,6 +1,5 @@
 # Mistake #47: Ignoring how defer arguments and receivers are evaluated
 
-#### TL;DR
 
 In a `defer` function, arguments are evaluated right away, not once the surrounding function returns. To defer a call with an updated value, use pointers or closures.
 

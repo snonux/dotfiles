@@ -1,6 +1,5 @@
 # Mistake #11: Not using the functional options pattern
 
-#### TL;DR
 
 To handle options conveniently and in an API-friendly manner, use the functional options pattern.
 

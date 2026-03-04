@@ -1,6 +1,5 @@
 # Mistake #3: Misusing init functions
 
-#### TL;DR
 
 When initializing variables, remember that init functions have limited error handling and make state handling and testing more complex. In most cases, initializations should be handled as specific functions.
 

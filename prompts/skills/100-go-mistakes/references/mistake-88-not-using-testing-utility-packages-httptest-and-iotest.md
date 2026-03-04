@@ -1,6 +1,5 @@
 # Mistake #88: Not using testing utility packages (httptest and iotest)
 
-#### TL;DR
 
 Use the `httptest` package for testing HTTP clients and servers, and the `iotest` package for testing `io.Reader` implementations and error tolerance.
 

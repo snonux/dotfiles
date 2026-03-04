@@ -1,6 +1,5 @@
 # Mistake #76: time.After and memory leaks
 
-#### TL;DR
 
 Avoid using `time.After` in loops or repeated calls; it creates a new channel each time that won't be GC'd until the timer fires. Use `time.NewTimer` instead and call `Stop` when done.
 

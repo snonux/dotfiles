@@ -1,6 +1,5 @@
 # Mistake #58: Not understanding race problems (data races vs. race conditions and the Go memory model)
 
-#### TL;DR
 
 Being proficient in concurrency also means understanding that data races and race conditions are different concepts. Data races occur when multiple goroutines simultaneously access the same memory location and at least one of them is writing. Meanwhile, being data-race-free doesn’t necessarily mean deterministic execution. When a behavior depends on the sequence or the timing of events that can’t be controlled, this is a race condition.
 

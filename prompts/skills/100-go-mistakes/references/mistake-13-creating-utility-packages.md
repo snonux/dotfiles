@@ -1,6 +1,5 @@
 # Mistake #13: Creating utility packages
 
-#### TL;DR
 
 Naming is a critical piece of application design. Creating packages such as `common`, `util`, and `shared` doesn’t bring much value for the reader. Refactor such packages into meaningful and specific package names.
 

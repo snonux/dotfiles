@@ -1,6 +1,5 @@
 # Mistake #44: Unintended side effects with named result parameters
 
-#### TL;DR
 
 See #43.
 

@@ -1,6 +1,5 @@
 # Mistake #80: Forgetting the return statement after replying to an HTTP request
 
-#### TL;DR
 
 To avoid unexpected behaviors in HTTP handler implementations, make sure you don’t miss the `return` statement if you want a handler to stop after `http.Error`.
 

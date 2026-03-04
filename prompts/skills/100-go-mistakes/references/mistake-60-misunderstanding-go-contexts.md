@@ -1,6 +1,5 @@
 # Mistake #60: Misunderstanding Go contexts
 
-#### TL;DR
 
 Go contexts are also one of the cornerstones of concurrency in Go. A context allows you to carry a deadline, a cancellation signal, and/or a list of keys-values.
 

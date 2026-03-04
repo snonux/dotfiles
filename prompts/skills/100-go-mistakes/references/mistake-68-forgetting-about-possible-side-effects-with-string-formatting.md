@@ -1,6 +1,5 @@
 # Mistake #68: Forgetting about possible side effects with string formatting
 
-#### TL;DR
 
 Being aware that string formatting may lead to calling existing functions means watching out for possible deadlocks and other data races.
 

@@ -1,6 +1,5 @@
 # Mistake #99: Not understanding how the GC works
 
-#### TL;DR
 
 Understanding the Go garbage collector helps write more efficient applications. The GC uses a concurrent, tri-color mark-and-sweep algorithm. Reducing heap allocations and understanding the `GOGC` tuning parameter are key.
 

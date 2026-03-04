@@ -11,7 +11,6 @@ Regarding what to export, the rule is pretty straightforward. We should minimize
 
 Organizing a project isn’t straightforward, but following these rules should help make it easier to maintain. However, remember that consistency is also vital to ease maintainability. Therefore, let’s make sure that we keep things as consistent as possible within a codebase.
 
-#### TL;DR
 Note
 
 In 2023, the Go team has published an official guideline for organizing / structuring a Go project: go.dev/doc/modules/layout

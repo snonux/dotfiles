@@ -1,6 +1,5 @@
 # Mistake #6: Interface on the producer side
 
-#### TL;DR
 
 Keeping interfaces on the client side avoids unnecessary abstractions.
 

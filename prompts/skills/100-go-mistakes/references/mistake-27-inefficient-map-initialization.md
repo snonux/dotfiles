@@ -1,6 +1,5 @@
 # Mistake #27: Inefficient map initialization
 
-#### TL;DR
 
 When creating a map, initialize it with a given length if its length is already known. This reduces the number of allocations and improves performance.
 

@@ -1,6 +1,5 @@
 # Mistake #72: Forgetting about sync.Cond
 
-#### TL;DR
 
 Use `sync.Cond` to send notifications to multiple goroutines. It provides `Signal` (wake one goroutine) and `Broadcast` (wake all waiting goroutines), which can be more efficient than channel-based alternatives when broadcasting.
 

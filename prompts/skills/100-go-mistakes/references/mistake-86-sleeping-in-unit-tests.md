@@ -1,6 +1,5 @@
 # Mistake #86: Sleeping in unit tests
 
-#### TL;DR
 
 Avoid sleeps using synchronization to make a test less flaky and more robust. If synchronization isn’t possible, consider a retry approach.
 

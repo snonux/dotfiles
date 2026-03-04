@@ -1,6 +1,5 @@
 # Mistake #74: Copying a sync type
 
-#### TL;DR
 
 Types from the `sync` package should never be copied. This applies to `sync.Mutex`, `sync.WaitGroup`, `sync.Cond`, and the other types. Use pointers to share them.
 

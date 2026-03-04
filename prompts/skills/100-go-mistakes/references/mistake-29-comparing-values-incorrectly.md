@@ -1,6 +1,5 @@
 # Mistake #29: Comparing values incorrectly
 
-#### TL;DR
 
 To compare types in Go, you can use the == and != operators if two types are comparable: Booleans, numerals, strings, pointers, channels, and structs are composed entirely of comparable types. Otherwise, you can either use `reflect.DeepEqual` and pay the price of reflection or use custom implementations and libraries.
 

@@ -1,6 +1,5 @@
 # Mistake #67: Being puzzled about channel size
 
-#### TL;DR
 
 Carefully decide on the right channel type to use, given a problem. Only unbuffered channels provide strong synchronization guarantees. For buffered channels, you should have a good reason to specify a channel size other than one.
 

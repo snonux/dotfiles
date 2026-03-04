@@ -1,6 +1,5 @@
 # Mistake #30: Ignoring that elements are copied in range loops
 
-#### TL;DR
 
 The value element in a range loop is a copy. Therefore, to mutate a struct, use the index to access it directly or use a classic for loop with pointers.
 

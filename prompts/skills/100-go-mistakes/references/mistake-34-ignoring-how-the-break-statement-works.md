@@ -1,6 +1,5 @@
 # Mistake #34: Ignoring how the break statement works
 
-#### TL;DR
 
 A `break` statement terminates the execution of the innermost `for`, `switch`, or `select` statement. Use labels to break out of an outer loop from within a `switch` or `select`.
 

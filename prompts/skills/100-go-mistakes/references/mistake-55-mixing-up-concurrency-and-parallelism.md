@@ -1,6 +1,5 @@
 # Mistake #55: Mixing up concurrency and parallelism
 
-#### TL;DR
 
 Understanding the fundamental differences between concurrency and parallelism is a cornerstone of the Go developer’s knowledge. Concurrency is about structure, whereas parallelism is about execution.
 

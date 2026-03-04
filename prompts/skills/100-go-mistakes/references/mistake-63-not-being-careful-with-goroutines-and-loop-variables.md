@@ -1,6 +1,5 @@
 # Mistake #63: Not being careful with goroutines and loop variables
 
-#### TL;DR
 
 When launching goroutines from within a loop, be aware that the loop variable is shared across all iterations (prior to Go 1.22). Pass it as a parameter or create a local copy to avoid all goroutines referencing the last value.
 

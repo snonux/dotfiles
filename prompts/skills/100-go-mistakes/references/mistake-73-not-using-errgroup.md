@@ -1,6 +1,5 @@
 # Mistake #73: Not using errgroup
 
-#### TL;DR
 
 Use `errgroup` to synchronize a group of goroutines and handle errors, as well as shared context cancellation. It simplifies patterns involving multiple concurrent operations that can fail.
 

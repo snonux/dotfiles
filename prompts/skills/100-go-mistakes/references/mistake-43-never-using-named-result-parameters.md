@@ -1,6 +1,5 @@
 # Mistake #43: Never using named result parameters
 
-#### TL;DR
 
 Using named result parameters can be an efficient way to improve the readability of a function/method, especially if multiple result parameters have the same type. In some cases, this approach can also be convenient because named result parameters are initialized to their zero value. But be cautious about potential side effects.
 

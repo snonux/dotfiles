@@ -1,6 +1,5 @@
 # Mistake #75: Providing a wrong time duration
 
-#### TL;DR
 
 Remain cautious with functions accepting a `time.Duration`. Even though passing an integer is allowed, strive to use the time API to prevent any possible confusion.
 

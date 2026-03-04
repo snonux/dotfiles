@@ -1,6 +1,5 @@
 # Mistake #79: Not closing transient resources (HTTP body, sql.Rows, and os.File)
 
-#### TL;DR
 
 Always close transient resources like HTTP response bodies, `sql.Rows`, and `os.File` to avoid leaks. Use `defer` after checking for errors.
 

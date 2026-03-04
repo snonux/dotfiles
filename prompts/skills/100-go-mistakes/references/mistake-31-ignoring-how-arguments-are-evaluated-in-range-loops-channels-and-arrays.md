@@ -1,6 +1,5 @@
 # Mistake #31: Ignoring how arguments are evaluated in range loops (channels and arrays)
 
-#### TL;DR
 
 The range loop expression is evaluated only once, before the beginning of the loop, by doing a copy. Be aware of this to avoid common mistakes.
 

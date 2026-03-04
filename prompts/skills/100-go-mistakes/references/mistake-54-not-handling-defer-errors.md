@@ -1,6 +1,5 @@
 # Mistake #54: Not handling defer errors
 
-#### TL;DR
 
 When we want to ignore an error in a `defer` call, use the blank identifier (`_`) to make it explicit and add a comment explaining why.
 

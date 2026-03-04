@@ -1,6 +1,5 @@
 # Mistake #24: Not making slice copies correctly
 
-#### TL;DR
 
 To copy one slice to another using the `copy` built-in function, remember that the number of copied elements corresponds to the minimum between the two slice’s lengths.
 

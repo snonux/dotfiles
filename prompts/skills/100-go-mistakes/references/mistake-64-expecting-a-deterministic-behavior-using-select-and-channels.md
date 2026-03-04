@@ -1,6 +1,5 @@
 # Mistake #64: Expecting a deterministic behavior using select and channels
 
-#### TL;DR
 
 Understanding that `select` with multiple channels chooses the case randomly if multiple options are possible prevents making wrong assumptions that can lead to subtle concurrency bugs.
 

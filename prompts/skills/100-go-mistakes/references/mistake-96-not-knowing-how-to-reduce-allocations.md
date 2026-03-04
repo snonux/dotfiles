@@ -1,6 +1,5 @@
 # Mistake #96: Not knowing how to reduce allocations
 
-#### TL;DR
 
 Reducing allocations improves performance by decreasing GC pressure. Techniques include API changes to accept pre-allocated buffers, leveraging compiler optimizations, and using `sync.Pool` for reusable objects.
 

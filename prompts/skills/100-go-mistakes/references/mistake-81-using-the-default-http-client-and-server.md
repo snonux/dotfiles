@@ -1,6 +1,5 @@
 # Mistake #81: Using the default HTTP client and server
 
-#### TL;DR
 
 For production-grade applications, don’t use the default HTTP client and server implementations. These implementations are missing timeouts and behaviors that should be mandatory in production.
 

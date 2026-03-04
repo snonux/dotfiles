@@ -1,6 +1,5 @@
 # Mistake #52: Handling an error twice
 
-#### TL;DR
 
 In most situations, an error should be handled only once. Logging an error is handling an error. Therefore, you have to choose between logging or returning an error. In many cases, error wrapping is the solution as it allows you to provide additional context to an error and return the source error.
 

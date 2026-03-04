@@ -1,6 +1,5 @@
 # Mistake #32: Ignoring the impacts of using pointer elements in range loops
 
-#### TL;DR
 
 When iterating over a data structure using a range loop and storing the pointer of each element, be aware that all pointers will point to the same element: the last one. Use a local variable or index access instead.
 

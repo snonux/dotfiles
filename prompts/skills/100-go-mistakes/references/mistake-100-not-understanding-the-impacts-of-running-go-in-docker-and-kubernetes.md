@@ -1,6 +1,5 @@
 # Mistake #100: Not understanding the impacts of running Go in Docker and Kubernetes
 
-#### TL;DR
 
 Be aware that `GOMAXPROCS` defaults to the number of OS-visible CPUs, not the container's CPU limit. Use libraries like `automaxprocs` to set it correctly based on cgroup limits.
 

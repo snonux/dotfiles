@@ -1,6 +1,5 @@
 # Mistake #40: Useless string conversions
 
-#### TL;DR
 
 Remembering that the `bytes` package offers the same operations as the `strings` package can help avoid extra byte/string conversions.
 

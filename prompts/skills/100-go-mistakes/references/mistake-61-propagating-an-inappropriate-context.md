@@ -1,6 +1,5 @@
 # Mistake #61: Propagating an inappropriate context
 
-#### TL;DR
 
 Understanding the conditions when a context can be canceled should matter when propagating it: for example, an HTTP handler canceling the context when the response has been sent.
 
@@ -36,7 +35,6 @@ When the response has been written to the client, the context associated with th
 
 In the latter case, calling publish will return an error because we returned the HTTP response quickly.
 
-#### TL;DR
 Note
 
 From Go 1.21, there is a way to create a new context without cancel. `context.WithoutCancel` returns a copy of parent that is not canceled when parent is canceled.

@@ -1,6 +1,5 @@
 # Mistake #39: Under-optimized strings concatenation
 
-#### TL;DR
 
 Concatenating a list of strings should be done with `strings.Builder` to prevent allocating a new string during each iteration.
 

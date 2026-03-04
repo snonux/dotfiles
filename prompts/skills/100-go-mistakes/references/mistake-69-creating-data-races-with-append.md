@@ -1,6 +1,5 @@
 # Mistake #69: Creating data races with append
 
-#### TL;DR
 
 Calling `append` isn’t always data-race-free; hence, it shouldn’t be used concurrently on a shared slice.
 

@@ -1,6 +1,5 @@
 # Mistake #71: Misusing sync.WaitGroup
 
-#### TL;DR
 
 Call `wg.Add` before spinning up goroutines, not inside them. Calling `Add` inside a goroutine introduces a race with `Wait`.
 

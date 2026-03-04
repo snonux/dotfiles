@@ -1,6 +1,5 @@
 # Mistake #14: Ignoring package name collisions
 
-#### TL;DR
 
 To avoid naming collisions between variables and packages, leading to confusion or perhaps even bugs, use unique names for each one. If this isn’t feasible, use an import alias to change the qualifier to differentiate the package name from the variable name, or think of a better name.
 

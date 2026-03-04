@@ -1,6 +1,5 @@
 # Mistake #35: Using defer inside a loop
 
-#### TL;DR
 
 A `defer` call is executed not during each loop iteration but when the surrounding function returns. Be cautious about using `defer` inside loops; extract the loop body into a function to ensure `defer` executes per iteration.
 
