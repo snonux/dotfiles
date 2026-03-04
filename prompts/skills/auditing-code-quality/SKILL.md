@@ -15,10 +15,11 @@ sequence. This meta-skill orchestrates them so you only need a single command.
 
 ## Skills Invoked
 
-1. **solid-principles** — Class-level SOLID analysis (SRP, OCP, LSP, ISP, DIP).
-2. **beyond-solid-principles** — System-level architecture principles (SoC, DRY, KISS, YAGNI, coupling, resilience, etc.).
-3. **go-best-practices** — Go project structure, style, and conventions (loaded only when the target code is Go).
-4. **taskwarrior-task-management** — Creates actionable tasks for each finding that needs remediation.
+1. **go-best-practices** — Go project structure, style, and conventions (loaded only when the target code is Go).
+2. **100-go-mistakes** — 100 Go mistakes and how to avoid them.
+3. **solid-principles** — Class-level SOLID analysis (SRP, OCP, LSP, ISP, DIP).
+4. **beyond-solid-principles** — System-level architecture principles (SoC, DRY, KISS, YAGNI, coupling, resilience, etc.).
+5. **taskwarrior-task-management** — Creates actionable tasks for each finding that needs remediation.
 
 ## Workflow
 
@@ -36,13 +37,18 @@ the Go-specific skill.
 
 Invoke each sub-skill using the `skill` tool:
 
-1. Load **solid-principles** and run a full SOLID audit on the target code.
-2. Load **beyond-solid-principles** and run a full system-level audit on the
-   same target code.
-3. If the target code is **Go**, also load **go-best-practices** and check
-   compliance with Go conventions.
+If the target code is **Go**:
 
-For each sub-skill, follow its own workflow (load references, analyze, report).
+1. Load **go-best-practices** and run full audit on the code.
+2. Load **100-go-mistakes** and run full audit on the code.
+
+For all targets, also if not **Go**:
+
+3. Load **solid-principles** and run a full SOLID audit on the target code.
+4. Load **beyond-solid-principles** and run a full system-level audit on the
+   same target code.
+
+For each sub-skill, follow its own workflow (load references, analyze, report). Try to use sub-agents so each audit works with a fresh context. Even the sub-skills can spawn sub-agents themselves.
 
 ### 3. Produce a Unified Report
 
@@ -81,7 +87,4 @@ should:
 - Have a clear, actionable description (e.g., "Refactor UserService to fix SRP violation").
 - Include the principle, category, and file location in an annotation.
 - Be tagged with `code-quality`.
-- Use priority `H` for HIGH-severity findings and `M` for MEDIUM ones.
-
-LOW-severity findings are noted in the report but do not get tasks unless the
-user explicitly requests them.
+- Use priority `H` for HIGH-severity findings and `M` for MEDIUM ones and `L` for LOW ones.
