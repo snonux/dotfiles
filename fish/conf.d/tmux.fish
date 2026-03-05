@@ -27,7 +27,7 @@ function tmux::new
     end
 end
 
-function tmux::git_project
+function tmux::project
     if test (count $argv) -eq 0
         set -l git_root (basename (git rev-parse --show-toplevel 2>/dev/null))
         if test -n "$git_root"
@@ -71,11 +71,11 @@ function tmux::git_project
     tmux::attach $session
 end
 
-function tmux::git_project::reindex
+function tmux::project::reindex
     if test -f $TMUX_FZF_GIT_INDEX
         rm $TMUX_FZF_GIT_INDEX
     end
-    tmux::git_project $argv
+    tmux::project $argv
 end
 
 function tmux::attach
@@ -140,7 +140,7 @@ alias ta 'tmux::attach'
 alias tx 'tmux::remote'
 alias tl 'tmux::search'
 alias tssh 'tmux::cluster_ssh'
-alias tp 'tmux::git_project'
+alias tp 'tmux::project'
 alias notes 'cd ~/Notes; tmux::attach notes'
 alias N 'cd ~/Notes; tmux::attach notes'
 alias bar 'tmux::new bar'
