@@ -1,4 +1,4 @@
-set -g TASKWARRIOR_MAX_PENDING_RANDOM_TASKS 10
+set -g TASKWARRIOR_MAX_PENDING_RANDOM_TASKS 42
 
 function taskwarrior::due_count
     set -l due_count (task status:pending due.before:now count)
@@ -137,8 +137,8 @@ function taskwarrior::unscheduled
     # _ids can emit a trailing empty line; skip empty values to avoid a no-filter modify
     for id in (task status:pending -unsched -nosched -meeting -track due: _ids)
         test -n "$id"; or continue
-        echo "timeout 5s task modify $id due:(builtin random 0 30)d"
-        timeout 5s task modify "$id" due:(builtin random 0 30)d
+        # echo "timeout 5s task modify $id due:(builtin random 0 30)d"
+        timeout 5s task modify "$id" due:(builtin random 0 42)d &>/dev/null
     end
 end
 
