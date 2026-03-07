@@ -40,6 +40,9 @@ space = "none"
 tab = "none"
 newline = "none"
 
+[keys.insert]
+j = { k = "normal_mode"}
+
 [keys.normal]
 D = ["ensure_selections_forward", "extend_to_line_end"]
 #S conflicts with split_selection, for now comment out
