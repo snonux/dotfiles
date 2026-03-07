@@ -307,6 +307,7 @@ function taskwarrior::random_quote
 end
 
 function taskwarrior::invoke
+    yes | task +tr -track modify +track -tr
     taskwarrior::export
     taskwarrior::import
     taskwarrior::cleanup
