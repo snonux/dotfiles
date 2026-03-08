@@ -135,7 +135,7 @@ end
 
 function taskwarrior::unscheduled
     # _ids can emit a trailing empty line; skip empty values to avoid a no-filter modify
-    for id in (task status:pending -unsched -nosched -meeting -track due: _ids)
+    for id in (task status:pending -unsched -nosched -meeting -track -tr due: _ids)
         test -n "$id"; or continue
         # echo "timeout 5s task modify $id due:(builtin random 0 30)d"
         timeout 5s task modify "$id" due:(builtin random 0 42)d &>/dev/null
@@ -258,6 +258,28 @@ function _taskwarrior::random_quote_parse_entry
     end
 end
 
+function _taskwarrior::fill_random_slot
+    set -l file $argv[1]
+
+    # Derive a tag from the filename: strip path and extension, lowercase
+    # e.g. /home/paul/Notes/random/Focus.md → focus
+    set -l file_tag (string lower -- (string replace -r '\.md$' '' (basename $file)))
+
+    # Extract all bullet entries (lines starting with "* ") and strip the marker
+    set -l entries (grep '^\* ' $file | string replace -r '^\* ' '')
+    if test (count $entries) -eq 0
+        return
+    end
+
+    # Pick one entry at random and tag it with both +random and the source file tag
+    set -l entry $entries[(builtin random 1 (count $entries))]
+    set -l parsed (_taskwarrior::random_quote_parse_entry $entry)
+    set -l add_args --tag random --tag $file_tag
+    test -n "$parsed[1]"; and set -a add_args --project $parsed[1]
+    test (builtin random 1 10) -eq 1; and set -a add_args --tag work
+    _taskwarrior::add_task $add_args $parsed[2]
+end
+
 # Fills available +random task slots by picking random bullet-point entries from
 # random .md files in the notes/random directory. Each slot gets one entry chosen
 # by selecting a random file and then a random "* "-prefixed line within it.
@@ -283,37 +305,24 @@ function taskwarrior::random_quote
 
     # Fill each open slot with one randomly selected task
     for i in (seq $slots)
-        # Pick a random .md file from the pool
         set -l file $md_files[(builtin random 1 (count $md_files))]
+        _taskwarrior::fill_random_slot $file
+    end
 
-        # Derive a tag from the filename: strip path and extension, lowercase
-        # e.g. /home/paul/Notes/random/Focus.md → focus
-        set -l file_tag (string lower -- (string replace -r '\.md$' '' (basename $file)))
-
-        # Extract all bullet entries (lines starting with "* ") and strip the marker
-        set -l entries (grep '^\* ' $file | string replace -r '^\* ' '')
-        if test (count $entries) -eq 0
-            continue
-        end
-
-        # Pick one entry at random and tag it with both +random and the source file tag
-        set -l entry $entries[(builtin random 1 (count $entries))]
-        set -l parsed (_taskwarrior::random_quote_parse_entry $entry)
-        set -l add_args --tag random --tag $file_tag
-        test -n "$parsed[1]"; and set -a add_args --project $parsed[1]
-        test (builtin random 1 10) -eq 1; and set -a add_args --tag work
-        _taskwarrior::add_task $add_args $parsed[2]
+    # Ensure there is always at least one +maybe task pending
+    if test (task status:pending +maybe count) -eq 0
+        _taskwarrior::fill_random_slot "$HOME/Notes/random/Maybe.md"
     end
 end
 
 function taskwarrior::invoke
-    yes | task +tr -track modify +track -tr
     taskwarrior::export
     taskwarrior::import
     taskwarrior::cleanup
     taskwarrior::random_quote
     taskwarrior::unscheduled
     taskwarrior::quicklogger
+    yes | task +tr -track modify +track -tr
 end
 
 abbr -a t task
