@@ -57,7 +57,7 @@ function tmux::project
     if not test -f $TMUX_FZF_GIT_INDEX
         find $git_dir -maxdepth 4 -type d -name .git \
             | sed 's|/.git$||' | sed "s|$git_dir/||" \
-            | grep -F -v . | grep -v gitsyncer-workdir >$TMUX_FZF_GIT_INDEX
+            | grep -F -v . | grep -v gitsyncer-workdir | grep -v upstream >$TMUX_FZF_GIT_INDEX
     end
 
     set -l matches (grep "$filter" $TMUX_FZF_GIT_INDEX)
