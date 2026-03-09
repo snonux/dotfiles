@@ -41,6 +41,7 @@ function tmux::project
     end
 
     set -l git_dir ~/git
+    set -l tmp_dir $TMPUTILS_DIR
 
     set -l index_age 0
     if test -f $TMUX_FZF_GIT_INDEX
@@ -58,6 +59,14 @@ function tmux::project
         find $git_dir -maxdepth 4 -type d -name .git \
             | sed 's|/.git$||' | sed "s|$git_dir/||" \
             | grep -F -v . | grep -v gitsyncer-workdir | grep -v upstream >$TMUX_FZF_GIT_INDEX
+        # Add top-level directories from TMPUTILS_DIR (non-git)
+        if test -d $tmp_dir
+            for d in (ls $tmp_dir)
+                if test -d $tmp_dir/$d
+                    echo "tmp/$d" >>$TMUX_FZF_GIT_INDEX
+                end
+            end
+        end
     end
 
     set -l matches (grep "$filter" $TMUX_FZF_GIT_INDEX)
@@ -67,7 +76,12 @@ function tmux::project
     else
         set session (printf "%s\n" $matches | fzf)
     end
-    cd $git_dir/$session
+    if string match -r '^tmp/' $session
+        set -l real (string replace -r '^tmp/' '' $session)
+        cd $TMPUTILS_DIR/$real
+    else if test -d $git_dir/$session
+        cd $git_dir/$session
+    end
     tmux::attach $session
 end
 
