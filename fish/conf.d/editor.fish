@@ -41,6 +41,11 @@ function hxdiff
     diff -u -r $argv >$tmp
     hx $tmp
     rm -f $tmp
+
+end
+
+function tfdiff
+    hxdiff --exclude='state.tf' --exclude='*.tfstate*'
 end
 
 abbr -a lhx 'editor::helix::open_with_lock'
