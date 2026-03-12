@@ -56,7 +56,7 @@ function tmux::project
     end
 
     if not test -f $TMUX_FZF_GIT_INDEX
-        find $git_dir -maxdepth 4 -type d -name .git \
+        find $git_dir -maxdepth 5 -type d -name .git \
             | sed 's|/.git$||' | sed "s|$git_dir/||" \
             | grep -F -v . | grep -v gitsyncer-workdir | grep -v upstream >$TMUX_FZF_GIT_INDEX
         # Add top-level directories from TMPUTILS_DIR (non-git)
