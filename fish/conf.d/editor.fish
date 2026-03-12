@@ -36,6 +36,13 @@ function editor::helix::edit::remote
     hx $local_path
 end
 
+function hxdiff
+    set tmp (mktemp /tmp/hxdiff_XXXXXX.diff)
+    diff -u -r $argv >$tmp
+    hx $tmp
+    rm -f $tmp
+end
+
 abbr -a lhx 'editor::helix::open_with_lock'
 abbr -a hxl 'editor::helix::open_with_lock'
 abbr -a hxlf 'editor::helix::open_with_lock::force'
