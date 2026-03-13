@@ -96,7 +96,7 @@ end
 function taskwarrior::export::wins
     set -l winsfile ~/Notes/random/Wins.md
     if test -f $winsfile
-        # Export all wins project tags
+        # Export all wins tags
         for tag in win wins
             task +$tag -random status:pending export | jq -r '.[].description' | sed 's/^/* /' >>$winsfile.tmp.1
             # Guard against "No tasks specified." when there is nothing to delete
@@ -106,7 +106,7 @@ function taskwarrior::export::wins
 
         echo "# wins (7)" >$winsfile.tmp.2
         echo '' >>$winsfile.tmp.2
-        echo 'Thinks I wins will do something about or wins not' >>$winsfile.tmp.2
+        echo 'Wins I had' >>$winsfile.tmp.2
         echo '' >>$winsfile.tmp.2
         sort -u $winsfile.tmp.1 >>$winsfile.tmp.2 && mv $winsfile.tmp.2 $winsfile && rm $winsfile.tmp.1
     end
