@@ -45,7 +45,7 @@ function hxdiff
 end
 
 function tfdiff
-    hxdiff --exclude=.claude --exclude=.cursor --exclude='*.tfplan' --exclude=modules.json --exclude=.terraform --exclude=.terraform.lock.hcl $argv
+    hxdiff --exclude=.claude --exclude=.cursor --exclude='tfplan' --exclude='*.tfplan' --exclude=modules.json --exclude=.terraform --exclude=.terraform.lock.hcl $argv
 end
 
 abbr -a lhx 'editor::helix::open_with_lock'

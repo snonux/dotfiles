@@ -111,6 +111,8 @@ end
 abbr wetter 'curl http://wttr.in'
 
 abbr tf terraform
+abbr tfplan 'terraform plan -out=tfplan'
+abbr tfappl 'terraform apply tfplan'
 
 function touchtype
     tt --noskip --noreport --showwpm --bold --theme (tt -list themes | sort -R | head -n1) $argv
