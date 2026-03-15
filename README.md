@@ -13,3 +13,4 @@ Prompts are managed from `~/Notes/Prompts` and linked by `home_prompts` into eac
 - Codex CLI slash command path: `~/.codex/prompts`
 - Shared agent prompt paths: `~/.agents/{commands,skills}`
 - Codex CLI runtime config: `~/.codex/config.toml`
+- OpenCode runtime config: `~/.config/opencode/opencode.json` via `rex home`, using `OLLAMA_HOST` from `fish/conf.d/ai.fish` when available
