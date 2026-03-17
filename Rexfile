@@ -69,8 +69,8 @@ sub opencode_config_content {
 
     return JSON::PP->new->ascii->pretty->canonical->encode(
         {
-            '$schema' => 'https://opencode.ai/config.json',
-            'model'   => 'ollama/nemotron-3-super:latest',
+            '$schema'  => 'https://opencode.ai/config.json',
+            'model'    => 'ollama/qwen3-coder:30b',
             'provider' => {
                 'ollama' => {
                     'models' => {
@@ -82,6 +82,9 @@ sub opencode_config_content {
                         },
                         'nemotron-3-super:latest' => {
                             'name' => 'Nemotron 3 Super'
+                        },
+                        'qwen3-coder-next' => {
+                            'name' => 'Qwen3 Coder Next'
                         },
                         'qwen3-coder:30b' => {
                             'name' => 'Qwen3 Coder 30B'
@@ -244,7 +247,7 @@ task 'home_prompts', sub {
                 my $nested = "$target/$leaf";
                 if ( -l $nested && readlink($nested) eq $source ) {
                     CORE::unlink($nested) or die "Could not remove nested $label symlink at $nested: $!";
-                    rmdir $target or die "Could not remove legacy $label directory at $target: $!";
+                    rmdir $target         or die "Could not remove legacy $label directory at $target: $!";
                 }
                 else {
                     die "Refusing to overwrite existing directory at $target while linking $label";

@@ -1,0 +1,47 @@
+---
+name: f3s
+description: Reference skill for the f3s homelab—three Beelink S12 Pro hosts (f0/f1/f2) running FreeBSD with Rocky Linux Bhyve VMs (r0/r1/r2) and a k3s Kubernetes cluster. Use when troubleshooting or making configuration decisions for the f3s setup.
+---
+
+# f3s Homelab Reference
+
+**f3s** = **f**reeBSD + **k3s**. Three physical Beelink S12 Pro mini-PCs (Intel N100) running FreeBSD as the base OS, each hosting a Rocky Linux 9 bhyve VM, forming a 3-node HA k3s Kubernetes cluster.
+
+## When to Use
+
+- Troubleshooting the homelab cluster
+- Making decisions about configuration, storage, networking, or workload placement
+- Answering questions about how the setup works
+
+## Reference Files
+
+Detailed reference documentation is in the `references/` subfolder:
+
+- [Hardware](references/hardware.md) — Beelink S12 Pro specs, network switch, IPs, MAC addresses, Wake-on-LAN
+- [FreeBSD Setup](references/freebsd-setup.md) — Base OS install, packages, ZFS snapshots, configuration
+- [UPS & Power](references/ups-power.md) — APC BX750MI, apcupsd config on f0/f1/f2
+- [Rocky Linux VMs](references/rocky-linux-vms.md) — Bhyve, vm-bhyve, VM config, NVMe disk fix
+- [WireGuard Mesh](references/wireguard.md) — Mesh topology, IP assignments, peer configs
+- [Storage](references/storage.md) — ZFS (zdata), CARP, NFS over stunnel, zrepl replication
+- [k3s Setup](references/k3s-setup.md) — HA k3s cluster, etcd, node IPs, kubeconfig, ArgoCD
+- [Observability](references/observability.md) — Prometheus, Grafana, Loki, Alloy, Tempo
+
+## Quick Reference: Host IPs
+
+| Host | Role | LAN IP | WireGuard IP |
+|------|------|--------|--------------|
+| f0 | FreeBSD host | 192.168.1.130 | 192.168.2.130 |
+| f1 | FreeBSD host | 192.168.1.131 | 192.168.2.131 |
+| f2 | FreeBSD host | 192.168.1.132 | 192.168.2.132 |
+| r0 | Rocky Linux VM on f0 | 192.168.1.120 | 192.168.2.120 |
+| r1 | Rocky Linux VM on f1 | 192.168.1.121 | 192.168.2.121 |
+| r2 | Rocky Linux VM on f2 | 192.168.1.122 | 192.168.2.122 |
+| blowfish | OpenBSD internet GW | — | 192.168.2.110 |
+| fishfinger | OpenBSD internet GW | — | 192.168.2.111 |
+| earth | Fedora laptop (roaming) | — | 192.168.2.200 |
+| pixel7pro | Android (roaming) | — | 192.168.2.201 |
+| f3s-storage-ha | CARP VIP (f0/f1) | 192.168.1.138 | — |
+
+## Config Repository
+
+All manifests and config: `https://codeberg.org/snonux/conf` (directory: `f3s/`)
