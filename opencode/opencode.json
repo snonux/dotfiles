@@ -1,0 +1,45 @@
+{
+   "$schema" : "https://opencode.ai/config.json",
+   "model" : "ollama/bullpoint/Qwen3-Coder-Next-AWQ-4bit",
+   "provider" : {
+      "ollama" : {
+         "models" : {
+            "bullpoint/Qwen3-Coder-Next-AWQ-4bit" : {
+               "name" : "Qwen3 Coder Next (vLLM)"
+            },
+            "openai/gpt-oss-20b" : {
+               "name" : "GPT-OSS 20B (vLLM)"
+            },
+            "openai/gpt-oss-120b" : {
+               "name" : "GPT-OSS 120B (vLLM)"
+            },
+            "casperhansen/llama-3.3-70b-instruct-awq" : {
+               "name" : "Llama 3.3 70B AWQ (vLLM)"
+            },
+            "Qwen/Qwen2.5-Coder-32B-Instruct-AWQ" : {
+               "name" : "Qwen2.5 Coder 32B (vLLM)"
+            },
+            "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ" : {
+               "name" : "Qwen3 Coder 30B (vLLM)"
+            },
+            "casperhansen/deepseek-r1-distill-qwen-32b-awq" : {
+               "name" : "DeepSeek-R1-Distill 32B (vLLM)"
+            },
+            "Qwen/Qwen3-32B-AWQ" : {
+               "name" : "Qwen3 32B (vLLM)"
+            },
+            "cyankiwi/Devstral-Small-2507-AWQ-4bit" : {
+               "name" : "Devstral Small 2507 (vLLM)"
+            },
+            "cyankiwi/NVIDIA-Nemotron-3-Super-120B-A12B-AWQ-4bit" : {
+               "name" : "Nemotron 3 Super 120B (vLLM)"
+            }
+         },
+         "name" : "Ollama",
+         "npm" : "@ai-sdk/openai-compatible",
+         "options" : {
+            "baseURL" : "http://hyperstack.wg1:11434/v1"
+         }
+      }
+   }
+}

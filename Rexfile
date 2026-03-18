@@ -1,6 +1,5 @@
 use Rex -feature => [ '1.14', 'exec_autodie' ];
 use Rex::Logger;
-use JSON::PP ();
 
 our $HOME = $ENV{HOME};
 
@@ -39,67 +38,6 @@ sub ensure {
     ( $dst =~ /\/$/ ? \&ensure_dir : \&ensure_file )->( $src, $dst, $mode );
 }
 
-sub configured_ollama_host {
-    my $ollama_host = $ENV{OLLAMA_HOST};
-
-    if ( !defined $ollama_host || $ollama_host eq q{} ) {
-        my $fish_config = "$DOT/fish/conf.d/ai.fish";
-
-        if ( open my $fh, '<', $fish_config ) {
-            while ( my $line = <$fh> ) {
-                if ( $line =~ /set -gx OLLAMA_HOST\s+(\S+)/ ) {
-                    $ollama_host = $1;
-                    last;
-                }
-            }
-
-            close $fh;
-        }
-    }
-
-    $ollama_host ||= 'http://hyperstack.wg1:11434';
-    $ollama_host =~ s{/\z}{};
-    $ollama_host =~ s{/v1\z}{};
-
-    return $ollama_host;
-}
-
-sub opencode_config_content {
-    my $base_url = configured_ollama_host() . '/v1';
-
-    return JSON::PP->new->ascii->pretty->canonical->encode(
-        {
-            '$schema'  => 'https://opencode.ai/config.json',
-            'model'    => 'ollama/qwen3-coder:30b',
-            'provider' => {
-                'ollama' => {
-                    'models' => {
-                        'gpt-oss:120b' => {
-                            'name' => 'GPT-OSS 120B'
-                        },
-                        'gpt-oss:20b' => {
-                            'name' => 'GPT-OSS 20B'
-                        },
-                        'nemotron-3-super:latest' => {
-                            'name' => 'Nemotron 3 Super'
-                        },
-                        'qwen3-coder-next' => {
-                            'name' => 'Qwen3 Coder Next'
-                        },
-                        'qwen3-coder:30b' => {
-                            'name' => 'Qwen3 Coder 30B'
-                        },
-                    },
-                    'name'    => 'Ollama',
-                    'npm'     => '@ai-sdk/openai-compatible',
-                    'options' => {
-                        'baseURL' => $base_url
-                    },
-                },
-            },
-        }
-    );
-}
 
 desc 'Install packages on Termux';
 task 'pkg_termux', sub {
@@ -212,20 +150,7 @@ desc 'Install ~/.config/lazygit';
 task 'home_lazygit', sub { ensure "$DOT/lazygit/*" => "$HOME/.config/lazygit/" };
 
 desc 'Install ~/.config/opencode';
-task 'home_opencode', sub {
-    my $opencode_dir = "$HOME/.config/opencode";
-
-    Rex::Logger::info( 'Deploying OpenCode config via ' . configured_ollama_host() );
-
-    file $opencode_dir,
-      ensure => 'directory',
-      mode   => '0750';
-
-    file "$opencode_dir/opencode.json",
-      ensure  => 'present',
-      content => opencode_config_content(),
-      mode    => '0640';
-};
+task 'home_opencode', sub { ensure "$DOT/opencode/*" => "$HOME/.config/opencode/" };
 
 desc 'Install prompt links for AI tools';
 task 'home_prompts', sub {
