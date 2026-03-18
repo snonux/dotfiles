@@ -94,10 +94,13 @@ Apply with: `doas pfctl -f /etc/pf.conf`
 
 ## Example wg0.conf (f0)
 
+> **FreeBSD 15.0 note**: The IPv4 `Address` line **must** include a prefix length (e.g. `/32`). Without it, `service wireguard start` fails: "setting interface address without mask is no longer supported". The IPv6 address already has `/64` so is unaffected.
+
 ```
 [Interface]
 # f0.wg0.wan.buetow.org
-Address = 192.168.2.130
+Address = 192.168.2.130/32
+Address = fd42:beef:cafe:2::130/64
 PrivateKey = **************************
 ListenPort = 56709
 

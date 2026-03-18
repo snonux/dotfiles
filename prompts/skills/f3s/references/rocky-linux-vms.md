@@ -154,7 +154,14 @@ doas vm start rocky
 ```sh
 doas vm list                          # list all VMs and state
 doas vm start rocky                   # start VM
-doas vm stop rocky                    # graceful stop
+doas vm stop rocky                    # graceful ACPI stop (can be slow)
 doas vm reset rocky                   # force reset
 doas sockstat -4 | grep 5900          # check VNC port
 ```
+
+> **`vm stop` is ACPI-only** — it sends a shutdown signal but does not wait. If the VM does not shut down within a reasonable time, force-kill the bhyve process:
+> ```sh
+> doas vm list         # note the PID in parentheses, e.g. Running (2086)
+> doas kill -9 2086
+> ```
+> **Warning**: Force-killing bhyve with `kill -9` mid-write can corrupt the k3s etcd WAL on the Rocky VM, causing a crash loop on next start. Only use as a last resort, and check etcd health after. See k3s-setup.md for the recovery procedure.

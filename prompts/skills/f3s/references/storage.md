@@ -346,6 +346,16 @@ doas mkdir -p /data/nfs/k3svolumes
 doas chmod 755 /data/nfs/k3svolumes
 ```
 
+> **FreeBSD 15.0 note**: FreeBSD 15.0 changed the default for `vfs.nfsd.nfs_privport` from `0` to `1`, requiring NFS clients to connect from privileged ports (<1024). NFS over stunnel uses unprivileged ports, so this breaks all NFS mounts on the r-hosts. Fix on **each f-host**:
+> ```sh
+> # Apply immediately
+> doas sysctl vfs.nfsd.nfs_privport=0
+> # Persist across reboots
+> echo "vfs.nfsd.nfs_privport=0" | doas tee -a /etc/sysctl.conf
+> # Remount on each r-host
+> mount -a
+> ```
+
 `/etc/exports` (stunnel clients appear as localhost):
 
 ```

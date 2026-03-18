@@ -3,3 +3,5 @@ if type -q zoxide
 else
     echo "zoxide not installed?"
 end
+
+abbr z zi
