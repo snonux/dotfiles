@@ -41,9 +41,9 @@ apcaccess          # full status
 apcaccess -p TIMELEFT  # remaining minutes
 ```
 
-## `apcupsd` on f1 and f2 (network clients)
+## `apcupsd` on f1, f2, and f3 (network clients)
 
-`f1` and `f2` query the UPS status from `f0` over the network (port 3551).
+`f1`, `f2`, and `f3` query the UPS status from `f0` over the network (port 3551).
 They are configured to shut down *earlier* than `f0` to avoid losing the UPS status feed.
 
 ### Config diff from sample (f1 and f2)
@@ -65,10 +65,10 @@ apcaccess | grep Percent  # verify
 ## Shutdown Order
 
 On power failure, the expected graceful shutdown sequence is:
-1. **f1 and f2** — shut down first (BATTERYLEVEL 10, MINUTES 6)
+1. **f1, f2, and f3** — shut down first (BATTERYLEVEL 10, MINUTES 6)
 2. **f0** — shuts down last (BATTERYLEVEL 5, MINUTES 3)
 
-This ensures f1/f2 can still reach f0's apcupsd to learn the UPS status before f0 shuts down.
+This ensures f1/f2/f3 can still reach f0's apcupsd to learn the UPS status before f0 shuts down.
 
 ## Logs
 

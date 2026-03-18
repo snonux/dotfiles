@@ -1,11 +1,11 @@
 ---
 name: f3s
-description: Reference skill for the f3s homelab—three Beelink S12 Pro hosts (f0/f1/f2) running FreeBSD with Rocky Linux Bhyve VMs (r0/r1/r2) and a k3s Kubernetes cluster. Use when troubleshooting or making configuration decisions for the f3s setup.
+description: Reference skill for the f3s homelab—four Beelink S12 Pro hosts (f0/f1/f2/f3) running FreeBSD with Rocky Linux Bhyve VMs and a k3s Kubernetes cluster. f0/f1/f2 run r0/r1/r2 k3s nodes; f3 is standalone bhyve only (not part of k3s). Use when troubleshooting or making configuration decisions for the f3s setup.
 ---
 
 # f3s Homelab Reference
 
-**f3s** = **f**reeBSD + **k3s**. Three physical Beelink S12 Pro mini-PCs (Intel N100) running FreeBSD as the base OS, each hosting a Rocky Linux 9 bhyve VM, forming a 3-node HA k3s Kubernetes cluster.
+**f3s** = **f**reeBSD + **k3s**. Four physical Beelink S12 Pro mini-PCs (Intel N100) running FreeBSD as the base OS. f0/f1/f2 each host a Rocky Linux 9 bhyve VM forming a 3-node HA k3s Kubernetes cluster. f3 is a standalone host for bhyve VMs only — not part of the k3s cluster.
 
 ## When to Use
 
@@ -20,7 +20,7 @@ Detailed reference documentation is in the `references/` subfolder:
 - [Hardware](references/hardware.md) — Beelink S12 Pro specs, network switch, IPs, MAC addresses, Wake-on-LAN
 - [FreeBSD Setup](references/freebsd-setup.md) — Base OS install, packages, ZFS snapshots, configuration
 - [UPS & Power](references/ups-power.md) — APC BX750MI, apcupsd config on f0/f1/f2
-- [Rocky Linux VMs](references/rocky-linux-vms.md) — Bhyve, vm-bhyve, VM config, NVMe disk fix
+- [Rocky Linux VMs](references/rocky-linux-vms.md) — Bhyve, vm-bhyve, VM config, NVMe disk fix; FreeBSD VM on f3 (migrated from f0)
 - [WireGuard Mesh](references/wireguard.md) — Mesh topology, IP assignments, peer configs
 - [Storage](references/storage.md) — ZFS (zdata), CARP, NFS over stunnel, zrepl replication
 - [k3s Setup](references/k3s-setup.md) — HA k3s cluster, etcd, node IPs, kubeconfig, ArgoCD
@@ -33,6 +33,7 @@ Detailed reference documentation is in the `references/` subfolder:
 | f0 | FreeBSD host | 192.168.1.130 | 192.168.2.130 |
 | f1 | FreeBSD host | 192.168.1.131 | 192.168.2.131 |
 | f2 | FreeBSD host | 192.168.1.132 | 192.168.2.132 |
+| f3 | FreeBSD host (standalone bhyve, not k3s) | 192.168.1.133 | 192.168.2.133 |
 | r0 | Rocky Linux VM on f0 | 192.168.1.120 | 192.168.2.120 |
 | r1 | Rocky Linux VM on f1 | 192.168.1.121 | 192.168.2.121 |
 | r2 | Rocky Linux VM on f2 | 192.168.1.122 | 192.168.2.122 |

@@ -2,7 +2,7 @@
 
 ## Physical Nodes
 
-Three **Beelink S12 Pro** mini-PCs with **Intel N100** CPUs.
+Four **Beelink S12 Pro** mini-PCs with **Intel N100** CPUs. f0/f1/f2 each run a Rocky Linux bhyve VM as k3s nodes. f3 is a standalone bhyve host — not part of the k3s cluster.
 
 ### Specs (per node)
 
@@ -34,6 +34,7 @@ MAC addresses:
 | f0 | e8:ff:1e:d7:1c:ac |
 | f1 | e8:ff:1e:d7:1e:44 |
 | f2 | e8:ff:1e:d7:1c:a0 |
+| f3 | e8:ff:1e:d7:f3:d7 |
 
 BIOS requirements for WoL: enable "Wake on LAN", disable "ERP Support", enable "Power on by PCI-E".
 

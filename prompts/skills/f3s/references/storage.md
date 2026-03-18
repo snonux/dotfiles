@@ -11,6 +11,7 @@ Note: Original plan was HAST, replaced by **zrepl** (ZFS send/receive) — more 
 - **f0**: 512GB M.2 (OS/zroot) + Samsung SSD 870 EVO 1TB (zdata)
 - **f1**: 512GB M.2 (OS/zroot) + Crucial CT1000BX500SSD1 1TB (zdata)
 - **f2**: No second drive (no zdata pool)
+- **f3**: 512GB M.2 (OS/zroot); no zdata pool yet (planned)
 
 ## ZFS: zdata Pool Setup
 
@@ -24,6 +25,8 @@ doas zpool create zdata ada1   # ada1 = second SSD
 ## ZFS Encryption Keys (USB Key Storage)
 
 Encryption keys are stored on USB flash drives (UFS-formatted, mounted at `/keys`).
+All four hosts (f0/f1/f2/f3) have USB keys at `/dev/da0` mounted at `/keys`, each holding
+all 8 key files as cross-host backups.
 
 ```sh
 # Format and mount USB key (on each node)
@@ -32,15 +35,17 @@ echo '/dev/da0 /keys ufs rw 0 2' | doas tee -a /etc/fstab
 doas mkdir /keys
 doas mount /keys
 
-# Generate keys (on f0, then copy to f1 and f2)
+# Generate keys (on f0, then copy to f1, f2, f3)
 doas openssl rand -out /keys/f0.lan.buetow.org:bhyve.key 32
 doas openssl rand -out /keys/f1.lan.buetow.org:bhyve.key 32
 doas openssl rand -out /keys/f2.lan.buetow.org:bhyve.key 32
+doas openssl rand -out /keys/f3.lan.buetow.org:bhyve.key 32
 doas openssl rand -out /keys/f0.lan.buetow.org:zdata.key 32
 doas openssl rand -out /keys/f1.lan.buetow.org:zdata.key 32
 doas openssl rand -out /keys/f2.lan.buetow.org:zdata.key 32
+doas openssl rand -out /keys/f3.lan.buetow.org:zdata.key 32
 doas chown root /keys/* && doas chmod 400 /keys/*
-# Copy to f1 and f2 via tarball
+# Copy to f1, f2, f3 via tarball
 ```
 
 ## ZFS Encryption Setup
@@ -78,6 +83,10 @@ doas sysrc zfskeys_datasets="zdata/enc zdata/enc/nfsdata zroot/bhyve"
 # On f1
 doas sysrc zfskeys_enable=YES
 doas sysrc zfskeys_datasets="zdata/enc zroot/bhyve zdata/sink/f0/zdata/enc/nfsdata"
+
+# On f3 (bhyve VMs only, no zdata pool yet)
+doas sysrc zfskeys_enable=YES
+doas sysrc zfskeys_datasets="zroot/bhyve"
 doas zfs set keylocation=file:///keys/f0.lan.buetow.org:zdata.key \
   zdata/sink/f0/zdata/enc/nfsdata
 ```
@@ -126,11 +135,25 @@ jobs:
           grid: 4x7d | 6x30d
           regex: "^zrepl_.*"
 
-  - name: f0_to_f1_freebsd
+  # Note: f0_to_f1_freebsd job removed — the FreeBSD VM was migrated to f3.
+  # It is now replicated from f3 → f2 (see f3 zrepl config below).
+```
+
+### f3 configuration (push: freebsd VM → f2)
+
+```yaml
+global:
+  logging:
+    - type: stdout
+      level: info
+      format: human
+
+jobs:
+  - name: f3_to_f2_freebsd
     type: push
     connect:
       type: tcp
-      address: "192.168.2.131:8888"
+      address: "192.168.2.132:8888"   # f2 WireGuard IP
     filesystems:
       "zroot/bhyve/freebsd": true     # development FreeBSD VM
     send:
@@ -138,7 +161,7 @@ jobs:
     snapshotting:
       type: periodic
       prefix: zrepl_
-      interval: 10m                   # every 10 minutes
+      interval: 10m
     pruning:
       keep_sender:
         - type: last_n
@@ -153,6 +176,39 @@ jobs:
           grid: 4x7d
           regex: "^zrepl_.*"
 ```
+
+### f2 configuration (sink for f3's freebsd VM)
+
+f2 has no second drive so the sink lives in `zroot/sink`:
+
+```sh
+doas zfs create zroot/sink
+```
+
+`/usr/local/etc/zrepl/zrepl.yml`:
+
+```yaml
+global:
+  logging:
+    - type: stdout
+      level: info
+      format: human
+
+jobs:
+  - name: sink
+    type: sink
+    serve:
+      type: tcp
+      listen: "192.168.2.132:8888"    # f2 WireGuard IP
+      clients:
+        "192.168.2.133": "f3"
+    recv:
+      placeholder:
+        encryption: inherit
+    root_fs: "zroot/sink"
+```
+
+Replicated path: `zroot/bhyve/freebsd` → `zroot/sink/f3/zroot/bhyve/freebsd`
 
 ### f1 configuration (sink)
 

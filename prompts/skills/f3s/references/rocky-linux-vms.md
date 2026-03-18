@@ -10,7 +10,7 @@
 
 Tool: **vm-bhyve** (not built into FreeBSD, installed via pkg).
 
-### Install and initialise (run on each of f0, f1, f2)
+### Install and initialise (run on each of f0, f1, f2, f3)
 ```sh
 doas pkg install vm-bhyve bhyve-firmware
 doas sysrc vm_enable=YES
@@ -165,3 +165,58 @@ doas sockstat -4 | grep 5900          # check VNC port
 > doas kill -9 2086
 > ```
 > **Warning**: Force-killing bhyve with `kill -9` mid-write can corrupt the k3s etcd WAL on the Rocky VM, causing a crash loop on next start. Only use as a last resort, and check etcd health after. See k3s-setup.md for the recovery procedure.
+
+## FreeBSD Bhyve VM on f3
+
+f3 hosts a standalone FreeBSD development VM (not part of k3s). It was migrated from f0 via `zfs send`.
+
+### VM config (`/zroot/bhyve/freebsd/freebsd.conf`)
+
+```
+loader="bhyveload"
+cpu=4
+memory=14G
+network0_type="virtio-net"
+network0_switch="public"
+disk0_type="nvme"
+disk0_name="disk0.img"    # 20GB OS disk
+disk1_type="nvme"
+disk1_name="disk1.img"    # 100GB data disk
+uuid="<unique>"
+network0_mac="<unique>"
+```
+
+- Accessible as `freebsd.lan` (hostname inside the VM)
+- Auto-starts on f3 boot: `vm_list="freebsd"` in `/etc/rc.conf`
+- `zroot/bhyve/freebsd` encrypted with `f3.lan.buetow.org:bhyve.key`
+- Replicated to f2 via zrepl (`f3_to_f2_freebsd` job, every 10 min → `zroot/sink/f3/zroot/bhyve/freebsd`)
+
+### Migration procedure (zfs send)
+
+```sh
+# On source host — snapshot and send
+doas zfs snapshot zroot/bhyve/<vmname>@migrate
+ssh sourcehost 'doas zfs send zroot/bhyve/<vmname>@migrate' | ssh desthost 'doas zfs recv -u zroot/bhyve/<vmname>'
+
+# On dest host — mount and start
+doas zfs mount zroot/bhyve/<vmname>
+doas vm start <vmname>
+```
+
+Note: Non-raw send re-encrypts under the destination's `zroot/bhyve` key automatically.
+
+### Slow SSH login inside the VM
+
+If `ssh freebsd.lan` takes ~30 seconds, SLAAC is injecting an unreachable IPv6 DNS server. Fix via `/etc/resolvconf.conf`:
+
+```sh
+# Inside freebsd.lan:
+cat <<EOF | doas tee /etc/resolvconf.conf
+name_servers="192.168.1.1"
+private_interfaces="vtnet0"
+EOF
+doas resolvconf -u
+
+# Also set UseDNS no in /etc/ssh/sshd_config and restart sshd
+doas service sshd restart
+```

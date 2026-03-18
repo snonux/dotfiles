@@ -5,7 +5,7 @@
 Full-mesh VPN network connecting all f3s infrastructure hosts plus two roaming clients.
 
 **Infrastructure hosts** (full mesh — every host connects to every other):
-- `f0`, `f1`, `f2` — FreeBSD physical nodes (home LAN)
+- `f0`, `f1`, `f2`, `f3` — FreeBSD physical nodes (home LAN)
 - `r0`, `r1`, `r2` — Rocky Linux Bhyve VMs
 - `blowfish`, `fishfinger` — OpenBSD internet gateways (OpenBSD Amsterdam and Hetzner)
 
@@ -22,6 +22,7 @@ Even `fN <-> rN` tunnels exist (technically redundant since the VM runs on the h
 | f0 | 192.168.2.130 | fd42:beef:cafe:2::130 | FreeBSD host |
 | f1 | 192.168.2.131 | fd42:beef:cafe:2::131 | FreeBSD host |
 | f2 | 192.168.2.132 | fd42:beef:cafe:2::132 | FreeBSD host |
+| f3 | 192.168.2.133 | fd42:beef:cafe:2::133 | FreeBSD host (standalone bhyve) |
 | r0 | 192.168.2.120 | fd42:beef:cafe:2::120 | Rocky VM (k3s node) |
 | r1 | 192.168.2.121 | fd42:beef:cafe:2::121 | Rocky VM (k3s node) |
 | r2 | 192.168.2.122 | fd42:beef:cafe:2::122 | Rocky VM (k3s node) |
@@ -34,7 +35,7 @@ Even `fN <-> rN` tunnels exist (technically redundant since the VM runs on the h
 
 WireGuard hostnames: `<host>.wg0.wan.buetow.org` (e.g. `f0.wg0.wan.buetow.org`)
 
-## FreeBSD Setup (f0, f1, f2)
+## FreeBSD Setup (f0, f1, f2, f3)
 
 ```sh
 doas pkg install wireguard-tools
@@ -171,6 +172,7 @@ Add to `/etc/hosts` on each host (FreeBSD and Rocky Linux):
 192.168.2.130 f0.wg0 f0.wg0.wan.buetow.org
 192.168.2.131 f1.wg0 f1.wg0.wan.buetow.org
 192.168.2.132 f2.wg0 f2.wg0.wan.buetow.org
+192.168.2.133 f3.wg0 f3.wg0.wan.buetow.org
 192.168.2.120 r0.wg0 r0.wg0.wan.buetow.org
 192.168.2.121 r1.wg0 r1.wg0.wan.buetow.org
 192.168.2.122 r2.wg0 r2.wg0.wan.buetow.org
@@ -179,12 +181,24 @@ Add to `/etc/hosts` on each host (FreeBSD and Rocky Linux):
 fd42:beef:cafe:2::130 f0.wg0.wan.buetow.org
 fd42:beef:cafe:2::131 f1.wg0.wan.buetow.org
 fd42:beef:cafe:2::132 f2.wg0.wan.buetow.org
+fd42:beef:cafe:2::133 f3.wg0.wan.buetow.org
 fd42:beef:cafe:2::120 r0.wg0.wan.buetow.org
 fd42:beef:cafe:2::121 r1.wg0.wan.buetow.org
 fd42:beef:cafe:2::122 r2.wg0.wan.buetow.org
 fd42:beef:cafe:2::110 blowfish.wg0.wan.buetow.org
 fd42:beef:cafe:2::111 fishfinger.wg0.wan.buetow.org
 ```
+
+## Troubleshooting: `reload` vs `restart` When Adding New Peers
+
+`service wireguard reload` (used by the mesh generator) updates peer config but **does NOT add routes** for new peers. After adding a new host to the mesh, the other hosts need a full restart to get the new routes:
+
+```sh
+# On each existing host that had a new peer added via reload:
+doas service wireguard restart
+```
+
+**Symptom**: WireGuard handshake succeeds (both sides show `latest handshake`) but TCP/ICMP traffic doesn't flow — confirmed by `netstat -rn | grep 192.168.2.NNN` returning no results.
 
 ## WireGuard Mesh Generator
 
@@ -200,6 +214,19 @@ sudo dnf install -y wireguard-tools
 Config file: `wireguardmeshgenerator.yaml` — defines all hosts, their LAN/WG IPs, SSH details, and excluded peers (infrastructure nodes exclude roaming clients).
 
 The script generates all configs and can push them via SSH.
+
+### FreeBSD 15.0 fix applied to generator
+
+`wireguardmeshgenerator.rb` line 151 was updated from `/24` to `/32` for FreeBSD hosts:
+
+```ruby
+# Before (broken on FreeBSD 15.0 — start fails with "setting interface address without mask"):
+ipv4_with_mask = hosts[myself]['os'] == 'FreeBSD' ? "#{ipv4}/24" : ipv4
+# After (correct):
+ipv4_with_mask = hosts[myself]['os'] == 'FreeBSD' ? "#{ipv4}/32" : ipv4
+```
+
+Note: `reload` only reconfigures peers/PSKs — it does not change the running interface address. A `restart` is needed to pick up the address change if the interface is already running.
 
 ## Traffic Flows
 

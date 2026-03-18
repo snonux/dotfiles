@@ -49,7 +49,37 @@ doas vm start rocky
 # kubectl get nodes   (from laptop — node should be Ready)
 ```
 
-Breaking changes in 15.0 to watch for:
+## Slow SSH Login / DNS Troubleshooting
+
+If SSH logins take ~30 seconds, the cause is reverse DNS lookup timing out. Root cause on bhyve VMs: SLAAC (Router Advertisement RDNSS) injects an unreachable IPv6 nameserver into `/etc/resolv.conf` via `resolvconf`, and it's queried first.
+
+### Proper fix: `/etc/resolvconf.conf`
+
+Mark the VM's NIC as `private_interfaces` so SLAAC DNS is not added globally, and pin the IPv4 nameserver:
+
+```sh
+# On bhyve VMs — interface name is typically vtnet0
+cat <<EOF | doas tee /etc/resolvconf.conf
+# Statically configure nameserver; mark vtnet0 as private so SLAAC-provided
+# IPv6 DNS (from Router Advertisement RDNSS) is not added globally.
+name_servers="192.168.1.1"
+private_interfaces="vtnet0"
+EOF
+doas resolvconf -u   # regenerate /etc/resolv.conf immediately
+```
+
+On **FreeBSD hosts** (f0–f3), the interface is `re0` instead of `vtnet0`.
+
+### Belt-and-suspenders: disable reverse DNS in sshd
+
+```sh
+# In /etc/ssh/sshd_config: set UseDNS no
+doas service sshd restart
+```
+
+This was observed on `freebsd.lan` (FreeBSD bhyve VM on f3): `/etc/resolv.conf` had only `fd22:c702:acb7::1` (IPv6, unreachable), causing a 30-second DNS timeout on every SSH login.
+
+## Breaking Changes in 15.0 to Watch For
 - **bhyve PCI BARs**: if VM fails to boot, add `pci.enable_bars='true'` to `/zroot/bhyve/rocky/rocky.conf`
 - **NFS privileged ports**: FreeBSD 15.0 sets `vfs.nfsd.nfs_privport=1` by default, blocking NFS clients connecting via stunnel (unprivileged ports). Fix: add `vfs.nfsd.nfs_privport=0` to `/etc/sysctl.conf` on each f-host, then `doas sysctl vfs.nfsd.nfs_privport=0` to apply immediately, and remount NFS on r-hosts with `mount -a`.
 - **WireGuard interface address**: FreeBSD 15.0 requires a prefix length when setting interface addresses. Add `/32` to IPv4 `Address` lines in `/usr/local/etc/wireguard/wg0.conf` (e.g. `Address = 192.168.2.130/32`). Without this, `service wireguard start` fails with "setting interface address without mask is no longer supported".
@@ -58,11 +88,12 @@ Current version: **FreeBSD 15.0-RELEASE** (as of Part 8, upgraded from 14.3).
 
 ## /etc/hosts
 
-All three FreeBSD hosts and Rocky VMs are in `/etc/hosts` on each node:
+All four FreeBSD hosts, Rocky VMs, and the FreeBSD bhyve VM on f3 are in `/etc/hosts` on each node:
 ```
 192.168.1.130 f0 f0.lan f0.lan.buetow.org
 192.168.1.131 f1 f1.lan f1.lan.buetow.org
 192.168.1.132 f2 f2.lan f2.lan.buetow.org
+192.168.1.133 f3 f3.lan f3.lan.buetow.org
 192.168.1.120 r0 r0.lan r0.lan.buetow.org
 192.168.1.121 r1 r1.lan r1.lan.buetow.org
 192.168.1.122 r2 r2.lan r2.lan.buetow.org
