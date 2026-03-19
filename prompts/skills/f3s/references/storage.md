@@ -397,17 +397,18 @@ doas sysrc nfsuserd_enable=YES
 doas sysrc nfsuserd_flags="-domain lan.buetow.org"
 doas sysrc mountd_enable=YES
 doas sysrc rpcbind_enable=YES
+doas sysrc nfs_reserved_port_only=NO   # Required for NFS over stunnel (unprivileged ports)
 
 doas mkdir -p /data/nfs/k3svolumes
 doas chmod 755 /data/nfs/k3svolumes
 ```
 
-> **FreeBSD 15.0 note**: FreeBSD 15.0 changed the default for `vfs.nfsd.nfs_privport` from `0` to `1`, requiring NFS clients to connect from privileged ports (<1024). NFS over stunnel uses unprivileged ports, so this breaks all NFS mounts on the r-hosts. Fix on **each f-host**:
+> **FreeBSD 15.0 note**: FreeBSD 15.0 sets `nfs_reserved_port_only=YES` by default in `/etc/defaults/rc.conf`. The nfsd rc script (`/etc/rc.d/nfsd`) checks this variable and explicitly runs `sysctl vfs.nfsd.nfs_privport=1` at startup, overriding any value set in `/etc/sysctl.conf` or `/boot/loader.conf`. This blocks NFS clients connecting via stunnel (unprivileged ports). Fix on **each f-host**:
 > ```sh
-> # Apply immediately
+> # The ONLY correct fix — setting sysctl.conf does NOT work
+> doas sysrc nfs_reserved_port_only=NO
+> # Apply immediately without reboot
 > doas sysctl vfs.nfsd.nfs_privport=0
-> # Persist across reboots
-> echo "vfs.nfsd.nfs_privport=0" | doas tee -a /etc/sysctl.conf
 > # Remount on each r-host
 > mount -a
 > ```
@@ -540,6 +541,41 @@ mount -t nfs4 -o port=2323 127.0.0.1:/k3svolumes /data/nfs/k3svolumes
 ```
 
 NFS path structure on k3s nodes: `/data/nfs/k3svolumes/<app>/`
+
+## NFS Troubleshooting
+
+### All r-nodes show "access denied" when mounting NFS
+
+**Most likely cause**: `vfs.nfsd.nfs_privport=1` on the CARP MASTER. This happens after f-host reboots if `nfs_reserved_port_only` is not set to `NO` in rc.conf. The nfsd rc script (`/etc/rc.d/nfsd`) explicitly sets the sysctl based on this variable, overriding `/etc/sysctl.conf`. Fix: `doas sysrc nfs_reserved_port_only=NO` on both f0 and f1.
+
+### stunnel appears not running but port 2323 is bound
+
+`carpcontrol.sh` starts stunnel on CARP MASTER transition, but doesn't write a PID file. So `service stunnel status` reports "not running" even though stunnel is actually serving connections. Check with `doas sockstat -l | grep 2323`. If there's a stale stunnel process, kill it and restart: `doas kill <pid> && doas service stunnel start`.
+
+### Pods stuck in ContainerCreating/Unknown after NFS recovery
+
+After NFS is restored on the server side, the r-nodes' cron job (`check-nfs-mount.sh`) will auto-remount within 1 minute and force-delete stuck pods. If immediate recovery is needed: `mount /data/nfs/k3svolumes` on each r-node, then delete the stuck pods manually.
+
+### Checklist for NFS outage on CARP MASTER (f0 or f1)
+
+```sh
+# 1. Check which host is CARP MASTER
+ssh paul@f0 'ifconfig re0 | grep carp'
+ssh paul@f1 'ifconfig re0 | grep carp'
+
+# 2. On the MASTER, verify:
+doas sysctl vfs.nfsd.nfs_privport          # must be 0
+doas service nfsd status                   # must be running
+doas sockstat -l | grep 2323              # stunnel must be listening
+ls /data/nfs/nfs.DO_NOT_REMOVE            # ZFS dataset must be mounted
+
+# 3. Fix if needed:
+doas sysrc nfs_reserved_port_only=NO      # persist the fix
+doas sysctl vfs.nfsd.nfs_privport=0       # apply immediately
+doas service nfsd restart
+# For stunnel, kill stale process if needed, then:
+doas service stunnel start
+```
 
 ## AWS S3 Glacier Deep Archive Backups
 

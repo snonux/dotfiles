@@ -130,6 +130,23 @@ spec:
 
 Create the directory on the NFS share before deploying: `mkdir /data/nfs/k3svolumes/<app>/`
 
+### NFS Mount Health Monitor (on r0, r1, r2)
+
+Each Rocky Linux node runs `/usr/local/bin/check-nfs-mount.sh` via cron (every minute) to detect and fix stale/missing NFS mounts. After a successful remount, the script also **force-deletes stuck pods** on the local node (status Unknown, Pending, or ContainerCreating) so Kubernetes reschedules them with the healthy mount.
+
+```sh
+# Cron entry (on all r-nodes, as root)
+* * * * * /usr/local/bin/check-nfs-mount.sh >> /var/log/nfs-mount-check.log 2>&1
+```
+
+The script:
+1. Checks if `/data/nfs/k3svolumes` is a mountpoint and responsive (2s timeout)
+2. If stale/missing: force-unmounts + remounts NFS
+3. After successful remount: uses `kubectl` to find and delete stuck pods on this node
+4. Uses a lock file (`/var/run/nfs-mount-check.lock`) to prevent concurrent runs
+
+**Important**: If NFS goes down cluster-wide, the root cause is usually on the FreeBSD NFS server side (f0/f1). Check CARP state, stunnel, nfsd, and `vfs.nfsd.nfs_privport` (see storage.md).
+
 ## Deployment: GitOps with ArgoCD
 
 Config repository: `https://codeberg.org/snonux/conf` (directory: `f3s/`)

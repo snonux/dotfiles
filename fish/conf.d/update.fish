@@ -17,28 +17,21 @@ function update::tools
     go install golang.org/x/tools/cmd/goimports@latest &
     set -a pids $last_pid
 
-    for prog in hexai hexai-lsp-server hexai-tmux-action hexai-tmux-edit hexai-mcp-server
+    for prog in hexai hexai-lsp-server hexai-tmux-action hexai-tmux-edit hexai-mcp-server ask
         echo "Installing/updating $prog from codeberg.org/snonux/hexai/cmd/$prog@latest"
         go install codeberg.org/snonux/hexai/cmd/$prog@latest &
         set -a pids $last_pid
     end
 
-    # Renamed to hexai-lsp-server
-    if test -f ~/go/bin/hexai-lsp
-        rm ~/go/bin/hexai-lsp
-    end
-    if test -f ~/scripts/taskwarriorfeeder.rb
-        rm ~/scripts/taskwarriorfeeder.rb
+    # Obsolete moved to keepass
+    if test -f ~/go/bin/foostore
+        rm ~/go/bin/foostore
     end
 
-    for prog in tasksamurai timesamurai perc loadbars foostore
+    for prog in tasksamurai timesamurai perc loadbars
         echo "Installing/updating $prog from codeberg.org/snonux/$prog/cmd/$prog@latest"
         go install codeberg.org/snonux/$prog/cmd/$prog@latest &
         set -a pids $last_pid
-    end
-
-    if test -f ~/git/bin/timr
-        rm ~/git/bin/timr
     end
 
     if test (uname) = Darwin

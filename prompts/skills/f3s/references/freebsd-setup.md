@@ -81,7 +81,7 @@ This was observed on `freebsd.lan` (FreeBSD bhyve VM on f3): `/etc/resolv.conf` 
 
 ## Breaking Changes in 15.0 to Watch For
 - **bhyve PCI BARs**: if VM fails to boot, add `pci.enable_bars='true'` to `/zroot/bhyve/rocky/rocky.conf`
-- **NFS privileged ports**: FreeBSD 15.0 sets `vfs.nfsd.nfs_privport=1` by default, blocking NFS clients connecting via stunnel (unprivileged ports). Fix: add `vfs.nfsd.nfs_privport=0` to `/etc/sysctl.conf` on each f-host, then `doas sysctl vfs.nfsd.nfs_privport=0` to apply immediately, and remount NFS on r-hosts with `mount -a`.
+- **NFS privileged ports**: FreeBSD 15.0 sets `nfs_reserved_port_only=YES` in `/etc/defaults/rc.conf`, which causes the nfsd rc script to set `vfs.nfsd.nfs_privport=1` at startup — blocking NFS clients connecting via stunnel (unprivileged ports). **Important**: setting `vfs.nfsd.nfs_privport=0` in `/etc/sysctl.conf` or `/boot/loader.conf` does NOT work because the nfsd rc script overrides it. The correct fix on **each f-host**: `doas sysrc nfs_reserved_port_only=NO`
 - **WireGuard interface address**: FreeBSD 15.0 requires a prefix length when setting interface addresses. Add `/32` to IPv4 `Address` lines in `/usr/local/etc/wireguard/wg0.conf` (e.g. `Address = 192.168.2.130/32`). Without this, `service wireguard start` fails with "setting interface address without mask is no longer supported".
 
 Current version: **FreeBSD 15.0-RELEASE** (as of Part 8, upgraded from 14.3).
