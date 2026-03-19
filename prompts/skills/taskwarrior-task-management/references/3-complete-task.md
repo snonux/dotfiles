@@ -45,19 +45,19 @@ If the answer suggests improvements or inconsistencies, address them first. Only
 6. Only then:
 
 ```bash
-task uuid:<uuid> done
+ask uuid:<uuid> done
 ```
 
 Use the UUID that identifies the task (for example, from its annotations or from the selection step), rather than relying on a numeric ID that may have been renumbered since the last report.
 
-7. **Automatically progress to the next task in the list.** After marking the task done, if there are more agent-managed tasks in the project (e.g. `task project:<name> +agent list` shows pending/ready tasks), start the next one: load `00-context.md` and `2-start-task.md`, pick the next task from the list (respecting dependencies and "one task in progress" rule), and begin work on it. Do not stop after completing a task when a next task is available — continue to the next task in the list.
+7. **Automatically progress to the next task in the list.** After marking the task done, if there are more agent-managed tasks in the project (e.g. `ask list` shows pending/ready tasks), start the next one: load `00-context.md` and `2-start-task.md`, pick the next task from the list (respecting dependencies and "one task in progress" rule), and begin work on it. Do not stop after completing a task when a next task is available — continue to the next task in the list.
 
 ## Conventions
 
 - When creating or changing tests, add negative tests (invalid input, errors, failure paths) wherever plausible; the review sub-agent will check for this.
 - A task is not done until: best practices met, code compiles, all tests pass, negative tests included where plausible, and all first-round review comments are addressed (including coverage and test-quality checks), **and all changes are committed to git**. If code changed after review comments, a second sub-agent review must confirm the updated code.
 - Before every sub-agent review handoff, do the self-review: “Did it all make sense? Is there a better way?” Fix anything that comes up, then hand off.
-- **On completion, commit all changes to git** before running `task <id> done`; do not leave uncommitted work when marking a task complete.
-- Complete with `task <id> done` only after completion criteria, self-review(s), first review, addressing all comments, and git commit are satisfied. Add a follow-up sub-agent review only when code changed after review comments.
+- **On completion, commit all changes to git** before running `ask <id> done`; do not leave uncommitted work when marking a task complete.
+- Complete with `ask <id> done` only after completion criteria, self-review(s), first review, addressing all comments, and git commit are satisfied. Add a follow-up sub-agent review only when code changed after review comments.
 - When completing a task, note which tasks were unblocked (dependents that became ready), if any.
-- **After completing a task, automatically progress to the next task in the list** (when all tests and required sub-agent review(s) pass and the task is done). Start the next ready task in `project:<name> +agent`; do not stop unless no next task is available or the user asks to stop.
+- **After completing a task, automatically progress to the next task in the list** (when all tests and required sub-agent review(s) pass and the task is done). Start the next ready task from `ask +READY list`; do not stop unless no next task is available or the user asks to stop.

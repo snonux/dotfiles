@@ -9,13 +9,13 @@ When working on a task, **always read the full context:** description, summary, 
 View full task (including annotations):
 
 ```bash
-task <id>
+ask <id>
 ```
 
 ## Annotate a task
 
 ```bash
-task uuid:<uuid> annotate "Note about progress or context"
+ask uuid:<uuid> annotate "Note about progress or context"
 ```
 
 While making progress, **add annotations** to reflect progress, challenges, or decisions. You may refer to files, documents, or other resources (paths, doc links, snippets) so the task history stays useful for later work and for the pre-completion review.
@@ -25,9 +25,9 @@ Whenever you mention another task inside an annotation (for example, as a depend
 ## Modify a task
 
 ```bash
-task <id> modify +<tag>
-task <id> modify depends:<id2>
-task <id> modify priority:H
+ask <id> modify +<tag>
+ask <id> modify depends:<id2>
+ask <id> modify priority:H
 ```
 
 Use `uuid:<uuid>` in place of `<id>` when modifying tasks selected earlier or referenced from annotations or other docs, so changes are applied to the correct task even if IDs have been renumbered.
@@ -35,7 +35,7 @@ Use `uuid:<uuid>` in place of `<id>` when modifying tasks selected earlier or re
 ## Delete a task
 
 ```bash
-task <id> delete
+ask <id> delete
 ```
 
 ## Conventions

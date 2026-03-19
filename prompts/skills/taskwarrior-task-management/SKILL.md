@@ -7,6 +7,8 @@ description: "Manage Taskwarrior tasks scoped to the current git project. Use wh
 
 Taskwarrior tasks are scoped to the current git repository. **Load only the files you need** for the current action so the whole skill does not need to be in context.
 
+Prefer `ask ...` for agent-managed project tasks. `ask` is Taskwarrior-compatible because it pre-sets `project:<name> +agent` while preserving normal Taskwarrior commands, reports, filters, and UUID workflows. `hexai task ...` is a compatibility alias with the same behavior.
+
 Taskwarrior numeric IDs are **ephemeral working-set indices** and may be renumbered; this skill treats **UUIDs as the stable identifiers** for tasks. Use numeric IDs only within a single “report → immediate command” flow, and use UUIDs for anything that must survive across sessions, agents, or reports.
 
 ## Context and compaction

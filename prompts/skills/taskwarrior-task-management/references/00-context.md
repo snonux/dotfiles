@@ -14,10 +14,11 @@ Use it as `project:<name>` in every `task` command.
 
 ## Rules that apply to all task commands
 
+- **Prefer `ask ...` for project-scoped agent tasks.** `ask` automatically injects `project:<name> +agent` and otherwise behaves like normal Taskwarrior. `hexai task ...` is a compatibility alias with the same behavior.
 - **Project and tag matching:** The agent only reads, modifies, or creates tasks that have **both** `project:<name>` **and** the `+agent` tag. Do not touch any task that does not have `+agent` set.
-- **EVERY `task` command MUST include `project:<name>`** — no exceptions. When listing or querying, also include `+agent` so only agent-managed tasks are shown (e.g. `task project:<name> +agent list`). Never run a bare `task` without the project filter. When using a task ID, confirm the task belongs to the current project **and** has the `+agent` tag before acting on it.
+- **If you use raw `task` instead of `ask`, EVERY command MUST include `project:<name>`** — no exceptions. When listing or querying, also include `+agent` so only agent-managed tasks are shown (e.g. `task project:<name> +agent list`). Never run a bare `task` without the project filter. When using a task ID, confirm the task belongs to the current project **and** has the `+agent` tag before acting on it.
 - **NEVER modify, delete, complete, start, or annotate tasks from other projects or tasks without `+agent`.** Only act on tasks where `project:<name>` matches the current git repo and the task has the `+agent` tag.
 - **One task in progress per project.** Do not start a second task while another is started and not completed, unless the user explicitly asks.
 - **Parallel work via sub-agents** — the agent may spawn sub-agents to work on tasks in parallel only **after the user approves**.
 - **IDs are ephemeral; use UUIDs for stability.** Taskwarrior numeric IDs are working-set indices and can be renumbered when the working set is rebuilt. Use numeric IDs only within a single `list` → immediate command sequence.
-- **Use UUIDs for any long-lived reference.** For anything that must survive beyond a single report (handoffs between agents, saved notes, dependencies you mention in text, “next task” pointers, etc.), resolve and use the task’s UUID (for example, `task <id> _uuid` or `task <filter> uuids`) and prefer `uuid:<uuid>` selectors in commands.
+- **Use UUIDs for any long-lived reference.** For anything that must survive beyond a single report (handoffs between agents, saved notes, dependencies you mention in text, “next task” pointers, etc.), resolve and use the task’s UUID (for example, `ask <id> _uuid` or `ask <filter> uuids`) and prefer `uuid:<uuid>` selectors in commands.
