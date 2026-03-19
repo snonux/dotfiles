@@ -79,7 +79,7 @@ function taskwarrior::export::maybe
     if test -f $maybefile
         # Export all maybe project tags
         for tag in m may maybe
-            task +$tag -random status:pending export | jq -r '.[].description' | sed 's/^/* /' >>$maybefile.tmp.1
+            task +$tag -random status:pending export | jq -r '.[] | "\(.project): \(.description)"' | sed 's/^/* /' >>$maybefile.tmp.1
             # Guard against "No tasks specified." when there is nothing to delete
             test (task +$tag -random status:pending count) -gt 0; and yes | task +$tag -random status:pending delete
         end
@@ -100,7 +100,7 @@ function taskwarrior::export::wins
         for tag in win wins
             task +$tag -random status:pending export | jq -r '.[].description' | sed 's/^/* /' >>$winsfile.tmp.1
             # Guard against "No tasks specified." when there is nothing to delete
-            test (task +$tag -random status:pending count) -gt 0; and yes | task +$tag -random status:pending delete
+            test (task +$tag -random status:pending count) -gt 0; and yes | task +$tag -random status:pending delete &>/dev/null
         end
         grep -F '* ' $winsfile >>$winsfile.tmp.1
 
@@ -125,7 +125,7 @@ function taskwarrior::export
 
         echo "Exporting $count $task_status tasks to $TASK_EXPORT_TAG"
         task +$TASK_EXPORT_TAG status:$task_status export >"$WORKTIME_DIR/tw-$TASK_EXPORT_TAG-export-$ts-$task_status.json"
-        yes | task +$TASK_EXPORT_TAG status:$task_status delete
+        yes | task +$TASK_EXPORT_TAG status:$task_status delete &>/dev/null
     end
 
     taskwarrior::export::bd
@@ -148,9 +148,9 @@ function taskwarrior::import
 end
 
 function taskwarrior::cleanup
-    # Delete only tasks completed over a week ago
-    test (task +random status:completed end.before:today-7days count) -gt 0; and yes | task +random status:completed end.before:today-7days delete
-    test (task +agent status:completed end.before:today-7days count) -gt 0; and yes | task +agent status:completed end.before:today-7days delete
+    # Delete only tasks completed over 30 days ago
+    test (task +random status:completed end.before:today-30days count) -gt 0; and yes | task +random status:completed end.before:today-30days delete &>/dev/null
+    test (task +agent status:completed end.before:today-30days count) -gt 0; and yes | task +agent status:completed end.before:today-30days delete &>/dev/null
 end
 
 function taskwarrior::unscheduled
