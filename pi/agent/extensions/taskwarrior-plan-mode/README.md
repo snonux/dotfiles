@@ -151,7 +151,13 @@ Analyze the repo and give me a Plan: for the next implementation slice.
 
 - Planning mode is read-only by design.
 - All Taskwarrior operations still go through `ask`, never raw `task`.
+- `ask` must use real Taskwarrior CLI syntax. It is not a natural-language
+  task assistant and should never be called like `ask taskwarrior-task-management ...`.
 - Execution mode injects the current Taskwarrior task back into the agent prompt
   so the model works against the real task rather than an in-memory checklist.
+- Execution mode now treats the focused task as the already-selected starting
+  point and blocks repeated identical `ask uuid:<current>` lookups until the
+  agent has moved on to repo inspection, implementation, tests, review, or a
+  different command.
 - Full `/plan` state is not meant to be passed across unrelated one-shot `pi -p`
   invocations. Use a real interactive or continued session for planning.

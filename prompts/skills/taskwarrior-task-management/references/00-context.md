@@ -15,6 +15,7 @@ The `ask` command automatically injects this as `project:<name> +agent` into eve
 ## Rules that apply to all task commands
 
 - **Always use `ask ...` for all task operations.** `ask` is a tiny wrapper that automatically injects `project:<name> +agent`, scoping every command to the current project's agent-managed tasks. `hexai task ...` is a compatibility alias with the same behavior. Never use the raw `task` command directly.
+- **`ask` only accepts normal Taskwarrior CLI syntax.** It is not a natural-language interface and it does not understand skill names. Valid examples: `ask start.any: export`, `ask +READY export`, `ask uuid:<uuid> annotate "note"`, `ask uuid:<uuid> modify priority:H`, `ask uuid:<uuid> done`. Invalid examples: `ask taskwarrior-task-management ...`, `ask list tasks`, `ask show task 298`.
 - **Project and tag matching:** The agent only reads, modifies, or creates tasks that have **both** `project:<name>` **and** the `+agent` tag. Do not touch any task that does not have `+agent` set.
 - **NEVER modify, delete, complete, start, or annotate tasks from other projects or tasks without `+agent`.** Only act on tasks where `project:<name>` matches the current git repo and the task has the `+agent` tag.
 - **One task in progress per project.** Do not start a second task while another is started and not completed, unless the user explicitly asks.

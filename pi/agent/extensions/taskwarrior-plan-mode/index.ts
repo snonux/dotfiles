@@ -33,6 +33,42 @@ interface WorkOnTasksArgs {
 	maxTasks?: number;
 }
 
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeCommandText(command: string): string {
+	return command.trim().replace(/\s+/g, " ");
+}
+
+function isMutatingAskCommand(command: string): boolean {
+	return /\b(add|annotate|append|delete|denotate|done|log|modify|prepend|start|stop|undo)\b/.test(command);
+}
+
+function repeatedCurrentTaskLookupKey(command: string, currentTaskUuid?: string): string | undefined {
+	if (!currentTaskUuid) return undefined;
+
+	const normalized = normalizeCommandText(command);
+	if (!/^ask(?:\s|$)/.test(normalized)) return undefined;
+	if (isMutatingAskCommand(normalized)) return undefined;
+
+	const uuidPattern = new RegExp(`(?:^|\\s)["']?uuid:${escapeRegExp(currentTaskUuid)}["']?(?:\\s|$)`);
+	if (!uuidPattern.test(normalized)) return undefined;
+
+	return normalized;
+}
+
+function malformedAskReason(command: string): string | undefined {
+	const normalized = normalizeCommandText(command);
+	if (!/^ask(?:\s|$)/.test(normalized)) return undefined;
+
+	if (/\btaskwarrior-task-management\b/.test(normalized)) {
+		return "The 'ask' command is only a Taskwarrior CLI wrapper. Do not pass the skill name or natural-language workflow text to it. Use concrete Taskwarrior syntax such as 'ask start.any: export', 'ask +READY export', 'ask uuid:<uuid> annotate \"note\"', 'ask uuid:<uuid> modify priority:H', or 'ask uuid:<uuid> done'.";
+	}
+
+	return undefined;
+}
+
 function parseSelectorAndPayload(rawArgs: string): { selector: string; payload: string } | undefined {
 	const separator = rawArgs.indexOf("::");
 	if (separator === -1) return undefined;
@@ -94,6 +130,8 @@ export default function taskwarriorPlanModeExtension(pi: ExtensionAPI): void {
 	let planItems: PlanItem[] = [];
 	let createdTaskUuids: string[] = [];
 	let normalTools: string[] = [];
+	let executionTaskUuid: string | undefined;
+	let repeatedTaskLookups = new Set<string>();
 
 	pi.registerFlag("plan", {
 		description: "Start in Taskwarrior plan mode (read-only exploration)",
@@ -305,11 +343,13 @@ export default function taskwarriorPlanModeExtension(pi: ExtensionAPI): void {
 
 		const currentTask = await getCurrentTask(ctx);
 		if (!currentTask) {
+			executionTaskUuid = undefined;
 			ctx.ui.setStatus("task-plan-mode", ctx.ui.theme.fg("muted", "task: none"));
 			ctx.ui.setWidget("task-plan-mode", undefined);
 			return;
 		}
 
+		executionTaskUuid = currentTask.uuid;
 		ctx.ui.setStatus(
 			"task-plan-mode",
 			ctx.ui.theme.fg("accent", `task ${currentTask.priority ?? "-"} ${currentTask.id ?? "?"}`),
@@ -330,6 +370,8 @@ export default function taskwarriorPlanModeExtension(pi: ExtensionAPI): void {
 		if (enabled) {
 			normalTools = pi.getActiveTools();
 			pi.setActiveTools(PLAN_MODE_TOOLS);
+			executionTaskUuid = undefined;
+			repeatedTaskLookups.clear();
 			ctx.ui.notify(`Taskwarrior plan mode enabled. Tools: ${PLAN_MODE_TOOLS.join(", ")}`);
 		} else {
 			pi.setActiveTools(normalTools);
@@ -422,6 +464,8 @@ export default function taskwarriorPlanModeExtension(pi: ExtensionAPI): void {
 		executionMode = true;
 		planModeEnabled = false;
 		pi.setActiveTools(normalTools);
+		executionTaskUuid = task.uuid;
+		repeatedTaskLookups.clear();
 		persistState();
 		await updateStatus(ctx);
 
@@ -514,7 +558,7 @@ export default function taskwarriorPlanModeExtension(pi: ExtensionAPI): void {
 			const projectName = await getProjectName(ctx);
 			const maxTasksText = parsed.maxTasks ? String(parsed.maxTasks) : "none";
 
-			pi.sendUserMessage(`Use the taskwarrior-task-management workflow for the current git project.
+			pi.sendUserMessage(`Use the Taskwarrior workflow rules below for the current git project.
 
 Project: ${projectName}
 Selection strategy: ${parsed.strategy}
@@ -524,8 +568,8 @@ Current focused task:
 ${formatTaskDetails(currentTask)}
 
 Workflow:
-1. Load project-scoped tasks using ask only.
-2. Continue already-started tasks first. Only if none are started, use the next READY task.
+1. Treat the current focused task above as the already-selected starting point for this run.
+2. Only use ask to load project-scoped tasks when the current task is missing, blocked, completed, or you are ready to pick the next task.
 3. Use priority first, then urgency, as the stable ordering rule. Use the requested selection strategy only as a tie-breaker or framing hint.
 4. Start and execute the chosen task.
 5. Annotate meaningful implementation progress back to Taskwarrior using UUID selectors.
@@ -538,12 +582,17 @@ Workflow:
 
 Rules:
 - Never use raw task; always use ask.
+- 'ask' is a thin Taskwarrior CLI wrapper, not a natural-language interface and not a skill runner.
+- Valid examples: 'ask start.any: export', 'ask +READY export', 'ask uuid:<uuid> annotate "note"', 'ask uuid:<uuid> modify priority:H', 'ask uuid:<uuid> done'.
+- Invalid examples: 'ask taskwarrior-task-management ...', 'ask list tasks', 'ask show task 298', or any other natural-language phrasing.
 - Scope all work to project:${projectName} +agent tasks only.
 - Use UUIDs for all long-lived references.
+- Do not repeat the same ask lookup for the current task unless task state may have changed or required information is still missing.
+- After one task lookup, move into repo inspection, implementation, testing, review, or annotation before refreshing Taskwarrior again.
 - Do not ask the user to choose a task unless there is a real ambiguity or risk.
 - Keep working autonomously until the workflow reaches a stop condition.
 
-Begin with the current focused task unless a higher-priority started task appears when you re-check Taskwarrior.`, {
+Begin with the current focused task now. Do not re-check Taskwarrior immediately just to confirm the same task again.`, {
 				deliverAs: ctx.isIdle() ? undefined : "steer",
 			});
 		},
@@ -555,9 +604,36 @@ Begin with the current focused task unless a higher-priority started task appear
 	});
 
 	pi.on("tool_call", async (event) => {
-		if (event.toolName !== "bash") return;
+		if (!executionMode) {
+			if (event.toolName !== "bash") return;
+		} else if (event.toolName !== "bash") {
+			repeatedTaskLookups.clear();
+			return;
+		}
 
 		const command = String(event.input.command ?? "");
+		const repeatedLookupKey = executionMode ? repeatedCurrentTaskLookupKey(command, executionTaskUuid) : undefined;
+		if (executionMode && repeatedLookupKey) {
+			if (repeatedTaskLookups.has(repeatedLookupKey)) {
+				return {
+					block: true,
+					reason:
+						"Repeated lookup of the same current Taskwarrior task was blocked. Use the task details already in context and move to code inspection, implementation, tests, review, or an annotation before refreshing the same task again.",
+				};
+			}
+			repeatedTaskLookups.add(repeatedLookupKey);
+		} else if (executionMode) {
+			repeatedTaskLookups.clear();
+		}
+
+		const malformedAsk = malformedAskReason(command);
+		if (malformedAsk) {
+			return {
+				block: true,
+				reason: malformedAsk,
+			};
+		}
+
 		if (containsRawTaskCommand(command)) {
 			return {
 				block: true,
@@ -619,6 +695,7 @@ Plan:
 		if (executionMode) {
 			const currentTask = await getCurrentTask(ctx);
 			if (!currentTask) return;
+			executionTaskUuid = currentTask.uuid;
 
 			return {
 				message: {
@@ -626,10 +703,15 @@ Plan:
 					content: `[TASKWARRIOR EXECUTION MODE]
 Project: ${projectName}
 
-Use the taskwarrior-task-management skill semantics:
+Use the Taskwarrior workflow rules below:
 - Use 'ask ...' for all task operations. Never use raw 'task'.
+- 'ask' is only a Taskwarrior CLI wrapper. It does not understand the skill name or natural-language requests.
+- Valid examples: 'ask start.any: export', 'ask +READY export', 'ask uuid:<uuid> annotate "note"', 'ask uuid:<uuid> modify priority:H', 'ask uuid:<uuid> done'.
+- Invalid examples: 'ask taskwarrior-task-management ...', 'ask list tasks', 'ask show task 298', or any other natural-language phrasing.
 - Continue an already-started task before starting a new one.
 - Use UUIDs for long-lived references and follow-up commands.
+- The current task below is already the selected task for this turn. Do not immediately query the same UUID again unless required details are missing or task state changed.
+- After one Taskwarrior lookup, move to repo inspection or implementation work before refreshing Taskwarrior again.
 - Do not mark a task done until implementation, tests, and commit are complete.
 - Annotate meaningful progress back to the task with 'ask uuid:<uuid> annotate ...' when appropriate.
 - Self-review first, then if the subagent tool is available use it for an independent fresh-context review before the task is marked done.
@@ -643,12 +725,14 @@ ${formatTaskDetails(currentTask)}`,
 	});
 
 	pi.on("turn_end", async (_event, ctx) => {
+		repeatedTaskLookups.clear();
 		if (executionMode) {
 			await updateStatus(ctx);
 		}
 	});
 
 	pi.on("agent_end", async (event, ctx) => {
+		repeatedTaskLookups.clear();
 		if (executionMode) {
 			await updateStatus(ctx);
 			return;
@@ -698,6 +782,7 @@ ${formatTaskDetails(currentTask)}`,
 		} else {
 			normalTools = pi.getActiveTools();
 		}
+		repeatedTaskLookups.clear();
 
 		if (planModeEnabled) {
 			pi.setActiveTools(PLAN_MODE_TOOLS);

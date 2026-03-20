@@ -8,7 +8,7 @@ Use with `00-context.md`. Project name and global rules apply. New tasks get `+a
 - **Create tasks in smaller chunks that fit into the context window.** Break work into multiple tasks so that each task’s scope, description, and required context (refs, files, docs) can fit in one context window when the agent works on it with a fresh context. Do not create single tasks that would require more context than available.
 - **Every task MUST have at least one tag** for sub-project/feature/area (e.g. `+integrationtests`, `+flamegraph`, `+bpf`, `+cli`, `+refactor`, `+bugfix`).
 - **When an agent creates a task, always add the tag `+agent`** so agent-created tasks can be identified.
-- **After creating a task, add an annotation** so any agent working on the task is reminded to use this skill and to auto-progress: `ask <id> annotate "Agent: be aware of taskwarrior-task-management skill. When working on this task, also load and apply: (1) the best-practices skill for the programming language used in the project, (2) solid-principles, and (3) beyond-solid-principles. When all tests and sub-agent reviews pass, automatically progress to the next task in the list."` This ensures agents (including those with fresh context) know to load and follow the taskwarrior-task-management skill, respect code-quality skills (best-practices, SOLID, beyond-SOLID), and continue to the next task after completion.
+- **After creating a task, add an annotation** so any agent working on the task is reminded how to operate and to auto-progress: `ask <id> annotate "Agent workflow: load the taskwarrior-task-management skill as instructions only, not as a shell command. Never run ask taskwarrior-task-management ... or other natural-language ask commands. Use only normal Taskwarrior syntax through ask. Also load and apply: (1) the best-practices skill for the programming language used in the project, (2) solid-principles, and (3) beyond-solid-principles. When all tests and sub-agent reviews pass, commit and automatically progress to the next ready task."` This keeps fresh-context agents aligned on Taskwarrior usage, code-quality skills, and auto-progression without encouraging malformed `ask` commands.
 - **Include references to all context required** to work on the task. So that work can be done with a fresh context, every task must list or link everything needed: relevant files, docs, specs, other tasks, or project guidelines (e.g. paths, doc links, `AGENTS.md`, `README` sections). Put these in the task description or in an initial annotation so that an agent starting with no prior conversation has everything they need in the task itself.
 - **Record the task’s UUID for future reference.** After creating a task, resolve its UUID (for example, `ask <id> _uuid`) and include it in an annotation such as `UUID: <uuid>` so the exact task can be recovered even if IDs are renumbered.
 - When tasks refer to other tasks in free text (annotations, descriptions, docs, or commit messages), **use the other task’s UUID**, not just its numeric ID.
@@ -21,10 +21,10 @@ Use with `00-context.md`. Project name and global rules apply. New tasks get `+a
 ask add +<tag> "Description"
 ```
 
-Then add the agent-awareness annotation (use the ID from the add output):
+Then add the workflow annotation (use the ID from the add output):
 
 ```bash
-ask <id> annotate "Agent: be aware of taskwarrior-task-management skill. When working on this task, also load and apply: (1) the best-practices skill for the programming language used in the project, (2) solid-principles, and (3) beyond-solid-principles. When all tests and sub-agent reviews pass, automatically progress to the next task in the list."
+ask <id> annotate "Agent workflow: load the taskwarrior-task-management skill as instructions only, not as a shell command. Never run ask taskwarrior-task-management ... or other natural-language ask commands. Use only normal Taskwarrior syntax through ask. Also load and apply: (1) the best-practices skill for the programming language used in the project, (2) solid-principles, and (3) beyond-solid-principles. When all tests and sub-agent reviews pass, commit and automatically progress to the next ready task."
 ```
 
 Also add an annotation that records the task’s UUID, for example:
@@ -41,7 +41,7 @@ ask add +<tag> "Description" depends:<id>
 
 Multiple dependencies: `depends:<id1>,<id2>`.
 
-After adding (with or without dependency), run the same annotation: `ask <id> annotate "Agent: be aware of taskwarrior-task-management skill. When working on this task, also load and apply: (1) the best-practices skill for the programming language used in the project, (2) solid-principles, and (3) beyond-solid-principles. When all tests and sub-agent reviews pass, automatically progress to the next task in the list."`
+After adding (with or without dependency), run the same annotation: `ask <id> annotate "Agent workflow: load the taskwarrior-task-management skill as instructions only, not as a shell command. Never run ask taskwarrior-task-management ... or other natural-language ask commands. Use only normal Taskwarrior syntax through ask. Also load and apply: (1) the best-practices skill for the programming language used in the project, (2) solid-principles, and (3) beyond-solid-principles. When all tests and sub-agent reviews pass, commit and automatically progress to the next ready task."`
 
 ## Conventions
 

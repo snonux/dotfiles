@@ -9,6 +9,23 @@ Taskwarrior tasks are scoped to the current git repository. **Load only the file
 
 Always use `ask ...` for all task operations. `ask` is a tiny wrapper that pre-sets `project:<name> +agent`, scoping every command to the current project's agent-managed tasks while preserving normal Taskwarrior commands, reports, filters, and UUID workflows. `hexai task ...` is a compatibility alias with the same behavior. Never use the raw `task` command directly.
 
+`ask` is only a Taskwarrior CLI wrapper. It is not a natural-language assistant, and it does not understand skill names. Use normal Taskwarrior syntax only.
+
+Valid examples:
+
+- `ask start.any: export`
+- `ask +READY export`
+- `ask uuid:<uuid> annotate "note"`
+- `ask uuid:<uuid> modify priority:H`
+- `ask uuid:<uuid> done`
+
+Invalid examples:
+
+- `ask taskwarrior-task-management ...`
+- `ask list tasks`
+- `ask show task 298`
+- any other natural-language phrasing passed to `ask`
+
 Taskwarrior numeric IDs are **ephemeral working-set indices** and may be renumbered; this skill treats **UUIDs as the stable identifiers** for tasks. Use numeric IDs only within a single “report → immediate command” flow, and use UUIDs for anything that must survive across sessions, agents, or reports.
 
 ## Context and compaction
