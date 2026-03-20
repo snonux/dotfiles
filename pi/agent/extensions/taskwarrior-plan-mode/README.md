@@ -31,6 +31,10 @@ todo list.
   Show started and `+READY` tasks for the current repo.
 - `/task-next [run]`
   Focus the started task, or start the next `+READY` task.
+- `/task-exit`
+  Leave Taskwarrior focus mode.
+- `/task-unfocus`
+  Alias for `/task-exit`.
 - `/work-on-tasks [strategy] [max]`
   Kick off the Taskwarrior execution loop aligned to the
   `taskwarrior-task-management` workflow.
@@ -115,6 +119,12 @@ Focus and immediately start execution:
 
 ```text
 /task-next run
+```
+
+Leave focus mode again:
+
+```text
+/task-exit
 ```
 
 Run the full repo task loop:

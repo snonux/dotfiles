@@ -398,6 +398,21 @@ export default function taskwarriorPlanModeExtension(pi: ExtensionAPI): void {
 		await setPlanModeEnabled(false, ctx);
 	}
 
+	async function exitExecutionMode(ctx: ExtensionContext): Promise<void> {
+		if (!executionMode) {
+			ctx.ui.notify("Taskwarrior focus mode is not enabled.", "info");
+			return;
+		}
+
+		executionMode = false;
+		executionTaskUuid = undefined;
+		repeatedTaskLookups.clear();
+		pi.setActiveTools(normalTools);
+		persistState();
+		await updateStatus(ctx);
+		ctx.ui.notify("Taskwarrior focus mode disabled.", "info");
+	}
+
 	async function createTasksFromPlan(
 		mode: "sequential" | "independent",
 		ctx: ExtensionContext,
@@ -516,6 +531,20 @@ export default function taskwarriorPlanModeExtension(pi: ExtensionAPI): void {
 		description: "Focus the started task, or start the next READY task",
 		handler: async (args, ctx) => {
 			await focusCurrentTask(args.trim().toLowerCase() === "run", ctx);
+		},
+	});
+
+	pi.registerCommand("task-exit", {
+		description: "Leave Taskwarrior focus mode",
+		handler: async (_args, ctx) => {
+			await exitExecutionMode(ctx);
+		},
+	});
+
+	pi.registerCommand("task-unfocus", {
+		description: "Alias for /task-exit",
+		handler: async (_args, ctx) => {
+			await exitExecutionMode(ctx);
 		},
 	});
 
