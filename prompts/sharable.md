@@ -1,5 +1,6 @@
 # Sharable prompts
 
+commands/are-you-sure.md
 commands/commit-and-push-to-git.md
 commands/create-command.md
 commands/create-context.md
