@@ -19,7 +19,7 @@ sequence. This meta-skill orchestrates them so you only need a single command.
 2. **100-go-mistakes** — 100 Go mistakes and how to avoid them.
 3. **solid-principles** — Class-level SOLID analysis (SRP, OCP, LSP, ISP, DIP).
 4. **beyond-solid-principles** — System-level architecture principles (SoC, DRY, KISS, YAGNI, coupling, resilience, etc.).
-5. **taskwarrior-task-management** — Creates actionable tasks for each finding that needs remediation.
+5. **agent-task-management** — Creates actionable tasks for each finding that needs remediation.
 
 ## Workflow
 
@@ -80,9 +80,8 @@ forward.
 
 ### 4. Create Tasks for Findings
 
-After producing the unified report, load **taskwarrior-task-management** and
-create a Taskwarrior task for every HIGH and MEDIUM severity finding. Each task
-should:
+After producing the unified report, load **agent-task-management** and
+create a task for every HIGH and MEDIUM severity finding. Each task should:
 
 - Have a clear, actionable description (e.g., "Refactor UserService to fix SRP violation").
 - Include the principle, category, and file location in an annotation.
