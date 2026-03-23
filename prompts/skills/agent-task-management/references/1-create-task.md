@@ -17,10 +17,20 @@ Use with `00-context.md`. Project name and global rules apply. New tasks get `+a
 
 ## Add a task
 
-`ask add` already injects `project:<name> +agent`, so only add the extra feature tag(s) and description:
+`ask add` already injects `project:<name> +agent`, so only add the extra feature tag(s), optional priority, and description.
+
+**Each part must be a separate shell argument — never quote tag and description together:**
 
 ```bash
 ask add +<tag> "Description"
+ask add priority:H +<tag> "Description"
+ask add priority:M +<tag> "Description"
+```
+
+Do NOT do this (causes tag/priority to appear in the description instead of being applied):
+```bash
+ask add "+<tag> Description"           # wrong: tag and desc in one quoted string
+ask add "+<tag> -p M Description"      # wrong: everything in one quoted arg
 ```
 
 Then add the workflow annotation using `uuid:<full-uuid>` as returned by `ask add`:
@@ -31,11 +41,19 @@ ask annotate uuid:<uuid> "Agent workflow: load the agent-task-management skill a
 
 ## With dependency
 
+Add the task first, then set the dependency separately:
+
 ```bash
-ask add +<tag> "Description" dep:add:<uuid>
+uuid=$(ask add +<tag> "Description")
+ask dep add uuid:$uuid <dep-uuid>
 ```
 
-Multiple dependencies: `dep:add:<uuid1> +dep:add:<uuid2>`.
+Multiple dependencies:
+
+```bash
+ask dep add uuid:$uuid <dep-uuid1>
+ask dep add uuid:$uuid <dep-uuid2>
+```
 
 After adding (with or without dependency), run the same annotations using the UUID from `ask info uuid:<uuid>`.
 

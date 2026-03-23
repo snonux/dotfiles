@@ -85,5 +85,18 @@ create a task for every HIGH and MEDIUM severity finding. Each task should:
 
 - Have a clear, actionable description (e.g., "Refactor UserService to fix SRP violation").
 - Include the principle, category, and file location in an annotation.
-- Be tagged with `code-quality`.
-- Use priority `H` for HIGH-severity findings and `M` for MEDIUM ones and `L` for LOW ones.
+- Be tagged with `+code-quality` (separate arg, never quoted together with the description).
+- Set priority via the `priority:H`, `priority:M`, or `priority:L` modifier (separate arg).
+
+**Exact command format** — keep each part as a separate argument, never quoted together:
+
+```bash
+ask add priority:H +code-quality "Refactor UserService to fix SRP violation"
+ask add priority:M +code-quality "Fix high cognitive complexity in parser.go"
+```
+
+Do NOT do this (causes tag to land in description):
+```bash
+ask add "+code-quality Fix foo"          # wrong: tag+desc quoted as one arg
+ask add "+code-quality -p M Fix foo"     # wrong: everything in one quoted arg
+```
