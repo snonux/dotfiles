@@ -1,6 +1,6 @@
 # /work-on-tasks
 
-**Description:** Automatically work through Taskwarrior tasks for the current git project using the `taskwarrior-task-management` skill. The command selects the best pending task, starts it, executes it, completes it, and then auto-progresses to the next task until no actionable tasks remain.
+**Description:** Automatically work through tasks for the current git project using the `agent-task-management` skill. The command selects the best pending task, starts it, executes it, completes it, and then auto-progresses to the next task until no actionable tasks remain.
 
 **Parameters:**
 - strategy (optional): How to choose tasks when multiple are available (e.g., "highest-impact", "priority", "due-date", "quick-win")
@@ -15,13 +15,13 @@
 
 ## Prompt
 
-Use the `taskwarrior-task-management` skill for this entire workflow.
+Use the `agent-task-management` skill for this entire workflow.
 
-I want you to automatically execute Taskwarrior work for the **current git project** from start to finish.
+I want you to automatically execute tasks askwarrior work for the **current git project** from start to finish.
 
 1. **Load project-scoped tasks**:
    - Detect the current project from local git context
-   - List pending Taskwarrior tasks for that project
+   - List pending tasks for that project
    - Ignore completed/deleted tasks and non-actionable blocked items
 
 2. **Pick the next task** (default strategy: `{{strategy|highest-impact}}`):
