@@ -23,4 +23,4 @@ skills/go-best-practices
 skills/increment-version-and-push
 skills/purge-file-from-git
 skills/solid-principles
-skills/taskwarrior-task-management
+skills/agent-task-management
