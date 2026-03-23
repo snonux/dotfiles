@@ -16,10 +16,8 @@ Valid examples:
 - `ask add +cli "Add feature X"`
 - `ask info uuid:<uuid>`
 - `ask start uuid:<uuid>`
-- `ask annotate <short-uuid> "progress note"`
+- `ask annotate uuid:<uuid> "progress note"`
 - `ask done uuid:<uuid>`
-
-**UUID selector quirk:** `ask annotate` requires the **short 8-character UUID** (first segment only, no `uuid:` prefix), e.g. `ask annotate 530ac084 "note"`. Using `uuid:<full-uuid>` with `ask annotate` fails. All other subcommands (`info`, `start`, `done`, `dep`, etc.) accept `uuid:<full-uuid>` normally.
 
 Invalid examples:
 

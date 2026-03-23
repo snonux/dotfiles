@@ -8,9 +8,8 @@ Use with `00-context.md`. Project name and global rules apply. New tasks get `+a
 - **Create tasks in smaller chunks that fit into the context window.** Break work into multiple tasks so that each task's scope, description, and required context (refs, files, docs) can fit in one context window when the agent works on it with a fresh context. Do not create single tasks that would require more context than available.
 - **Every task MUST have at least one tag** for sub-project/feature/area (e.g. `+integrationtests`, `+flamegraph`, `+bpf`, `+cli`, `+refactor`, `+bugfix`).
 - **After creating a task, add annotation** — one with the agent workflow reminder:
-  **Important:** `ask annotate` requires the short 8-character UUID (first segment, no `uuid:` prefix). Using `uuid:<full-uuid>` fails for `annotate`.
   ```
-  ask annotate <short-uuid> "Agent workflow: load the agent-task-management skill as instructions only, not as a shell command. Use only normal ask subcommand syntax. Also load and apply: (1) the best-practices skill for the programming language used in the project, (2) solid-principles. When all tests and sub-agent reviews pass, commit and automatically progress to the next ready task."
+  ask annotate uuid:<uuid> "Agent workflow: load the agent-task-management skill as instructions only, not as a shell command. Use only normal ask subcommand syntax. Also load and apply: (1) the best-practices skill for the programming language used in the project, (2) solid-principles. When all tests and sub-agent reviews pass, commit and automatically progress to the next ready task."
   ```
 
 - **Include references to all context required** to work on the task. So that work can be done with a fresh context, every task must list or link everything needed: relevant files, docs, specs, other tasks, or project guidelines (e.g. paths, doc links, `AGENTS.md`, `README` sections). Put these in the task description or in an initial annotation so that an agent starting with no prior conversation has everything they need in the task itself.
@@ -24,10 +23,10 @@ Use with `00-context.md`. Project name and global rules apply. New tasks get `+a
 ask add +<tag> "Description"
 ```
 
-Then add the workflow annotation and UUID annotation. The UUID returned by `ask add` is the full UUID; use only its **first 8 characters** (short UUID) for `ask annotate`:
+Then add the workflow annotation using `uuid:<full-uuid>` as returned by `ask add`:
 
 ```bash
-ask annotate <short-uuid> "Agent workflow: load the agent-task-management skill as instructions only, not as a shell command. Never run ask agent-task-management ... or other natural-language ask commands. Use only normal ask subcommand syntax. Also load and apply: (1) the best-practices skill for the programming language used in the project, (2) solid-principles, and (3) beyond-solid-principles. When all tests and sub-agent reviews pass, commit and automatically progress to the next ready task."
+ask annotate uuid:<uuid> "Agent workflow: load the agent-task-management skill as instructions only, not as a shell command. Never run ask agent-task-management ... or other natural-language ask commands. Use only normal ask subcommand syntax. Also load and apply: (1) the best-practices skill for the programming language used in the project, (2) solid-principles, and (3) beyond-solid-principles. When all tests and sub-agent reviews pass, commit and automatically progress to the next ready task."
 ```
 
 ## With dependency
