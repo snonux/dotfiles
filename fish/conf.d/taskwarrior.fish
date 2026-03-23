@@ -269,9 +269,9 @@ end
 # Parses a random-quote entry. If it matches "word: description", echoes project then description (one per line); otherwise echoes empty then entry.
 function _taskwarrior::random_quote_parse_entry
     set -l entry "$argv[1]"
-    if string match -q -r '^[^:]+: .+' -- $entry
-        echo (string lower -- (string trim -- (string replace -r '^([^:]+): (.+)$' '$1' -- $entry)))
-        echo (string replace -r '^([^:]+): (.+)$' '$2' -- $entry)
+    if string match -q -r '^\S+: .+' -- $entry
+        echo (string lower -- (string trim -- (string replace -r '^(\S+): (.+)$' '$1' -- $entry)))
+        echo (string replace -r '^(\S+): (.+)$' '$2' -- $entry)
     else
         echo ""
         echo $entry
