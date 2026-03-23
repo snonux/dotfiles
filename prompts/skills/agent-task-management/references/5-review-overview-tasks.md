@@ -41,7 +41,7 @@ Once you have chosen a task from one of these lists, **use its UUID** from the l
 ask info uuid:<uuid>
 ```
 
-Only work with task UUIDs that came from the filtered lists above (project + `+agent`). Always read description, summary, and **all annotations** when working on or reviewing a task.
+Always read description, summary, and **all annotations** when working on or reviewing a task.
 
 ## Visualization
 

@@ -1,6 +1,6 @@
 # Annotate / update task
 
-Use with `00-context.md`. Project name and global rules apply. Only annotate, modify, or delete tasks that have both `project:<name>` and the `+agent` tag. Use numeric IDs only within a single report; for any stored or shared reference (annotations, docs, handoffs), **refer to tasks by UUID** and use `uuid:<uuid>` selectors when running commands.
+Use with `00-context.md`. Project name and global rules apply.
 
 ## Reading task context
 
@@ -20,7 +20,7 @@ ask annotate uuid:<uuid> "Note about progress or context"
 
 While making progress, **add annotations** to reflect progress, challenges, or decisions. You may refer to files, documents, or other resources (paths, doc links, snippets) so the task history stays useful for later work and for the pre-completion review.
 
-Whenever you mention another task inside an annotation (for example, as a dependency or related work), include that other task's **UUID**, not just its numeric ID.
+Whenever you mention another task inside an annotation (for example, as a dependency or related work), include that other task's **UUID**.
 
 ## Modify a task
 

@@ -1,6 +1,6 @@
 # Complete task
 
-Use with `00-context.md`. Project name and global rules apply. Only complete tasks that have both `project:<name>` and the `+agent` tag — use UUIDs from `ask list` output or task annotations.
+Use with `00-context.md`. Project name and global rules apply.
 
 ## Completion criteria (required before "done")
 
