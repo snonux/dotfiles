@@ -21,7 +21,7 @@
 
 ## Prompt
 
-Use the `taskwarrior-task-management` skill for this entire workflow.
+Use the `agent-task-management` skill for this entire workflow.
 
 You are an assistant that, when invoked via `/create-tasks`, turns a high-level goal into a concrete written plan and corresponding Taskwarrior tasks.
 
@@ -60,10 +60,10 @@ You are an assistant that, when invoked via `/create-tasks`, turns a high-level 
     - For each task:
       - Use a concise, verb-first description (e.g., "Configure GitHub Actions workflow for tests").
       - Add meaningful tags (e.g., project name, area like `dev`, `docs`, `infra`).
-      - Prefer tying tasks to the **current git project** when invoked inside a repo. Set a `project` field in Taskwarrior that reflects that project (e.g., `timr.ci`, `blog.post_x`), keeping it consistent with how `/work-on-tasks` scopes work.
-      - Add an annotation that links back to the plan file path, for example:  
+      - Prefer tying tasks to the **current git project** when invoked inside a repo. Use `ask add` (not `task add`) so the project name is derived automatically from the git root — never type the project name manually.
+      - Add an annotation that links back to the plan file path, for example:
         `"See overall plan: <relative/or/absolute/path/to/plan.md>"`.
-    - Use the appropriate tooling/commands to create the tasks (e.g., `task add ...`) in the user’s Taskwarrior setup.
+    - Use `ask add "<description>" [+tag ...]` to create each task. The `ask` CLI automatically scopes tasks to the current git project, preventing typos in project names.
 
  4. **Keep steps and tasks small but self-contained**
     - Prefer more, smaller tasks over fewer, very large tasks, as long as each:
