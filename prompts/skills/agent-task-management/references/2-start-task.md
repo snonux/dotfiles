@@ -1,10 +1,16 @@
 # Start task
 
-Use with `00-context.md`. Project name and global rules apply (including one task in progress per project unless the user says otherwise). Only start tasks that have both `project:<name>` and the `+agent` tag — use UUIDs from `ask list` output.
+Use with `00-context.md`. Project name and global rules apply (including one task in progress per project unless the user says otherwise). 
 
 ## Start each new task with a fresh context
 
 Work on each new task **must begin with a fresh context** — e.g. a new session or a sub-agent with no prior conversation. That way the task is executed with clear focus and no carry-over from other work. The task itself should already contain references to all required context (added when the task was created); read the task description and all annotations to get files, docs, and specs before starting.
+
+## Finding a task
+
+```bash
+ask ready | head
+```
 
 ## Mark task as started
 
