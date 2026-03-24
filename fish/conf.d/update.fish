@@ -23,12 +23,15 @@ function update::tools
         set -a pids $last_pid
     end
 
+    if test -f ~/go/bin/perc
+        rm ~/go/bin/perc
+    end
     # Obsolete moved to keepass
     if test -f ~/go/bin/foostore
         rm ~/go/bin/foostore
     end
 
-    for prog in tasksamurai timesamurai perc loadbars
+    for prog in tasksamurai timesamurai gt loadbars
         echo "Installing/updating $prog from codeberg.org/snonux/$prog/cmd/$prog@latest"
         go install codeberg.org/snonux/$prog/cmd/$prog@latest &
         set -a pids $last_pid
