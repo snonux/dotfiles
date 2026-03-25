@@ -55,11 +55,24 @@ function quickedit
     switch (count $files)
         case 0
             echo No result found
+            cd $prev_dir
             return
         case 1
             set file_path $files[1]
         case '*'
-            set file_path (printf '%s\n' $files | fzf)
+            set file_path (printf '%s\n' $files REINDEX ABORT | fzf)
+    end
+
+    if test "$file_path" = ABORT; or test -z "$file_path"
+        cd $prev_dir
+        return
+    end
+
+    if test "$file_path" = REINDEX
+        rm -f $QUICKEDIT_DIR/.index
+        cd $prev_dir
+        quickedit $argv
+        return
     end
 
     if editor::helix::open_with_lock $file_path
