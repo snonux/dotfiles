@@ -4,7 +4,13 @@ Use with `00-context.md`. Project name and global rules apply (including one tas
 
 ## Start each new task with a fresh context
 
-Work on each new task **must begin with a fresh context** — e.g. a new session or a sub-agent with no prior conversation. That way the task is executed with clear focus and no carry-over from other work. The task itself should already contain references to all required context (added when the task was created); read the task description and all annotations to get files, docs, and specs before starting.
+Work on each new task **must begin with a fresh context** — a new sub-agent with no prior conversation history. That way the task is executed with clear focus and no carry-over from other work.
+
+**If you are orchestrating via `/work-on-tasks`:** spawn a sub-agent for the implementation. Pass the full task description, all annotations, and the project root path to the sub-agent. Do not implement tasks in the orchestrator's own context.
+
+**If you are starting a single task manually:** begin in a new session or compact first so the context is clean before you start working.
+
+The task itself should already contain references to all required context (added when the task was created); read the task description and all annotations to get files, docs, and specs before starting.
 
 ## Finding a task
 

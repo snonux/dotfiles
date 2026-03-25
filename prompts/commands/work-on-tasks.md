@@ -1,6 +1,6 @@
 # /work-on-tasks
 
-**Description:** Automatically work through tasks for the current git project using the `agent-task-management` skill. The command selects the best pending task, starts it, executes it, completes it, and then auto-progresses to the next task until no actionable tasks remain.
+**Description:** Automatically work through tasks for the current git project using the `agent-task-management` skill. The command selects the best pending task, delegates its execution to a fresh sub-agent, completes it, and then auto-progresses to the next task until no actionable tasks remain.
 
 **Parameters:**
 - strategy (optional): How to choose tasks when multiple are available (e.g., "highest-impact", "priority", "due-date", "quick-win")
@@ -19,38 +19,63 @@ Use the `agent-task-management` skill for this entire workflow.
 
 I want you to automatically execute tasks to work for the **current git project** from start to finish.
 
+### Your role: orchestrator only
+
+You are the **orchestrator**. You pick tasks, mark them started, launch a sub-agent to do the implementation, then mark them done. You do **not** implement tasks yourself. This keeps your context small and lets each task run with a clean slate.
+
+### Loop: repeat for each task
+
 1. **Load project-scoped tasks**:
-   - Detect the current project from local git context
-   - List pending tasks for that project
+   - Detect the current project from local git context (`git rev-parse --show-toplevel`)
+   - Run `ask ready | head` to list actionable tasks
    - Ignore completed/deleted tasks and non-actionable blocked items
 
 2. **Pick the next task** (default strategy: `{{strategy|highest-impact}}`):
    - Choose one actionable task based on impact, urgency, and clarity
    - If two tasks are equivalent, prefer the one that unblocks other work
+   - Run `ask info uuid:<uuid>` to read the full task description and all annotations
 
-3. **Start and execute it**:
-   - Mark the task as started
-   - Perform the implementation work needed to complete it
-   - Keep updates concise and action-focused while working
+3. **Mark the task started**:
+   - Run `ask start uuid:<uuid>`
 
-4. **Close and record**:
-   - Mark the task complete when done
-   - Add a brief annotation summarizing what was delivered
+4. **Delegate to a fresh sub-agent**:
+   - Spawn a **new sub-agent** with a self-contained prompt that includes:
+     - The full task description and all annotations (copy them verbatim)
+     - The absolute path of the project root
+     - The UUID of the task (so the sub-agent can annotate it)
+     - Instruction to run `ask annotate uuid:<uuid> "<progress notes>"` as it works
+     - Instruction to commit all changes to git when done
+     - Instruction to **not** mark the task done (the orchestrator does that)
+   - The sub-agent must complete all implementation, tests, and a git commit before returning
+   - Wait for the sub-agent to finish
 
-5. **Auto-progress loop**:
+5. **Close and record**:
+   - Run `ask done uuid:<uuid>` to mark the task complete
+   - Run `ask annotate uuid:<uuid> "<summary of what was delivered>"` if the sub-agent did not already add a final annotation
+
+6. **Auto-progress**:
    - Immediately return to step 1 and select the next pending task
-   - Continue until:
+   - Stop when:
      - no actionable project tasks remain, or
-     - `{{max_tasks}}` is reached (if provided), or
-     - a hard blocker is encountered
+     - `{{max_tasks}}` tasks have been completed (if provided), or
+     - the sub-agent reports a hard blocker (surface it to the user, then stop)
 
-6. **Final report**:
-   - List completed task IDs/titles
+7. **Final report**:
+   - List completed task UUIDs/titles
    - List any skipped/blocked tasks with reasons
    - State what remains pending for the project
 
-Important behavior requirements:
-- Do not ask me to pick a task unless there is a true ambiguity or risk.
+### Why sub-agents per task?
+
+Each task runs in a **fresh context** with no carry-over from prior tasks. This:
+- Prevents context drift (e.g. hallucinated paths) that accumulates over long sessions
+- Matches the `agent-task-management` skill requirement: "Work on each new task must begin with a fresh context"
+- Keeps the orchestrator's context minimal throughout the entire run
+
+### Important behavior requirements
+
+- Do not ask the user to pick a task unless there is a true ambiguity or risk.
 - Default to autonomous execution.
 - Keep task scope tied to the current project.
-- After each completion, automatically move to the next task.
+- Never implement tasks in the orchestrator's own context — always delegate to a sub-agent.
+- After each sub-agent completes, immediately move to the next task.

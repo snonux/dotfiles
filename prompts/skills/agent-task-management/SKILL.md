@@ -30,7 +30,7 @@ Invalid examples:
 
 ## Context and compaction
 
-When beginning a new task, **prefer running a compaction** over starting a completely new context. If starting a new context for a new task is not possible, run a compaction instead.
+When beginning a new task, **always use a fresh context** — spawn a sub-agent (if orchestrating via `/work-on-tasks`) or start a new session. Do not carry implementation context from one task to the next; accumulated context causes drift (e.g. hallucinated paths) in long-running models. Compaction is a fallback only when spawning a sub-agent or new session is not possible.
 
 ## When to Use
 
