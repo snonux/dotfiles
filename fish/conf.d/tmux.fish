@@ -1,5 +1,3 @@
-set -gx TMUX_FZF_GIT_INDEX ~/git/.index
-
 function _tmux::cleanup_default
     tmux list-sessions | string match -r '^T.*: ' | string match -v -r attached | string split ':' | while read -l s
         echo "Killing $s"
@@ -28,70 +26,24 @@ function tmux::new
 end
 
 function tmux::project
-    set -l filter
-
     if test (count $argv) -eq 0
         set -l git_root (basename (git rev-parse --show-toplevel 2>/dev/null))
         if test -n "$git_root"
             tmux::attach (basename $git_root)
             return
-        else
-            set filter .
         end
-    else
-        set filter $argv[1]
+        echo "tp: no argument given and not in a git repo"
+        return 1
     end
 
-    set -l git_dir ~/git
-    set -l tmp_dir $TMPUTILS_DIR
-
-    set -l index_age 0
-    if test -f $TMUX_FZF_GIT_INDEX
-        if test (uname) = Darwin
-            set $TMUX_FZF_GIT_INDEX_age (math (date +%s) - (stat -f %m $TMUX_FZF_GIT_INDEX))
-        else
-            set $TMUX_FZF_GIT_INDEX_age (math (date +%s) - (stat -c %Y $TMUX_FZF_GIT_INDEX))
-        end
-    end
-    if test $index_age -gt 86400
-        rm $TMUX_FZF_GIT_INDEX
+    set -l dir (zoxide query -i $argv[1] 2>/dev/null)
+    if test $status -ne 0; or test -z "$dir"
+        echo "tp: no zoxide match for '$argv[1]'"
+        return 1
     end
 
-    if not test -f $TMUX_FZF_GIT_INDEX
-        find $git_dir -maxdepth 5 -type d -name .git \
-            | sed 's|/.git$||' | sed "s|$git_dir/||" \
-            | grep -F -v . | grep -v gitsyncer-workdir | grep -v upstream >$TMUX_FZF_GIT_INDEX
-        # Add top-level directories from TMPUTILS_DIR (non-git)
-        if test -d $tmp_dir
-            for d in (ls $tmp_dir)
-                if test -d $tmp_dir/$d
-                    echo "tmp/$d" >>$TMUX_FZF_GIT_INDEX
-                end
-            end
-        end
-    end
-
-    set -l matches (grep "$filter" $TMUX_FZF_GIT_INDEX)
-    set -l session
-    if test (count $matches) -eq 1
-        set session $matches[1]
-    else
-        set session (printf "%s\n" $matches | fzf)
-    end
-    if string match -r '^tmp/' $session
-        set -l real (string replace -r '^tmp/' '' $session)
-        cd $TMPUTILS_DIR/$real
-    else if test -d $git_dir/$session
-        cd $git_dir/$session
-    end
-    tmux::attach $session
-end
-
-function tmux::project::reindex
-    if test -f $TMUX_FZF_GIT_INDEX
-        rm $TMUX_FZF_GIT_INDEX
-    end
-    tmux::project $argv
+    cd $dir
+    tmux::attach (basename $dir)
 end
 
 function tmux::attach
@@ -157,9 +109,9 @@ alias tx 'tmux::remote'
 alias tl 'tmux::search'
 alias tssh 'tmux::cluster_ssh'
 alias tp 'tmux::project'
-alias tpr 'tmux::project::reindex'
 alias notes 'cd ~/Notes; tmux::attach notes'
 alias N 'cd ~/Notes; tmux::attach notes'
 alias bar 'tmux::new bar'
 alias baz 'tmux::new baz'
 alias bay 'tmux::new bay'
+abbr -a tkt "tmux list-sessions -F '#{session_name}' | grep -- '-tmp-' | xargs -I{} tmux kill-session -t '{}'"

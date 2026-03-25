@@ -67,3 +67,6 @@ function tmpfile
 end
 
 abbr -a cdtmp "cd $TMPUTILS_DIR"
+abbr -a tmpn tmpnew
+abbr -a temp tmpnew
+abbr -a tmp tmpnew
