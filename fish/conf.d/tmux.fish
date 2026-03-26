@@ -16,20 +16,30 @@ end
 
 function tmux::new
     set -l session $argv[1]
+    set -l dir $argv[2]
     _tmux::cleanup_default
     if test -z "$session"
         tmux::new (string join "" T (date +%s))
     else
-        tmux new-session -d -s $session
-        tmux -2 attach-session -t $session || tmux -2 switch-client -t $session
+        set -l new_session_args -d -s $session
+        if test -n "$dir"
+            set new_session_args $new_session_args -c $dir
+        end
+        tmux new-session $new_session_args
+        if test -n "$TMUX"
+            tmux -2 switch-client -t "=$session"
+        else
+            tmux -2 attach-session -t "=$session"
+        end
     end
 end
 
 function tmux::project
     if test (count $argv) -eq 0
-        set -l git_root (basename (git rev-parse --show-toplevel 2>/dev/null))
+        set -l git_root (git rev-parse --show-toplevel 2>/dev/null)
         if test -n "$git_root"
-            tmux::attach (basename $git_root)
+            set -l session_name (basename $git_root | string replace -a '.' '_')
+            tmux::attach $session_name $git_root
             return
         end
         echo "tp: no argument given and not in a git repo"
@@ -42,16 +52,25 @@ function tmux::project
         return 1
     end
 
-    cd $dir
-    tmux::attach (basename $dir)
+    set -l session_name (basename $dir | string replace -a '.' '_')
+    tmux::attach $session_name $dir
 end
 
 function tmux::attach
     set -l session $argv[1]
+    set -l dir $argv[2]
     if test -z "$session"
+        if test -n "$TMUX"
+            echo "ta: no session name given and already inside tmux"
+            return 1
+        end
         tmux attach-session || tmux::new
     else
-        tmux attach-session -t $session || tmux::new $session
+        if test -n "$TMUX"
+            tmux switch-client -t "=$session" 2>/dev/null; or tmux::new $session $dir
+        else
+            tmux attach-session -t "=$session" 2>/dev/null; or tmux::new $session $dir
+        end
     end
 end
 
