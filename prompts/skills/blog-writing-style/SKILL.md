@@ -5,7 +5,7 @@ description: De-LLM blog posts to sound authentically human. Rewrite text in .gm
 
 # Blog Writing Style (De-LLM)
 
-Rewrite blog content to sound authentically human by removing LLM-generated patterns and matching the established voice from older posts (6+ months old). This skill humanizes text in `.gmi.tpl` template files and `.gmi` files that don't have a `.tpl` counterpart.
+Rewrite blog content to sound authentically human by removing LLM-generated patterns and matching the established voice from older posts (9+ months old). This skill humanizes text in `.gmi.tpl` template files and `.gmi` files that don't have a `.tpl` counterpart.
 
 ## When to Use
 
@@ -13,24 +13,35 @@ Rewrite blog content to sound authentically human by removing LLM-generated patt
 - Use when asked to "de-llm" or "humanize" blog content
 - Use when reviewing writing style of foo.zone posts
 - Use after composing or updating blog posts (reference from `compose-blog-post` and `update-blog-post` skills)
+- **DRAFT files**: Apply more thoroughly - they typically have more LLM patterns than published posts
 
 ## Target Files
 
-- All `*.gmi.tpl` files in `~/git/foo.zone-content/gemtext/`
+- All `*.gmi.tpl` files in `~/git/foo.zone-content/gemtext/gemfeed/`
 - All `*.gmi` files that don't have a corresponding `.gmi.tpl` file
 - Never modify `.gmi` files that have a `.gmi.tpl` counterpart (those are generated)
+- **Note**: Standalone `.gmi` files are often older posts outside the target window and usually don't need changes
 
 ## Instructions
 
 ### 1. Read Reference Posts First
 
-Read 2-3 posts from 6+ months ago to absorb the authentic voice. Look at files dated before the current month minus 6. Examples of good reference posts:
+Read 2-3 posts from 9+ months ago to absorb the authentic voice. Look at files dated before the current month minus 9. Examples of good reference posts:
 
 - `2021-09-12-keep-it-simple-and-stupid.gmi.tpl`
 - `2022-09-30-after-a-bad-nights-sleep.gmi.tpl`
 - `2022-12-24-ultrarelearning-java-my-takeaways.gmi.tpl`
 
-### 2. Identify LLM Patterns to Remove
+### 2. Don't Over-Edit
+
+**Important**: Many published posts already have a natural human voice. Before making changes:
+
+- Read the post first to assess its current state
+- If it already sounds conversational and personal, leave it alone
+- Focus on posts with obvious LLM patterns (formal openings, hedging, over-explanation)
+- Technical posts with code examples are often already well-written
+
+### 3. Identify LLM Patterns to Remove
 
 Rewrite text that contains these patterns:
 
@@ -68,7 +79,7 @@ Rewrite text that contains these patterns:
 - "The author suggests..." → "Larson suggests..." or "The book says..."
 - "One should consider..." → "You might consider..." or "I'd..."
 
-### 3. Apply Human Writing Patterns
+### 4. Apply Human Writing Patterns
 
 **Voice:**
 - Use "I" for personal experience and opinion
@@ -94,7 +105,47 @@ Rewrite text that contains these patterns:
 - Use specific details over generalizations
 - Show, don't tell
 
-### 4. Concrete Rewrite Examples
+### 5. Concrete Rewrite Examples
+
+**Before (LLM):**
+> "This blog post describes my hackathon efforts adding observability to X-RAG..."
+
+**After (Human):**
+> "This post describes my hackathon efforts adding observability to X-RAG..."
+
+---
+
+**Before (LLM):**
+> "This thesis aims to make it easier for users to view distributed systems from a different perspective. Here, the viewpoint of an end user is not adopted; instead, the functional methods of protocols and their processes in distributed systems should be made comprehensible, while simultaneously making all relevant events of a distributed system transparent."
+
+**After (Human):**
+> "This thesis aims to make distributed systems easier to understand from a different angle. Instead of the end-user perspective, it focuses on the functional methods of protocols and their processes, making all relevant events of a distributed system transparent."
+
+---
+
+**Before (LLM):**
+> "In the previous posts, I deployed applications to the k3s cluster using Helm charts and Justfiles—running `just install` or `just upgrade` to imperatively push changes to the cluster. While this approach works, it has several drawbacks:"
+
+**After (Human):**
+> "In previous posts, I deployed applications to the k3s cluster using Helm charts and Justfiles—running `just install` or `just upgrade` to imperatively push changes to the cluster. Works fine, but has some drawbacks:"
+
+---
+
+**Before (LLM):**
+> "I especially made time available over the weekend to join his 3-day hackathon..."
+
+**After (Human):**
+> "I made time over the weekend to join his 3-day hackathon..."
+
+---
+
+**Before (LLM):**
+> "It is insane how times have changed."
+
+**After (Human):**
+> "Times have changed."
+
+---
 
 **Before (LLM):**
 > "Larson breaks down the role of a Staff Engineer into four main archetypes, which can help frame how you approach the role:"
@@ -126,7 +177,7 @@ Rewrite text that contains these patterns:
 **After (Human):**
 > "Honestly, the Beelink S12 Pro with the N100 is kind of perfect for this — tiny, cheap, sips power, and runs both Linux and FreeBSD without drama. I'm pretty happy with it."
 
-### 5. Preserve What Works
+### 6. Preserve What Works
 
 Do NOT change:
 - Technical accuracy
@@ -137,7 +188,7 @@ Do NOT change:
 - Personal anecdotes that already sound human
 - Direct quotes from sources (only rewrite your own commentary)
 
-### 6. Process Each File
+### 7. Process Each File
 
 1. Read the target `.gmi.tpl` or standalone `.gmi` file
 2. Identify sections that sound LLM-generated
@@ -146,6 +197,6 @@ Do NOT change:
 5. Show a diff before writing
 6. Write the updated file
 
-### 7. Related Skills
+### 8. Related Skills
 
 When using `compose-blog-post` or `update-blog-post`, apply this writing style proactively to ensure new content sounds human from the start. Reference this skill when writing or editing any blog content.
