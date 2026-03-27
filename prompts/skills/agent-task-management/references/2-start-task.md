@@ -23,7 +23,7 @@ ask ready | head
 When you begin working on a task, **always mark it as started** so current work is visible:
 
 ```bash
-ask start uuid:<uuid>
+ask start <id>
 ```
 
 Do this as soon as you start work on the task.
@@ -31,6 +31,6 @@ Do this as soon as you start work on the task.
 ## Conventions
 
 - Start each new task with a fresh context; rely on the task's description and annotations for all required context.
-- Run `ask start uuid:<uuid>` when you start working on the task, not only when listing or completing.
+- Run `ask start <id>` when you start working on the task, not only when listing or completing.
 - Do not start a second task for the same project while one is already started and not done, unless the user explicitly asks.
-- When a task is selected via the review/overview step, use the stored UUID from the task's annotations for subsequent `start` operations.
+- When a task is selected via the review/overview step, use the alias ID from the list or task details for subsequent `start` operations.

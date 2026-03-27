@@ -7,17 +7,18 @@ description: "Manage agent tasks scoped to the current git project using the `as
 
 Tasks are scoped to the current git repository via the `ask` CLI. **Load only the files you need** for the current action so the whole skill does not need to be in context.
 
-The `ask` CLI provides subcommands (`list`, `add`, `info`, `start`, `stop`, `done`, `annotate`, `modify`, `tag`, `priority`, `dep`, `delete`, `urgency`) that operate on agent-managed tasks in the current project. `ask` is not a natural-language interface and does not understand skill names. Use normal subcommand syntax only.
+The `ask` CLI provides subcommands (`list`, `ready`, `add`, `info`, `start`, `stop`, `done`, `annotate`, `modify`, `tag`, `priority`, `dep`, `delete`, `urgency`) that operate on agent-managed tasks in the current project. `ask` is not a natural-language interface and does not understand skill names. Use normal subcommand syntax only.
 
 Valid examples:
 
 - `ask list`
 - `ask ready`
-- `ask add +cli "Add feature X"`
-- `ask info uuid:<uuid>`
-- `ask start uuid:<uuid>`
-- `ask annotate uuid:<uuid> "progress note"`
-- `ask done uuid:<uuid>`
+- `ask add +cli "Add feature X"`  # prints `created task <alias-id>`
+- `ask add +cli depends:0,1 "Add feature X"`
+- `ask info <id>`
+- `ask start <id>`
+- `ask annotate <id> "progress note"`
+- `ask done <id>`
 
 Invalid examples:
 
@@ -26,7 +27,7 @@ Invalid examples:
 - `ask show task 298`
 - any other natural-language phrasing passed to `ask`
 
-**UUIDs are the stable identifiers.** Task IDs are ephemeral working-set indices that shift after completions. Always resolve a task's UUID after creation and use `uuid:<uuid>` selectors for anything that must survive across sessions or agents.
+**Alias IDs are the selectors to use for task work.** `ask add` prints `created task <alias-id>`, and subsequent task commands in this workflow should keep using that alias ID throughout the workflow.
 
 ## Context and compaction
 

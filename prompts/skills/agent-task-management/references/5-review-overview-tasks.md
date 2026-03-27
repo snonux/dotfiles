@@ -33,12 +33,12 @@ ask list start.any: sort:priority-,urgency-
 ask ready
 ```
 
-Once you have chosen a task from one of these lists, **use its UUID** from the list output for all subsequent operations and handoffs. When returning or recording the chosen task for another agent or a later step, **include its UUID**.
+Once you have chosen a task from one of these lists, **use its alias ID** from the list output for all subsequent operations and handoffs. When returning or recording the chosen task for another agent or a later step, **include its alias ID**.
 
 ## View task details
 
 ```bash
-ask info uuid:<uuid>
+ask info <id>
 ```
 
 Always read description, summary, and **all annotations** when working on or reviewing a task.
@@ -62,4 +62,4 @@ ask ready
 
 - When picking the next task: first list already-started (`start.any:`); if any exist, continue one of those; only if none, pick from `+READY`. **Always order by priority first, then urgency** (e.g. `sort:priority-,urgency-`).
 - Among ready or started tasks, choose by priority (H then M then L), then by urgency.
-- When returning a chosen task to the user or another agent, include its UUID and description.
+- When returning a chosen task to the user or another agent, include its alias ID and description.

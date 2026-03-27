@@ -9,33 +9,33 @@ When working on a task, **always read the full context:** description, summary, 
 View full task (including annotations):
 
 ```bash
-ask info uuid:<uuid>
+ask info <id>
 ```
 
 ## Annotate a task
 
 ```bash
-ask annotate uuid:<uuid> "Note about progress or context"
+ask annotate <id> "Note about progress or context"
 ```
 
 While making progress, **add annotations** to reflect progress, challenges, or decisions. You may refer to files, documents, or other resources (paths, doc links, snippets) so the task history stays useful for later work and for the pre-completion review.
 
-Whenever you mention another task inside an annotation (for example, as a dependency or related work), include that other task's **UUID**.
+Whenever you mention another task inside an annotation (for example, as a dependency or related work), include that other task's alias ID.
 
 ## Modify a task
 
 ```bash
-ask modify uuid:<uuid> +<tag>
-ask modify uuid:<uuid> dep:add:<uuid2>
-ask modify uuid:<uuid> priority:H
+ask modify <id> +<tag>
+ask dep add <id> <dep-id>
+ask modify <id> priority:H
 ```
 
-Use `uuid:<uuid>` when modifying tasks selected earlier or referenced from annotations or other docs, so changes are applied to the correct task even if IDs have been renumbered.
+Use the alias ID shown by `ask list`, `ask ready`, or `ask info` when modifying tasks selected earlier or referenced from annotations or other docs.
 
 ## Delete a task
 
 ```bash
-ask delete uuid:<uuid>
+ask delete <id>
 ```
 
 ## Conventions

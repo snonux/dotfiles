@@ -33,25 +33,25 @@ You are the **orchestrator**. You pick tasks, mark them started, launch a sub-ag
 2. **Pick the next task** (default strategy: `{{strategy|highest-impact}}`):
    - Choose one actionable task based on impact, urgency, and clarity
    - If two tasks are equivalent, prefer the one that unblocks other work
-   - Run `ask info uuid:<uuid> 2>&1 | head -20` to preview the task — this caps the output at 20 lines so long descriptions do not flood the screen
+   - Run `ask info <id> 2>&1 | head -20` to preview the task — this caps the output at 20 lines so long descriptions do not flood the screen
 
 3. **Mark the task started**:
-   - Run `ask start uuid:<uuid>`
+   - Run `ask start <id>`
 
 4. **Delegate to a fresh sub-agent**:
    - Spawn a **new sub-agent** with a self-contained prompt that includes:
-     - The task UUID and a one-line summary of what the task is about
-     - Instruction to run `ask info uuid:<uuid>` as its **first action** to get the full description and all annotations (do not paste the description inline — the sub-agent fetches it fresh, keeping the prompt short)
+     - The task ID and a one-line summary of what the task is about
+     - Instruction to run `ask info <id>` as its **first action** to get the full description and all annotations (do not paste the description inline — the sub-agent fetches it fresh, keeping the prompt short)
      - The absolute path of the project root
-     - Instruction to run `ask annotate uuid:<uuid> "<progress notes>"` as it works
+     - Instruction to run `ask annotate <id> "<progress notes>"` as it works
      - Instruction to commit all changes to git when done
      - Instruction to **not** mark the task done (the orchestrator does that)
    - The sub-agent must complete all implementation, tests, and a git commit before returning
    - Wait for the sub-agent to finish
 
 5. **Close and record**:
-   - Run `ask done uuid:<uuid>` to mark the task complete
-   - Run `ask annotate uuid:<uuid> "<summary of what was delivered>"` if the sub-agent did not already add a final annotation
+   - Run `ask done <id>` to mark the task complete
+   - Run `ask annotate <id> "<summary of what was delivered>"` if the sub-agent did not already add a final annotation
 
 6. **Auto-progress**:
    - Immediately return to step 1 and select the next pending task
@@ -61,7 +61,7 @@ You are the **orchestrator**. You pick tasks, mark them started, launch a sub-ag
      - the sub-agent reports a hard blocker (surface it to the user, then stop)
 
 7. **Final report**:
-   - List completed task UUIDs/titles
+   - List completed task IDs/titles
    - List any skipped/blocked tasks with reasons
    - State what remains pending for the project
 
