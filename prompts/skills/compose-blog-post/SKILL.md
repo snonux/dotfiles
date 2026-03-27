@@ -60,3 +60,5 @@ Compose a blog post in gemtext for the foo.zone gemfeed. **Only write or modify 
    `=> ./YYYY-MM-DD-slug.gmi YYYY-MM-DD - Post title`
 
 10. **Preview and confirm.** Show a short preview (e.g. title, TOC, and first section) before writing the file. After saving, confirm that only `.gmi.tpl` files were created or modified (post template and index template) and that no `.gmi` files were changed.
+
+11. **Apply human writing style.** Use the `blog-writing-style` skill to ensure the content sounds authentically human — casual, personal, without corporate/marketing language or LLM-generated patterns.

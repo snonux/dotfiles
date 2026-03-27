@@ -26,3 +26,5 @@ Update an existing blog post in ~/git/foo.zone-content/gemtext/gemfeed/ in the g
    ```
 9. Once published, verify that the changes appear on https://foo.zone by fetching the post URL.
 10. If the content matches, it means that the ./gemtexter --publish command didnt work correctly and investigate it for any errors in the output.
+
+11. **Apply human writing style.** Use the `blog-writing-style` skill to ensure any new or modified content sounds authentically human — casual, personal, without corporate/marketing language or LLM-generated patterns.
