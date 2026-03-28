@@ -29,5 +29,8 @@
   ],
   "exclude_branches": [
     "^codex/"
-  ]
+  ],
+  "showcase_stats_branches": {
+    "foo.zone": "content-gemtext"
+  }
 }
