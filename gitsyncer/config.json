@@ -10,7 +10,9 @@
     },
     {
       "host": "ssh://git@r0:30022/repos",
-      "backupLocation": true
+      "backupLocation": true,
+      "descriptionSyncHost": "root@r0",
+      "descriptionSyncRoot": "/data/nfs/k3svolumes/git-server/repos"
     }
   ],
   "repositories": [],

@@ -1,6 +1,6 @@
 ---
 name: blog-writing-style
-description: De-LLM blog posts to sound authentically human. Rewrite text in .gmi.tpl and .gmi files to match the casual, personal style of older posts. Remove corporate/formal language, hedging, and over-explanation. Triggers on: de-llm, humanize text, fix writing style, blog style.
+description: "De-LLM blog posts to sound authentically human. Rewrite text in .gmi.tpl and .gmi files to match the casual, personal style of older posts. Remove corporate/formal language, hedging, and over-explanation. Triggers on: de-llm, humanize text, fix writing style, blog style."
 ---
 
 # Blog Writing Style (De-LLM)

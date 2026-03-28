@@ -25,6 +25,7 @@ Detailed reference documentation is in the `references/` subfolder:
 - [Storage](references/storage.md) — ZFS (zdata), CARP, NFS over stunnel, zrepl replication
 - [k3s Setup](references/k3s-setup.md) — HA k3s cluster, etcd, node IPs, kubeconfig, ArgoCD
 - [Observability](references/observability.md) — Prometheus, Grafana, Loki, Alloy, Tempo
+- [Package Repos](references/package-repos.md) — Custom FreeBSD/OpenBSD pkg repo served from k3s nginx pod
 
 ## Quick Reference: Host IPs
 
