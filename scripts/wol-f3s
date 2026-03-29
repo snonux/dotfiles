@@ -1,5 +1,6 @@
 #!/bin/bash
 # Wake-on-LAN and shutdown script for f3s cluster (f0, f1, f2)
+# and optional shutdown for Raspberry Pi nodes (pi0–pi3)
 #
 # Usage:
 #   wol-f3s              # Wake all three Beelinks
@@ -7,6 +8,8 @@
 #   wol-f3s f1           # Wake only f1
 #   wol-f3s f2           # Wake only f2
 #   wol-f3s shutdown     # Shutdown all three Beelinks
+#   wol-f3s shutdown-pis # Shutdown all four Raspberry Pis
+#   wol-f3s shutdown-all # Shutdown Beelinks and Pis
 
 # MAC addresses
 F0_MAC="e8:ff:1e:d7:1c:ac"  # f0 (192.168.1.130)
@@ -17,6 +20,12 @@ F2_MAC="e8:ff:1e:d7:1c:a0"  # f2 (192.168.1.132)
 F0_IP="192.168.1.130"
 F1_IP="192.168.1.131"
 F2_IP="192.168.1.132"
+
+# Raspberry Pi IP addresses (no WoL support, shutdown only)
+PI0_IP="192.168.1.125"
+PI1_IP="192.168.1.126"
+PI2_IP="192.168.1.127"
+PI3_IP="192.168.1.128"
 
 # SSH user
 SSH_USER="paul"
@@ -72,11 +81,34 @@ case "$ACTION" in
         shutdown_host "f1" "$F1_IP"
         shutdown_host "f2" "$F2_IP"
         echo ""
+        echo "✓ Shutdown commands sent to all Beelinks."
+        exit 0
+        ;;
+    shutdown-pis)
+        shutdown_host "pi0" "$PI0_IP"
+        shutdown_host "pi1" "$PI1_IP"
+        shutdown_host "pi2" "$PI2_IP"
+        shutdown_host "pi3" "$PI3_IP"
+        echo ""
+        echo "✓ Shutdown commands sent to all Pis."
+        exit 0
+        ;;
+    shutdown-all)
+        ssh rex@blowfish.buetow.org touch /tmp/f3s_taken_down
+        ssh rex@fishfinger.buetow.org touch /tmp/f3s_taken_down
+        shutdown_host "f0" "$F0_IP"
+        shutdown_host "f1" "$F1_IP"
+        shutdown_host "f2" "$F2_IP"
+        shutdown_host "pi0" "$PI0_IP"
+        shutdown_host "pi1" "$PI1_IP"
+        shutdown_host "pi2" "$PI2_IP"
+        shutdown_host "pi3" "$PI3_IP"
+        echo ""
         echo "✓ Shutdown commands sent to all machines."
         exit 0
         ;;
     *)
-        echo "Usage: $0 [f0|f1|f2|all|shutdown]"
+        echo "Usage: $0 [f0|f1|f2|all|shutdown|shutdown-pis|shutdown-all]"
         exit 1
         ;;
 esac
