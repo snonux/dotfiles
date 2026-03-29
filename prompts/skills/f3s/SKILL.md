@@ -1,6 +1,6 @@
 ---
 name: f3s
-description: Reference skill for the f3s homelab—four Beelink S12 Pro hosts (f0/f1/f2/f3) running FreeBSD with Rocky Linux Bhyve VMs and a k3s Kubernetes cluster. f0/f1/f2 run r0/r1/r2 k3s nodes; f3 is standalone bhyve only (not part of k3s). Use when troubleshooting or making configuration decisions for the f3s setup.
+description: Reference skill for the f3s homelab—four Beelink S12 Pro hosts (f0/f1/f2/f3) running FreeBSD with Rocky Linux Bhyve VMs and a k3s Kubernetes cluster. f0/f1/f2 run r0/r1/r2 k3s nodes; f3 is standalone bhyve only (not part of k3s). Also includes four Raspberry Pi 3 nodes (pi0–pi3) running Rocky Linux 9. Use when troubleshooting or making configuration decisions for the f3s setup.
 ---
 
 # f3s Homelab Reference
@@ -43,6 +43,22 @@ Detailed reference documentation is in the `references/` subfolder:
 | earth | Fedora laptop (roaming) | — | 192.168.2.200 |
 | pixel7pro | Android (roaming) | — | 192.168.2.201 |
 | f3s-storage-ha | CARP VIP (f0/f1) | 192.168.1.138 | — |
+| pi0 | Raspberry Pi 3, Rocky Linux 9 | 192.168.1.125 | — |
+| pi1 | Raspberry Pi 3, Rocky Linux 9 | 192.168.1.126 | — |
+| pi2 | Raspberry Pi 3, Rocky Linux 9 | 192.168.1.127 | — |
+| pi3 | Raspberry Pi 3, Rocky Linux 9 | 192.168.1.128 | — |
+
+## Raspberry Pi Nodes
+
+Four Raspberry Pi 3 boards running Rocky Linux 9.2 (Blue Onyx) aarch64 from the SIG/AltArch image (`RockyLinuxRpi_9-latest.img.xz`). Each has:
+
+- User `paul` with passwordless sudo and SSH key auth
+- Static IP on eth0 via NetworkManager
+- Hostname `piN.lan.buetow.org`
+- Filesystem expanded with `rootfs-expand`
+- Default `rocky` user still present (password: `rockylinux`)
+- No GRUB — boots via Pi's native bootloader (`/boot/cmdline.txt`)
+- Custom RPi kernel from the `rockyrpi` repo
 
 ## Config Repository
 
