@@ -16,6 +16,7 @@ abbr -a no 'grep -E -i -v'
 abbr -a not 'grep -E -i -v'
 abbr -a gl 'git log --pretty=oneline --graph --decorate --all'
 abbr -a gp 'begin; git commit -a; and git pull; and git push; end'
+abbr -a gdt 'git difftool'
 
 for dir in ~/.config/fish/conf.d.work ~/.config/fish/conf.d.local
     if test -d $dir

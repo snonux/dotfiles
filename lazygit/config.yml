@@ -1,2 +1,5 @@
 gui:
   scrollHeight: 10
+git:
+  paging:
+    externalDiffCommand: "difft --color=always"

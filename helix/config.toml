@@ -72,7 +72,7 @@ C-p = { c = ":pipe ai correct this sentence and only print out the corrected tex
 C-a = ":pipe hexai-tmux-action"
 
 # Git commands
-C-g = { d = ":run-shell-command git diff", p = ":run-shell-command git pull", u = ":run-shell-command git push", t = ":run-shell-command tmux new-window -n hx-git-tig tig", c = ":run-shell-command tmux split-window -v 'git commit -a'", l = [ ":write-all", ":insert-output lazygit >/dev/tty", ":redraw", ":reload-all" ] }
+C-g = { d = ":run-shell-command git diff", D = ":run-shell-command git difftool", p = ":run-shell-command git pull", u = ":run-shell-command git push", t = ":run-shell-command tmux new-window -n hx-git-tig tig", c = ":run-shell-command tmux split-window -v 'git commit -a'", l = [ ":write-all", ":insert-output lazygit >/dev/tty", ":redraw", ":reload-all" ] }
 
 # Build commands
 C-l = { m = ":run-shell-command make", d = ":run-shell-command go-task dev", r = ":run-shell-command tmux new-window -n hx-go-task-run 'go-task run'" }
