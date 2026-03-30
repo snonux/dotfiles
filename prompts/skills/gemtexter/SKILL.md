@@ -42,6 +42,24 @@ Manage the `gemtexter` static site workflow for `foo.zone`.
 ./gemtexter --generate 'about|notes|gemfeed'
 ```
 
+### Generate and preview drafts
+
+`--draft` only processes files with a `DRAFT-` prefix. For non-draft posts (date-prefixed files), use filtered generate instead.
+
+```bash
+# DRAFT-prefixed files only
+./gemtexter --draft
+
+# Date-prefixed posts: use filtered generate with a matching pattern
+./gemtexter --generate 'my-post-name'
+```
+
+Then open the generated HTML in Firefox for preview:
+
+```bash
+firefox ~/git/foo.zone-content/html/gemfeed/my-post-name.html
+```
+
 ### Publish everything
 
 ```bash
