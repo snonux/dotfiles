@@ -267,6 +267,35 @@ task 'home_sway', sub {
     ensure "$DOT/waybar/*"        => "$HOME/.config/waybar/";
 };
 
+desc 'Install global git configuration';
+task 'home_gitconfig', sub {
+    if ( $^O eq 'linux' ) {
+        my %config = (
+            'user.email'                => 'paul@buetow.org',
+            'user.name'                 => 'Paul Buetow',
+            'init.defaultbranch'        => 'main',
+            'core.editor'              => 'hx',
+            'core.pager'               => 'delta',
+            'delta.navigate'           => 'true',
+            'delta.side-by-side'       => 'true',
+            'delta.features'           => 'side-by-side line-numbers decorations',
+            'commit.verbose'           => 'true',
+            'interactive.difffilter'   => 'delta --color-only',
+            'diff.tool'                => 'difftastic',
+            'difftool.prompt'          => 'false',
+            'difftool.difftastic.cmd'  => 'difft $LOCAL $REMOTE',
+        );
+
+        for my $key ( sort keys %config ) {
+            Rex::Logger::info("Setting git config $key");
+            run "git config --global '$key' '$config{$key}'";
+        }
+    }
+    else {
+        Rex::Logger::info( 'Skipping git configuration (not on Linux)', 'warn' );
+    }
+};
+
 desc 'Install my signature';
 task 'home_signature', sub {
     ensure "$DOT/signature" => "$HOME/.signature";
