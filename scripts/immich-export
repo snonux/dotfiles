@@ -15,10 +15,11 @@ DATE_AFTER="2026-01-01T00:00:00.000Z"
 DATE_BEFORE="2026-03-31T23:59:59.000Z"
 PAGE_SIZE=100
 
-declare -A ACCOUNTS=(
-  ["paul"]="$(cat ~/.immich_paul_key)"
-  ["albena"]="$(cat ~/.immich_albena_key)"
-)
+# Load keys explicitly — declare -A with inline $() substitutions can silently
+# drop entries in some bash versions, so we assign after the declaration.
+declare -A ACCOUNTS
+ACCOUNTS["paul"]="$(cat ~/.immich_paul_key)"
+ACCOUNTS["albena"]="$(cat ~/.immich_albena_key)"
 
 mkdir -p "$DEST_DIR"
 
