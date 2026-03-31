@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# Export all Immich assets for given accounts within a date range.
+# Usage: immich-export.sh
+# Accounts and API keys are hardcoded below; output goes to DEST_DIR.
+
+set -euo pipefail
+
+IMMICH_URL="http://immich.f3s.lan.buetow.org"
+DEST_DIR="/home/paul/Pictures/Pictures.Processing"
+DATE_AFTER="2026-01-01T00:00:00.000Z"
+DATE_BEFORE="2026-03-31T23:59:59.000Z"
+PAGE_SIZE=100
+
+declare -A ACCOUNTS=(
+  ["paul"]="$(cat ~/.immich_paul_key)"
+  ["albena"]="$(cat ~/.immich_albena_key)"
+)
+
+mkdir -p "$DEST_DIR"
+
+download_assets_for_account() {
+  local account="$1"
+  local api_key="$2"
+  local account_dir="$DEST_DIR/$account"
+  mkdir -p "$account_dir"
+
+  echo "==> Exporting account: $account"
+
+  local page=1
+  local downloaded=0
+  local skipped=0
+
+  while true; do
+    # Fetch one page of assets matching the date range
+    local response
+    response=$(curl -sf -X POST "$IMMICH_URL/api/search/metadata" \
+      -H "x-api-key: $api_key" \
+      -H "Content-Type: application/json" \
+      -d "{\"takenAfter\":\"$DATE_AFTER\",\"takenBefore\":\"$DATE_BEFORE\",\"type\":\"IMAGE\",\"size\":$PAGE_SIZE,\"page\":$page}")
+
+    # Note: the 'total' field in the response reflects only the current page size,
+    # not the grand total — so we track our own running count instead.
+    local next_page
+    next_page=$(echo "$response" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['assets'].get('nextPage',''))")
+
+    # Extract asset IDs and original filenames, then download each
+    while IFS=$'\t' read -r asset_id filename; do
+      local dest="$account_dir/$filename"
+      if [[ -f "$dest" ]]; then
+        ((skipped++)) || true
+        continue
+      fi
+
+      # Download the original file
+      if curl -sf -o "$dest" \
+        -H "x-api-key: $api_key" \
+        "$IMMICH_URL/api/assets/$asset_id/original"; then
+        ((downloaded++)) || true
+        echo "    [page $page] downloaded #$downloaded: $filename"
+      else
+        echo "    ERROR: failed to download $asset_id ($filename)" >&2
+        rm -f "$dest"  # Remove partial file on failure
+      fi
+    done < <(echo "$response" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+for item in d['assets']['items']:
+    print(item['id'] + '\t' + item['originalFileName'])
+")
+
+    # Stop when there are no more pages
+    [[ -z "$next_page" ]] && break
+    page="$next_page"
+  done
+
+  echo "    Done: $downloaded downloaded, $skipped skipped (already exist)"
+}
+
+for account in "${!ACCOUNTS[@]}"; do
+  download_assets_for_account "$account" "${ACCOUNTS[$account]}"
+done
+
+echo ""
+echo "Export complete -> $DEST_DIR"
