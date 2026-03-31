@@ -177,7 +177,11 @@ Rewrite text that contains these patterns:
 **After (Human):**
 > "Honestly, the Beelink S12 Pro with the N100 is kind of perfect for this — tiny, cheap, sips power, and runs both Linux and FreeBSD without drama. I'm pretty happy with it."
 
-### 6. Preserve What Works
+### 6. Gemtext Format Constraints
+
+Gemtext (`.gmi` / `.gmi.tpl`) does NOT support Markdown bold (`**text**`) or italic (`*text*`). Gemtexter will not render these. Never use `**...**` or `*...*` for emphasis in blog posts. Instead, rely on sentence structure, word choice, or `backticks` for inline emphasis.
+
+### 7. Preserve What Works
 
 Do NOT change:
 - Technical accuracy
@@ -188,7 +192,7 @@ Do NOT change:
 - Personal anecdotes that already sound human
 - Direct quotes from sources (only rewrite your own commentary)
 
-### 7. Process Each File
+### 8. Process Each File
 
 1. Read the target `.gmi.tpl` or standalone `.gmi` file
 2. Identify sections that sound LLM-generated
@@ -197,6 +201,6 @@ Do NOT change:
 5. Show a diff before writing
 6. Write the updated file
 
-### 8. Related Skills
+### 9. Related Skills
 
 When using `compose-blog-post` or `update-blog-post`, apply this writing style proactively to ensure new content sounds human from the start. Reference this skill when writing or editing any blog content.

@@ -66,6 +66,22 @@ function tmpfile
     cat $TMPUTILS_TMPFILE
 end
 
+function tmpmove
+    set -l name (basename (pwd))
+    set -l src (pwd)
+    set -l dest ~/Notes/tmp/$name
+
+    if test "$src" != "$TMPUTILS_DIR/$name"
+        echo "tmpmove: not inside a tmp directory ($TMPUTILS_DIR/<name>)"
+        return 1
+    end
+
+    mkdir -p ~/Notes/tmp
+    mv $src $dest
+    cd $dest
+    echo "Moved $src -> $dest"
+end
+
 abbr -a cdtmp "cd $TMPUTILS_DIR"
 abbr -a tmpn tmpnew
 abbr -a temp tmpnew

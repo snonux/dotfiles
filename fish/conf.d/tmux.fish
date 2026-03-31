@@ -46,6 +46,12 @@ function tmux::project
         return 1
     end
 
+    set -l tmp_dir "$TMPUTILS_DIR/$argv[1]"
+    if test -d "$tmp_dir"
+        tmux::attach $argv[1] $tmp_dir
+        return
+    end
+
     set -l dir (zoxide query -i $argv[1] 2>/dev/null)
     if test $status -ne 0; or test -z "$dir"
         echo "tp: no zoxide match for '$argv[1]'"
