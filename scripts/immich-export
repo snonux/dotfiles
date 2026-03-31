@@ -73,14 +73,18 @@ download_assets() {
       continue
     fi
 
-    if curl -sf -o "$dest" \
+    # Download to a temp file first; rename to final dest only on success.
+    # This prevents half-downloaded files from being mistaken as complete.
+    local tmp="$dest.tmp"
+    if curl -sf -o "$tmp" \
       -H "x-api-key: $api_key" \
       "$IMMICH_URL/api/assets/$asset_id/original"; then
+      mv "$tmp" "$dest"
       ((downloaded++)) || true
       echo "    [$n/$total] downloaded: $filename"
     else
       echo "    [$n/$total] ERROR: failed to download $asset_id ($filename)" >&2
-      rm -f "$dest"   # Remove partial file on failure
+      rm -f "$tmp"    # Remove partial temp file on failure
     fi
   done < "$asset_list"
 
@@ -103,6 +107,14 @@ download_assets_for_account() {
   echo "    Phase 1: discovering assets..."
   discover_assets "$api_key" > "$asset_list"
   echo "    Found $(wc -l < "$asset_list") images total"
+
+  # Clean up any leftover .tmp files from a previously aborted run
+  local stale_tmp
+  stale_tmp=$(find "$account_dir" -name "*.tmp" 2>/dev/null | wc -l)
+  if [[ "$stale_tmp" -gt 0 ]]; then
+    echo "    Cleaning up $stale_tmp leftover .tmp file(s) from previous run..."
+    find "$account_dir" -name "*.tmp" -delete
+  fi
 
   echo "    Phase 2: downloading..."
   download_assets "$api_key" "$account_dir" "$asset_list"
