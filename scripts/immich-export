@@ -44,8 +44,10 @@ d = json.load(sys.stdin)
 for item in d['assets']['items']:
     print(item['id'] + '\t' + item['originalFileName'])
 "
+    # Use 'or ""' to handle null nextPage — .get() returns None when the key
+    # exists with a JSON null value, and print(None) would yield "None" (non-empty).
     local next_page
-    next_page=$(echo "$response" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['assets'].get('nextPage',''))")
+    next_page=$(echo "$response" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['assets'].get('nextPage') or '')")
 
     echo "    Discovery: page $page done..." >&2
     [[ -z "$next_page" ]] && break
