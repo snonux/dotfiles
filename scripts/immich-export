@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # Export all Immich assets for given accounts within a date range.
-# Usage: immich-export.sh
+# Usage: immich-export
 # Accounts and API keys are hardcoded below; output goes to DEST_DIR.
+#
+# Works in two phases per account:
+#   1. Discovery — paginate through all search results and collect asset IDs
+#   2. Download  — fetch each asset with real [X/total] progress
 
 set -euo pipefail
 
@@ -18,62 +22,93 @@ declare -A ACCOUNTS=(
 
 mkdir -p "$DEST_DIR"
 
-download_assets_for_account() {
-  local account="$1"
-  local api_key="$2"
-  local account_dir="$DEST_DIR/$account"
-  mkdir -p "$account_dir"
-
-  echo "==> Exporting account: $account"
-
+# Phase 1: paginate through all search results and print "id\tfilename" lines.
+# The API's 'total' field only reflects the current page size, not the grand
+# total, so we must walk all pages to know how many assets there are.
+discover_assets() {
+  local api_key="$1"
   local page=1
-  local downloaded=0
-  local skipped=0
 
   while true; do
-    # Fetch one page of assets matching the date range
     local response
     response=$(curl -sf -X POST "$IMMICH_URL/api/search/metadata" \
       -H "x-api-key: $api_key" \
       -H "Content-Type: application/json" \
       -d "{\"takenAfter\":\"$DATE_AFTER\",\"takenBefore\":\"$DATE_BEFORE\",\"type\":\"IMAGE\",\"size\":$PAGE_SIZE,\"page\":$page}")
 
-    # Note: the 'total' field in the response reflects only the current page size,
-    # not the grand total — so we track our own running count instead.
-    local next_page
-    next_page=$(echo "$response" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['assets'].get('nextPage',''))")
-
-    # Extract asset IDs and original filenames, then download each
-    while IFS=$'\t' read -r asset_id filename; do
-      local dest="$account_dir/$filename"
-      if [[ -f "$dest" ]]; then
-        ((skipped++)) || true
-        continue
-      fi
-
-      # Download the original file
-      if curl -sf -o "$dest" \
-        -H "x-api-key: $api_key" \
-        "$IMMICH_URL/api/assets/$asset_id/original"; then
-        ((downloaded++)) || true
-        echo "    [page $page] downloaded #$downloaded: $filename"
-      else
-        echo "    ERROR: failed to download $asset_id ($filename)" >&2
-        rm -f "$dest"  # Remove partial file on failure
-      fi
-    done < <(echo "$response" | python3 -c "
+    # Print id<TAB>filename for each asset on this page
+    echo "$response" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
 for item in d['assets']['items']:
     print(item['id'] + '\t' + item['originalFileName'])
-")
+"
+    local next_page
+    next_page=$(echo "$response" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['assets'].get('nextPage',''))")
 
-    # Stop when there are no more pages
+    echo "    Discovery: page $page done..." >&2
     [[ -z "$next_page" ]] && break
     page="$next_page"
   done
+}
+
+# Phase 2: download each asset by ID, showing real [X/total] progress.
+download_assets() {
+  local api_key="$1"
+  local account_dir="$2"
+  local asset_list="$3"   # path to temp file with "id\tfilename" lines
+  local total
+  total=$(wc -l < "$asset_list")
+  local downloaded=0
+  local skipped=0
+  local n=0
+
+  while IFS=$'\t' read -r asset_id filename; do
+    ((n++)) || true
+    local dest="$account_dir/$filename"
+
+    if [[ -f "$dest" ]]; then
+      ((skipped++)) || true
+      echo "    [$n/$total] skip (exists): $filename"
+      continue
+    fi
+
+    if curl -sf -o "$dest" \
+      -H "x-api-key: $api_key" \
+      "$IMMICH_URL/api/assets/$asset_id/original"; then
+      ((downloaded++)) || true
+      echo "    [$n/$total] downloaded: $filename"
+    else
+      echo "    [$n/$total] ERROR: failed to download $asset_id ($filename)" >&2
+      rm -f "$dest"   # Remove partial file on failure
+    fi
+  done < "$asset_list"
 
   echo "    Done: $downloaded downloaded, $skipped skipped (already exist)"
+}
+
+download_assets_for_account() {
+  local account="$1"
+  local api_key="$2"
+  local account_dir="$DEST_DIR/$account"
+  mkdir -p "$account_dir"
+
+  echo "==> Account: $account"
+
+  # Collect full asset list into a temp file so we know the total upfront
+  local asset_list
+  asset_list=$(mktemp)
+  trap "rm -f $asset_list" EXIT
+
+  echo "    Phase 1: discovering assets..."
+  discover_assets "$api_key" > "$asset_list"
+  echo "    Found $(wc -l < "$asset_list") images total"
+
+  echo "    Phase 2: downloading..."
+  download_assets "$api_key" "$account_dir" "$asset_list"
+
+  rm -f "$asset_list"
+  trap - EXIT
 }
 
 for account in "${!ACCOUNTS[@]}"; do
