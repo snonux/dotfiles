@@ -13,6 +13,10 @@
       "backupLocation": true,
       "descriptionSyncHost": "root@r0",
       "descriptionSyncRoot": "/data/nfs/k3svolumes/git-server/repos"
+    },
+    {
+      "host": "paul@t450:git",
+      "backupLocation": true
     }
   ],
   "repositories": [],

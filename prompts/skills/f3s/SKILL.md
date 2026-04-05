@@ -26,6 +26,7 @@ Detailed reference documentation is in the `references/` subfolder:
 - [k3s Setup](references/k3s-setup.md) — HA k3s cluster, etcd, node IPs, kubeconfig, ArgoCD
 - [Observability](references/observability.md) — Prometheus, Grafana, Loki, Alloy, Tempo
 - [Package Repos](references/package-repos.md) — Custom FreeBSD/OpenBSD pkg repo served from k3s nginx pod
+- [Immich](references/immich.md) — Photo server deployment, job queue stats, troubleshooting
 
 ## Quick Reference: Host IPs
 
