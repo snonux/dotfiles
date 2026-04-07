@@ -42,6 +42,10 @@ diff ~/git/conf/f3s/immich/snapshots/immich-queues-<old>.txt ~/git/conf/f3s/immi
 
 Decreasing `waiting` and stable/zero `failed` means healthy progress.
 
+### Always Check for Progress
+
+When gathering new stats, **always compare against the most recent saved snapshot** (check `~/git/conf/f3s/immich/snapshots/`). If a queue's `waiting` count has not decreased since the last snapshot, the queue is likely stuck — investigate immediately (see "Stuck job queue" in Troubleshooting below).
+
 ## Job Control via API
 
 The API key is stored at `~/.immich_paul_key`. Use it to pause/resume jobs:
@@ -76,6 +80,19 @@ On the N100 (4-core) nodes, ML jobs compete for CPU. To speed up slow queues:
 
 ## Troubleshooting
 
+- **Stuck job queue**: If a queue has `waiting` jobs but no progress since the last snapshot:
+  1. Check ML pod logs for activity: `kubectl logs -n services deploy/immich-machine-learning --tail=30`. Look for "Shutting down due to inactivity" — this means jobs are not being dispatched.
+  2. Check server/microservices logs: `kubectl logs -n services deploy/immich-server --tail=30`. If there's no job processing output (only version checks and websocket events), the worker is stuck.
+  3. A stale `active` job in Valkey can block the entire queue. Clear it:
+     ```sh
+     kubectl exec -n services deploy/immich-valkey -- valkey-cli DEL "immich_bull:<queue>:active"
+     ```
+  4. If clearing the stale job doesn't help, **restart the server deployment** — this is the most reliable fix:
+     ```sh
+     kubectl rollout restart deploy/immich-server -n services
+     kubectl rollout status deploy/immich-server -n services --timeout=120s
+     ```
+  5. After restart, wait ~20 seconds, then verify via the API that `isActive: true` and `waiting` is decreasing.
 - **Postgres crash loop**: Usually caused by liveness probe killing postgres during WAL recovery. Check `kubectl describe pod` for probe failures and postgres logs for "database system was interrupted while in recovery". Fix by relaxing probe timeouts/thresholds and adding resource limits.
 - **Server crash loop**: Often caused by postgres being unavailable. Fix postgres first.
 - **ML errors**: "Machine learning repository not been setup" is transient — resolves once the ML pod health check passes.
