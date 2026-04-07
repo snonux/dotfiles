@@ -28,19 +28,51 @@ done
 
 ## Saving and Comparing Snapshots
 
-Save a snapshot to `/tmp/immich-queues-<timestamp>.txt`:
+Save a snapshot to the conf repo (persistent, not `/tmp`):
 
 ```sh
-kubectl exec -n services deploy/immich-valkey -- sh -c '...' > /tmp/immich-queues-$(date +%Y%m%d-%H%M%S).txt
+kubectl exec -n services deploy/immich-valkey -- sh -c '...' > ~/git/conf/f3s/immich/snapshots/immich-queues-$(date +%Y%m%d-%H%M%S).txt
 ```
 
 To compare a previous snapshot with current state, re-run the command and diff:
 
 ```sh
-diff /tmp/immich-queues-<old>.txt /tmp/immich-queues-<new>.txt
+diff ~/git/conf/f3s/immich/snapshots/immich-queues-<old>.txt ~/git/conf/f3s/immich/snapshots/immich-queues-<new>.txt
 ```
 
 Decreasing `waiting` and stable/zero `failed` means healthy progress.
+
+## Job Control via API
+
+The API key is stored at `~/.immich_paul_key`. Use it to pause/resume jobs:
+
+```sh
+API_KEY=$(cat ~/.immich_paul_key)
+
+# Get all job statuses
+kubectl exec -n services deploy/immich-server -- curl -s \
+  -H "x-api-key: $API_KEY" http://localhost:2283/api/jobs
+
+# Pause a job (e.g. faceDetection)
+kubectl exec -n services deploy/immich-server -- curl -s -X PUT \
+  -H "x-api-key: $API_KEY" -H "Content-Type: application/json" \
+  -d '{"command":"pause","force":false}' \
+  http://localhost:2283/api/jobs/faceDetection
+
+# Resume a job
+kubectl exec -n services deploy/immich-server -- curl -s -X PUT \
+  -H "x-api-key: $API_KEY" -H "Content-Type: application/json" \
+  -d '{"command":"resume","force":false}' \
+  http://localhost:2283/api/jobs/faceDetection
+```
+
+### Throughput Optimization Strategy
+
+On the N100 (4-core) nodes, ML jobs compete for CPU. To speed up slow queues:
+
+1. **Pause faceDetection** (largest queue) to free CPU for OCR and smartSearch
+2. Resume faceDetection once OCR and smartSearch finish
+3. The anti-affinity in `values.yaml` prefers ML on a different node than both server and postgres
 
 ## Troubleshooting
 
