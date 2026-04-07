@@ -23,14 +23,11 @@ function update::tools
         set -a pids $last_pid
     end
 
-    if test -f ~/go/bin/do
-        if test -f ~/go/bin/ask
+    if test -f ~/go/bin/ask
+        if test -f ~/go/bin/do
+            # Only remove the ask command when the do command is already installed!
             rm ~/go/bin/ask
         end
-    end
-    # Obsolete moved to keepass
-    if test -f ~/go/bin/foostore
-        rm ~/go/bin/foostore
     end
 
     for prog in tasksamurai timesamurai gt loadbars
