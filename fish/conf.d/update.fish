@@ -17,14 +17,16 @@ function update::tools
     go install golang.org/x/tools/cmd/goimports@latest &
     set -a pids $last_pid
 
-    for prog in hexai hexai-lsp-server hexai-tmux-action hexai-tmux-edit hexai-mcp-server ask
+    for prog in hexai hexai-lsp-server hexai-tmux-action hexai-tmux-edit hexai-mcp-server do
         echo "Installing/updating $prog from codeberg.org/snonux/hexai/cmd/$prog@latest"
         go install codeberg.org/snonux/hexai/cmd/$prog@latest &
         set -a pids $last_pid
     end
 
-    if test -f ~/go/bin/perc
-        rm ~/go/bin/perc
+    if test -f ~/go/bin/do
+        if test -f ~/go/bin/ask
+            rm ~/go/bin/ask
+        end
     end
     # Obsolete moved to keepass
     if test -f ~/go/bin/foostore
