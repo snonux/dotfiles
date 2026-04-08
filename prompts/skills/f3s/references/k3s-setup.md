@@ -177,7 +177,7 @@ cd f3s/
 
 ## External Connectivity: OpenBSD relayd
 
-Traffic flow for public access: `Internet → OpenBSD relayd (TLS, Let's Encrypt) → WireGuard → k3s Traefik :80 → Service`
+Default traffic flow for public k3s-backed services: `Internet → OpenBSD relayd (TLS, Let's Encrypt) → WireGuard → k3s Traefik :80 → Service`
 
 ### relayd.conf on blowfish/fishfinger
 
@@ -204,7 +204,9 @@ relay "https4" {
 }
 ```
 
-When all f3s nodes are down, relayd falls back to `localhost:8080` (OpenBSD httpd serving a "Server turned off" page).
+`f3s.buetow.org` is now a special case: it no longer points at the k3s/apache backend and is forwarded by OpenBSD `relayd` to `pi0` (`192.168.2.203`) and `pi1` (`192.168.2.204`) via a dedicated `<f3s_static>` backend table.
+
+When all k3s-backed f3s nodes are down, relayd falls back to `localhost:8080` (OpenBSD httpd serving a "Server turned off" page) for the hosts that still use the shared `<f3s>` backend.
 
 ## LAN Ingress: FreeBSD relayd on CARP VIP
 

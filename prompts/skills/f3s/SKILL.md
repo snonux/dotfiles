@@ -45,8 +45,8 @@ Detailed reference documentation is in the `references/` subfolder:
 | earth | Fedora laptop (roaming) | — | 192.168.2.200 |
 | pixel7pro | Android (roaming) | — | 192.168.2.201 |
 | f3s-storage-ha | CARP VIP (f0/f1) | 192.168.1.138 | — |
-| pi0 | Raspberry Pi 3, Rocky Linux 9 | 192.168.1.125 | — |
-| pi1 | Raspberry Pi 3, Rocky Linux 9 | 192.168.1.126 | — |
+| pi0 | Raspberry Pi 3, Rocky Linux 9, static `f3s.buetow.org` backend | 192.168.1.125 | 192.168.2.203 |
+| pi1 | Raspberry Pi 3, Rocky Linux 9, static `f3s.buetow.org` backend | 192.168.1.126 | 192.168.2.204 |
 | pi2 | Raspberry Pi 3, Rocky Linux 9 | 192.168.1.127 | — |
 | pi3 | Raspberry Pi 3, Rocky Linux 9 | 192.168.1.128 | — |
 
@@ -61,6 +61,11 @@ Four Raspberry Pi 3 boards running Rocky Linux 9.2 (Blue Onyx) aarch64 from the 
 - Default `rocky` user still present (password: `rockylinux`)
 - No GRUB — boots via Pi's native bootloader (`/boot/cmdline.txt`)
 - Custom RPi kernel from the `rockyrpi` repo
+
+Current role split:
+
+- `pi0` and `pi1` serve static `f3s.buetow.org` content behind OpenBSD `relayd` over WireGuard
+- `pi2` and `pi3` remain available for Pi-specific services and experiments
 
 ## Config Repository
 

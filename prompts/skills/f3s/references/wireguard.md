@@ -2,18 +2,23 @@
 
 ## Topology
 
-Full-mesh VPN network connecting all f3s infrastructure hosts plus two roaming clients.
+Hybrid WireGuard topology connecting the f3s infrastructure mesh, two gateway-only Raspberry Pi backends, and two roaming clients.
 
 **Infrastructure hosts** (full mesh — every host connects to every other):
 - `f0`, `f1`, `f2`, `f3` — FreeBSD physical nodes (home LAN)
 - `r0`, `r1`, `r2` — Rocky Linux Bhyve VMs
 - `blowfish`, `fishfinger` — OpenBSD internet gateways (OpenBSD Amsterdam and Hetzner)
 
+**Gateway-only peers** (connect only to gateways):
+- `pi0` — Rocky Linux 9 on Raspberry Pi 3 (`192.168.2.203`)
+- `pi1` — Rocky Linux 9 on Raspberry Pi 3 (`192.168.2.204`)
+
 **Roaming clients** (connect only to gateways):
 - `earth` — Fedora laptop (192.168.2.200)
 - `pixel7pro` — Android phone (192.168.2.201)
 
 Even `fN <-> rN` tunnels exist (technically redundant since the VM runs on the host) to keep config uniform.
+`pi0` and `pi1` are intentionally not full-mesh peers; they only establish tunnels to `blowfish` and `fishfinger`.
 
 ## WireGuard IP Assignments
 
@@ -28,6 +33,8 @@ Even `fN <-> rN` tunnels exist (technically redundant since the VM runs on the h
 | r2 | 192.168.2.122 | fd42:beef:cafe:2::122 | Rocky VM (k3s node) |
 | blowfish | 192.168.2.110 | fd42:beef:cafe:2::110 | OpenBSD internet GW |
 | fishfinger | 192.168.2.111 | fd42:beef:cafe:2::111 | OpenBSD internet GW |
+| pi0 | 192.168.2.203 | fd42:beef:cafe:2::203 | Rocky Linux 9 on Raspberry Pi 3 (gateway-only peer) |
+| pi1 | 192.168.2.204 | fd42:beef:cafe:2::204 | Rocky Linux 9 on Raspberry Pi 3 (gateway-only peer) |
 | earth | 192.168.2.200 | fd42:beef:cafe:2::200 | Fedora laptop (roaming) |
 | pixel7pro | 192.168.2.201 | fd42:beef:cafe:2::201 | Android phone (roaming) |
 
@@ -47,7 +54,7 @@ doas service wireguard start
 doas wg show  # check public key and listen port
 ```
 
-## Rocky Linux Setup (r0, r1, r2)
+## Rocky Linux Setup (r0, r1, r2, pi0, pi1)
 
 ```sh
 dnf install -y wireguard-tools
@@ -57,11 +64,13 @@ systemctl enable wg-quick@wg0.service
 systemctl start wg-quick@wg0.service
 systemctl disable firewalld
 
-# Fix SELinux blocking WireGuard:
-dnf install -y policycoreutils-python-utils
-semanage permissive -a wireguard_t
-reboot
+# Ensure wg-quick can read the config:
+chown root:root /etc/wireguard/wg0.conf
+chmod 600 /etc/wireguard/wg0.conf
+restorecon /etc/wireguard/wg0.conf
 ```
+
+On Rocky Linux 9, wrong ownership or SELinux labels on `/etc/wireguard/wg0.conf` will break `wg-quick@wg0` even when the config itself is valid.
 
 ## OpenBSD Setup (blowfish, fishfinger)
 
@@ -178,6 +187,8 @@ Add to `/etc/hosts` on each host (FreeBSD and Rocky Linux):
 192.168.2.122 r2.wg0 r2.wg0.wan.buetow.org
 192.168.2.110 blowfish.wg0 blowfish.wg0.wan.buetow.org
 192.168.2.111 fishfinger.wg0 fishfinger.wg0.wan.buetow.org
+192.168.2.203 pi0.wg0 pi0.wg0.wan.buetow.org
+192.168.2.204 pi1.wg0 pi1.wg0.wan.buetow.org
 fd42:beef:cafe:2::130 f0.wg0.wan.buetow.org
 fd42:beef:cafe:2::131 f1.wg0.wan.buetow.org
 fd42:beef:cafe:2::132 f2.wg0.wan.buetow.org
@@ -187,6 +198,8 @@ fd42:beef:cafe:2::121 r1.wg0.wan.buetow.org
 fd42:beef:cafe:2::122 r2.wg0.wan.buetow.org
 fd42:beef:cafe:2::110 blowfish.wg0.wan.buetow.org
 fd42:beef:cafe:2::111 fishfinger.wg0.wan.buetow.org
+fd42:beef:cafe:2::203 pi0.wg0.wan.buetow.org
+fd42:beef:cafe:2::204 pi1.wg0.wan.buetow.org
 ```
 
 ## Troubleshooting: `reload` vs `restart` When Adding New Peers
@@ -215,6 +228,14 @@ Config file: `wireguardmeshgenerator.yaml` — defines all hosts, their LAN/WG I
 
 The script generates all configs and can push them via SSH.
 
+Current mesh-specific notes:
+
+- `pi0` and `pi1` are defined as Rocky Linux hosts but excluded from all non-gateway peers, so they only tunnel to `blowfish` and `fishfinger`
+- Installed config ownership must be OS-specific:
+  - Linux: `root:root`
+  - BSD: `root:wheel`
+- When `restorecon` exists, run it after installing Linux configs so SELinux labels on `/etc/wireguard/wg0.conf` are correct
+
 ### FreeBSD 15.0 fix applied to generator
 
 `wireguardmeshgenerator.rb` line 151 was updated from `/24` to `/32` for FreeBSD hosts:
@@ -234,6 +255,7 @@ Note: `reload` only reconfigures peers/PSKs — it does not change the running i
 |------|---------|
 | fN ↔ rN | NFS storage (FreeBSD hosts serve NFS to VMs via stunnel) |
 | rN ↔ blowfish/fishfinger | k3s service traffic via `relayd` |
+| pi0/pi1 ↔ blowfish/fishfinger | static `f3s.buetow.org` backend traffic via `relayd` |
 | fN ↔ blowfish/fishfinger | Remote management |
 | rN ↔ rM | k3s intra-cluster traffic |
 | fN ↔ fM | zrepl storage replication |
