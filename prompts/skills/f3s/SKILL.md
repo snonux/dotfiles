@@ -27,6 +27,7 @@ Detailed reference documentation is in the `references/` subfolder:
 - [Observability](references/observability.md) — Prometheus, Grafana, Loki, Alloy, Tempo
 - [Package Repos](references/package-repos.md) — Custom FreeBSD/OpenBSD pkg repo served from k3s nginx pod
 - [Immich](references/immich.md) — Photo server deployment, job queue stats, troubleshooting
+- [Garage](references/garage.md) — Garage cluster, edge domain routing, S3 bucket/key workflow, troubleshooting
 
 ## Quick Reference: Host IPs
 
