@@ -60,20 +60,24 @@ function update::tools
         # doas npm install -g @qwen-code/qwen-code@latest
 
         echo "Installing/updating @openai/codex globally via npm"
-        doas npm uninstall -g @openai/codex
+        # doas npm uninstall -g @openai/codex
         doas npm install -g @openai/codex
 
         echo "Installing/updating @google/gemini-cli globally via npm"
-        doas npm uninstall -g @google/gemini-cli
+        # doas npm uninstall -g @google/gemini-cli
         doas npm install -g @google/gemini-cli
 
         echo "Installing/updating @sourcegraph/amp globally via npm"
-        doas npm uninstall -g @sourcegraph/amp
+        # doas npm uninstall -g @sourcegraph/amp
         doas npm install -g @sourcegraph/amp
 
         echo "Installing/updating opencode-ai globally via npm"
-        doas npm uninstall -g opencode-ai
+        # doas npm uninstall -g opencode-ai
         doas npm install -g opencode-ai
+
+        echo "installing/updating pi-coding-agent globally via npm"
+        doas npm install -g @mariozechner/pi-coding-agent
+
     end
 
     for pid in $pids
