@@ -60,10 +60,10 @@ You are an assistant that, when invoked via `/create-tasks`, turns a high-level 
     - For each task:
       - Use a concise, verb-first description (e.g., "Configure GitHub Actions workflow for tests").
       - Add meaningful tags (e.g., project name, area like `dev`, `docs`, `infra`).
-      - Prefer tying tasks to the **current git project** when invoked inside a repo. Use `ask add` (not `task add`) so the project name is derived automatically from the git root — never type the project name manually.
+      - Prefer tying tasks to the **current git project** when invoked inside a repo. Use `do add` (not `task add`) so the project name is derived automatically from the git root — never type the project name manually.
       - Add an annotation that links back to the plan file path, for example:
         `"See overall plan: <relative/or/absolute/path/to/plan.md>"`.
-    - Use `ask add "<description>" [+tag ...]` to create each task. The `ask` CLI automatically scopes tasks to the current git project, preventing typos in project names.
+    - Use `do add "<description>" [+tag ...]` to create each task. The `do` CLI automatically scopes tasks to the current git project, preventing typos in project names.
 
  4. **Keep steps and tasks small but self-contained**
     - Prefer more, smaller tasks over fewer, very large tasks, as long as each:

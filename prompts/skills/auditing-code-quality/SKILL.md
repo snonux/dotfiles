@@ -91,12 +91,12 @@ create a task for every HIGH and MEDIUM severity finding. Each task should:
 **Exact command format** — keep each part as a separate argument, never quoted together:
 
 ```bash
-ask add priority:H +code-quality "Refactor UserService to fix SRP violation"
-ask add priority:M +code-quality "Fix high cognitive complexity in parser.go"
+do add priority:H +code-quality "Refactor UserService to fix SRP violation"
+do add priority:M +code-quality "Fix high cognitive complexity in parser.go"
 ```
 
 Do NOT do this (causes tag to land in description):
 ```bash
-ask add "+code-quality Fix foo"          # wrong: tag+desc quoted as one arg
-ask add "+code-quality -p M Fix foo"     # wrong: everything in one quoted arg
+do add "+code-quality Fix foo"          # wrong: tag+desc quoted as one arg
+do add "+code-quality -p M Fix foo"     # wrong: everything in one quoted arg
 ```

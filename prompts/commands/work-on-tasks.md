@@ -27,31 +27,31 @@ You are the **orchestrator**. You pick tasks, mark them started, launch a sub-ag
 
 1. **Load project-scoped tasks**:
    - Detect the current project from local git context (`git rev-parse --show-toplevel`)
-   - Run `ask ready | head` to list actionable tasks
+   - Run `do ready | head` to list actionable tasks
    - Ignore completed/deleted tasks and non-actionable blocked items
 
 2. **Pick the next task** (default strategy: `{{strategy|highest-impact}}`):
    - Choose one actionable task based on impact, urgency, and clarity
    - If two tasks are equivalent, prefer the one that unblocks other work
-   - Run `ask info <id> 2>&1 | head -20` to preview the task — this caps the output at 20 lines so long descriptions do not flood the screen
+   - Run `do info <id> 2>&1 | head -20` to preview the task — this caps the output at 20 lines so long descriptions do not flood the screen
 
 3. **Mark the task started**:
-   - Run `ask start <id>`
+   - Run `do start <id>`
 
 4. **Delegate to a fresh sub-agent**:
    - Spawn a **new sub-agent** with a self-contained prompt that includes:
      - The task ID and a one-line summary of what the task is about
-     - Instruction to run `ask info <id>` as its **first action** to get the full description and all annotations (do not paste the description inline — the sub-agent fetches it fresh, keeping the prompt short)
+     - Instruction to run `do info <id>` as its **first action** to get the full description and all annotations (do not paste the description inline — the sub-agent fetches it fresh, keeping the prompt short)
      - The absolute path of the project root
-     - Instruction to run `ask annotate <id> "<progress notes>"` as it works
+     - Instruction to run `do annotate <id> "<progress notes>"` as it works
      - Instruction to commit all changes to git when done
      - Instruction to **not** mark the task done (the orchestrator does that)
    - The sub-agent must complete all implementation, tests, and a git commit before returning
    - Wait for the sub-agent to finish
 
 5. **Close and record**:
-   - Run `ask done <id>` to mark the task complete
-   - Run `ask annotate <id> "<summary of what was delivered>"` if the sub-agent did not already add a final annotation
+   - Run `do done <id>` to mark the task complete
+   - Run `do annotate <id> "<summary of what was delivered>"` if the sub-agent did not already add a final annotation
 
 6. **Auto-progress**:
    - Immediately return to step 1 and select the next pending task
