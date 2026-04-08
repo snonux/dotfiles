@@ -7,13 +7,13 @@ Use with `00-context.md`. Project name and global rules apply.
 Only list tasks that have `+agent` (project + tag matching). When listing, order by **priority first, then urgency**:
 
 ```bash
-ask list sort:priority-,urgency-
+do list sort:priority-,urgency-
 ```
 
 By tag (keep `+agent`, same order):
 
 ```bash
-ask list +<tag> sort:priority-,urgency-
+do list +<tag> sort:priority-,urgency-
 ```
 
 ## Picking what to work on (next task)
@@ -23,14 +23,14 @@ ask list +<tag> sort:priority-,urgency-
 **Check already-started tasks first.** Before suggesting or starting a new task:
 
 ```bash
-ask list start.any: sort:priority-,urgency-
+do list start.any: sort:priority-,urgency-
 ```
 
 - If any tasks are already started, **use one of those** (pick by priority, then urgency) — do not start a second task unless the user explicitly asks.
 - Only if no tasks are in progress, show the next actionable (READY) task, ordered by priority then urgency:
 
 ```bash
-ask ready
+do ready
 ```
 
 Once you have chosen a task from one of these lists, **use its alias ID** from the list output for all subsequent operations and handoffs. When returning or recording the chosen task for another agent or a later step, **include its alias ID**.
@@ -38,7 +38,7 @@ Once you have chosen a task from one of these lists, **use its alias ID** from t
 ## View task details
 
 ```bash
-ask info <id>
+do info <id>
 ```
 
 Always read description, summary, and **all annotations** when working on or reviewing a task.
@@ -48,14 +48,14 @@ Always read description, summary, and **all annotations** when working on or rev
 Dependency tree (all agent tasks):
 
 ```bash
-ask list
+do list
 ```
 
 Blocked vs ready (with `+agent`):
 
 ```bash
-ask list +BLOCKED sort:priority-,urgency-
-ask ready
+do list +BLOCKED sort:priority-,urgency-
+do ready
 ```
 
 ## Conventions
