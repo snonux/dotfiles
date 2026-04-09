@@ -1,33 +1,33 @@
 ---
 name: agent-task-management
-description: "Manage agent tasks scoped to the current git project using the `do` CLI. Use when asked to list, add, start, complete, annotate, or organize tasks for the project. Prefer compaction over starting a new context when beginning a new task. May start work in parallel (e.g. multiple sub-agents on different tasks) as long as agents do not conflict with each other. Triggers on: tasks, todo, task list, pick next task, what's next."
+description: "Manage agent tasks scoped to the current git project using the `~/go/bin/do` CLI. Use when asked to list, add, start, complete, annotate, or organize tasks for the project. Prefer compaction over starting a new context when beginning a new task. May start work in parallel (e.g. multiple sub-agents on different tasks) as long as agents do not conflict with each other. Triggers on: tasks, todo, task list, pick next task, what's next."
 ---
 
 # Agent Task Management
 
-Tasks are scoped to the current git repository via the `do` CLI. **Load only the files you need** for the current action so the whole skill does not need to be in context.
+Tasks are scoped to the current git repository via the `~/go/bin/do` CLI. **Load only the files you need** for the current action so the whole skill does not need to be in context.
 
-The `do` CLI provides subcommands (`list`, `ready`, `add`, `info`, `start`, `stop`, `done`, `annotate`, `modify`, `tag`, `priority`, `dep`, `delete`, `urgency`) that operate on agent-managed tasks in the current project. `do` is not a natural-language interface and does not understand skill names. Use normal subcommand syntax only.
+The task CLI at `~/go/bin/do` provides subcommands (`list`, `ready`, `add`, `info`, `start`, `stop`, `done`, `annotate`, `modify`, `tag`, `priority`, `dep`, `delete`, `urgency`) that operate on agent-managed tasks in the current project. It is not a natural-language interface and does not understand skill names. Use normal subcommand syntax only.
 
 Valid examples:
 
-- `do list`
-- `do ready`
-- `do add +cli "Add feature X"`  # prints `created task <alias-id>`
-- `do add +cli depends:0,1 "Add feature X"`
-- `do info <id>`
-- `do start <id>`
-- `do annotate <id> "progress note"`
-- `do done <id>`
+- `~/go/bin/do list`
+- `~/go/bin/do ready`
+- `~/go/bin/do add +cli "Add feature X"`  # prints `created task <alias-id>`
+- `~/go/bin/do add +cli depends:0,1 "Add feature X"`
+- `~/go/bin/do info <id>`
+- `~/go/bin/do start <id>`
+- `~/go/bin/do annotate <id> "progress note"`
+- `~/go/bin/do done <id>`
 
 Invalid examples:
 
-- `do agent-task-management ...`
-- `do list tasks`
-- `do show task 298`
-- any other natural-language phrasing passed to `do`
+- `~/go/bin/do agent-task-management ...`
+- `~/go/bin/do list tasks`
+- `~/go/bin/do show task 298`
+- any other natural-language phrasing passed to `~/go/bin/do`
 
-**Alias IDs are the selectors to use for task work.** `do add` prints `created task <alias-id>`, and subsequent task commands in this workflow should keep using that alias ID throughout the workflow.
+**Alias IDs are the selectors to use for task work.** `~/go/bin/do add` prints `created task <alias-id>`, and subsequent task commands in this workflow should keep using that alias ID throughout the workflow.
 
 ## Context and compaction
 

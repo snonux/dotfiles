@@ -9,13 +9,13 @@ When working on a task, **always read the full context:** description, summary, 
 View full task (including annotations):
 
 ```bash
-do info <id>
+~/go/bin/do info <id>
 ```
 
 ## Annotate a task
 
 ```bash
-do annotate <id> "Note about progress or context"
+~/go/bin/do annotate <id> "Note about progress or context"
 ```
 
 While making progress, **add annotations** to reflect progress, challenges, or decisions. You may refer to files, documents, or other resources (paths, doc links, snippets) so the task history stays useful for later work and for the pre-completion review.
@@ -25,17 +25,17 @@ Whenever you mention another task inside an annotation (for example, as a depend
 ## Modify a task
 
 ```bash
-do modify <id> +<tag>
-do dep add <id> <dep-id>
-do modify <id> priority:H
+~/go/bin/do modify <id> +<tag>
+~/go/bin/do dep add <id> <dep-id>
+~/go/bin/do modify <id> priority:H
 ```
 
-Use the alias ID shown by `do list`, `do ready`, or `do info` when modifying tasks selected earlier or referenced from annotations or other docs.
+Use the alias ID shown by `~/go/bin/do list`, `~/go/bin/do ready`, or `~/go/bin/do info` when modifying tasks selected earlier or referenced from annotations or other docs.
 
 ## Delete a task
 
 ```bash
-do delete <id>
+~/go/bin/do delete <id>
 ```
 
 ## Conventions

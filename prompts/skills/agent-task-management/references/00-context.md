@@ -6,7 +6,7 @@ Load this with any of the action files (1–5) when working with tasks. It defin
 
 ## Rules that apply to all task commands
 
-- **Always use `do <subcommand>` for all task operations.** The `do` CLI provides subcommands (`list`, `ready`, `add`, `info`, `start`, `stop`, `done`, `annotate`, `modify`, `tag`, `priority`, `dep`, `delete`, `urgency`) that operate on agent-managed tasks. It is not a natural-language interface and does not understand skill names.
-- **Shell note:** On zsh, `do` is a reserved word. From an interactive shell, run the CLI as `command do …` or `\do …` so the shell does not parse `do` as syntax.
+- **Always use `~/go/bin/do <subcommand>` for all task operations.** The task CLI is installed at `~/go/bin/do` and provides subcommands (`list`, `ready`, `add`, `info`, `start`, `stop`, `done`, `annotate`, `modify`, `tag`, `priority`, `dep`, `delete`, `urgency`) that operate on agent-managed tasks. It is not a natural-language interface and does not understand skill names.
+- **Shell note:** The full path avoids zsh treating `do` as a reserved word. If you invoke a copy on `PATH` named `do`, use `command do …` or `\do …` from an interactive zsh shell.
 - **One task in progress per project.** Do not start a second task while another is started and not completed, unless the user explicitly asks.
 - **Parallel work via sub-agents** — the agent may spawn sub-agents to work on tasks in parallel if those tasks would not conflict each other.
