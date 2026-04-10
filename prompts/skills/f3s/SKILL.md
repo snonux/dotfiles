@@ -67,6 +67,26 @@ Current role split:
 - `pi0` and `pi1` serve static `f3s.buetow.org` content behind OpenBSD `relayd` over WireGuard
 - `pi2` and `pi3` remain available for Pi-specific services and experiments
 
+### lighttpd Configuration
+
+Config file: `/etc/lighttpd/lighttpd.conf` (managed directly on pi0/pi1, not in a config repo)
+
+- Document root: `/var/www/html`
+- SSH access: `ssh paul@piN.lan.buetow.org -p 22`
+- Host-based virtual hosting maps domains to subdirectories:
+  - `snonux.foo` / `www.snonux.foo` → `/var/www/html/snonux`
+
+**Why Host-based vhosts?** `relayd` on the OpenBSD frontends cannot rewrite URL paths. It forwards requests with the original path intact. To serve a subdirectory as root for a domain, lighttpd must remap the document root based on the `Host` header.
+
+Example vhost block:
+```
+$HTTP["host"] =~ "^(www\.)?snonux\.foo$" {
+  server.document-root = "/var/www/html/snonux"
+}
+```
+
+**Note**: The pcre2 JIT warning (`no more memory`) on Pi 3 hardware is harmless — regex matching still works, just without JIT compilation.
+
 ## Config Repository
 
 All manifests and config: `https://codeberg.org/snonux/conf` (directory: `f3s/`)
