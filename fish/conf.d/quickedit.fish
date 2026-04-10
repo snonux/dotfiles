@@ -13,7 +13,8 @@ set -g quickedit_ignore_suffixes \
     .apkg .apk .kdbx .pfx .p12 \
     .epub .mht .mhtml .gnumeric .abw \
     .blend .sh3d \
-    .spd .spd-wal .spd-shm
+    .spd .spd-wal .spd-shm \
+    .note
 
 function quickedit::filter_ignore_suffixes
     set -l out
