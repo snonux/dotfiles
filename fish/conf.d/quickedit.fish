@@ -1,5 +1,37 @@
 set -gx QUICKEDIT_DIR ~/QuickEdit
 
+# Suffixes treated as binary: omitted from the quickedit index and picker (add as needed).
+set -g quickedit_ignore_suffixes \
+    .pdf .png .jpg .jpeg .gif .webp .bmp .ico .tiff .tif \
+    .zip .tar .gz .tgz .bz2 .xz .7z .rar .zst \
+    .mp3 .mp4 .mkv .avi .wav .flac .webm .mov \
+    .bin .exe .dll .so .dylib .o .a \
+    .woff .woff2 .ttf .eot .otf \
+    .sqlite .db \
+    .doc .docx .ppt .pptx .xls .xlsx \
+    .odt .ods .odg .odp .sxw \
+    .apkg .apk .kdbx .pfx .p12 \
+    .epub .mht .mhtml .gnumeric .abw \
+    .blend .sh3d \
+    .spd .spd-wal .spd-shm
+
+function quickedit::filter_ignore_suffixes
+    set -l out
+    for f in $argv
+        set -l skip 0
+        for suffix in $quickedit_ignore_suffixes
+            if string match -qi "*$suffix" $f
+                set skip 1
+                break
+            end
+        end
+        if test $skip -eq 0
+            set out $out $f
+        end
+    end
+    printf '%s\n' $out
+end
+
 function quickedit::postaction
     set -l file_path $argv[1]
     set -l make_run 0
@@ -49,10 +81,18 @@ function quickedit::run
     end
     if test $index_age -gt 86400
         echo Indexing quickedit
-        find -L . -type f -not -path '*/.*' | sort >$QUICKEDIT_DIR/.index.tmp && mv $QUICKEDIT_DIR/.index.tmp $QUICKEDIT_DIR/.index
+        set -l find_args -L . -type f -not -path '*/.*'
+        if test (count $quickedit_ignore_suffixes) -gt 0
+            set find_args $find_args '('
+            for suffix in $quickedit_ignore_suffixes
+                set find_args $find_args ! -name "*$suffix"
+            end
+            set find_args $find_args ')'
+        end
+        find $find_args | sort >$QUICKEDIT_DIR/.index.tmp && mv $QUICKEDIT_DIR/.index.tmp $QUICKEDIT_DIR/.index
     end
 
-    set files (grep -E "$grep_pattern" $QUICKEDIT_DIR/.index)
+    set files (quickedit::filter_ignore_suffixes (grep -E "$grep_pattern" $QUICKEDIT_DIR/.index))
     switch (count $files)
         case 0
             echo No result found
