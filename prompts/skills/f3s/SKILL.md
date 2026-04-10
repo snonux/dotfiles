@@ -1,6 +1,6 @@
 ---
 name: f3s
-description: Reference skill for the f3s homelab—four Beelink S12 Pro hosts (f0/f1/f2/f3) running FreeBSD with Rocky Linux Bhyve VMs and a k3s Kubernetes cluster. f0/f1/f2 run r0/r1/r2 k3s nodes; f3 is standalone bhyve only (not part of k3s). Also includes four Raspberry Pi 3 nodes (pi0–pi3) running Rocky Linux 9. Use when troubleshooting or making configuration decisions for the f3s setup.
+description: Reference skill for the f3s homelab—four Beelink S12 Pro hosts (f0/f1/f2/f3) running FreeBSD with Rocky Linux Bhyve VMs and a k3s Kubernetes cluster. f0/f1/f2 run r0/r1/r2 k3s nodes; f3 is standalone bhyve only (not part of k3s). Also includes four Raspberry Pi 3 nodes (pi0–pi3) running Rocky Linux 9. Covers DTail/dserver on Pis (arm64) and k3s VMs (amd64). Use when troubleshooting or making configuration decisions for the f3s setup.
 ---
 
 # f3s Homelab Reference
@@ -28,6 +28,7 @@ Detailed reference documentation is in the `references/` subfolder:
 - [Package Repos](references/package-repos.md) — Custom FreeBSD/OpenBSD pkg repo served from k3s nginx pod
 - [Immich](references/immich.md) — Photo server deployment, job queue stats, troubleshooting
 - [Garage](references/garage.md) — Garage cluster, edge domain routing, S3 bucket/key workflow, troubleshooting
+- [DTail / dserver](references/dtail.md) — dserver: Pis **arm64** vs r0–r2 **amd64**, r-VM **root** + `root.authorized_keys` cache, firewalld **2222**, systemd timers
 
 ## Quick Reference: Host IPs
 
@@ -86,6 +87,12 @@ $HTTP["host"] =~ "^(www\.)?snonux\.foo$" {
 ```
 
 **Note**: The pcre2 JIT warning (`no more memory`) on Pi 3 hardware is harmless — regex matching still works, just without JIT compilation.
+
+## DTail (dserver)
+
+Distributed log access over SSH on port **2222** (not sshd’s 22). **pi0–pi3**: cross-build **linux/arm64** + `DTAIL_NO_ZSTD=yes`. **r0–r2** (k3s Rocky VMs): **linux/amd64** only; install as **root** over SSH; **`dtail.json` must list `root` in `Server.Permissions.Users`**; mirror **`/root/.ssh/authorized_keys`** → `/var/run/dserver/cache/root.authorized_keys` because the key-cache script only walks `/home/*`. **firewalld**: open **2222/tcp**. Rebuild clients from current **dtail** `master` if the “trust these hosts” prompt still hangs (stdout pause bug fixed upstream).
+
+Details: [references/dtail.md](references/dtail.md) (section **dserver on r0, r1, r2**).
 
 ## Config Repository
 
