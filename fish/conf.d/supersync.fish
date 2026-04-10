@@ -107,7 +107,14 @@ function supersync
     supersync::prompts
 
     if test -f ~/.gos_enable
-        gos
+        if test -f ~/go/bin/gos
+            # Go social media tool
+            ~/go/bin/gos
+        end
+        if test -f ~/go/bin/snonux
+            # snonux microblogger tool
+            ~/go/bin/snonux --input ~/.gosdir/snonux/inbox/ --output ~/.gosdir/snonux/dist/ --sync
+        end
     end
 
     supersync::gitsyncer
