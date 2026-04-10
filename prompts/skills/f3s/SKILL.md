@@ -29,6 +29,7 @@ Detailed reference documentation is in the `references/` subfolder:
 - [Immich](references/immich.md) — Photo server deployment, job queue stats, troubleshooting
 - [Garage](references/garage.md) — Garage cluster, edge domain routing, S3 bucket/key workflow, troubleshooting
 - [DTail / dserver](references/dtail.md) — dserver: Pis **arm64** vs r0–r2 **amd64**, r-VM **root** + `root.authorized_keys` cache, firewalld **2222**, systemd timers
+- [dserver.d](references/dserver.d) — index: links to **Rocky r-VM DTail** subsection and full **dtail.md**
 
 ## Quick Reference: Host IPs
 

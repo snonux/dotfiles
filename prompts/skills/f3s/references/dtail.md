@@ -21,7 +21,7 @@ chmod 600 /var/run/dserver/cache/root.authorized_keys
 
 ## dserver on r0, r1, r2 (k3s Rocky VMs, amd64)
 
-These hosts are the **x86_64** guests on f0/f1/f2 ([Rocky Linux VMs](rocky-linux-vms.md)). **Do not** install the Pi **arm64** binary here.
+These hosts are the **x86_64** guests on f0/f1/f2. SSH and VM background: [Rocky Linux VMs](rocky-linux-vms.md), **DTail subsection** (same content in short form): [DTail (dserver) on r0–r2](rocky-linux-vms.md#dtail-dserver-on-r0r2). Shortcut index file: [dserver.d](dserver.d). **Do not** install the Pi **arm64** binary here.
 
 | Item | Value |
 |------|--------|

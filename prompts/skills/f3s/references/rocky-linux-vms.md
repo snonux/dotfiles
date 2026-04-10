@@ -107,7 +107,7 @@ for i in 0 1 2; do ssh-copy-id root@r$i.lan.buetow.org; done
 
 ### DTail (dserver) on r0–r2
 
-These VMs can run **dserver** for `dcat` / `dtail` / `dgrep` / `dmap` on **TCP 2222** (separate from sshd on 22). Use a **linux/amd64** static build (not the Raspberry Pi arm64 binary). Install is usually done as **root**; **`dtail.json` must allow user `root`**, and **`/root/.ssh/authorized_keys` must be copied** into dserver’s key cache (the stock key-cache script only handles `/home/*`). **firewalld** needs **2222/tcp**. Full procedure: [dtail.md](dtail.md).
+These VMs can run **dserver** for `dcat` / `dtail` / `dgrep` / `dmap` on **TCP 2222** (separate from sshd on 22). Use a **linux/amd64** static build (not the Raspberry Pi arm64 binary). Install is usually done as **root**; **`dtail.json` must allow user `root`**, and **`/root/.ssh/authorized_keys` must be copied** into dserver’s key cache (the stock key-cache script only handles `/home/*`). **firewalld** needs **2222/tcp**. Full procedure: [dtail.md](dtail.md). Shortcut index: [dserver.d](dserver.d).
 
 ### Update Rocky Linux
 ```sh
