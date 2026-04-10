@@ -24,3 +24,4 @@ skills/increment-version-and-push
 skills/purge-file-from-git
 skills/solid-principles
 skills/agent-task-management
+skills/run-command
