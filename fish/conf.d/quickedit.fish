@@ -29,12 +29,13 @@ function quickedit::postaction
     end
 end
 
-function quickedit
+function quickedit::run
+    set -l run_postaction $argv[1]
     set -l prev_dir (pwd)
     set -l grep_pattern .
 
-    if test (count $argv) -gt 0
-        set grep_pattern $argv[1]
+    if test (count $argv) -gt 1
+        set grep_pattern $argv[2]
     end
 
     cd $QUICKEDIT_DIR
@@ -71,15 +72,25 @@ function quickedit
     if test "$file_path" = REINDEX
         rm -f $QUICKEDIT_DIR/.index
         cd $prev_dir
-        quickedit $argv
+        quickedit::run $run_postaction $argv[2..-1]
         return
     end
 
     if editor::helix::open_with_lock $file_path
-        quickedit::postaction $file_path
+        if test "$run_postaction" = 1
+            quickedit::postaction $file_path
+        end
     end
 
     cd $prev_dir
+end
+
+function quickedit
+    quickedit::run 1 $argv
+end
+
+function quickview
+    quickedit::run 0 $argv
 end
 
 function slowedit

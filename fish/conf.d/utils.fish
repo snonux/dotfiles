@@ -150,8 +150,6 @@ function ssh::force
     ssh -A $server
 end
 
-if test -f ~/git/geheim/geheim.rb
-    function geheim
-        ruby ~/git/geheim/geheim.rb $argv
-    end
+function geheim
+    echo 'Use KeePassXC and/or foostore'
 end
