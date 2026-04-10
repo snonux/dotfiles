@@ -5,10 +5,10 @@ if test -f ~/git/hypr/hypr.fish
     source ~/git/hypr/hypr.fish
 end
 
-set -l ask_bin ~/go/bin/ask
+set -l do_bin ~/go/bin/do
 
-if test -x $ask_bin
-    $ask_bin fish | source
+if test -x $do_bin
+    $do_bin fish | source
 else
-    echo No $ask_bin found
+    echo No $do_bin found
 end
