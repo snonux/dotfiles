@@ -1,12 +1,14 @@
 ---
 name: auditing-code-quality
 description: >
-  Full code quality audit combining SOLID principles, system-level architecture
-  principles, and Go best practices. Use when asked to "audit code quality",
-  "full design review", "check all principles", "code health check", or
-  "architecture and code audit". Triggers on: audit, code quality, design review,
-  full review, health check.
+  Run a comprehensive code quality audit by orchestrating specialized skills
+  for Go best practices, SOLID principles, and system-level architecture, then
+  create actionable tasks for the findings. Use when asked to "audit code
+  quality", "full design review", "code health check", or "architecture and
+  code audit".
 ---
+
+References are relative to /home/paul/.agents/skills/auditing-code-quality.
 
 # Auditing Code Quality
 
@@ -91,12 +93,12 @@ create a task for every HIGH and MEDIUM severity finding. Each task should:
 **Exact command format** — keep each part as a separate argument, never quoted together:
 
 ```bash
-do add priority:H +code-quality "Refactor UserService to fix SRP violation"
-do add priority:M +code-quality "Fix high cognitive complexity in parser.go"
+~/go/bin/do add priority:H +code-quality "Refactor UserService to fix SRP violation"
+~/go/bin/do add priority:M +code-quality "Fix high cognitive complexity in parser.go"
 ```
 
 Do NOT do this (causes tag to land in description):
 ```bash
-do add "+code-quality Fix foo"          # wrong: tag+desc quoted as one arg
-do add "+code-quality -p M Fix foo"     # wrong: everything in one quoted arg
+~/go/bin/do add "+code-quality Fix foo"          # wrong: tag+desc quoted as one arg
+~/go/bin/do add "+code-quality -p M Fix foo"     # wrong: everything in one quoted arg
 ```
