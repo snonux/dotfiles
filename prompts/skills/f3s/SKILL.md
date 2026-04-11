@@ -1,6 +1,6 @@
 ---
 name: f3s
-description: Reference skill for the f3s homelab—four Beelink S12 Pro hosts (f0/f1/f2/f3) running FreeBSD with Rocky Linux Bhyve VMs and a k3s Kubernetes cluster. f0/f1/f2 run r0/r1/r2 k3s nodes; f3 is standalone bhyve only (not part of k3s). Also includes four Raspberry Pi 3 nodes (pi0–pi3) running Rocky Linux 9. Covers DTail/dserver on Pis (arm64) and k3s VMs (amd64). Use when troubleshooting or making configuration decisions for the f3s setup.
+description: Reference skill for the f3s homelab—four Beelink S12 Pro hosts (f0/f1/f2/f3) running FreeBSD with Rocky Linux Bhyve VMs and a k3s Kubernetes cluster. f0/f1/f2 run r0/r1/r2 k3s nodes; f3 is standalone bhyve only (not part of k3s). Four Raspberry Pi 3 nodes (pi0–pi3) on Rocky Linux 9; pi2/pi3 run Pi-hole (Docker) and LAN wildcard DNS for *.f3s.lan.buetow.org. Covers DTail/dserver on Pis (arm64) and k3s VMs (amd64). Use when troubleshooting or making configuration decisions for the f3s setup.
 ---
 
 # f3s Homelab Reference
@@ -29,6 +29,7 @@ Detailed reference documentation is in the `references/` subfolder:
 - [Garage](references/garage.md) — Garage cluster, edge domain routing, S3 bucket/key workflow, troubleshooting
 - [DTail / dserver](references/dtail.md) — dserver: Pis **arm64** vs r0–r2 **amd64**, r-VM **root** + `root.authorized_keys` cache, firewalld **2222**, systemd timers
 - [dserver.d](references/dserver.d) — index: links to **Rocky r-VM DTail** subsection and full **dtail.md**
+- [Pi-hole on Pis](references/pihole-pi.md) — **pi2/pi3** Docker Pi-hole, **`~/pihole`**, **`*.f3s.lan.buetow.org` → 192.168.1.138**, paths under **`f3s/pihole/docker-pi/`**
 
 Package repository details were split into the sibling `pkgrepo` skill. Use `pkgrepo` for `pkgrepo.f3s.buetow.org`, repo layout, package publication, and client repo configuration.
 
@@ -50,8 +51,8 @@ Package repository details were split into the sibling `pkgrepo` skill. Use `pkg
 | f3s-storage-ha | CARP VIP (f0/f1) | 192.168.1.138 | — |
 | pi0 | Raspberry Pi 3, Rocky Linux 9, static `f3s.buetow.org` backend | 192.168.1.125 | 192.168.2.203 |
 | pi1 | Raspberry Pi 3, Rocky Linux 9, static `f3s.buetow.org` backend | 192.168.1.126 | 192.168.2.204 |
-| pi2 | Raspberry Pi 3, Rocky Linux 9 | 192.168.1.127 | — |
-| pi3 | Raspberry Pi 3, Rocky Linux 9 | 192.168.1.128 | — |
+| pi2 | Raspberry Pi 3, Rocky Linux 9, Pi-hole (Docker, host net) | 192.168.1.127 | — |
+| pi3 | Raspberry Pi 3, Rocky Linux 9, Pi-hole (Docker, host net) | 192.168.1.128 | — |
 
 ## Raspberry Pi Nodes
 
@@ -68,7 +69,7 @@ Four Raspberry Pi 3 boards running Rocky Linux 9.2 (Blue Onyx) aarch64 from the 
 Current role split:
 
 - `pi0` and `pi1` serve static `f3s.buetow.org` content behind OpenBSD `relayd` over WireGuard
-- `pi2` and `pi3` remain available for Pi-specific services and experiments
+- `pi2` and `pi3` run **Pi-hole** in Docker (`network_mode: host`, `~/pihole` on each host). Tracked dnsmasq LAN wildcard: **`f3s/pihole/docker-pi/`** in the conf repo; details in [references/pihole-pi.md](references/pihole-pi.md).
 
 ### lighttpd Configuration
 
