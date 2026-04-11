@@ -1,33 +1,33 @@
 ---
 name: agent-task-management
-description: "Manage agent tasks scoped to the current git project using the `~/go/bin/ask` CLI. Use when asked to list, add, start, complete, annotate, or organize tasks for the project. Prefer compaction over starting a new context when beginning a new task. May start work in parallel (e.g. multiple sub-agents on different tasks) as long as agents do not conflict with each other. Triggers on: tasks, todo, task list, pick next task, what's next."
+description: "Manage agent tasks scoped to the current git project using the `ask` CLI. Use when asked to list, add, start, complete, annotate, or organize tasks for the project. Prefer compaction over starting a new context when beginning a new task. May start work in parallel (e.g. multiple sub-agents on different tasks) as long as agents do not conflict with each other. Triggers on: tasks, todo, task list, pick next task, what's next."
 ---
 
 # Agent Task Management
 
-Tasks are scoped to the current git repository via the `~/go/bin/ask` CLI. **Load only the files you need** for the current action so the whole skill does not need to be in context.
+Tasks are scoped to the current git repository via the `ask` CLI. **Load only the files you need** for the current action so the whole skill does not need to be in context.
 
-The task CLI at `~/go/bin/ask` provides subcommands (`list`, `ready`, `add`, `info`, `start`, `stop`, `done`, `annotate`, `modify`, `tag`, `priority`, `dep`, `delete`, `urgency`) that operate on agent-managed tasks in the current project. It is not a natural-language interface and does not understand skill names. Use normal subcommand syntax only.
+The task CLI at `ask` provides subcommands (`list`, `ready`, `add`, `info`, `start`, `stop`, `done`, `annotate`, `modify`, `tag`, `priority`, `dep`, `delete`, `urgency`) that operate on agent-managed tasks in the current project. It is not a natural-language interface and does not understand skill names. Use normal subcommand syntax only.
 
 Valid examples:
 
-- `~/go/bin/ask list`
-- `~/go/bin/ask ready`
-- `~/go/bin/ask add +cli "Add feature X"`  # prints `created task <alias-id>`
-- `~/go/bin/ask add +cli depends:0,1 "Add feature X"`
-- `~/go/bin/ask info <id>`
-- `~/go/bin/ask start <id>`
-- `~/go/bin/ask annotate <id> "progress note"`
-- `~/go/bin/ask done <id>`
+- `ask list`
+- `ask ready`
+- `ask add +cli "Add feature X"`  # prints `created task <alias-id>`
+- `ask add +cli depends:0,1 "Add feature X"`
+- `ask info <id>`
+- `ask start <id>`
+- `ask annotate <id> "progress note"`
+- `ask done <id>`
 
 Invalid examples:
 
-- `~/go/bin/ask agent-task-management ...`
-- `~/go/bin/ask list tasks`
-- `~/go/bin/ask show task 298`
-- any other natural-language phrasing passed to `~/go/bin/ask`
+- `ask agent-task-management ...`
+- `ask list tasks`
+- `ask show task 298`
+- any other natural-language phrasing passed to `ask`
 
-**Alias IDs are the selectors to use for task work.** `~/go/bin/ask add` prints `created task <alias-id>`, and subsequent task commands in this workflow should keep using that alias ID throughout the workflow.
+**Alias IDs are the selectors to use for task work.** `ask add` prints `created task <alias-id>`, and subsequent task commands in this workflow should keep using that alias ID throughout the workflow.
 
 ## Context and compaction
 
