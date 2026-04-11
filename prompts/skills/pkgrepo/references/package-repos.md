@@ -1,14 +1,26 @@
 # Package Repositories
 
-Custom FreeBSD and OpenBSD package repository served from k3s, allowing native package tools (`pkg` and `pkg_add`) to install custom-built packages.
+Custom FreeBSD, OpenBSD, and Rocky Linux package repository served from k3s, allowing native package tools (`pkg`, `pkg_add`, and `dnf`) to install custom-built packages.
 
 ## Architecture
 
 - **nginx pod** in k3s `infra` namespace serves static files from a PV
-- Path prefixes: `/freebsd/` and `/openbsd/`
+- Path prefixes: `/freebsd/`, `/openbsd/`, and `/rockylinux/`
 - Accessible at `https://pkgrepo.f3s.buetow.org`
 - TLS terminated by OpenBSD relayd on the internet gateways (not in the pod)
 - DNS, ACME certs, httpd fallback, and relayd routing auto-generated from `@f3s_hosts` in `frontends/Rexfile`
+
+## Required host context
+
+This reference is package-repo focused, but it still uses a few f3s host names directly:
+
+- `f0` = FreeBSD host that carries the NFS-backed PV at `/data/nfs/k3svolumes/pkgrepo/`
+- `fishfinger` and `blowfish` = OpenBSD frontend hosts used for OpenBSD package install/build tasks
+- `r0-r2` = Rocky Linux 9 x86_64 bhyve VMs
+- `pi0-pi3` = Rocky Linux 9 aarch64 Raspberry Pi nodes
+- `earth` = Fedora laptop used to build, publish, and verify packages
+
+If you need the broader homelab topology, network roles, or non-package service context, load the sibling `f3s` skill as well.
 
 ## Key Files
 
@@ -20,9 +32,10 @@ Custom FreeBSD and OpenBSD package repository served from k3s, allowing native p
 | `frontends/Rexfile` (`@f3s_hosts`) | DNS + routing entry for `pkgrepo.f3s.buetow.org` |
 | `frontends/Rexfile` (`pkgrepo_setup`) | Adds `PKG_PATH` to root's `.profile` on OpenBSD frontends |
 | `frontends/Rexfile` (`gogios_install`) | Installs/updates gogios from the custom repo |
-| `packages/Makefile` | `make pkg` cross-compiles, packages, and uploads for both OSes |
+| `packages/Makefile` | `make pkg` cross-compiles, packages, and uploads for both OSes; `make dtail-rocky` builds and publishes the Rocky repo |
 | `packages/scripts/pkg-freebsd.sh` | Runs on f0 via SSH: pkg create + pkg repo + copy to PV |
 | `packages/scripts/pkg-openbsd.sh` | Runs on fishfinger via SSH: pkg_create + signify signing |
+| `packages/scripts/pkg-dtail-rpm.sh` | Builds DTail RPMs from prebuilt or locally built payloads |
 
 ## PV Directory Structure
 
@@ -39,6 +52,10 @@ Custom FreeBSD and OpenBSD package repository served from k3s, allowing native p
     7.8/
       packages/
         amd64/            # .tgz files
+  rockylinux/
+    9/
+      x86_64/             # .rpm files + repodata/
+      aarch64/            # .rpm files + repodata/
 ```
 
 Hosted on NFS at f0 (`/data/nfs/k3svolumes/pkgrepo/`).
@@ -115,6 +132,43 @@ Two things needed:
 
 The PKG_PATH must be updated when the OpenBSD version changes (currently 7.8).
 
+## Rocky Linux Client Setup (r0-r2, pi0-pi3)
+
+The Rocky repo is architecture-specific and follows the standard DNF layout:
+
+- `https://pkgrepo.f3s.buetow.org/rockylinux/9/x86_64/`
+- `https://pkgrepo.f3s.buetow.org/rockylinux/9/aarch64/`
+
+### Temporary one-off usage
+
+```sh
+sudo dnf repoquery \
+  --disablerepo='*' \
+  --repofrompath=f3s-dtail,https://pkgrepo.f3s.buetow.org/rockylinux/9/$(uname -m)/ \
+  --enablerepo=f3s-dtail \
+  dtail
+```
+
+### Persistent repo file
+
+Create `/etc/yum.repos.d/f3s-dtail.repo`:
+
+```ini
+[f3s-dtail]
+name=f3s DTail
+baseurl=https://pkgrepo.f3s.buetow.org/rockylinux/9/$basearch/
+enabled=1
+gpgcheck=0
+repo_gpgcheck=0
+```
+
+Then:
+
+```sh
+sudo dnf makecache
+sudo dnf install dtail
+```
+
 ### Package signing
 
 OpenBSD packages are signed with `signify(1)` via `pkg_sign`:
@@ -140,6 +194,9 @@ make pkg NAME=gogios SRC=/home/paul/git/gogios \
 # Single OS
 make pkg-freebsd NAME=gogios SRC=/home/paul/git/gogios
 make pkg-openbsd NAME=gogios SRC=/home/paul/git/gogios
+
+# DTail Rocky Linux repo (x86_64 + aarch64 RPMs + repodata)
+make dtail-rocky
 ```
 
 ### How it works
@@ -156,6 +213,12 @@ make pkg-openbsd NAME=gogios SRC=/home/paul/git/gogios
 Cross-compilation from Linux to OpenBSD fails for CGo — needs a C cross-compiler.
 Solution: native build on the local OpenBSD VM. Source is sent via `git archive HEAD | ssh ... tar -x`
 (not `scp -r`) to avoid filling /tmp with build artifacts and test data.
+
+**Rocky Linux RPMs (dtail only, current implementation):**
+- `x86_64` RPM is built locally on earth
+- `aarch64` RPM is packaged on `pi0` because Fedora's x86_64 `rpmbuild` refuses to emit an `aarch64` binary RPM even when the payload is already prebuilt
+- repo metadata is generated locally in a `rockylinux:9` container with `createrepo_c`
+- the finished repo tree is copied to `/data/nfs/k3svolumes/pkgrepo/rockylinux/9/`
 
 ### Required variables
 
@@ -220,6 +283,52 @@ rex dtail           # full setup (install + service user + daily cron + start)
 
 The `dtail` Rex task installs the package, creates the `_dserver` service user,
 adds the key cache script to daily cron, and ensures dserver is running.
+
+## DTail Rocky Linux RPM Repo
+
+DTail for Rocky is published as a multi-binary RPM for both lab architectures:
+
+- `dtail-4.3.2-1.ng.x86_64.rpm`
+- `dtail-4.3.2-1.ng.aarch64.rpm`
+
+The RPM currently installs:
+
+- `/usr/local/bin/dserver`, `dcat`, `dgrep`, `dmap`, `dtail`, `dtailhealth`
+- `/usr/local/bin/dserver-update-key-cache.sh`
+- `/etc/dserver/dtail.json`
+- `/usr/lib/systemd/system/dserver.service`
+- `/usr/lib/systemd/system/dserver-update-keycache.service`
+- `/usr/lib/systemd/system/dserver-update-keycache.timer`
+
+### Build and publish
+
+```sh
+cd ~/git/conf/packages
+make dtail-rocky
+```
+
+### Notes
+
+- The packaged key-cache helper handles both `/root/.ssh/authorized_keys` and `/home/*/.ssh/authorized_keys`, so `root` works on `r0-r2` without a separate manual cache copy.
+- The packaged `dserver.service` includes the `RuntimeDirectory` and `ExecStartPre` fix required on Rocky so `/var/run/dserver` exists before startup.
+- The repo is unsigned for now, so the example repo file uses `gpgcheck=0` and `repo_gpgcheck=0`.
+
+### Verified DTail package state
+
+On 2026-04-11 this package repo path was verified with:
+
+- `dtail-4.3.2-1.ng.x86_64.rpm` and `dtail-4.3.2-1.ng.aarch64.rpm` published at `https://pkgrepo.f3s.buetow.org/rockylinux/9/$basearch/`
+- successful `dnf repoquery` for `dtail` from `r0` (`x86_64`) and `pi0` (`aarch64`)
+- successful `dnf install dtail` on `r0-r2` and `pi0-pi3`
+- `dserver` active after package install, timer enable, restart, and key-cache refresh on all seven Rocky hosts
+- successful `dcat /etc/fstab` reads from earth using `--user root` for `r0-r2` and `--user paul` for `pi0-pi3`
+
+### OpenBSD DTail package verification
+
+Also verified on 2026-04-11:
+
+- `dtail-4.3.2-ng` rebuilt and published to the OpenBSD repo path
+- package replacement, key-cache refresh, and successful `dcat /etc/fstab` reads as `--user rex` on `blowfish.buetow.org` and `fishfinger.buetow.org`
 
 ### Why a build VM?
 

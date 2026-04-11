@@ -25,11 +25,12 @@ Detailed reference documentation is in the `references/` subfolder:
 - [Storage](references/storage.md) — ZFS (zdata), CARP, NFS over stunnel, zrepl replication
 - [k3s Setup](references/k3s-setup.md) — HA k3s cluster, etcd, node IPs, kubeconfig, ArgoCD
 - [Observability](references/observability.md) — Prometheus, Grafana, Loki, Alloy, Tempo
-- [Package Repos](references/package-repos.md) — Custom FreeBSD/OpenBSD pkg repo served from k3s nginx pod
 - [Immich](references/immich.md) — Photo server deployment, job queue stats, troubleshooting
 - [Garage](references/garage.md) — Garage cluster, edge domain routing, S3 bucket/key workflow, troubleshooting
 - [DTail / dserver](references/dtail.md) — dserver: Pis **arm64** vs r0–r2 **amd64**, r-VM **root** + `root.authorized_keys` cache, firewalld **2222**, systemd timers
 - [dserver.d](references/dserver.d) — index: links to **Rocky r-VM DTail** subsection and full **dtail.md**
+
+Package repository details were split into the sibling `pkgrepo` skill. Use `pkgrepo` for `pkgrepo.f3s.buetow.org`, repo layout, package publication, and client repo configuration.
 
 ## Quick Reference: Host IPs
 
