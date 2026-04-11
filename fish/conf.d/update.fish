@@ -17,7 +17,7 @@ function update::tools
     go install golang.org/x/tools/cmd/goimports@latest &
     set -a pids $last_pid
 
-    for prog in hexai hexai-lsp-server hexai-tmux-action hexai-tmux-edit hexai-mcp-server do
+    for prog in hexai hexai-lsp-server hexai-tmux-action hexai-tmux-edit hexai-mcp-server ask
         echo "Installing/updating $prog from codeberg.org/snonux/hexai/cmd/$prog@latest"
         go install codeberg.org/snonux/hexai/cmd/$prog@latest &
         set -a pids $last_pid
@@ -25,8 +25,7 @@ function update::tools
 
     if test -f ~/go/bin/ask
         if test -f ~/go/bin/do
-            # Only remove the ask command when the do command is already installed!
-            rm ~/go/bin/ask
+            rm ~/go/bin/do
         end
     end
 
