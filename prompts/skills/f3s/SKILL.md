@@ -30,6 +30,7 @@ Detailed reference documentation is in the `references/` subfolder:
 - [DTail / dserver](references/dtail.md) — dserver: Pis **arm64** vs r0–r2 **amd64**, r-VM **root** + `root.authorized_keys` cache, firewalld **2222**, systemd timers
 - [dserver.d](references/dserver.d) — index: links to **Rocky r-VM DTail** subsection and full **dtail.md**
 - [Pi-hole on Pis](references/pihole-pi.md) — **pi2/pi3** Docker Pi-hole, **`~/pihole`**, **`*.f3s.lan.buetow.org` → 192.168.1.138**, paths under **`f3s/pihole/docker-pi/`**
+- [goprecords / uptimed uploads](references/goprecords-uptimed.md) — **`https://goprecords.f3s.buetow.org`**, **`PUT /upload`**, OpenBSD **Rex** daily vs **FreeBSD/Pi** manual hourly **`cron`** / **systemd**, **`contrib/goprecords-upload-client.sh`**, **geheim** tokens
 
 Package repository details were split into the sibling `pkgrepo` skill. Use `pkgrepo` for `pkgrepo.f3s.buetow.org`, repo layout, package publication, and client repo configuration.
 
