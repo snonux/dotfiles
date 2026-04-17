@@ -50,9 +50,14 @@ rex commons
 
 See **`frontends/README.md`** (section **goprecords upload**).
 
-## Manual clients (FreeBSD + Pis)
+## Manual clients (FreeBSD + Pis + earth)
 
-Copy **`contrib/goprecords-upload-client.sh`** to **`/usr/local/bin/`**, install token as **`/etc/goprecords-upload.token`** (**`0600`**, **root**), set **`GOPRECORDS_HOST`** per machine (**cron** **`env`** or **`systemd`** **`EnvironmentFile`**). Full snippets: **goprecords** **`README.md`**.
+The canonical unified script is **`scripts/goprecords-upload-client.sh`** (also mirrored in **`contrib/`**). It is POSIX sh and works on all host types:
+
+- **root** (FreeBSD/Linux): token at **`/etc/goprecords-upload.token`** (**`0600`**)
+- **non-root** (earth user session): token at **`$XDG_CONFIG_HOME/goprecords-upload-<HOST>/token`**
+
+Copy to **`/usr/local/bin/`** (system) or **`~/.local/bin/`** (user), set **`GOPRECORDS_HOST`** per machine (**cron** **`env`** or **`systemd`** **`Environment`**/**`EnvironmentFile`**). Full snippets: **goprecords** **`README.md`**.
 
 ## Related conf repo paths
 
