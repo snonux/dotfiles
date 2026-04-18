@@ -2,26 +2,28 @@
 name: auditing-code-quality
 description: >
   Run a comprehensive code quality audit by orchestrating specialized skills
-  for Go best practices, SOLID principles, and system-level architecture, then
-  create actionable tasks for the findings. Use when asked to "audit code
-  quality", "full design review", "code health check", or "architecture and
-  code audit".
+  for Go best practices, concrete defect hunting (find-code-bugs), SOLID
+  principles, and system-level architecture, then create actionable tasks for
+  the findings. Use when asked to "audit code quality", "full design review",
+  "code health check", "architecture and code audit", or to combine design
+  review with a bug sweep.
 ---
 
 References are relative to /home/paul/.agents/skills/auditing-code-quality.
 
 # Auditing Code Quality
 
-Run a comprehensive code quality audit by invoking three specialized skills in
+Run a comprehensive code quality audit by invoking specialized skills in
 sequence. This meta-skill orchestrates them so you only need a single command.
 
 ## Skills Invoked
 
 1. **go-best-practices** — Go project structure, style, and conventions (loaded only when the target code is Go).
-2. **100-go-mistakes** — 100 Go mistakes and how to avoid them.
-3. **solid-principles** — Class-level SOLID analysis (SRP, OCP, LSP, ISP, DIP).
-4. **beyond-solid-principles** — System-level architecture principles (SoC, DRY, KISS, YAGNI, coupling, resilience, etc.).
-5. **agent-task-management** — Creates actionable tasks for each finding that needs remediation.
+2. **100-go-mistakes** — 100 Go mistakes and how to avoid them (Go only).
+3. **find-code-bugs** — Defect sweep (logic, concurrency, errors, APIs, security); **one `ask` task per confirmed bug** per that skill (all languages).
+4. **solid-principles** — Class-level SOLID analysis (SRP, OCP, LSP, ISP, DIP).
+5. **beyond-solid-principles** — System-level architecture principles (SoC, DRY, KISS, YAGNI, coupling, resilience, etc.).
+6. **agent-task-management** — Creates actionable tasks for design/convention findings; bug tasks follow **find-code-bugs** + this skill's `ask` rules.
 
 ## Workflow
 
@@ -44,10 +46,14 @@ If the target code is **Go**:
 1. Load **go-best-practices** and run full audit on the code.
 2. Load **100-go-mistakes** and run full audit on the code.
 
-For all targets, also if not **Go**:
+For **all** targets (Go or not):
 
-3. Load **solid-principles** and run a full SOLID audit on the target code.
-4. Load **beyond-solid-principles** and run a full system-level audit on the
+3. Load **find-code-bugs** and run a full defect sweep on the same scope.
+   Follow that skill end-to-end, including **one remediation task per distinct
+   confirmed bug** (`ask add +bugfix`, annotations per **agent-task-management**).
+
+4. Load **solid-principles** and run a full SOLID audit on the target code.
+5. Load **beyond-solid-principles** and run a full system-level audit on the
    same target code.
 
 For each sub-skill, follow its own workflow (load references, analyze, report). Try to use sub-agents so each audit works with a fresh context. Even the sub-skills can spawn sub-agents themselves.
@@ -61,29 +67,44 @@ After all sub-skills have run, combine their findings into a single report:
 ```
 | Category              | HIGH | MEDIUM | LOW |
 |-----------------------|------|--------|-----|
+| Bugs / defects        |      |        |     |
 | SOLID                 |      |        |     |
 | Architecture          |      |        |     |
 | Go Best Practices     |      |        |     |
 | **Total**             |      |        |     |
 ```
 
+Count **Bugs / defects** from the **find-code-bugs** pass only (confirmed defects
+with symptom + location). Leave **Go Best Practices** row empty or “N/A” when
+the target is not Go.
+
 #### Top 5 Priorities
 
 List the five most impactful findings across all categories, ranked by severity
-and practical impact. For each, state the category, principle, location, and
-recommended action.
+and practical impact. Prefer **critical/high defects** from **find-code-bugs**
+when they exist. For each item, state the category, principle (or defect
+type), location, and recommended action.
 
 #### Overall Assessment
 
-One paragraph summarizing the codebase's structural health, covering both
-class-level design and system-level architecture. Note any tensions between
-principles (e.g., DRY vs. loose coupling) and recommend a pragmatic path
-forward.
+One paragraph summarizing the codebase's health: **defect risk** (from
+**find-code-bugs**), then structural/design quality (class-level and
+system-level). Note any tensions between principles (e.g., DRY vs. loose
+coupling) and recommend a pragmatic path forward.
 
 ### 4. Create Tasks for Findings
 
-After producing the unified report, load **agent-task-management** and
-create a task for every HIGH and MEDIUM severity finding. Each task should:
+**Bug tasks:** The **find-code-bugs** step should already have created **one
+`ask` task per confirmed bug** (`+bugfix`, annotations per
+**agent-task-management**). Do not merge multiple bugs into a single task. If
+the repo had no git root, **find-code-bugs** lists findings without tasks —
+note that in the report.
+
+**Design and convention tasks:** After producing the unified report, load
+**agent-task-management** and create a task for every **HIGH** and **MEDIUM**
+severity finding from **solid-principles**, **beyond-solid-principles**, and
+**(when Go)** **go-best-practices** / **100-go-mistakes** — not for bugs already
+tracked above. Each such task should:
 
 - Have a clear, actionable description (e.g., "Refactor UserService to fix SRP violation").
 - Include the principle, category, and file location in an annotation.
@@ -93,12 +114,12 @@ create a task for every HIGH and MEDIUM severity finding. Each task should:
 **Exact command format** — keep each part as a separate argument, never quoted together:
 
 ```bash
-~/go/bin/do add priority:H +code-quality "Refactor UserService to fix SRP violation"
-~/go/bin/do add priority:M +code-quality "Fix high cognitive complexity in parser.go"
+ask add priority:H +code-quality "Refactor UserService to fix SRP violation"
+ask add priority:M +code-quality "Fix high cognitive complexity in parser.go"
 ```
 
 Do NOT do this (causes tag to land in description):
 ```bash
-~/go/bin/do add "+code-quality Fix foo"          # wrong: tag+desc quoted as one arg
-~/go/bin/do add "+code-quality -p M Fix foo"     # wrong: everything in one quoted arg
+ask add "+code-quality Fix foo"          # wrong: tag+desc quoted as one arg
+ask add "+code-quality -p M Fix foo"     # wrong: everything in one quoted arg
 ```

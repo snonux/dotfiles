@@ -345,7 +345,7 @@ function taskwarrior::invoke
     yes | task +tr -track modify +track -tr
 end
 
-abbr -a t task
+abbr -a ta task
 abbr -a log 'task add +log'
 abbr -a tdue 'tasksamurai status:pending due.before:now'
 abbr -a track 'taskwarrior::add::track'

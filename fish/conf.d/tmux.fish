@@ -129,6 +129,7 @@ function tmux::tssh_from_file
 end
 
 alias tn 'tmux::new'
+alias t 'tmux::attach'
 alias ta 'tmux::attach'
 alias tx 'tmux::remote'
 alias tl 'tmux::search'
