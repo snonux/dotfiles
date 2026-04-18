@@ -153,3 +153,8 @@ end
 function geheim
     echo 'Use KeePassXC and/or foostore'
 end
+
+function snonux::sync
+    # snonux microblogger tool
+    ~/go/bin/snonux --input ~/.gosdir/snonux/inbox/ --output ~/.gosdir/snonux/dist/ --sync
+end

@@ -112,8 +112,7 @@ function supersync
             ~/go/bin/gos
         end
         if test -f ~/go/bin/snonux
-            # snonux microblogger tool
-            ~/go/bin/snonux --input ~/.gosdir/snonux/inbox/ --output ~/.gosdir/snonux/dist/ --sync
+            snonux::sync
         end
     end
 
