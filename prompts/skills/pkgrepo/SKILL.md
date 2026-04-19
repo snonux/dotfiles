@@ -16,7 +16,11 @@ Use this skill when the task is specifically about the custom package repositori
 
 ## Reference Files
 
-- [Package Repositories](references/package-repos.md) — repo layout, PV paths, nginx exposure, client config, and DTail package workflows
+- [Repo Architecture](references/repo-architecture.md) — nginx/k3s setup, PV directory structure, SSH access, stale NFS handle fix, per-OS repo notes
+- [Client Setup](references/client-setup.md) — per-OS client repo configuration (FreeBSD, OpenBSD, Rocky Linux), new-host setup, package signing
+- [Packaging Workflow](references/packaging-workflow.md) — Makefile workflow for single-binary Go packages, CGo packages, manual packaging reference
+- [DTail Package](references/dtail-package.md) — multi-binary DTail package for all platforms, install/update steps, gotchas, client usage, verification
+- [OpenBSD Build VM](references/openbsd-build-vm.md) — QEMU/KVM build VM for native CGo compilation, day-to-day use, installer notes
 
 ## Scope
 
@@ -29,3 +33,4 @@ Use `f3s` alongside this skill when the task depends on broader host-role or clu
 - `r0-r2` as Rocky Linux x86_64 bhyve VMs
 - `pi0-pi3` as Rocky Linux aarch64 Raspberry Pi nodes
 - `earth` as the Fedora laptop used for package publication and verification
+- `f0-f3` as FreeBSD hosts
