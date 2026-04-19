@@ -335,6 +335,64 @@ function taskwarrior::random_quote
     end
 end
 
+# Known gos platform aliases (must match gos internal/platforms aliases)
+set -g TASKWARRIOR_GOS_PLATFORMS li linkedin ma mastodon no noop sno snonux sn x xcom tw twitter
+
+# Exports pending +share tasks to gos queue files in $GOS_DIR.
+# Platform tags (e.g. +li, +mastodon) become share:PLATFORM in the gos filename.
+# The +soon tag appends ,soon. Tasks are deleted from taskwarrior after export.
+function taskwarrior::gos_queue
+    set -l gos_dir "$GOS_DIR"
+    if not test -d "$gos_dir"
+        return
+    end
+
+    set -l uuids (task +share status:pending _uuids)
+    for uuid in $uuids
+        test -n "$uuid"; or continue
+        set -l json (task "$uuid" export)
+        set -l description (echo "$json" | jq -r '.[0].description')
+        set -l tags (echo "$json" | jq -r '.[0].tags[]')
+
+        # Collect platform tags, modifier tags, and remaining hashtags
+        set -l platforms
+        set -l modifiers
+        set -l hashtags
+        for tag in $tags
+            if test "$tag" = share
+                continue
+            else if contains -- "$tag" $TASKWARRIOR_GOS_PLATFORMS
+                set -a platforms "$tag"
+            else if test "$tag" = soon -o "$tag" = prio -o "$tag" = now -o "$tag" = ask
+                set -a modifiers "$tag"
+            else
+                set -a hashtags "#$tag"
+            end
+        end
+
+        # Build the gos inline tag prefix: share:platform1:platform2,modifier1,modifier2
+        set -l share_tag share
+        for p in $platforms
+            set share_tag "$share_tag:$p"
+        end
+        if test (count $modifiers) -gt 0
+            set share_tag "$share_tag,"(string join , -- $modifiers)
+        end
+
+        set -l message "$share_tag $description"
+        if test (count $hashtags) -gt 0
+            set message "$message\n\n"(string join ' ' -- $hashtags)
+        end
+        set -l hash (printf '%s' "$message" | md5sum | awk '{print $1}')
+        set -l file "$gos_dir/$hash.txt"
+        echo "Gos queue: $file"
+        printf "$message\n" >"$file"
+
+        # Remove the task from taskwarrior
+        yes | task "$uuid" delete &>/dev/null
+    end
+end
+
 function taskwarrior::invoke
     taskwarrior::export
     taskwarrior::import
@@ -342,6 +400,7 @@ function taskwarrior::invoke
     taskwarrior::random_quote
     taskwarrior::unscheduled
     taskwarrior::quicklogger
+    taskwarrior::gos_queue
     yes | task +tr -track modify +track -tr
 end
 
