@@ -365,7 +365,7 @@ function taskwarrior::gos_queue
                 set -a platforms "$tag"
             else if test "$tag" = soon -o "$tag" = prio -o "$tag" = now -o "$tag" = ask
                 set -a modifiers "$tag"
-            else
+            else if test "$tag" != personal
                 set -a hashtags "#$tag"
             end
         end
