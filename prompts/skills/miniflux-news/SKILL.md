@@ -1,6 +1,6 @@
 ---
 name: miniflux-news
-description: Fetch, summarize, and manage unread RSS feeds from a Miniflux instance. Reads API token from ~/.flux_token and instance URL from context or memory.
+description: Fetch, summarize, and manage unread RSS feeds from a Miniflux instance. Reads API token from ~/.flux_token. Instance URL is https://flux.f3s.buetow.org
 ---
 
 ## When to Use
@@ -15,7 +15,7 @@ Invoke when the user asks to:
 
 ### Setup assumptions
 - API token is at `~/.flux_token` (single line)
-- Miniflux instance URL is stored in memory or provided by the user (e.g. `https://flux.example.org`)
+- Miniflux instance URL: `https://flux.f3s.buetow.org`
 
 ### Step 1 — Read token
 Read `~/.flux_token` to get the API token.
@@ -51,4 +51,4 @@ HTTP 204 = success. Confirm to the user.
 ### Notes
 - Never expose the token in user-facing output
 - If the user asks about a specific topic, filter entries by keyword across title/content before summarizing
-- Miniflux API base: `<instance>/v1/`
+- Miniflux API base: `https://flux.f3s.buetow.org/v1/`

@@ -134,7 +134,7 @@ dcat --plain --noColor --trustAllHosts --user paul \
 
 | Date | Platform | Result |
 |------|----------|--------|
-| 2026-04-19 | FreeBSD f0–f3 | `dtail-4.3.2-ng` installed, dserver running, `dcat /etc/fstab` ✓ (`--user paul`) |
+| 2026-04-19 | FreeBSD f0–f3 | `dtail-4.3.2-ng` installed, dserver running under `daemon(8)`, `dcat /etc/fstab` ✓ (`--user paul`) |
 | 2026-04-19 | OpenBSD blowfish, fishfinger | `dtail-4.3.2-ng` current, `dcat /etc/fstab` ✓ (`--user rex`) |
 | 2026-04-19 | Rocky r0–r2 | `dtail-4.3.2-ng` current, dserver running, `dcat /etc/fstab` ✓ (`--user root`) |
 | 2026-04-19 | Rocky pi0–pi3 | `dtail-4.3.2-ng` current, dserver running, `dcat /etc/fstab` ✓ (`--user paul`) |
