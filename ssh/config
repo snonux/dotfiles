@@ -4,6 +4,8 @@
 AddKeysToAgent yes
 ControlPersist 60m
 #StrictHostKeyChecking no
+LogLevel ERROR
+WarnWeakCrypto no
 
 Host blowfish.buetow.org
 User rex
