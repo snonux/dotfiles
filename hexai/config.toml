@@ -1,0 +1,29 @@
+# Hexai Configuration File
+
+[mcp]
+# Directory where MCP prompts are stored
+prompts_dir = "~/.local/hexai/data/prompts"
+
+# Enable automatic syncing of MCP prompts to slash command files
+slashcommand_sync = true
+
+# Directory where slash command files will be written
+slashcommand_dir = "~/.cursor/commands"
+
+# Default LLM provider for chat / CLI / code actions. The API key is read from
+# the environment (HEXAI_OLLAMA_API_KEY, falling back to OLLAMA_API_KEY).
+[provider]
+name = "ollama"
+
+[ollama]
+model       = "kimi-k2.6"
+base_url    = "https://ollama.com"
+temperature = 0.2
+
+# In-code auto-completion uses gemma4:31b (the dense larger Gemma 4 on Ollama
+# Cloud). It's faster and tighter than kimi-k2.6 for short, latency-sensitive
+# completions while everything else still defaults to kimi-k2.6 above.
+[[models.completion]]
+provider    = "ollama"
+model       = "gemma4:31b"
+temperature = 0.2

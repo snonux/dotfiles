@@ -146,6 +146,16 @@ task 'home_helix', sub { ensure "$DOT/helix/*" => "$HOME/.config/helix/" };
 desc 'Install ~/.config/ghostty';
 task 'home_ghostty', sub { ensure "$DOT/ghostty/*" => "$HOME/.config/ghostty/" };
 
+desc 'Install ~/.config/hexai (Linux only)';
+task 'home_hexai', sub {
+    if ( $^O eq 'linux' ) {
+        ensure "$DOT/hexai/*" => "$HOME/.config/hexai/";
+    }
+    else {
+        Rex::Logger::info( 'Skipping hexai configuration (not on Linux)', 'warn' );
+    }
+};
+
 desc 'Install ~/.config/lazygit';
 task 'home_lazygit', sub { ensure "$DOT/lazygit/*" => "$HOME/.config/lazygit/" };
 
