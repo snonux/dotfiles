@@ -35,24 +35,6 @@ function supersync::worktime
     cd -
 end
 
-function supersync::uprecords
-    set -l uprecords_dir ~/git/uprecords
-    set -l uprecords_repo git@codeberg.org:snonux/uprecords.git
-
-    if not test -d $uprecords_dir
-        git clone $uprecords_repo $uprecords_dir
-        cd $uprecords_dir
-    else
-        cd $uprecords_dir
-        git pull
-    end
-
-    make update
-    git commit -a -m Update
-    git push
-    cd -
-end
-
 function supersync::gitsyncer
     set enable_file ~/.gitsyncer_enable
     set now (date +%s)
@@ -103,7 +85,6 @@ function supersync
     supersync::worktime sync_quotes
     taskwarrior::invoke
     supersync::worktime no_sync_quotes
-    supersync::uprecords
     supersync::prompts
 
     if test -f ~/.gos_enable
