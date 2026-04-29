@@ -1,0 +1,16 @@
+#!/bin/sh
+
+set -eu
+
+if [ "$#" -lt 3 ]; then
+    echo "usage: tmux-popup-new DIRECTORY SESSION_SUFFIX COMMAND [ARG ...]" >&2
+    exit 2
+fi
+
+directory=$1
+suffix=$2
+shift 2
+
+session=$(basename "$directory")$suffix
+
+exec tmux new-session -A -s "$session" -c "$directory" "$@"

@@ -1,0 +1,57 @@
+#!/bin/sh
+
+set -eu
+
+if [ "$#" -lt 1 ] || [ "$#" -gt 3 ]; then
+    echo "usage: tmux-popup-attach SESSION [DIRECTORY]" >&2
+    echo "       tmux-popup-attach --basename DIRECTORY SESSION_SUFFIX" >&2
+    exit 2
+fi
+
+if [ "$1" = "--basename" ]; then
+    if [ "$#" -ne 3 ]; then
+        echo "usage: tmux-popup-attach --basename DIRECTORY SESSION_SUFFIX" >&2
+        exit 2
+    fi
+
+    directory=$2
+    session=$(basename "$directory")$3
+else
+    if [ "$#" -gt 2 ]; then
+        echo "usage: tmux-popup-attach SESSION [DIRECTORY]" >&2
+        exit 2
+    fi
+
+    session=$1
+    directory=${2:-}
+fi
+
+if [ -n "${TMUX:-}" ]; then
+    tmux switch-client -t "=$session" 2>/dev/null && exit 0
+else
+    tmux attach-session -t "=$session" 2>/dev/null && exit 0
+fi
+
+tmux list-sessions -F '#{session_name}:#{session_attached}' 2>/dev/null |
+    while IFS=: read -r name attached; do
+        case $name in
+            T*)
+                if [ "$attached" = 0 ]; then
+                    echo "Killing $name"
+                    tmux kill-session -t "=$name" || true
+                fi
+                ;;
+        esac
+    done
+
+if [ -n "$directory" ]; then
+    tmux new-session -d -s "$session" -c "$directory" 2>/dev/null || true
+else
+    tmux new-session -d -s "$session" 2>/dev/null || true
+fi
+
+if [ -n "${TMUX:-}" ]; then
+    exec tmux -2 switch-client -t "=$session"
+fi
+
+exec tmux -2 attach-session -t "=$session"
