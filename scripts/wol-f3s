@@ -1,25 +1,29 @@
 #!/bin/bash
-# Wake-on-LAN and shutdown script for f3s cluster (f0, f1, f2)
+# Wake-on-LAN and shutdown script for f3s hosts (f0, f1, f2, f3)
 # and optional shutdown for Raspberry Pi nodes (pi0–pi3)
 #
 # Usage:
-#   wol-f3s              # Wake all three Beelinks
+#   wol-f3s              # Wake f0, f1, and f2
 #   wol-f3s f0           # Wake only f0
 #   wol-f3s f1           # Wake only f1
 #   wol-f3s f2           # Wake only f2
-#   wol-f3s shutdown     # Shutdown all three Beelinks
+#   wol-f3s f3           # Wake only f3
+#   wol-f3s shutdown     # Shutdown f0, f1, and f2
+#   wol-f3s shutdown-f3  # Shutdown only f3
 #   wol-f3s shutdown-pis # Shutdown all four Raspberry Pis
-#   wol-f3s shutdown-all # Shutdown Beelinks and Pis
+#   wol-f3s shutdown-all # Shutdown f0, f1, f2, and Pis
 
 # MAC addresses
 F0_MAC="e8:ff:1e:d7:1c:ac"  # f0 (192.168.1.130)
 F1_MAC="e8:ff:1e:d7:1e:44"  # f1 (192.168.1.131)
 F2_MAC="e8:ff:1e:d7:1c:a0"  # f2 (192.168.1.132)
+F3_MAC="e8:ff:1e:d7:f3:d7"  # f3 (192.168.1.133)
 
 # IP addresses
 F0_IP="192.168.1.130"
 F1_IP="192.168.1.131"
 F2_IP="192.168.1.132"
+F3_IP="192.168.1.133"
 
 # Raspberry Pi IP addresses (no WoL support, shutdown only)
 PI0_IP="192.168.1.125"
@@ -68,6 +72,9 @@ case "$ACTION" in
     f2)
         wake "f2" "$F2_MAC"
         ;;
+    f3)
+        wake "f3" "$F3_MAC"
+        ;;
     all|"")
         wake "f0" "$F0_MAC"
         wake "f1" "$F1_MAC"
@@ -82,6 +89,12 @@ case "$ACTION" in
         shutdown_host "f2" "$F2_IP"
         echo ""
         echo "✓ Shutdown commands sent to all Beelinks."
+        exit 0
+        ;;
+    shutdown-f3|poweroff-f3|down-f3)
+        shutdown_host "f3" "$F3_IP"
+        echo ""
+        echo "✓ Shutdown command sent to f3."
         exit 0
         ;;
     shutdown-pis)
@@ -108,7 +121,7 @@ case "$ACTION" in
         exit 0
         ;;
     *)
-        echo "Usage: $0 [f0|f1|f2|all|shutdown|shutdown-pis|shutdown-all]"
+        echo "Usage: $0 [f0|f1|f2|f3|all|shutdown|shutdown-f3|shutdown-pis|shutdown-all]"
         exit 1
         ;;
 esac

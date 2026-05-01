@@ -1,11 +1,11 @@
 ---
 name: f3s
-description: Reference skill for the f3s homelab—four Beelink S12 Pro hosts (f0/f1/f2/f3) running FreeBSD with Rocky Linux Bhyve VMs and a k3s Kubernetes cluster. f0/f1/f2 run r0/r1/r2 k3s nodes; f3 is standalone bhyve only (not part of k3s). Four Raspberry Pi 3 nodes (pi0–pi3) on Rocky Linux 9; pi2/pi3 run Pi-hole (Docker) and LAN wildcard DNS for *.f3s.lan.buetow.org. Covers DTail/dserver on Pis (arm64) and k3s VMs (amd64). Use when troubleshooting or making configuration decisions for the f3s setup.
+description: Reference skill for the f3s homelab—four Beelink S12 Pro hosts (f0/f1/f2/f3) running FreeBSD with Rocky Linux Bhyve VMs and a k3s Kubernetes cluster. f0/f1/f2 run r0/r1/r2 k3s nodes; f3 is standalone bhyve only (not part of k3s) and hosts the plain Rocky Linux VM named rocky. Four Raspberry Pi 3 nodes (pi0–pi3) on Rocky Linux 9; pi2/pi3 run Pi-hole (Docker) and LAN wildcard DNS for *.f3s.lan.buetow.org. Covers DTail/dserver on Pis (arm64) and k3s VMs (amd64). Use when troubleshooting or making configuration decisions for the f3s setup.
 ---
 
 # f3s Homelab Reference
 
-**f3s** = **f**reeBSD + **k3s**. Four physical Beelink S12 Pro mini-PCs (Intel N100) running FreeBSD as the base OS. f0/f1/f2 each host a Rocky Linux 9 bhyve VM forming a 3-node HA k3s Kubernetes cluster. f3 is a standalone host for bhyve VMs only — not part of the k3s cluster.
+**f3s** = **f**reeBSD + **k3s**. Four physical Beelink S12 Pro mini-PCs (Intel N100) running FreeBSD as the base OS. f0/f1/f2 each host a Rocky Linux 9 bhyve VM forming a 3-node HA k3s Kubernetes cluster. f3 is a standalone host for bhyve VMs only — not part of the k3s cluster — and runs a plain Rocky Linux 9 VM named `rocky`.
 
 ## When to Use
 
@@ -21,6 +21,8 @@ Detailed reference documentation is in the `references/` subfolder:
 - [FreeBSD Setup](references/freebsd-setup.md) — Base OS install, packages, ZFS snapshots, configuration
 - [UPS & Power](references/ups-power.md) — APC BX750MI, apcupsd config on f0/f1/f2
 - [Rocky Linux VMs](references/rocky-linux-vms.md) — Bhyve, vm-bhyve, VM config, NVMe disk fix; FreeBSD VM on f3 (migrated from f0)
+- [f3 Rocky VM](references/f3-rocky-vm.md) — Plain Rocky Linux 9 VM on f3 (`rocky`, `192.168.1.123`), autostart policy, root SSH
+- [Bootstrap Rocky bhyve VM](references/bootstrap-rocky-bhyve.md) — Runbook for creating a new plain Rocky Linux bhyve guest with unattended kickstart
 - [WireGuard Mesh](references/wireguard.md) — Mesh topology, IP assignments, peer configs
 - [Storage](references/storage.md) — ZFS (zdata), CARP, NFS over stunnel, zrepl replication
 - [k3s Setup](references/k3s-setup.md) — HA k3s cluster, etcd, node IPs, kubeconfig, ArgoCD
@@ -45,6 +47,7 @@ Package repository details were split into the sibling `pkgrepo` skill. Use `pkg
 | r0 | Rocky Linux VM on f0 | 192.168.1.120 | 192.168.2.120 |
 | r1 | Rocky Linux VM on f1 | 192.168.1.121 | 192.168.2.121 |
 | r2 | Rocky Linux VM on f2 | 192.168.1.122 | 192.168.2.122 |
+| rocky | Plain Rocky Linux VM on f3 | 192.168.1.123 | — |
 | blowfish | OpenBSD internet GW | — | 192.168.2.110 |
 | fishfinger | OpenBSD internet GW | — | 192.168.2.111 |
 | earth | Fedora laptop (roaming) | — | 192.168.2.200 |

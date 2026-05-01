@@ -191,7 +191,7 @@ network0_mac="<unique>"
 ```
 
 - Accessible as `freebsd.lan` (hostname inside the VM)
-- Auto-starts on f3 boot: `vm_list="freebsd"` in `/etc/rc.conf`
+- Does not auto-start on f3 by default anymore. f3's current default autostart VM is the plain Rocky VM `rocky`; see [f3-rocky-vm.md](f3-rocky-vm.md).
 - `zroot/bhyve/freebsd` encrypted with `f3.lan.buetow.org:bhyve.key`
 - Replicated to f2 via zrepl (`f3_to_f2_freebsd` job, every 10 min → `zroot/sink/f3/zroot/bhyve/freebsd`)
 
