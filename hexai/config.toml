@@ -16,14 +16,13 @@ slashcommand_dir = "~/.cursor/commands"
 name = "ollama"
 
 [ollama]
-model       = "kimi-k2.6"
+model       = "gemma4:31b-cloud"
 base_url    = "https://ollama.com"
 temperature = 0.2
 
-# In-code auto-completion uses gemma4:31b (the dense larger Gemma 4 on Ollama
-# Cloud). It's faster and tighter than kimi-k2.6 for short, latency-sensitive
-# completions while everything else still defaults to kimi-k2.6 above.
+# In-code auto-completion uses gemma4:31b-cloud (the dense Gemma 4 hosted on
+# Ollama Cloud). Latency-sensitive completions use the same model as chat.
 [[models.completion]]
 provider    = "ollama"
-model       = "gemma4:31b"
+model       = "gemma4:31b-cloud"
 temperature = 0.2
