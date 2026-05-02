@@ -76,6 +76,33 @@ function supersync::prompts
     end
 end
 
+function supersync::darwin_uprecords
+    if test (uname) != Darwin
+        return
+    end
+
+    set -l worktime_dir ~/git/worktime
+    if not test -d $worktime_dir
+        return
+    end
+
+    set -l uprecords_file
+    for candidate in /opt/homebrew/var/uptimed/records /usr/local/var/uptimed/records
+        if test -f $candidate
+            set uprecords_file $candidate
+            break
+        end
+    end
+
+    if test -z "$uprecords_file"
+        return
+    end
+
+    set -l target $worktime_dir/uprecords-(hostname).records
+    cp $uprecords_file $target
+    git -C $worktime_dir add $target
+end
+
 function supersync
     if test -f ~/.supersync_disable
         echo Supersync is disabled
@@ -84,6 +111,7 @@ function supersync
 
     supersync::worktime sync_quotes
     taskwarrior::invoke
+    supersync::darwin_uprecords
     supersync::worktime no_sync_quotes
     supersync::prompts
 

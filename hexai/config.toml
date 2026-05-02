@@ -17,12 +17,22 @@ name = "ollama"
 
 [ollama]
 model       = "gemma4:31b-cloud"
+# Smaller Gemma variants on Ollama Cloud — uncomment one if gemma4:31b-cloud
+# becomes too slow:
+# model     = "gemma3:27b"
+# model     = "gemma3:12b"
+# model     = "gemma3:4b"
 base_url    = "https://ollama.com"
 temperature = 0.2
 
-# In-code auto-completion uses gemma4:31b-cloud (the dense Gemma 4 hosted on
-# Ollama Cloud). Latency-sensitive completions use the same model as chat.
+# In-code auto-completion uses gemma3:12b on Ollama Cloud — a good balance of
+# speed and quality. Switch to a larger or smaller Gemma below if needed.
 [[models.completion]]
 provider    = "ollama"
-model       = "gemma4:31b-cloud"
+model       = "gemma3:12b"
+# Other Gemma variants on Ollama Cloud — uncomment one if gemma3:12b is not
+# the right fit:
+# model     = "gemma4:31b-cloud"
+# model     = "gemma3:27b"
+# model     = "gemma3:4b"
 temperature = 0.2
