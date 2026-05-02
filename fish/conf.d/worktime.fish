@@ -16,6 +16,77 @@ function worktime::sync
     cd -
 end
 
+function worktime::supersync_sync
+    if not test -d $WORKTIME_DIR
+        echo "Warning: Directory $WORKTIME_DIR does not exist"
+        return 1
+    end
+    cd $WORKTIME_DIR
+
+    if test (count $argv) -gt 0 -a $argv[1] = sync_quotes
+        if test -d ~/Notes/HabitsAndQuotes
+            echo "" >work-wisdoms.md.tmp
+            for notes in ~/Notes/random/{Productivity,Mentoring}.md
+                grep '^\* ' $notes >>work-wisdoms.md.tmp
+            end
+            sort -u work-wisdoms.md.tmp >work-wisdoms.md
+            rm work-wisdoms.md.tmp
+            git add work-wisdoms.md
+            grep '^\* ' ~/Notes/random/Exercise.md >exercises.md
+            git add exercises.md
+        end
+    end
+
+    find . -name '*.txt' -exec git add {} \;
+    find . -name '*.json' -exec git add {} \;
+    find . -name '*.csv' -exec git add {} \;
+    git commit -a -m sync
+
+    git pull origin master
+    git push origin master
+
+    cd -
+end
+
+function worktime::darwin_uprecords
+    if test (uname) != Darwin
+        return
+    end
+
+    if not test -d $WORKTIME_DIR
+        return
+    end
+
+    set -l uprecords_file
+    for candidate in /opt/homebrew/var/uptimed/records /usr/local/var/uptimed/records
+        if test -f $candidate
+            set uprecords_file $candidate
+            break
+        end
+    end
+
+    if test -z "$uprecords_file"
+        return
+    end
+
+    set -l target $WORKTIME_DIR/uprecords-(hostname).records
+    cp $uprecords_file $target
+    git -C $WORKTIME_DIR add $target
+
+    if type -q uprecords
+        set -l txt_target $WORKTIME_DIR/uprecords-(hostname).txt
+        uprecords >$txt_target
+        git -C $WORKTIME_DIR add $txt_target
+    end
+end
+
+function worktime::supersync
+    worktime::supersync_sync sync_quotes
+    taskwarrior::invoke
+    worktime::darwin_uprecords
+    worktime::supersync_sync no_sync_quotes
+end
+
 function worktime::wisdom_reminder
     if test -f $WORKTIME_DIR/work-wisdoms.md
         sed -n '/^\* / { s/\* //; p; }' $WORKTIME_DIR/work-wisdoms.md | sort -R | head -n 1

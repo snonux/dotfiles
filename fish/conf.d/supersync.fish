@@ -1,40 +1,5 @@
 set -x SUPERSYNC_STAMP_FILE ~/.supersync.last
 
-# Only sync the HabitsAndQuotes when it's asked for via function parameter
-function supersync::worktime
-    set -l worktime_dir ~/git/worktime
-
-    if not test -d $worktime_dir
-        echo "Warning: Directory $worktime_dir does not exist"
-        return 1
-    end
-    cd $worktime_dir
-
-    if test (count $argv) -gt 0 -a $argv[1] = sync_quotes
-        if test -d ~/Notes/HabitsAndQuotes
-            echo "" >work-wisdoms.md.tmp
-            for notes in ~/Notes/random/{Productivity,Mentoring}.md
-                grep '^\* ' $notes >>work-wisdoms.md.tmp
-            end
-            sort -u work-wisdoms.md.tmp >work-wisdoms.md
-            rm work-wisdoms.md.tmp
-            git add work-wisdoms.md
-            grep '^\* ' ~/Notes/random/Exercise.md >exercises.md
-            git add exercises.md
-        end
-    end
-
-    find . -name '*.txt' -exec git add {} \;
-    find . -name '*.json' -exec git add {} \;
-    find . -name '*.csv' -exec git add {} \;
-    git commit -a -m sync
-
-    git pull origin master
-    git push origin master
-
-    cd -
-end
-
 function supersync::gitsyncer
     set enable_file ~/.gitsyncer_enable
     set now (date +%s)
@@ -76,43 +41,13 @@ function supersync::prompts
     end
 end
 
-function supersync::darwin_uprecords
-    if test (uname) != Darwin
-        return
-    end
-
-    set -l worktime_dir ~/git/worktime
-    if not test -d $worktime_dir
-        return
-    end
-
-    set -l uprecords_file
-    for candidate in /opt/homebrew/var/uptimed/records /usr/local/var/uptimed/records
-        if test -f $candidate
-            set uprecords_file $candidate
-            break
-        end
-    end
-
-    if test -z "$uprecords_file"
-        return
-    end
-
-    set -l target $worktime_dir/uprecords-(hostname).records
-    cp $uprecords_file $target
-    git -C $worktime_dir add $target
-end
-
 function supersync
     if test -f ~/.supersync_disable
         echo Supersync is disabled
         return
     end
 
-    supersync::worktime sync_quotes
-    taskwarrior::invoke
-    supersync::darwin_uprecords
-    supersync::worktime no_sync_quotes
+    worktime::supersync
     supersync::prompts
 
     if test -f ~/.gos_enable
