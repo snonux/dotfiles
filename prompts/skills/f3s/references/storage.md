@@ -126,13 +126,13 @@ jobs:
         - type: last_n
           count: 10
         - type: grid
-          grid: 4x7d | 6x30d
+          grid: 24x1h | 14x1d | 6x30d
           regex: "^zrepl_.*"
       keep_receiver:
         - type: last_n
           count: 10
         - type: grid
-          grid: 4x7d | 6x30d
+          grid: 24x1h | 14x1d | 6x30d
           regex: "^zrepl_.*"
 
   # Note: f0_to_f1_freebsd job removed — the FreeBSD VM was migrated to f3.
@@ -167,13 +167,13 @@ jobs:
         - type: last_n
           count: 10
         - type: grid
-          grid: 4x7d
+          grid: 24x1h | 14x1d
           regex: "^zrepl_.*"
       keep_receiver:
         - type: last_n
           count: 10
         - type: grid
-          grid: 4x7d
+          grid: 24x1h | 14x1d
           regex: "^zrepl_.*"
 ```
 
@@ -209,6 +209,18 @@ jobs:
 ```
 
 Replicated path: `zroot/bhyve/freebsd` → `zroot/sink/f3/zroot/bhyve/freebsd`
+
+Important: do not let `zfs-periodic` snapshot zrepl-managed sender or receiver
+datasets. Snapshot creation should be owned by zrepl. On f2,
+`/etc/periodic.conf` disables `zfs-periodic` snapshot creation:
+
+```sh
+daily_zfs_snapshot_enable="NO"
+weekly_zfs_snapshot_enable="NO"
+monthly_zfs_snapshot_enable="NO"
+```
+
+The local zrepl `snap` job on f2 also explicitly excludes `zroot/sink<`.
 
 ### f1 configuration (sink)
 

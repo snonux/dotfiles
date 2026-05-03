@@ -118,28 +118,44 @@ doas pkg install wireguard-tools           # Part 5 - WireGuard
 doas pkg install git go                    # Part 4 - benchmarking
 ```
 
-## ZFS Snapshot Policy (zfs-periodic)
+## ZFS Snapshot Policy
 
-Configured in `/etc/periodic.conf` for the `zroot` pool:
+Snapshot creation and retention should be managed by zrepl, not `zfs-periodic`,
+on the f0-f3 FreeBSD hosts. Do not configure `zfs-periodic` and `zrepl` to
+snapshot the same ZFS filesystem.
+
+`zfs-periodic` snapshot creation is disabled in `/etc/periodic.conf` on hosts
+that previously used it:
 
 ```sh
-# Daily: 7 snapshots kept
-daily_zfs_snapshot_enable="YES"
-daily_zfs_snapshot_pools="zroot"
-daily_zfs_snapshot_keep="7"
-
-# Weekly: 5 snapshots kept
-weekly_zfs_snapshot_enable="YES"
-weekly_zfs_snapshot_pools="zroot"
-weekly_zfs_snapshot_keep="5"
-
-# Monthly: 6 snapshots kept
-monthly_zfs_snapshot_enable="YES"
-monthly_zfs_snapshot_pools="zroot"
-monthly_zfs_snapshot_keep="6"
+daily_zfs_snapshot_enable="NO"
+weekly_zfs_snapshot_enable="NO"
+monthly_zfs_snapshot_enable="NO"
 ```
 
-Note: `zdata` pool (for NFS storage) is managed by `zrepl`, not `zfs-periodic`.
+Local non-replicated datasets are covered by a zrepl `snap` job:
+
+```sh
+  - name: local_zfs_snapshots
+    type: snap
+    snapshotting:
+      type: cron
+      prefix: zrepl_local_
+      cron: "0 3 * * *"
+    pruning:
+      keep:
+        - type: regex
+          regex: "^(daily|weekly|monthly)-.*"
+        - type: regex
+          regex: "^pre-.*"
+        - type: grid
+          grid: 14x1d | 6x30d
+          regex: "^zrepl_local_.*"
+```
+
+The regex keep rules preserve older `zfs-periodic` and pre-upgrade snapshots
+during the migration. zrepl-managed replication datasets are excluded from these
+local snap jobs and remain owned by their push jobs.
 
 ## uptimed
 
