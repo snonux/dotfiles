@@ -549,7 +549,7 @@ mount -t nfs4 -o port=2323 127.0.0.1:/k3svolumes /data/nfs/k3svolumes
 `/etc/fstab`:
 
 ```
-127.0.0.1:/k3svolumes /data/nfs/k3svolumes nfs4 port=2323,_netdev,soft,timeo=10,retrans=2,intr 0 0
+127.0.0.1:/k3svolumes /data/nfs/k3svolumes nfs4 port=2323,_netdev,hard,timeo=600,retrans=3 0 0
 ```
 
 NFS path structure on k3s nodes: `/data/nfs/k3svolumes/<app>/`
@@ -567,6 +567,8 @@ NFS path structure on k3s nodes: `/data/nfs/k3svolumes/<app>/`
 ### Pods stuck in ContainerCreating/Unknown after NFS recovery
 
 After NFS is restored on the server side, the `nfs-mount-monitor` systemd timer on each r-node will auto-remount within ~10 seconds and force-delete stuck pods. If immediate recovery is needed: `mount /data/nfs/k3svolumes` on each r-node, then delete the stuck pods manually.
+
+**Note:** The monitor catches three failure modes: missing mountpoint, stat hang (reads unresponsive), and **silent write hang** (reads OK but writes block — the hardest case, e.g. stunnel-wrapped NFSv4 after a CARP failover). Watch the consecutive-failure counter via Prometheus (`nfs_mount_monitor_consecutive_failures`) — warning fires at ≥3, critical at ≥5. At 5 consecutive failures the node cordons itself and reboots.
 
 ### Checklist for NFS outage on CARP MASTER (f0 or f1)
 
@@ -612,11 +614,39 @@ rex -f f3s/r-nodes/Rexfile nfs_mount_monitor
 
 ### What it does
 
-1. Checks whether `/data/nfs/k3svolumes` is mounted (`mountpoint`).
-2. Checks whether the mount is responsive (`timeout 2s stat`).
-3. If either check fails, attempts: `mount -o remount -f`, then `umount -f` + `mount`.
-4. On successful repair, force-deletes pods on this node that are stuck in
-   Unknown / Pending / ContainerCreating so the kubelet can reschedule them.
+Three probes run in sequence on every 10-second tick:
+
+1. **mountpoint probe** — detects completely missing mounts.
+2. **stat probe** (`timeout 2s stat`) — detects read hangs / stale cache misses.
+3. **write probe** (`timeout 5s sh -c "echo $$ > .healthcheck.<host> && rm -f ..."`) —
+   detects the "reads OK, writes hang" failure mode. Stunnel-wrapped NFSv4 can enter
+   a state where `stat` returns from cache but all writes block indefinitely; only this
+   probe catches it.
+
+If any probe fails, `fix_mount` runs:
+
+1. `mount -o remount -f` (cheapest, no disruption if mount is merely stale)
+2. Kill D-state processes pinning the mount (`kill_pinning_processes` — SIGKILLs
+   processes whose `wchan` starts with `nfs_` and whose cwd/fds point into the mountpoint)
+3. `umount -f` (force unmount)
+4. `umount -l` (lazy detach VFS node if `-f` failed)
+5. `systemctl restart stunnel` + 2s sleep (refresh the TLS transport)
+6. `mount` (fresh mount via stunnel)
+
+A hard **60-second deadline** prevents `fix_mount` from outlasting its own timer interval.
+
+On successful repair, force-deletes pods on this node stuck in
+Unknown / Pending / ContainerCreating so the kubelet can reschedule them.
+
+**Consecutive-failure escalation**: each `fix_mount` failure increments a counter
+persisted to `/var/lib/nfs-mount-monitor/fail-count`. At `NFS_FAIL_THRESHOLD=5`
+consecutive failures (~50 s), the node cordons itself (`kubectl cordon`) and issues
+`systemctl reboot`.
+
+The counter is also exported to `/var/lib/node_exporter/textfile_collector/nfs_mount_monitor.prom`
+so Prometheus can alert on `nfs_mount_monitor_consecutive_failures` without parsing
+journal logs (warning ≥3, critical ≥5 — see
+`f3s/prometheus/manifests/nfs-mount-monitor-alerts.yaml`).
 
 Uses a lock file (`/var/run/nfs-mount-check.lock`) to prevent overlapping runs
 since the timer fires faster than the script's worst-case runtime.
@@ -626,7 +656,7 @@ since the timer fires faster than the script's worst-case runtime.
 | Parameter | Value | Reason |
 |-----------|-------|--------|
 | `OnBootSec` | 30s | Let network and NFS client start before first check |
-| `OnUnitActiveSec` | 10s | Check interval (was 1 min via cron; now tighter) |
+| `OnUnitActiveSec` | 10s | Check interval; each run is bounded by a 60-second deadline |
 | `AccuracySec` | 1s | Prevent systemd batching from delaying the 10 s interval |
 
 ### Status and logs
@@ -640,6 +670,41 @@ journalctl -u nfs-mount-monitor -f
 
 Encrypted incremental ZFS snapshots from `zdata` pool backed up daily to **AWS S3 Glacier Deep Archive** via cron. Scripts adapted from FreeBSD Home NAS setup. Also performs periodic zpool scrubbing.
 
+## Local-Path Storage for SQLite Workloads
+
+Some k3s workloads use `local-path` (k3s default storageClass) instead of NFS for
+their data volumes. This is appropriate when:
+
+- The application uses SQLite: NFS file-lock semantics cause `fcntl()` races on
+  pod restarts, and `Recreate` strategy only reduces (not eliminates) the risk.
+- Cache-heavy workloads: NFS over stunnel adds TLS round-trip latency to every
+  cache read. Navidrome's image/background cache init took ~19s over NFS; it
+  takes ~25ms from local disk.
+
+**Trade-off**: a local-path PV lives on one specific node. If that node is down,
+the pod reschedules elsewhere but finds no data volume — it starts with an empty DB,
+losing play history, scrobble queue, etc. For a home server this is acceptable.
+The deployment must pin the pod to the same node via `nodeSelector` so the local
+PV is always reachable.
+
+### Workloads using local-path
+
+| App | Node | Path on node |
+|-----|------|--------------|
+| navidrome `/data` (DB + cache) | r1 | `/var/lib/rancher/k3s/storage/pvc-*_services_navidrome-data-pvc` |
+
+### Migrating NFS hostPath → local-path
+
+1. Disable ArgoCD auto-sync: `kubectl patch application <app> -n cicd --type=json -p='[{"op":"replace","path":"/spec/syncPolicy","value":{}}]'`
+2. Scale deployment to 0: `kubectl scale deployment <app> -n services --replicas=0`
+3. Delete old PVC and static PV.
+4. Create new PVC with `storageClassName: local-path`.
+5. Create a migration pod pinned to the target node that mounts both the NFS hostPath
+   (source) and the new PVC (target); copy data with `cp -av /src/. /dst/`.
+6. Delete migration pod, apply updated deployment (with `nodeSelector`), scale back up.
+7. Re-enable ArgoCD auto-sync and push manifests to git; push to in-cluster git-server
+   (`git push r0 master`) so ArgoCD picks up the new storageClass spec.
+
 ## Storage Summary
 
 | Layer | Technology | Role |
@@ -649,5 +714,6 @@ Encrypted incremental ZFS snapshots from `zdata` pool backed up daily to **AWS S
 | Replication | `zrepl` | Continuous ZFS replication f0→f1 (1min NFS, 10min VM) |
 | HA | CARP VIP 192.168.1.138 | Automatic failover for NFS/stunnel |
 | Network | NFS over stunnel | Encrypted shared storage, mutual TLS auth |
+| Local-path | k3s local-path provisioner | Node-local storage for SQLite/cache workloads |
 | LAN access | FreeBSD relayd on CARP VIP | TCP forwarding to k3s :80/:443 |
 | Backup | S3 Glacier Deep Archive | Off-site encrypted backup |
