@@ -566,7 +566,7 @@ NFS path structure on k3s nodes: `/data/nfs/k3svolumes/<app>/`
 
 ### Pods stuck in ContainerCreating/Unknown after NFS recovery
 
-After NFS is restored on the server side, the r-nodes' cron job (`check-nfs-mount.sh`) will auto-remount within 1 minute and force-delete stuck pods. If immediate recovery is needed: `mount /data/nfs/k3svolumes` on each r-node, then delete the stuck pods manually.
+After NFS is restored on the server side, the `nfs-mount-monitor` systemd timer on each r-node will auto-remount within ~10 seconds and force-delete stuck pods. If immediate recovery is needed: `mount /data/nfs/k3svolumes` on each r-node, then delete the stuck pods manually.
 
 ### Checklist for NFS outage on CARP MASTER (f0 or f1)
 
@@ -587,6 +587,53 @@ doas sysctl vfs.nfsd.nfs_privport=0       # apply immediately
 doas service nfsd restart
 # For stunnel, kill stale process if needed, then:
 doas service stunnel start
+```
+
+## NFS Auto-Repair: nfs-mount-monitor
+
+A systemd timer+service pair on r0/r1/r2 checks the NFS mount every 10 seconds and automatically repairs it if stale or missing.
+
+### Repo location
+
+```
+f3s/r-nodes/nfs-mount-monitor/
+  check-nfs-mount.sh          # repair script → /usr/local/bin/
+  nfs-mount-monitor.service   # one-shot service → /etc/systemd/system/
+  nfs-mount-monitor.timer     # 10-second timer  → /etc/systemd/system/
+f3s/r-nodes/Rexfile           # Rex deploy task: nfs_mount_monitor
+```
+
+### Deploy
+
+```sh
+# From repo root — pushes to all three r-nodes and reloads systemd if anything changed
+rex -f f3s/r-nodes/Rexfile nfs_mount_monitor
+```
+
+### What it does
+
+1. Checks whether `/data/nfs/k3svolumes` is mounted (`mountpoint`).
+2. Checks whether the mount is responsive (`timeout 2s stat`).
+3. If either check fails, attempts: `mount -o remount -f`, then `umount -f` + `mount`.
+4. On successful repair, force-deletes pods on this node that are stuck in
+   Unknown / Pending / ContainerCreating so the kubelet can reschedule them.
+
+Uses a lock file (`/var/run/nfs-mount-check.lock`) to prevent overlapping runs
+since the timer fires faster than the script's worst-case runtime.
+
+### Timer configuration
+
+| Parameter | Value | Reason |
+|-----------|-------|--------|
+| `OnBootSec` | 30s | Let network and NFS client start before first check |
+| `OnUnitActiveSec` | 10s | Check interval (was 1 min via cron; now tighter) |
+| `AccuracySec` | 1s | Prevent systemd batching from delaying the 10 s interval |
+
+### Status and logs
+
+```sh
+systemctl status nfs-mount-monitor.timer
+journalctl -u nfs-mount-monitor -f
 ```
 
 ## AWS S3 Glacier Deep Archive Backups
