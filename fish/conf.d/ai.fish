@@ -1,3 +1,11 @@
+function kimi
+    ollama launch opencode --model kimi-k2.6:cloud -y -- run "$1"
+end
+
+function glm
+    ollama launch opencode --model glm-5.1:cloud -y -- run "$1"
+end
+
 abbr -a suggest hexai
 abbr -a explain 'hexai explain'
 
