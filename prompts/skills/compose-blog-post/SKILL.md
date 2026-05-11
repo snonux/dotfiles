@@ -43,11 +43,17 @@ Compose a blog post in gemtext for the foo.zone gemfeed. **Only write or modify 
      - `* ⇢ ⇢ ⇢ Subsection name` (three arrows = each `###` subsection)
    - List every `##` and `###` in the same order as in the body.
 
-5. **Images.**
+5. **Images and diagrams.**
    - Store images in a subfolder under the gemfeed (e.g. `gemfeed/slug-name/` or a name the user gives). Reference them as `=> ./slug-name/filename.jpg Description`.
    - If the user provides or points to large image files (e.g. multi‑MB or very high resolution), suggest or perform resizing for web (e.g. longest side 1200px, JPEG quality 85) so the post stays fast to load.
+   - **Image density.** Prose-heavy posts with long `##` sections benefit from at least one image or diagram per major section. Walls of text without visual anchors feel dense; when a section runs to several screens of prose, propose a diagram or screenshot to break it up.
+   - **ASCII diagrams.** Use a fenced code block (triple backticks). Use Unicode box-drawing characters — `─`, `│`, `▼`, `▶`, `┼`, `┌`, `└`, `┐`, `┘` — for cleaner output than `|` / `-` / `+`.
+     - For two-section comparison diagrams (e.g. kernel vs userspace, before vs after, mode A vs B), place a vertical `│` divider at a single fixed column on every row, rather than relying on whitespace alone to separate the sides. Without a divider, the header label drifts away from the content underneath it.
+     - After drafting a multi-column diagram, verify the divider column is identical on every line (e.g. with a small `awk` check) before accepting it. Misaligned dividers are the most common rendering bug.
+     - Anchor labels above content: each section header should sit visually over the column it describes, not floating off to one side.
 
 6. **Links.** Use gemtext link lines: `=> URL Description` for external links, `=> ./path Description` for internal/images. Include product or reference links when the post mentions specific items.
+   - **Inline project links.** When the body first mentions an external tool, project, or library by name (e.g. eBPF, libbpf, ClickHouse), add a `=> URL Description` line immediately after that paragraph rather than waiting for a bottom-of-post link block. Bottom blocks are reserved for source repos and related posts.
 
 7. **Gemtext conventions.**
    - Sections: `##` and `###` (no `#` except the title).
@@ -64,3 +70,9 @@ Compose a blog post in gemtext for the foo.zone gemfeed. **Only write or modify 
 11. **Optional publish.** If the user wants the new post published after it is written, use the `gemtexter` skill to run the publish workflow and verify the live page on `https://foo.zone`.
 
 12. **Apply human writing style.** Use the `blog-writing-style` skill to ensure the content sounds authentically human — casual, personal, without corporate/marketing language or LLM-generated patterns.
+
+13. **Multi-part series.** When a post is part of a series (Part 1 / Part 2 / Part 3 …):
+    - Cross-link to siblings near the top (right after the intro paragraph) and again at the bottom, using the dated filename: `=> ./YYYY-MM-DD-slug-part-N.gmi Part N: short subtitle`.
+    - **Shared hero image.** Use the same hero image at the same position (typically immediately after the intro) in every part. Store hero and other shared assets in one subfolder, e.g. `gemfeed/series-slug/`.
+    - **Drafts.** Unpublished parts can live as `DRAFT-slug-part-N.gmi.tpl`; their cross-references use `=> ./DRAFT-slug-part-N.gmi`. Promoting a draft to a dated post requires (a) renaming the `.gmi.tpl` and removing the stale generated `.gmi`, then (b) updating every `=> ./DRAFT-…` or `=> ./old-date-…` reference in every OTHER `.gmi.tpl` in the series to point at the new filename. Search with `grep -rn "old-filename" gemtext/` to catch them all.
+    - The dated filename controls gemfeed ordering. Fix the filename first, then propagate to references — never the other way around.

@@ -27,18 +27,32 @@ function supersync::prompts
     # Since files might have been added and/or modified withoug being
     # committed to git yet.
     if test -d ~/git/dotfiles/prompts
+        # For my Linux hosts
         cd ~/git/dotfiles/prompts
         find . -type f -name \*.md | xargs git add
         find . -type f -name \*.md | xargs git commit -m 'update prompts'
         git push
         cd -
     else if test -d ~/git/helpers/prompts
+        # For my Mac host
         cd ~/git/helpers/prompts
         find . -type f -name \*.md | xargs git add
         find . -type f -name \*.md | xargs git commit -m 'update prompts'
         git push
         cd -
     end
+end
+
+function supersync::is_it_time_to_sync
+    set -l max_age 86400
+    set -l now (date +%s)
+    if test -f $SUPERSYNC_STAMP_FILE
+        set -l diff (math $now - (cat $SUPERSYNC_STAMP_FILE))
+        if test $diff -lt $max_age
+            return 0
+        end
+    end
+    read -P "It's time to run supersync! Run it? (y/n) " answer; and test "$answer" = y; and supersync
 end
 
 function supersync
@@ -65,18 +79,6 @@ function supersync
 
     date +%s >$SUPERSYNC_STAMP_FILE.tmp
     mv $SUPERSYNC_STAMP_FILE.tmp $SUPERSYNC_STAMP_FILE
-end
-
-function supersync::is_it_time_to_sync
-    set -l max_age 86400
-    set -l now (date +%s)
-    if test -f $SUPERSYNC_STAMP_FILE
-        set -l diff (math $now - (cat $SUPERSYNC_STAMP_FILE))
-        if test $diff -lt $max_age
-            return 0
-        end
-    end
-    read -P "It's time to run supersync! Run it? (y/n) " answer; and test "$answer" = y; and supersync
 end
 
 abbr -a supersynct 'supersync; track'
