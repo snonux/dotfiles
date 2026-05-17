@@ -24,9 +24,9 @@ Detailed reference documentation is in the `references/` subfolder:
 - [f3 Rocky VM](references/f3-rocky-vm.md) — Plain Rocky Linux 9 VM on f3 (`rocky`, `192.168.1.123`), autostart policy, root SSH
 - [Bootstrap Rocky bhyve VM](references/bootstrap-rocky-bhyve.md) — Runbook for creating a new plain Rocky Linux bhyve guest with unattended kickstart
 - [WireGuard Mesh](references/wireguard.md) — Mesh topology, IP assignments, peer configs
-- [Storage](references/storage.md) — ZFS (zdata), CARP, NFS over stunnel, zrepl replication
-- [k3s Setup](references/k3s-setup.md) — HA k3s cluster, etcd, node IPs, kubeconfig, ArgoCD
-- [Observability](references/observability.md) — Prometheus, Grafana, Loki, Alloy, Tempo
+- [Storage](references/storage.md) — index into `references/storage/`: ZFS (zdata), zrepl, CARP, NFS over stunnel, nfs-mount-monitor, troubleshooting (incl. thermal), backups & local-path
+- [k3s Setup](references/k3s-setup.md) — index into `references/k3s-setup/`: install (bootstrap, kubeconfig, PVs, ArgoCD), ingress (OpenBSD/FreeBSD relayd, cert-manager), troubleshooting (etcd recovery)
+- [Observability](references/observability.md) — index into `references/observability/`: stack (Prometheus/Alloy/Loki/Tempo + alerting), FreeBSD monitoring (node_exporter + recording rules)
 - [Immich](references/immich.md) — Photo server deployment, job queue stats, troubleshooting
 - [Garage](references/garage.md) — Garage cluster, edge domain routing, S3 bucket/key workflow, troubleshooting
 - [DTail / dserver](references/dtail.md) — dserver: Pis **arm64** vs r0–r2 **amd64**, r-VM **root** + `root.authorized_keys` cache, firewalld **2222**, systemd timers
