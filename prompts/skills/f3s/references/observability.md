@@ -2,20 +2,25 @@
 
 ## Overview
 
-Complete observability stack deployed into the `monitoring` namespace of the k3s cluster.
+Observability stack deployed into the `monitoring` namespace of the k3s cluster.
 
-Stack: **PLG + Tempo** (Prometheus, Loki, Grafana + Tempo for distributed tracing)
+**Current state (as of 2026-05-16)**: Prometheus + Alloy only. Grafana, Loki, and Tempo are **disabled** — their ArgoCD manifests are renamed to `.disabled` and their pods do not run.
+
+- Grafana disabled: SQLite-on-NFS is fundamentally unreliable across pod restarts. Grafana's database gets locked when the pod reschedules to a different node. Long-term fix: migrate to local-path PVC (same pattern as navidrome).
+- Loki/Tempo disabled: no log aggregation or distributed tracing until Grafana is re-enabled.
+- Alloy is running but **only emits its own logs** (`logging { level = "info" }`). Log shipping to Loki and trace forwarding to Tempo are removed from its config.
+- Prometheus TSDB was wiped and restarted clean (2026-05-16) after WAL corruption (zero-byte segments from a cluster blip).
 
 ## Components
 
-| Component | Purpose |
-|-----------|---------|
-| **Prometheus** | Time-series metrics, alerting rules, Alertmanager |
-| **Grafana** | Visualisation and dashboarding |
-| **Loki** | Log aggregation (single-binary mode) |
-| **Alloy** | Telemetry collector (DaemonSet) — ships logs to Loki, traces to Tempo |
-| **Tempo** | Distributed tracing backend |
-| **Node Exporter** | Host-level metrics (on k3s nodes AND FreeBSD hosts) |
+| Component | Purpose | State |
+|-----------|---------|-------|
+| **Prometheus** | Time-series metrics, alerting rules, Alertmanager | **Running** |
+| **Alloy** | Telemetry collector (DaemonSet) | **Running** (minimal config only) |
+| **Node Exporter** | Host-level metrics (on k3s nodes AND FreeBSD hosts) | **Running** |
+| **Grafana** | Visualisation and dashboarding | **Disabled** (SQLite-on-NFS) |
+| **Loki** | Log aggregation (single-binary mode) | **Disabled** |
+| **Tempo** | Distributed tracing backend | **Disabled** |
 
 ## Deployment
 
@@ -33,17 +38,27 @@ Deployment tool: `just` (Justfile in each component directory).
 kubectl create namespace monitoring
 ```
 
-## Installing Prometheus + Grafana
+### Disabled component manifests
 
-Uses `kube-prometheus-stack` Helm chart:
+These files exist in the repo but are renamed `.disabled` so ArgoCD ignores them:
+```
+f3s/argocd-apps/monitoring/loki.yaml.disabled
+f3s/argocd-apps/monitoring/tempo.yaml.disabled
+f3s/argocd-apps/monitoring/grafana-ingress.yaml.disabled
+```
+
+To re-enable, rename back to `.yaml` and ensure Grafana is using a non-NFS PVC (local-path).
+
+## Installing Prometheus
+
+Uses `kube-prometheus-stack` Helm chart with **Grafana subchart disabled** (`grafana.enabled: false`):
 
 ```sh
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo update
 
-# Create NFS storage directories first
+# Create NFS storage directory first
 mkdir -p /data/nfs/k3svolumes/prometheus/data
-mkdir -p /data/nfs/k3svolumes/grafana/data
 
 cd conf/f3s/prometheus && just install
 ```
@@ -80,53 +95,44 @@ Default: `admin` / `prom-operator` — change immediately after first login.
 
 Grafana accessible at `grafana.f3s.foo.zone` via Traefik ingress.
 
-## Installing Loki + Alloy
+## Installing Alloy (minimal)
+
+Alloy is installed as part of the Loki Helm chart but runs with a minimal config (no log shipping):
+
+```sh
+cd conf/f3s/loki && just install
+# installs alloy only (loki itself is disabled via loki.yaml.disabled)
+```
+
+### Current Alloy config (`alloy-values.yaml`)
+
+Minimal — only emits Alloy's own operational logs:
+
+```
+logging {
+  level = "info"
+}
+```
+
+To re-enable log shipping (once Loki is running again), restore the full `discovery.kubernetes` + `loki.source.kubernetes` + `loki.write` pipeline.
+
+## Installing Loki (disabled)
 
 ```sh
 mkdir -p /data/nfs/k3svolumes/loki/data
+# Rename loki.yaml.disabled → loki.yaml first, then:
 cd conf/f3s/loki && just install
-# installs both loki and alloy
 ```
 
 Loki URL (internal): `http://loki.monitoring.svc.cluster.local:3100`
 
-Add Loki as Grafana data source: Configuration → Data Sources → Loki → URL above.
-
-### Alloy configuration (`alloy-values.yaml`)
-
-```
-discovery.kubernetes "pods" {
-  role = "pod"
-}
-
-discovery.relabel "pods" {
-  targets = discovery.kubernetes.pods.targets
-  rule { source_labels = ["__meta_kubernetes_namespace"]; target_label = "namespace" }
-  rule { source_labels = ["__meta_kubernetes_pod_name"]; target_label = "pod" }
-  rule { source_labels = ["__meta_kubernetes_pod_container_name"]; target_label = "container" }
-  rule { source_labels = ["__meta_kubernetes_pod_label_app"]; target_label = "app" }
-}
-
-loki.source.kubernetes "pods" {
-  targets    = discovery.relabel.pods.output
-  forward_to = [loki.write.default.receiver]
-}
-
-loki.write "default" {
-  endpoint {
-    url = "http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push"
-  }
-}
-```
-
-## Installing Tempo
+## Installing Tempo (disabled)
 
 ```sh
 mkdir -p /data/nfs/k3svolumes/tempo/data
+# Rename tempo.yaml.disabled → tempo.yaml first, then:
 cd conf/f3s/tempo && just install
 ```
-
-Add Tempo as Grafana data source: Grafana → Configuration → Data Sources → Tempo.
 
 ## Monitoring FreeBSD Hosts (f0, f1, f2)
 
@@ -247,8 +253,22 @@ Gogios scrapes Alertmanager at regular intervals and sends email notifications. 
 - Node-level metrics (CPU, memory, disk) — both k3s and FreeBSD nodes
 - ZFS ARC statistics on FreeBSD hosts
 - Application performance metrics
-- Log aggregation from all pods (via Alloy → Loki)
-- Distributed traces (via Alloy → Tempo)
+- ~~Log aggregation from all pods (via Alloy → Loki)~~ — disabled
+- ~~Distributed traces (via Alloy → Tempo)~~ — disabled
+
+## Prometheus TSDB Recovery
+
+If Prometheus fails to start with `opening storage failed: get segment range: segments are not sequential`, WAL segments are corrupt (can happen after a cluster blip leaving zero-byte WAL files).
+
+Full TSDB wipe (loses all historical data — confirm first):
+
+```sh
+# On the NFS server (f0 or CARP MASTER)
+rm -rf /data/nfs/k3svolumes/prometheus/data/prometheus-db/
+mkdir -p /data/nfs/k3svolumes/prometheus/data/prometheus-db
+chown 1000:1000 /data/nfs/k3svolumes/prometheus/data/prometheus-db
+# Prometheus will recreate the TSDB on next start
+```
 
 ## Useful LogQL Queries
 
@@ -266,8 +286,8 @@ Gogios scrapes Alertmanager at regular intervals and sends email notifications. 
 ## NFS Storage Paths for Observability
 
 ```
-/data/nfs/k3svolumes/prometheus/data
-/data/nfs/k3svolumes/grafana/data
-/data/nfs/k3svolumes/loki/data
-/data/nfs/k3svolumes/tempo/data
+/data/nfs/k3svolumes/prometheus/data   # active
+/data/nfs/k3svolumes/grafana/data      # exists but unused (grafana disabled)
+/data/nfs/k3svolumes/loki/data         # exists but unused (loki disabled)
+/data/nfs/k3svolumes/tempo/data        # exists but unused (tempo disabled)
 ```

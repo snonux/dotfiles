@@ -45,6 +45,7 @@ BIOS requirements for WoL: enable "Wake on LAN", disable "ERP Support", enable "
 | f0 | 192.168.1.130 | f0.lan.buetow.org |
 | f1 | 192.168.1.131 | f1.lan.buetow.org |
 | f2 | 192.168.1.132 | f2.lan.buetow.org |
+| f3 | 192.168.1.133 | f3.lan.buetow.org |
 
 Static IPs configured at FreeBSD install time. Also in `/etc/hosts` on all nodes.
 

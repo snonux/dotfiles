@@ -162,6 +162,27 @@ local snap jobs and remain owned by their push jobs.
 Config at `/usr/local/mimecast/etc/uptimed.conf` — `LOG_MAXIMUM_ENTRIES=0` (keep all records forever).
 Check with `uprecords`.
 
+## Kernel Modules
+
+### coretemp (CPU temperature)
+
+`coretemp` provides real per-core die temps via Intel DTS. It is **not** loaded by default. Without it, `hw.acpi.thermal.tz0` is the only temperature source — it is often a constant lie (e.g. always 27.9°C) and cannot be used for thermal alerting.
+
+All f-hosts have `coretemp_load="YES"` in `/boot/loader.conf` (added 2026-05-17). This persists the module across reboots so Prometheus node_exporter can scrape `dev.cpu.N.temperature` automatically.
+
+To check:
+```sh
+sysctl dev.cpu | grep temperature   # per-core die temps (requires coretemp)
+kldstat | grep coretemp             # verify module is loaded
+grep coretemp /boot/loader.conf     # verify persistence
+```
+
+To add manually if missing:
+```sh
+doas kldload coretemp
+echo 'coretemp_load="YES"' | doas tee -a /boot/loader.conf
+```
+
 ## Shell
 
 Default shell is `tcsh` (FreeBSD default). Run `rehash` after installing new packages for tcsh to find them.
