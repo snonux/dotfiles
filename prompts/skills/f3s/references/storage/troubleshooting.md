@@ -124,11 +124,9 @@ Observed ranges (coretemp per-core die temps via `sysctl dev.cpu | grep temperat
 
 Real-world observations (2026-05-17, post-reboot, k3s + bhyve running):
 - f3 (light load, no k3s): 43–44 °C — reference baseline
-- f0 (after drive reseat + cleaning): 64–66 °C — healthy; f0 sits at the bottom of the rack with a fan underneath, so it runs cooler than f1/f2 regardless of workload
+- f0 (after drive reseat + cleaning): 64–66 °C — healthy
 - f1 (full k3s + ZFS): 76–77 °C — elevated but within range
 - f2 (full k3s + ZFS): 79–80 °C — near concern threshold; physical check recommended
-
-**Rack note**: f0 is at the bottom with a direct fan underneath — do not use f0 as a temperature baseline for f1/f2. f1/f2 sit higher in the rack in warmer rising air with no dedicated airflow. A 10–15 °C delta between f0 and f1/f2 at similar load is expected and normal.
 
 NVMe sits close to the CPU in the small chassis — both heat each other.
 The enclosure gets hot to the touch before temps fully register in software.
