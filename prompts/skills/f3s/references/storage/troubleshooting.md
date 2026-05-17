@@ -108,10 +108,28 @@ improving cooling did.
 
 ### Beelink S12 Pro specifics
 
-- Small enclosure with passive/minimal cooling — heat accumulates fast under sustained load
-- N100 CPU: normal idle ~40–55 °C; warn >70 °C idle; critical >85 °C under load
-- NVMe sits close to CPU — both heat each other in the small chassis
-- Enclosure gets hot to the touch before temps fully register in software
+The S12 Pro has an **active cooler** (fan + copper heat pipe), not purely passive.
+Intel N100 TJmax is **105 °C**; hardware throttling begins around 100 °C.
+
+Observed ranges (coretemp per-core die temps via `sysctl dev.cpu | grep temperature`):
+
+| Scenario | Expected | Action |
+|----------|----------|--------|
+| True idle (no VMs, no ZFS activity) | 35–50 °C | — |
+| Moderate sustained load (k3s + bhyve + ZFS) | 55–75 °C | Normal for f0–f2 |
+| Heavy load (Prime95 / scrub + rsync + repl) | 75–96 °C | Occasional throttling is OK short-term |
+| **>80 °C at moderate load** | — | **Investigate**: dust, airflow, thermal paste |
+| **>90 °C sustained** | — | **Stop I/O workloads, inspect hardware** |
+| >100 °C | — | Hardware thermal throttle active; shut down |
+
+Real-world observations (2026-05-17, post-reboot, k3s + bhyve running):
+- f3 (light load, no k3s): 43–44 °C — reference baseline
+- f0 (after drive reseat + cleaning): 64–66 °C — healthy
+- f1 (full k3s + ZFS): 76–77 °C — elevated but within range
+- f2 (full k3s + ZFS): 79–80 °C — near concern threshold; physical check recommended
+
+NVMe sits close to the CPU in the small chassis — both heat each other.
+The enclosure gets hot to the touch before temps fully register in software.
 
 ### Cause and resolution (2026-05-16 f0)
 
@@ -128,9 +146,10 @@ and ZFS txg sync times returned to normal.
 ### Remediation steps
 
 1. SSH in and check temps: `kldload coretemp && sysctl dev.cpu | grep temperature`
-2. If >80 °C: stop heavy I/O workloads to prevent thermal-induced ZFS errors
-3. Physical: shut down, reseat NVMe, clean dust from vents, improve airflow
-4. Persist coretemp: ensure `/boot/loader.conf` has `coretemp_load="YES"`
+2. If >80 °C at moderate load: investigate airflow and dust first
+3. If >90 °C sustained: stop heavy I/O workloads (`service zrepl stop`, cancel scrubs)
+4. Physical: shut down, reseat NVMe, clean dust from vents, improve airflow
+5. Persist coretemp: ensure `/boot/loader.conf` has `coretemp_load="YES"`
 
 ### Temperature monitoring
 
