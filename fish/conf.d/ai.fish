@@ -7,7 +7,7 @@ function glm
 end
 
 function qwen
-    ollama launch opencode --model qwen-3.5:cloud -y -- run $argv
+    ollama launch opencode --model qwen3.5:cloud -y -- run $argv
 end
 
 abbr -a suggest hexai
