@@ -159,13 +159,22 @@ vale-ls = { command = "vale-ls" }
 ruby-lsp = { command = "ruby-lsp"}
 rubocop = { command = "rubocop", args = ["--lsp"] }
 
+# cargo install harper-ls --locked
+[language-server.harper-ls]
+command = "harper-ls"
+args = ["--stdio"]
+
+[language-server.harper-ls.config.harper-ls]
+diagnosticSeverity = "hint"
+dialect = "British"
+
 [[language]]
 name = "markdown"
 scope = "source.md"
 injection-regex = "md|markdown"
 file-types = ["md", "markdown", "mkd", "mdwn", "mdown", "markdn", "mdtxt", "mdtext", "workbook", "gmi", "tpl", "txt" ]
 roots = [".marksman.toml"]
-language-servers = [ "marksman", "markdown-oxide", "vale-ls", "hexai-lsp-server", "ltex-ls"]
+language-servers = [ "marksman", "markdown-oxide", "vale-ls", "harper-ls", "hexai-lsp-server", "ltex-ls"]
 indent = { tab-width = 2, unit = "  " }
 
 [[grammar]]
@@ -209,4 +218,4 @@ source = { git = "https://github.com/tree-sitter/tree-sitter-java", rev = "09d65
 name = "git-commit"
 rulers = [51, 73]
 text-width = 72
-language-servers = ["marksman", "markdown-oxide", "vale-ls", "hexai-lsp-server", "ltex-ls"]
+language-servers = ["marksman", "markdown-oxide", "vale-ls", "harper-ls", "hexai-lsp-server", "ltex-ls"]
