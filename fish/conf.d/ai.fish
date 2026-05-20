@@ -12,6 +12,7 @@ end
 
 abbr -a suggest hexai
 abbr -a explain 'hexai explain'
+abbr -a research 'hexai research'
 
 if test -f ~/git/hypr/hypr.fish
     source ~/git/hypr/hypr.fish
