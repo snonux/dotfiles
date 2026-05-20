@@ -1,9 +1,13 @@
 function kimi
-    ollama launch opencode --model kimi-k2.6:cloud -y -- run "$1"
+    ollama launch opencode --model kimi-k2.6:cloud -y -- run $argv
 end
 
 function glm
-    ollama launch opencode --model glm-5.1:cloud -y -- run "$1"
+    ollama launch opencode --model glm-5.1:cloud -y -- run $argv
+end
+
+function qwen
+    ollama launch opencode --model qwen-3.5:cloud -y -- run $argv
 end
 
 abbr -a suggest hexai
