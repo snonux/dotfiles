@@ -376,6 +376,30 @@ task 'home_quickedit', sub {
     }
 };
 
+desc 'Install systemd user units';
+task 'home_systemd_user', sub {
+    my $dst_dir = "$HOME/.config/systemd/user";
+
+    file $dst_dir,
+      ensure => 'directory',
+      mode   => '0700';
+
+    for my $file ( glob "${DOT}/systemd-user/*" ) {
+        file "$dst_dir/" . basename($file),
+          ensure => 'present',
+          source => $file,
+          mode   => '0640';
+    }
+
+    # Reload systemd user daemon to pick up any new or changed units.
+    Rex::Logger::info('Reloading systemd user daemon');
+    run 'systemctl --user daemon-reload';
+
+    # Enable the random-wallpaper timer so it starts on login.
+    Rex::Logger::info('Enabling random-wallpaper.timer');
+    run 'systemctl --user enable random-wallpaper.timer';
+};
+
 desc 'Install all my ~ files';
 task 'home', sub {
     require Rex::TaskList;

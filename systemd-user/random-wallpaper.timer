@@ -1,0 +1,9 @@
+[Unit]
+Description=Set random GNOME wallpaper once per hour
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+
+[Install]
+WantedBy=timers.target

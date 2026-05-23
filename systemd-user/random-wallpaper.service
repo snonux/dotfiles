@@ -1,0 +1,6 @@
+[Unit]
+Description=Set random GNOME wallpaper from image directory
+
+[Service]
+Type=oneshot
+ExecStart=%h/scripts/random-wallpaper.sh
