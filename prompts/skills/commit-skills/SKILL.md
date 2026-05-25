@@ -1,9 +1,9 @@
 ---
-name: sync-skills
-description: "Check for untracked or changed skill files in the skills directory, summarize the changes, and commit and push them to git. Use when asked to sync skills, push skills, commit skills, or check for pending skill changes. Triggers on: sync skills, push skills, commit skills, skill changes, pending skills."
+name: commit-skills
+description: "Check for untracked or changed skill files in the skills directory, summarize the changes, and commit and push them to git. Use when asked to commit skills, push skills, sync skills, or check for pending skill changes. Triggers on: commit skills, push skills, sync skills, skill changes, pending skills."
 ---
 
-# Sync Skills
+# Commit Skills
 
 Detect untracked and changed skill files in `~/git/dotfiles/prompts/skills/`, summarize the changes, then commit and push everything.
 
