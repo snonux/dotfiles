@@ -1,6 +1,6 @@
 ---
 name: next-task
-description: "Pick up and work on the next agent task. First tries the current git project via the `agent-task-management` skill; if no task is available there, runs `task +agent` ordered by urgency to find the highest-urgency agent task across all projects, then `cd`s into the matching project under `~/git/` and continues with `agent-task-management`. Triggers on: next task, next-task, work next, pick up next task, continue with tasks."
+description: "Pick up and work on the next agent task. First tries the current git project via the `agent-task-management` skill; if no task is available there, runs `ask projects` to find projects with pending agent tasks, then `cd`s into the matching project under `~/git/` and continues with `agent-task-management`. Triggers on: next task, next-task, work next, pick up next task, continue with tasks."
 ---
 
 # Next Task
@@ -18,12 +18,12 @@ Find the highest-priority agent task to work on next, switch to the right projec
    - If the current project has no available agent task, run:
 
      ```sh
-     task +agent rc.report.next.sort:urgency- limit:5
+     ask projects
      ```
 
-     This lists agent-tagged Taskwarrior tasks ordered by urgency (highest first). Limit keeps the output small; widen only if needed.
-   - Read the `Project` column of the top row (e.g. `ior`, `dtail`, `foostats`). That is the target project.
-   - If multiple top tasks tie on urgency, prefer the one whose project directory exists under `~/git/`; otherwise pick the first.
+     This lists projects with at least one pending, not-yet-started agent task.
+   - Read each project name from the output (one per line).
+   - Prefer the first project whose directory exists under `~/git/`; otherwise pick the first project listed.
 
 3. **Switch to the target project's git repository.**
    - The repository lives somewhere under `~/git/`. It may be at the top level (`~/git/<project>`) or nested in a sub-directory (e.g. `~/git/work/<project>`, `~/git/forks/<project>`). Always do a depth-3 search across all of `~/git/`:
@@ -44,7 +44,7 @@ Find the highest-priority agent task to work on next, switch to the right projec
 
 ## Rules
 
-- **Always use `~/go/bin/ask` (or just `ask`) for agent tasks.** `task +agent` is only used as a cross-project discovery query; do not use raw `task` commands to mutate agent-managed tasks.
+- **Always use `~/go/bin/ask` (or just `ask`) for agent tasks.** Do not use raw underlying commands to mutate agent-managed tasks.
 - **One started task per project.** If `ask list` in the current project already shows a started task, resume that one instead of picking a new one (unless the user says otherwise).
 - **Do not switch projects silently.** When step 2 triggers a project switch, tell the user which project and task you are moving to before starting work.
 - **Fresh context per task.** Per `agent-task-management`, prefer a new session/sub-agent over carrying context from a previous task.
