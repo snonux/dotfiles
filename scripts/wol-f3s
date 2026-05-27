@@ -2,6 +2,13 @@
 # Wake-on-LAN and shutdown script for f3s hosts (f0, f1, f2, f3)
 # and optional shutdown for Raspberry Pi nodes (pi0–pi3)
 #
+# Before any shutdown of f3s Beelink hosts (f0/f1/f2/f3), this script will
+# attempt to umount all NFS filesystems currently mounted on this machine
+# (earth). NFS mounts here are tunnelled via stunnel (127.0.0.1:2323 →
+# 192.168.1.138:2323 CARP VIP on f0/f1). If any NFS mount is active and
+# cannot be umounted, the shutdown is aborted to prevent data loss or a
+# hung filesystem.
+#
 # Usage:
 #   wol-f3s              # Wake f0, f1, and f2
 #   wol-f3s f0           # Wake only f0
@@ -50,6 +57,46 @@ wake() {
     wol -i "$BROADCAST" "$mac"
 }
 
+# umount_nfs_mounts tries to umount all currently mounted NFS filesystems on
+# this local machine (earth). It reads /proc/mounts to find active nfs/nfs4
+# mounts, attempts to umount each one, and returns 1 if any mount could not
+# be umounted. This prevents shutting down f3s servers while NFS is still in
+# use, which would leave the filesystem in a hung/stale state.
+umount_nfs_mounts() {
+    # Collect all active NFS mount points from /proc/mounts (covers nfs and nfs4)
+    local nfs_mounts=()
+    while IFS= read -r mountpoint; do
+        nfs_mounts+=("$mountpoint")
+    done < <(awk '$3 ~ /^nfs/ { print $2 }' /proc/mounts)
+
+    if [[ ${#nfs_mounts[@]} -eq 0 ]]; then
+        echo "  No NFS filesystems currently mounted — nothing to umount."
+        return 0
+    fi
+
+    local failed=0
+    for mp in "${nfs_mounts[@]}"; do
+        echo "  Umounting NFS filesystem: $mp ..."
+        if umount "$mp" 2>/dev/null; then
+            echo "  ✓ Umounted $mp"
+        else
+            echo "  ✗ Failed to umount $mp (in use or already unmounted?)"
+            failed=1
+        fi
+    done
+
+    if [[ $failed -ne 0 ]]; then
+        echo ""
+        echo "✗ One or more NFS filesystems could not be umounted."
+        echo "  Aborting shutdown to prevent data loss or a hung filesystem."
+        echo "  Please check running processes that may have open files on NFS,"
+        echo "  then retry."
+        return 1
+    fi
+
+    return 0
+}
+
 shutdown_host() {
     local name=$1
     local ip=$2
@@ -81,7 +128,12 @@ case "$ACTION" in
         wake "f2" "$F2_MAC"
         ;;
     shutdown|poweroff|down)
-        # This is to mute Gogios alerts for a day
+        # Umount local NFS filesystems first; abort if any are stuck.
+        # The NFS mounts on earth tunnel through stunnel to the f3s CARP VIP,
+        # so they will hang or corrupt if the servers go down while mounted.
+        echo "Checking for locally mounted NFS filesystems..."
+        umount_nfs_mounts || exit 1
+        # Mute Gogios monitoring alerts for a day on both OpenBSD gateways
         ssh rex@blowfish.buetow.org touch /tmp/f3s_taken_down
         ssh rex@fishfinger.buetow.org touch /tmp/f3s_taken_down
         shutdown_host "f0" "$F0_IP"
@@ -92,12 +144,18 @@ case "$ACTION" in
         exit 0
         ;;
     shutdown-f3|poweroff-f3|down-f3)
+        # Umount local NFS filesystems first; abort if any are stuck.
+        # f3 does not host the NFS CARP VIP (that is f0/f1), but umounting
+        # first is still the safe default to avoid stale state.
+        echo "Checking for locally mounted NFS filesystems..."
+        umount_nfs_mounts || exit 1
         shutdown_host "f3" "$F3_IP"
         echo ""
         echo "✓ Shutdown command sent to f3."
         exit 0
         ;;
     shutdown-pis)
+        # Raspberry Pis do not serve NFS, so no umount check is needed here.
         shutdown_host "pi0" "$PI0_IP"
         shutdown_host "pi1" "$PI1_IP"
         shutdown_host "pi2" "$PI2_IP"
@@ -107,6 +165,12 @@ case "$ACTION" in
         exit 0
         ;;
     shutdown-all)
+        # Umount local NFS filesystems first; abort if any are stuck.
+        # The NFS mounts on earth tunnel through stunnel to the f3s CARP VIP,
+        # so they will hang or corrupt if the servers go down while mounted.
+        echo "Checking for locally mounted NFS filesystems..."
+        umount_nfs_mounts || exit 1
+        # Mute Gogios monitoring alerts for a day on both OpenBSD gateways
         ssh rex@blowfish.buetow.org touch /tmp/f3s_taken_down
         ssh rex@fishfinger.buetow.org touch /tmp/f3s_taken_down
         shutdown_host "f0" "$F0_IP"
