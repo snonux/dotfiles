@@ -80,8 +80,13 @@ umount_nfs_mounts() {
         if umount "$mp" 2>/dev/null; then
             echo "  ✓ Umounted $mp"
         else
-            echo "  ✗ Failed to umount $mp (in use or already unmounted?)"
-            failed=1
+            # If it's no longer listed in /proc/mounts, it's already gone.
+            if ! grep -q "^[^ ]* $mp nfs" /proc/mounts; then
+                echo "  ✓ $mp was already unmounted"
+            else
+                echo "  ✗ Failed to umount $mp (in use or already unmounted?)"
+                failed=1
+            fi
         fi
     done
 
