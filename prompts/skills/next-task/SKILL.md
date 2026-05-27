@@ -26,14 +26,13 @@ Find the highest-priority agent task to work on next, switch to the right projec
    - Prefer the first project whose directory exists under `~/git/`; otherwise pick the first project listed.
 
 3. **Switch to the target project's git repository.**
-   - The repository lives somewhere under `~/git/`. It may be at the top level (`~/git/<project>`) or nested in a sub-directory (e.g. `~/git/work/<project>`, `~/git/forks/<project>`). Always do a depth-3 search across all of `~/git/`:
+   - The project directory is always `~/git/<project>` — a flat layout, no nesting. Check that path first:
 
      ```sh
-     find ~/git -maxdepth 3 -type d -name '<project>' -exec test -e {}/.git \; -print
+     test -d ~/git/<project>/.git && echo exists
      ```
 
-     If that returns nothing, retry with `-iname '<project>'` for a case-insensitive match. As a last resort, allow simple suffix/prefix differences (e.g. project `ior` → directory `ior-go`).
-   - If multiple candidates match, prefer (in order): exact name containing `.git`, shallowest path, then ask the user.
+     If that directory does not exist, retry with a case-insensitive match or simple suffix/prefix differences (e.g. project `ior` → directory `ior-go`) before asking the user.
    - If nothing plausible is found, stop and ask the user which repo to use.
    - Use the `cwd` parameter of subsequent tool calls to operate inside that repository. Do **not** chain `cd` with `&&` in tool calls — pass `cwd` instead.
 

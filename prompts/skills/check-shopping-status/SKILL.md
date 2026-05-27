@@ -12,8 +12,10 @@ Prerequisites:
 
 - [`protonbridge-imap`](../protonbridge-imap/SKILL.md) skill loaded for
   IMAP access; credentials live in `~/.protonbridge`.
+- Amazon credentials in `~/.amazon` as `user:...` and `pass:...` lines.
 - `google-chrome` (or `chromium`) available for JS-rendered carrier pages.
-- `python3` with stdlib (`imaplib`, `email`, `ssl`).
+- `python3` with stdlib (`imaplib`, `email`, `ssl`, `json`, `urllib.request`).
+- `websocat` for headless-Chrome remote-debugging WebSocket protocol.
 
 ## Workflow
 
@@ -75,21 +77,44 @@ without API keys:
 |---|---|---|
 | **Swiship / FAN Courier** (`swiship.co.uk/track?loc=de-DE&id=...`) | ✅ headless Chrome (`virtual-time-budget=20000`) | Plain text already in DOM. |
 | **Asendia USA** (`a1.asendiausa.com/tracking/?trackingnumber=...&trackingkey=...`) | ✅ direct curl | First page render contains last event. |
-| **Amazon DE/COM** (`progress-tracker?orderId=...&shipmentId=...`) | ❌ requires Amazon login | Report shipmentId + orderId and note "Amazon login required". |
+| **Amazon DE/COM** (`progress-tracker?orderId=...&shipmentId=...`) | ✅ via headless Chrome with `~/.amazon` creds | Log in via CDP, navigate to progress-tracker URL, extract `document.body.innerText`. |
 | **Temu** (`api-euo.temu.com/callback/doha/open/track?...`) | ❌ needs Temu account | Use the rendered mail text instead ("Order shipped", "transferred to Bulgarian Post"). |
 | **DHL** (`nolp.dhl.de`, `dhl.de/int-verfolgen`, `dhl.com/utapi`) | ❌ blocked | Akamai bot challenge + explicit HTTP 403 *"tracking attempt has been blocked"*. Aggregators (17track, parcelsapp, AfterShip, parcelmonitor) also fail without paid API keys. Fall back to the email body for context (sender hand-off date, delivery partner, expected days) and link the user to `https://nolp.dhl.de/nextt-online-public/set_identcodes.do?lang=en&idc=<CODE>`. |
 | **Bulgarian Post / Speedy** | ❌ Cloudflare challenge | Same fallback — quote what the mail says. |
 | **Kickstarter / PledgeBox** | n/a | These don't carry carrier codes; status comes from the project update text. |
 
-Headless-Chrome incantation (works for sites without bot protection):
+### 4b — Amazon lookup via Chrome DevTools Protocol
+
+For Amazon.de (or .com) tracking URLs that require login, use a headless
+Chrome instance controlled via the remote-debugging WebSocket protocol.
 
 ```bash
-UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
-timeout 45 google-chrome --headless=new --disable-gpu --no-sandbox \
-  --window-size=1400,2400 --user-agent="$UA" \
-  --virtual-time-budget=20000 \
-  --screenshot=/tmp/track.png --dump-dom "$URL" > /tmp/track.html
+# Start Chrome with remote debugging
+pkill -f 'remote-debugging-port=9222' || true
+google-chrome \
+  --headless=new --disable-gpu --no-sandbox --disable-dev-shm-usage \
+  --disable-blink-features=AutomationControlled \
+  --window-size=1400,2400 \
+  --user-agent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36' \
+  --remote-debugging-port=9222 --user-data-dir=/tmp/amazon-profile \
+  about:blank
 ```
+
+Create a tab via `PUT http://localhost:9222/json/new?about:blank`, connect
+with `websocat <wsUrl>`, then send CDP commands in line-delimited JSON:
+
+1. `Page.enable` — subscribe to page events.
+2. `Page.navigate` — load `https://www.amazon.de/ap/signin`.
+3. `Runtime.evaluate` — set `#ap_email` to `~/.amazon` user and click `#continue`.
+4. `Runtime.evaluate` — set `#ap_password` to `~/.amazon` pass and click `#signInSubmit`.
+5. `Page.navigate` — load the progress-tracker URL from the email.
+6. `Runtime.evaluate` — return `document.body.innerText` for status extraction.
+
+Important interaction details:
+- Dispatch `input` and `change` events on form fields after setting `.value`.
+- Click the submit button, then call `form.submit()` as fallback.
+- Amazon sign-in often redirects to `openid` flow; the final URL after step
+  5 should match the original progress-tracker URL.
 
 Then strip tags and grep for status keywords:
 `deliver|delivered|in transit|out for delivery|zugestellt|unterwegs|abgeholt|
@@ -117,10 +142,93 @@ user can scan visually:
 End the report with a short "Things worth acting on" list: imminent
 deliveries, address issues to answer, codes that haven't moved.
 
+### Example Amazon CDP helper
+
+```python
+import json, subprocess, time, urllib.request
+
+def start_chrome():
+    subprocess.run(['pkill','-f','remote-debugging-port=9222'], capture_output=True)
+    time.sleep(1)
+    p = subprocess.Popen([
+        'google-chrome',
+        '--headless=new','--disable-gpu','--no-sandbox','--disable-dev-shm-usage',
+        '--disable-blink-features=AutomationControlled',
+        '--window-size=1400,2400',
+        '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        '--remote-debugging-port=9222','--user-data-dir=/tmp/amazon-profile',
+        'about:blank'
+    ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    for _ in range(30):
+        time.sleep(0.5)
+        try:
+            with urllib.request.urlopen('http://localhost:9222/json/version', timeout=2) as r:
+                if json.loads(r.read()).get('Browser'):
+                    return p
+        except: pass
+    p.kill()
+    raise RuntimeError('Chrome did not start')
+
+def get_page_ws():
+    req = urllib.request.Request('http://localhost:9222/json/new?about:blank', method='PUT')
+    with urllib.request.urlopen(req, timeout=5) as r:
+        return json.loads(r.read()).get('webSocketDebuggerUrl','')
+
+def send_cmd(ws, cid, method, params=None):
+    ws.stdin.write((json.dumps({'id':cid,'method':method,'params':params or {}},ensure_ascii=False)+'\n').encode())
+    ws.stdin.flush()
+
+def amazon_login_and_track(ws, user, pwd, tracker_url):
+    send_cmd(ws, 1, 'Page.enable')
+    send_cmd(ws, 2, 'Runtime.evaluate', {'expression': 'navigator.webdriver'})
+    time.sleep(0.5)
+    send_cmd(ws, 3, 'Page.navigate', {'url':'https://www.amazon.de/ap/signin'})
+    time.sleep(7)
+    send_cmd(ws, 4, 'Runtime.evaluate', {
+        'expression': f"""
+            var e=document.querySelector('#ap_email');
+            var c=document.querySelector('#continue');
+            if(e){{ e.focus(); e.value='{user}'; e.dispatchEvent(new Event('input',{{bubbles:true}})); e.dispatchEvent(new Event('change',{{bubbles:true}})); }}
+            if(c){{ c.focus(); c.click(); }}
+            JSON.stringify({{found:!!e}});
+        """, 'returnByValue': True
+    })
+    time.sleep(7)
+    send_cmd(ws, 5, 'Runtime.evaluate', {
+        'expression': f"""
+            var p=document.querySelector('#ap_password');
+            var b=document.querySelector('#signInSubmit');
+            if(p){{ p.focus(); p.value='{pwd}'; p.dispatchEvent(new Event('input',{{bubbles:true}})); }}
+            if(b){{ b.focus(); b.click(); var f=p?p.closest('form'):null; if(f)f.submit(); }}
+            JSON.stringify({{found:!!p}});
+        """, 'returnByValue': True
+    })
+    time.sleep(9)
+    send_cmd(ws, 6, 'Runtime.evaluate', {'expression':'location.href','returnByValue':True})
+    time.sleep(1)
+    send_cmd(ws, 7, 'Page.navigate', {'url': tracker_url})
+    time.sleep(7)
+    send_cmd(ws, 8, 'Runtime.evaluate', {'expression':'document.body.innerText','returnByValue':True})
+    time.sleep(1)
+    ws.stdin.close()
+    out=[]; err=[]
+    while True:
+        line=ws.stdout.readline()
+        if not line: break
+        try: out.append(json.loads(line.decode()))
+        except: pass
+    while True:
+        line=ws.stderr.readline()
+        if not line: break
+        err.append(line.decode())
+    ws.wait()
+    return out
+```
+
 ## End-to-end one-shot script
 
 ```bash
-set -a; . ~/.protonbridge; set +a
+set -a; . ~/.protonbridge; . ~/.amazon; set +a
 python3 - <<'PY'
 import imaplib, os, ssl, email, re, html
 from email.header import decode_header
@@ -183,6 +291,14 @@ for folder_q in ['"Folders/Shopping"', '"Folders/Shopping/Backing"', '"Folders/S
 M.logout()
 PY
 ```
+
+After IMAP extraction, for every Amazon progress-tracker URL:
+1. Load `~/.amazon` credentials.
+2. Spin up headless Chrome with `--remote-debugging-port=9222`.
+3. Create a new tab via `PUT http://localhost:9222/json/new?about:blank`.
+4. Connect `websocat` to the returned `webSocketDebuggerUrl`.
+5. Run the CDP login + navigate + extract sequence shown above.
+6. Parse the returned `innerText` for delivery status, tracking ID, and ETA.
 
 After this prints the candidates, run the headless-Chrome lookup loop for
 each tracking code/URL and assemble the final markdown report following the
