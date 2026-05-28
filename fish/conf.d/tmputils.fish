@@ -112,7 +112,7 @@ function tmpclean
         # If the folder is empty or has no files, check its own mtime
         if test -z "$newest"
             set -l folder_age (math \( (date +%s) - (stat -c %Y "$folder") \) / 86400)
-            if test $folder_age -ge $threshold
+            if test -n "$folder_age"; and test "$folder_age" -ge $threshold
                 set -l basename (basename "$folder")
                 set -l dest "$old_dir/$basename.$datestamp"
                 if set -q dry_run
@@ -129,7 +129,7 @@ function tmpclean
         set -l file_secs (math floor "$newest")
         set -l age_days (math \( (date +%s) - $file_secs \) / 86400)
 
-        if test $age_days -ge $threshold
+        if test -n "$age_days"; and test "$age_days" -ge $threshold
             set -l basename (basename "$folder")
             set -l dest "$old_dir/$basename.$datestamp"
             if set -q dry_run
