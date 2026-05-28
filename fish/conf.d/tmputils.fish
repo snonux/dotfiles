@@ -82,6 +82,15 @@ function tmpmove
     echo "Moved $src -> $dest"
 end
 
+function __tmpclean_stat_mtime --argument file
+    # Portable file mtime in seconds since epoch (Linux vs macOS)
+    if test (uname) = Darwin
+        stat -f %m "$file" 2>/dev/null
+    else
+        stat -c %Y "$file" 2>/dev/null
+    end
+end
+
 function tmpclean
     set -l dry_run
     if set -q argv[1]; and test "$argv[1]" = "--dry-run"
@@ -100,34 +109,36 @@ function tmpclean
 
     set -l datestamp (date +%Y%m%d)
     set -l threshold 31
+    set -l now (date +%s)
 
     for folder in $TMPUTILS_DIR/*
         # Skip the OLD directory itself and non-directories
-        test "$folder" = "$old_dir" && continue
-        test -d "$folder" || continue
+        test "$folder" = "$old_dir"; and continue
+        test -d "$folder"; or continue
 
         # Find the most recently modified file inside the folder (including subdirs)
-        set -l newest (find "$folder" -type f -printf '%T@\n' 2>/dev/null | sort -rn | head -1)
+        set -l newest
+        if test (uname) = Darwin
+            set newest (find "$folder" -type f -exec stat -f %m {} + 2>/dev/null | sort -rn | head -1)
+        else
+            set newest (find "$folder" -type f -printf '%T@\n' 2>/dev/null | sort -rn | head -1)
+        end
 
-        # If the folder is empty or has no files, check its own mtime
-        if test -z "$newest"
-            set -l folder_age (math \( (date +%s) - (stat -c %Y "$folder") \) / 86400)
-            if test -n "$folder_age"; and test "$folder_age" -ge $threshold
-                set -l basename (basename "$folder")
-                set -l dest "$old_dir/$basename.$datestamp"
-                if set -q dry_run
-                    echo "[DRY RUN] Would move $folder -> $dest (empty, $folder_age days old)"
-                else
-                    echo "Moving $folder -> $dest (empty, $folder_age days old)"
-                    mv "$folder" "$dest"
-                end
-            end
+        # Determine mtime: newest file, or folder mtime if empty
+        set -l mtime
+        if test -n "$newest"
+            set mtime (math floor "$newest")
+        else
+            set mtime (__tmpclean_stat_mtime "$folder")
+        end
+
+        # Skip if we couldn't determine mtime
+        if test -z "$mtime"
+            echo "tmpclean: skipping $folder (could not read mtime)"
             continue
         end
 
-        # Calculate age of the newest file in days
-        set -l file_secs (math floor "$newest")
-        set -l age_days (math \( (date +%s) - $file_secs \) / 86400)
+        set -l age_days (math \( $now - $mtime \) / 86400)
 
         if test -n "$age_days"; and test "$age_days" -ge $threshold
             set -l basename (basename "$folder")
