@@ -17,7 +17,7 @@
 
 Use the `agent-task-management` skill for this entire workflow.
 
-I want you to automatically execute tasks to work for the **current git project** from start to finish.
+I want you to automatically execute tasks to work for the **current git project** from start to finish. Once one task completes, automatically continue with the next task.
 
 ### Your role: orchestrator only
 
