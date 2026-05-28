@@ -82,6 +82,66 @@ function tmpmove
     echo "Moved $src -> $dest"
 end
 
+function tmpclean
+    set -l dry_run
+    if set -q argv[1]; and test "$argv[1]" = "--dry-run"
+        set dry_run 1
+    end
+
+    if not test -d "$TMPUTILS_DIR"
+        echo "tmpclean: TMPUTILS_DIR ($TMPUTILS_DIR) does not exist"
+        return 1
+    end
+
+    set -l old_dir "$TMPUTILS_DIR/OLD"
+    if not set -q dry_run
+        mkdir -p $old_dir
+    end
+
+    set -l datestamp (date +%Y%m%d)
+    set -l threshold 31
+
+    for folder in $TMPUTILS_DIR/*
+        # Skip the OLD directory itself and non-directories
+        test "$folder" = "$old_dir" && continue
+        test -d "$folder" || continue
+
+        # Find the most recently modified file inside the folder (including subdirs)
+        set -l newest (find "$folder" -type f -printf '%T@\n' 2>/dev/null | sort -rn | head -1)
+
+        # If the folder is empty or has no files, check its own mtime
+        if test -z "$newest"
+            set -l folder_age (math \( (date +%s) - (stat -c %Y "$folder") \) / 86400)
+            if test $folder_age -ge $threshold
+                set -l basename (basename "$folder")
+                set -l dest "$old_dir/$basename.$datestamp"
+                if set -q dry_run
+                    echo "[DRY RUN] Would move $folder -> $dest (empty, $folder_age days old)"
+                else
+                    echo "Moving $folder -> $dest (empty, $folder_age days old)"
+                    mv "$folder" "$dest"
+                end
+            end
+            continue
+        end
+
+        # Calculate age of the newest file in days
+        set -l file_secs (math floor "$newest")
+        set -l age_days (math \( (date +%s) - $file_secs \) / 86400)
+
+        if test $age_days -ge $threshold
+            set -l basename (basename "$folder")
+            set -l dest "$old_dir/$basename.$datestamp"
+            if set -q dry_run
+                echo "[DRY RUN] Would move $folder -> $dest (stale $age_days days)"
+            else
+                echo "Moving $folder -> $dest (stale $age_days days)"
+                mv "$folder" "$dest"
+            end
+        end
+    end
+end
+
 abbr -a cdtmp "cd $TMPUTILS_DIR"
 abbr -a tmpn tmpnew
 abbr -a temp tmpnew
