@@ -82,7 +82,7 @@ function tmpmove
     echo "Moved $src -> $dest"
 end
 
-function __tmpclean_stat_mtime --argument file
+function tmputils::__stat_mtime --argument file
     # Portable file mtime in seconds since epoch (Linux vs macOS)
     if test (uname) = Darwin
         stat -f %m "$file" 2>/dev/null
@@ -91,9 +91,9 @@ function __tmpclean_stat_mtime --argument file
     end
 end
 
-function tmpclean
+function tmputils::clean
     if not test -d "$TMPUTILS_DIR"
-        echo "tmpclean: TMPUTILS_DIR ($TMPUTILS_DIR) does not exist"
+        echo "tmputils::clean: TMPUTILS_DIR ($TMPUTILS_DIR) does not exist"
         return 1
     end
 
@@ -122,12 +122,12 @@ function tmpclean
         if test -n "$newest"
             set mtime (math floor "$newest")
         else
-            set mtime (__tmpclean_stat_mtime "$folder")
+            set mtime (tmputils::__stat_mtime "$folder")
         end
 
         # Skip if we couldn't determine mtime
         if test -z "$mtime"
-            echo "tmpclean: skipping $folder (could not read mtime)"
+            echo "tmputils::clean: skipping $folder (could not read mtime)"
             continue
         end
 

@@ -75,7 +75,7 @@ function supersync
     end
 
     supersync::gitsyncer
-    tmpclean
+    tmputils::clean
     # update::tools
 
     date +%s >$SUPERSYNC_STAMP_FILE.tmp
