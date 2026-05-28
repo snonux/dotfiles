@@ -92,20 +92,13 @@ function __tmpclean_stat_mtime --argument file
 end
 
 function tmpclean
-    set -l dry_run
-    if set -q argv[1]; and test "$argv[1]" = "--dry-run"
-        set dry_run 1
-    end
-
     if not test -d "$TMPUTILS_DIR"
         echo "tmpclean: TMPUTILS_DIR ($TMPUTILS_DIR) does not exist"
         return 1
     end
 
     set -l old_dir "$TMPUTILS_DIR/OLD"
-    if not set -q dry_run
-        mkdir -p $old_dir
-    end
+    mkdir -p $old_dir
 
     set -l datestamp (date +%Y%m%d)
     set -l threshold 31
@@ -143,12 +136,8 @@ function tmpclean
         if test -n "$age_days"; and test "$age_days" -ge $threshold
             set -l basename (basename "$folder")
             set -l dest "$old_dir/$basename.$datestamp"
-            if set -q dry_run
-                echo "[DRY RUN] Would move $folder -> $dest (stale $age_days days)"
-            else
-                echo "Moving $folder -> $dest (stale $age_days days)"
-                mv "$folder" "$dest"
-            end
+            echo "Moving $folder -> $dest (stale $age_days days)"
+            mv "$folder" "$dest"
         end
     end
 end
