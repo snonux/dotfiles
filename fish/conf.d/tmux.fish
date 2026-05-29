@@ -71,12 +71,22 @@ function tmux::attach
             return 1
         end
         tmux attach-session || tmux::new
-    else
-        if test -n "$TMUX"
-            tmux switch-client -t "=$session" 2>/dev/null; or tmux::new $session $dir
-        else
-            tmux attach-session -t "=$session" 2>/dev/null; or tmux::new $session $dir
+        return
+    end
+
+    # Prefer attaching to an agent-labeled session if one exists.
+    # Never create A-prefixed sessions via shortcuts; only prioritize them.
+    for prefixed in "A-$session" "A$session"
+        if tmux has-session -t "=$prefixed" 2>/dev/null
+            set session $prefixed
+            break
         end
+    end
+
+    if test -n "$TMUX"
+        tmux switch-client -t "=$session" 2>/dev/null; or tmux::new $session $dir
+    else
+        tmux attach-session -t "=$session" 2>/dev/null; or tmux::new $session $dir
     end
 end
 
