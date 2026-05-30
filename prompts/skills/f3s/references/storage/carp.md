@@ -45,45 +45,17 @@ doas service devd restart
 
 ## carpcontrol.sh — start/stop NFS+stunnel on failover
 
+Source of truth: `f3s/freebsd-hosts/carp/carpcontrol.sh`.
+
+Install on f0 and f1:
+
 ```sh
-#!/bin/sh
-HOSTNAME=`hostname`
-
-if [ ! -f /data/nfs/nfs.DO_NOT_REMOVE ]; then
-    logger '/data/nfs not mounted, mounting it now!'
-    if [ "$HOSTNAME" = 'f0.lan.buetow.org' ]; then
-        zfs load-key -L file:///keys/f0.lan.buetow.org:zdata.key zdata/enc/nfsdata
-        zfs set mountpoint=/data/nfs zdata/enc/nfsdata
-    else
-        zfs load-key -L file:///keys/f0.lan.buetow.org:zdata.key zdata/sink/f0/zdata/enc/nfsdata
-        zfs set mountpoint=/data/nfs zdata/sink/f0/zdata/enc/nfsdata
-        zfs mount zdata/sink/f0/zdata/enc/nfsdata
-        zfs set readonly=on zdata/sink/f0/zdata/enc/nfsdata
-    fi
-    service nfsd stop 2>&1
-    service mountd stop 2>&1
-fi
-
-case "$2" in
-    MASTER)
-        logger "CARP state changed to MASTER, starting services"
-        service rpcbind start >/dev/null 2>&1
-        service mountd start >/dev/null 2>&1
-        service nfsd start >/dev/null 2>&1
-        service nfsuserd start >/dev/null 2>&1
-        service stunnel restart >/dev/null 2>&1
-        ;;
-    BACKUP)
-        logger "CARP state changed to BACKUP, stopping services"
-        service stunnel stop >/dev/null 2>&1
-        service nfsd stop >/dev/null 2>&1
-        service mountd stop >/dev/null 2>&1
-        service nfsuserd stop >/dev/null 2>&1
-        ;;
-esac
+doas install -o root -g wheel -m 0555 carpcontrol.sh /usr/local/bin/carpcontrol.sh
 ```
 
-Install: `doas chmod +x /usr/local/bin/carpcontrol.sh` (copy to f1 too)
+The script must call `/usr/local/sbin/f3s-mount-keys` before any
+`zfs load-key` operation because `/keys` is not mounted by `/etc/fstab`; see
+[USB Key Mounting](usb-keys.md).
 
 ## CARP management script (`/usr/local/bin/carp`)
 

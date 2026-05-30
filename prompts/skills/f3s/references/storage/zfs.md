@@ -21,16 +21,21 @@ doas zpool create zdata ada1   # ada1 = second SSD
 
 ## Encryption Keys (USB Key Storage)
 
-Encryption keys are stored on USB flash drives (UFS-formatted, mounted at `/keys`).
-All four hosts (f0/f1/f2/f3) have USB keys at `/dev/da0` mounted at `/keys`, each holding
-all 8 key files as cross-host backups.
+Encryption keys are stored on USB flash drives (UFS-formatted, mounted at
+`/keys`). All four hosts (f0/f1/f2/f3) have USB keys with UFS label
+`F3S_KEYS`, mounted at `/keys`, each holding all 8 key files as cross-host
+backups.
+
+Do **not** mount `/keys` from `/etc/fstab`. A missing or corrupt key stick must
+not block the FreeBSD base OS from booting. See [USB Key Mounting](usb-keys.md)
+for the `f3skeys` boot helper, install paths, current `zfskeys_datasets`, and
+reboot validation.
 
 ```sh
 # Format and mount USB key (on each node)
-doas newfs /dev/da0
-echo '/dev/da0 /keys ufs rw 0 2' | doas tee -a /etc/fstab
+doas newfs -L F3S_KEYS /dev/da0
 doas mkdir /keys
-doas mount /keys
+doas mount -t ufs -o ro /dev/ufs/F3S_KEYS /keys
 
 # Generate keys (on f0, then copy to f1, f2, f3)
 doas openssl rand -out /keys/f0.lan.buetow.org:bhyve.key 32
@@ -43,6 +48,14 @@ doas openssl rand -out /keys/f2.lan.buetow.org:zdata.key 32
 doas openssl rand -out /keys/f3.lan.buetow.org:zdata.key 32
 doas chown root /keys/* && doas chmod 400 /keys/*
 # Copy to f1, f2, f3 via tarball
+```
+
+If an existing stick has no label, unmount it and label it without rebuilding
+the filesystem:
+
+```sh
+doas umount /keys
+doas tunefs -L F3S_KEYS /dev/da0
 ```
 
 ## Encryption Setup
@@ -72,18 +85,6 @@ doas zfs destroy -R zroot/bhyve_old
 
 ### Auto-load encryption keys on boot
 
-```sh
-# On f0
-doas sysrc zfskeys_enable=YES
-doas sysrc zfskeys_datasets="zdata/enc zdata/enc/nfsdata zroot/bhyve"
-
-# On f1
-doas sysrc zfskeys_enable=YES
-doas sysrc zfskeys_datasets="zdata/enc zroot/bhyve zdata/sink/f0/zdata/enc/nfsdata"
-
-# On f3 (bhyve VMs only, no zdata pool yet)
-doas sysrc zfskeys_enable=YES
-doas sysrc zfskeys_datasets="zroot/bhyve"
-doas zfs set keylocation=file:///keys/f0.lan.buetow.org:zdata.key \
-  zdata/sink/f0/zdata/enc/nfsdata
-```
+Boot-time key loading is managed by `f3skeys` plus FreeBSD's `zfskeys`. Keep
+the per-host dataset list in [USB Key Mounting](usb-keys.md) up to date when
+adding encrypted ZFS roots.

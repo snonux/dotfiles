@@ -6,7 +6,8 @@ Note: original plan was HAST, replaced by **zrepl** (ZFS send/receive) — more 
 
 ## Sub-references
 
-- [ZFS Pools & Encryption](storage/zfs.md) — `zdata` pool, physical disks, USB-stored keys, encrypted datasets, boot-time key loading
+- [ZFS Pools & Encryption](storage/zfs.md) — `zdata` pool, physical disks, USB-stored keys mounted by `f3skeys` (not `/etc/fstab`), encrypted datasets, boot-time key loading
+- [USB Key Mounting](storage/usb-keys.md) — `f3skeys`, `/usr/local/sbin/f3s-mount-keys`, and current `zfskeys_datasets` per f-host
 - [zrepl Replication](storage/zrepl.md) — `f0 → f1` nfsdata, `f3 → f2` freebsd VM, sink configs, troubleshooting, DL-state recovery
 - [CARP HA VIP](storage/carp.md) — VIP `192.168.1.138`, `carpcontrol.sh`, mgmt script, auto-failback, SUSPENDED-pool limitation
 - [NFS over stunnel](storage/nfs.md) — NFS server, mutual-TLS stunnel, Rocky client config, `/etc/fstab`
