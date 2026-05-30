@@ -1,0 +1,468 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+GVFS_ROOT=${GVFS_ROOT:-"/run/user/$(id -u)/gvfs"}
+FUJIFILM_DEST=${FUJIFILM_DEST:-"$HOME/Documents/Inbox/Fujifilm"}
+SUPERNOTE_DEST=${SUPERNOTE_DEST:-"$HOME/Documents/Inbox/Note"}
+SUPERNOTE_PDF_DEST=${SUPERNOTE_PDF_DEST:-"$HOME/Documents/Supernote"}
+SUPERNOTE_BACKUP_DEST=${SUPERNOTE_BACKUP_DEST:-"$HOME/Books/journals/Supernote"}
+SUPERNOTE_BACKUP_TIMEOUT=${SUPERNOTE_BACKUP_TIMEOUT:-20s}
+
+TOTAL_FOUND=0
+TOTAL_COPIED=0
+TOTAL_SKIPPED=0
+TOTAL_FAILED=0
+TOTAL_CONVERTED=0
+TOTAL_CONVERT_SKIPPED=0
+TOTAL_BACKED_UP=0
+TOTAL_BACKUP_SKIPPED=0
+TOTAL_BACKUP_FAILED=0
+
+log() {
+  printf '%s\n' "$*"
+}
+
+usage() {
+  cat <<EOF_USAGE
+Usage: ${0##*/} [auto|fujifilm|fuji|camera|supernote|nomad] [destination]
+
+Import files from supported USB devices mounted through GVFS.
+
+Modes:
+  auto       Import from the single supported device currently connected.
+  fujifilm   Copy only JPEG files from a Fuji/Fujifilm camera.
+  supernote  Copy only the Note folder from a Supernote Nomad, then convert .note files to PDF.
+
+Default destinations:
+  Fujifilm JPEGs:        $FUJIFILM_DEST
+  Supernote Note files:  $SUPERNOTE_DEST
+  Supernote PDF files:   $SUPERNOTE_PDF_DEST
+  Optional backup mirror: $SUPERNOTE_BACKUP_DEST
+
+Environment overrides:
+  FUJIFILM_DEST=/path/to/dir
+  SUPERNOTE_DEST=/path/to/dir
+  SUPERNOTE_PDF_DEST=/path/to/dir
+  SUPERNOTE_BACKUP_DEST=/path/to/dir
+  SUPERNOTE_BACKUP_TIMEOUT=20s
+  GVFS_ROOT=/run/user/UID/gvfs
+EOF_USAGE
+}
+
+require_gio() {
+  if ! command -v gio >/dev/null 2>&1; then
+    log "gio is required but was not found in PATH." >&2
+    return 1
+  fi
+}
+
+find_fujifilm_root() {
+  local root
+  shopt -s nullglob
+  for root in "$GVFS_ROOT"/gphoto2:*; do
+    if gio info "$root" >/dev/null 2>&1; then
+      printf '%s\n' "$root"
+      shopt -u nullglob
+      return 0
+    fi
+  done
+  shopt -u nullglob
+  return 1
+}
+
+find_supernote_root() {
+  local root storage
+  shopt -s nullglob
+  for root in "$GVFS_ROOT"/mtp:*Supernote* "$GVFS_ROOT"/mtp:*supernote*; do
+    [[ -e "$root" ]] || continue
+    storage="$root/Internal shared storage"
+    if gio info "$storage" >/dev/null 2>&1; then
+      printf '%s\n' "$storage"
+      shopt -u nullglob
+      return 0
+    fi
+    if gio info "$root" >/dev/null 2>&1; then
+      printf '%s\n' "$root"
+      shopt -u nullglob
+      return 0
+    fi
+  done
+  shopt -u nullglob
+  return 1
+}
+
+copy_fujifilm_jpegs_from_dir() {
+  local dir=$1 dest_root=$2
+  local name type src dest
+
+  while IFS=$'\t' read -r name _ type _; do
+    [[ -n ${name:-} ]] || continue
+    src="$dir/$name"
+
+    case "$type" in
+      *directory*)
+        copy_fujifilm_jpegs_from_dir "$src" "$dest_root"
+        ;;
+      *regular*)
+        case "$name" in
+          *.[Jj][Pp][Gg]|*.[Jj][Pp][Ee][Gg])
+            TOTAL_FOUND=$((TOTAL_FOUND + 1))
+            dest="$dest_root/$name"
+            if [[ -e "$dest" ]]; then
+              log "skip existing: $name"
+              TOTAL_SKIPPED=$((TOTAL_SKIPPED + 1))
+              continue
+            fi
+
+            log "copy: $src -> $dest"
+            if gio copy -- "$src" "$dest"; then
+              TOTAL_COPIED=$((TOTAL_COPIED + 1))
+            else
+              TOTAL_FAILED=$((TOTAL_FAILED + 1))
+            fi
+            ;;
+        esac
+        ;;
+    esac
+  done < <(gio list -a standard::name,standard::type "$dir")
+}
+
+copy_supernote_files_from_dir() {
+  local src_dir=$1 dest_dir=$2 rel_dir=${3:-}
+  local name size type src dest rel_path src_mtime dest_size dest_mtime
+
+  mkdir -p "$dest_dir"
+
+  while IFS=$'\t' read -r name size type _; do
+    [[ -n ${name:-} ]] || continue
+    src="$src_dir/$name"
+    dest="$dest_dir/$name"
+    rel_path="${rel_dir:+$rel_dir/}$name"
+
+    case "$type" in
+      *directory*)
+        copy_supernote_files_from_dir "$src" "$dest" "$rel_path"
+        ;;
+      *regular*)
+        TOTAL_FOUND=$((TOTAL_FOUND + 1))
+        if [[ -e "$dest" ]]; then
+          src_mtime=$(gio info -a time::modified "$src" 2>/dev/null | awk -F': ' '/time::modified:/ {print $2; exit}')
+          dest_size=$(stat -c '%s' "$dest")
+          dest_mtime=$(stat -c '%Y' "$dest")
+          if [[ -n "$src_mtime" && "$size" == "$dest_size" && "$src_mtime" == "$dest_mtime" ]]; then
+            log "skip unchanged: $rel_path"
+            TOTAL_SKIPPED=$((TOTAL_SKIPPED + 1))
+            continue
+          fi
+          rm -f -- "$dest"
+        fi
+
+        log "copy: $rel_path"
+        if gio copy -- "$src" "$dest"; then
+          TOTAL_COPIED=$((TOTAL_COPIED + 1))
+        else
+          TOTAL_FAILED=$((TOTAL_FAILED + 1))
+        fi
+        ;;
+    esac
+  done < <(gio list -a standard::name,standard::type,standard::size "$src_dir")
+}
+
+copy_if_changed() {
+  local src=$1 dest=$2 label=$3
+  local src_size dest_size src_mtime dest_mtime
+
+  mkdir -p "$(dirname "$dest")"
+  if [[ -e "$dest" ]]; then
+    src_size=$(stat -c '%s' "$src")
+    dest_size=$(stat -c '%s' "$dest")
+    src_mtime=$(stat -c '%Y' "$src")
+    dest_mtime=$(stat -c '%Y' "$dest")
+    if [[ "$src_size" == "$dest_size" && "$src_mtime" == "$dest_mtime" ]]; then
+      log "skip existing $label: ${dest#"$HOME"/}"
+      return 1
+    fi
+  fi
+
+  if timeout "$SUPERNOTE_BACKUP_TIMEOUT" cp -pf -- "$src" "$dest"; then
+    log "copy $label: ${dest#"$HOME"/}"
+    return 0
+  fi
+
+  log "backup copy timed out or failed: ${dest#"$HOME"/}" >&2
+  return 2
+}
+
+note_signature() {
+  local note=$1
+
+  printf 'size=%s\nmtime=%s\n' "$(stat -c '%s' "$note")" "$(stat -c '%Y' "$note")"
+}
+
+pdf_is_current_for_note() {
+  local note=$1 pdf=$2 meta=$3
+  local current recorded
+
+  [[ -e "$pdf" && -e "$meta" ]] || return 1
+  current=$(note_signature "$note")
+  recorded=$(cat "$meta")
+  [[ "$current" == "$recorded" ]]
+}
+
+convert_supernote_notes_to_pdfs() {
+  local notes_dir=$1 pdf_dir=$2
+  local note rel pdf meta status_dir todo converted_log failed_log converted_count failed_count
+
+  if ! command -v supernote-tool >/dev/null 2>&1; then
+    log "supernote-tool is required to convert .note files to PDF but was not found in PATH." >&2
+    TOTAL_FAILED=$((TOTAL_FAILED + 1))
+    return 1
+  fi
+
+  mkdir -p "$pdf_dir"
+  find "$pdf_dir" -type f -name '*.pdf.tmp.*' -delete
+  status_dir=$(mktemp -d)
+  todo="$status_dir/todo"
+  converted_log="$status_dir/converted"
+  failed_log="$status_dir/failed"
+
+  while IFS= read -r -d '' note; do
+    rel=${note#"$notes_dir"/}
+    pdf="$pdf_dir/${rel%.note}.pdf"
+    meta="${pdf}.note-meta"
+    mkdir -p "$(dirname "$pdf")"
+
+    if pdf_is_current_for_note "$note" "$pdf" "$meta"; then
+      log "skip current PDF: ${pdf#"$HOME"/}"
+      TOTAL_CONVERT_SKIPPED=$((TOTAL_CONVERT_SKIPPED + 1))
+      continue
+    fi
+
+    printf '%s\0' "$note" >>"$todo"
+  done < <(find "$notes_dir" -type f -iname '*.note' -print0)
+
+  if [[ -s "$todo" ]]; then
+    export NOTES_DIR=$notes_dir
+    export PDF_DIR=$pdf_dir
+    export CONVERTED_LOG=$converted_log
+    export FAILED_LOG=$failed_log
+
+    # Worker variables are intentionally expanded inside bash -c.
+    # shellcheck disable=SC2016
+    xargs -0 -r -n 1 -P 3 bash -c '
+        set -euo pipefail
+        note=$1
+        rel=${note#"$NOTES_DIR"/}
+        pdf="$PDF_DIR/${rel%.note}.pdf"
+        meta="${pdf}.note-meta"
+        tmp="${pdf}.tmp.$$"
+
+        mkdir -p "$(dirname "$pdf")"
+        printf "convert: %s -> %s\n" "$rel" "${pdf#"$HOME"/}"
+        if supernote-tool convert -a -t pdf "$note" "$tmp" >/dev/null; then
+          mv -f -- "$tmp" "$pdf"
+          {
+            printf "size=%s\n" "$(stat -c "%s" "$note")"
+            printf "mtime=%s\n" "$(stat -c "%Y" "$note")"
+          } >"$meta"
+          printf "%s\n" "$rel" >>"$CONVERTED_LOG"
+        else
+          printf "failed to convert: %s\n" "$rel" >&2
+          rm -f -- "$tmp"
+          printf "%s\n" "$rel" >>"$FAILED_LOG"
+        fi
+      ' _ <"$todo"
+  fi
+
+  converted_count=0
+  failed_count=0
+  [[ -f "$converted_log" ]] && converted_count=$(wc -l <"$converted_log")
+  [[ -f "$failed_log" ]] && failed_count=$(wc -l <"$failed_log")
+  TOTAL_CONVERTED=$((TOTAL_CONVERTED + converted_count))
+  TOTAL_FAILED=$((TOTAL_FAILED + failed_count))
+  rm -rf -- "$status_dir"
+
+  log "Conversion summary: converted=$TOTAL_CONVERTED skipped=$TOTAL_CONVERT_SKIPPED"
+}
+
+backup_supernote_notes_and_pdfs() {
+  local notes_dir=$1 pdf_dir=$2 backup_dir=$3
+  local src rel dest rc
+
+  if [[ ! -d "$backup_dir" ]]; then
+    log "Backup directory not found; skipping backup mirror: $backup_dir"
+    return 0
+  fi
+
+  while IFS= read -r -d '' src; do
+    rel=${src#"$notes_dir"/}
+    dest="$backup_dir/$rel"
+    if copy_if_changed "$src" "$dest" "backup note"; then
+      TOTAL_BACKED_UP=$((TOTAL_BACKED_UP + 1))
+    else
+      rc=$?
+      if [[ $rc -eq 1 ]]; then
+        TOTAL_BACKUP_SKIPPED=$((TOTAL_BACKUP_SKIPPED + 1))
+      else
+        TOTAL_BACKUP_FAILED=$((TOTAL_BACKUP_FAILED + 1))
+      fi
+    fi
+  done < <(find "$notes_dir" -type f -iname '*.note' -print0)
+
+  if [[ -d "$pdf_dir" ]]; then
+    while IFS= read -r -d '' src; do
+      rel=${src#"$pdf_dir"/}
+      dest="$backup_dir/$rel"
+      if copy_if_changed "$src" "$dest" "backup PDF"; then
+        TOTAL_BACKED_UP=$((TOTAL_BACKED_UP + 1))
+      else
+        rc=$?
+        if [[ $rc -eq 1 ]]; then
+          TOTAL_BACKUP_SKIPPED=$((TOTAL_BACKUP_SKIPPED + 1))
+        else
+          TOTAL_BACKUP_FAILED=$((TOTAL_BACKUP_FAILED + 1))
+        fi
+      fi
+    done < <(find "$pdf_dir" -type f -iname '*.pdf' -print0)
+  fi
+
+  log "Backup summary: copied=$TOTAL_BACKED_UP skipped=$TOTAL_BACKUP_SKIPPED failed=$TOTAL_BACKUP_FAILED destination=$backup_dir"
+}
+
+finish_import() {
+  local dest=$1
+
+  log "Summary: found=$TOTAL_FOUND copied=$TOTAL_COPIED skipped=$TOTAL_SKIPPED failed=$TOTAL_FAILED"
+  if [[ $TOTAL_BACKUP_FAILED -gt 0 ]]; then
+    log "Optional backup failures: $TOTAL_BACKUP_FAILED" >&2
+  fi
+  if [[ $TOTAL_FAILED -eq 0 ]]; then
+    log "Flushing copied files to disk..."
+    sync
+    log "Imported files to: $dest"
+    log "Import complete. It is safe to unplug the USB device."
+    return 0
+  fi
+
+  log "Imported files to: $dest" >&2
+  log "Import finished with failures. It is safe to unplug the USB device, but some files were not copied or converted." >&2
+  return 1
+}
+
+import_fujifilm() {
+  local dest=${1:-$FUJIFILM_DEST}
+  local root
+
+  root=$(find_fujifilm_root) || {
+    log "No GVFS Fuji/Fujifilm camera mount found under $GVFS_ROOT" >&2
+    log "Open the camera in your file manager first, then rerun ${0##*/} fujifilm." >&2
+    return 1
+  }
+
+  mkdir -p "$dest"
+  log "Device: Fujifilm camera"
+  log "Source: $root"
+  log "Destination: $dest"
+  log "Importing JPEG files only; RAW files are ignored."
+  copy_fujifilm_jpegs_from_dir "$root" "$dest"
+  finish_import "$dest"
+}
+
+import_supernote() {
+  local dest=${1:-$SUPERNOTE_DEST}
+  local root note_root
+
+  root=$(find_supernote_root) || {
+    log "No GVFS Supernote mount found under $GVFS_ROOT" >&2
+    log "Open the Supernote in your file manager first, then rerun ${0##*/} supernote." >&2
+    return 1
+  }
+  note_root="$root/Note"
+
+  if ! gio info "$note_root" >/dev/null 2>&1; then
+    log "Supernote is mounted, but its Note folder was not found at: $note_root" >&2
+    return 1
+  fi
+
+  mkdir -p "$dest"
+  log "Device: Supernote Nomad"
+  log "Source: $note_root"
+  log "Destination: $dest"
+  log "PDF destination: $SUPERNOTE_PDF_DEST"
+  log "Optional backup destination: $SUPERNOTE_BACKUP_DEST"
+  log "Importing only the Supernote Note folder."
+  copy_supernote_files_from_dir "$note_root" "$dest"
+  log "Supernote note files are copied locally. It is safe to unplug the Supernote now if you eject/unmount it safely."
+  convert_supernote_notes_to_pdfs "$dest" "$SUPERNOTE_PDF_DEST"
+  backup_supernote_notes_and_pdfs "$dest" "$SUPERNOTE_PDF_DEST" "$SUPERNOTE_BACKUP_DEST"
+  finish_import "$dest"
+}
+
+import_auto() {
+  local has_supernote=0 detected=0
+
+  if find_fujifilm_root >/dev/null; then
+    detected=$((detected + 1))
+  fi
+  if find_supernote_root >/dev/null; then
+    has_supernote=1
+    detected=$((detected + 1))
+  fi
+
+  case "$detected" in
+    0)
+      log "No supported USB device found under $GVFS_ROOT." >&2
+      log "Supported devices: Fujifilm cameras, Supernote Nomad." >&2
+      return 1
+      ;;
+    1)
+      if [[ $has_supernote -eq 1 ]]; then
+        import_supernote "$@"
+      else
+        import_fujifilm "$@"
+      fi
+      ;;
+    *)
+      log "Multiple supported devices are connected." >&2
+      log "Run one of these explicitly:" >&2
+      log "  ${0##*/} fujifilm" >&2
+      log "  ${0##*/} supernote" >&2
+      return 2
+      ;;
+  esac
+}
+
+main() {
+  local mode=${1:-auto}
+  local dest=${2:-}
+
+  case "$mode" in
+    -h|--help)
+      usage
+      return 0
+      ;;
+    auto)
+      require_gio
+      import_auto "$dest"
+      ;;
+    fujifilm|fuji|camera)
+      require_gio
+      import_fujifilm "$dest"
+      ;;
+    supernote|nomad)
+      require_gio
+      import_supernote "$dest"
+      ;;
+    -* )
+      log "Unknown option: $mode" >&2
+      usage >&2
+      return 2
+      ;;
+    *)
+      require_gio
+      import_auto "$mode"
+      ;;
+  esac
+}
+
+main "$@"
