@@ -106,7 +106,17 @@ assert::shellcheck () {
 }
 ```
 
-If ShellCheck flags are unavoidable, document the specific `--exclude` reasons in comments.
+If ShellCheck flags are unavoidable, document the specific `--exclude` reasons in comments. Common gemtexter exclusions:
+
+| Code | Meaning | Why it's excluded in gemtexter |
+|------|---------|------------------------------|
+| SC2155 | Declare and assign separately to avoid masking return values | `local -r var=$(cmd)` is idiomatic and the return value is rarely needed |
+| SC2010 | Don't use `ls \| grep`; use `find` or globs | Interactive/listing tasks where `ls \| grep` is intentional and readable |
+| SC2154 | Variable referenced but not assigned | Variables come from sourced config files or the environment |
+| SC1090 | Can't follow non-constant source (e.g. `source "$var"`) | Template/config sourcing with dynamic paths is by design |
+| SC2012 | Use `find` instead of `ls` to parse outputs | Legacy listing patterns where line splitting is controlled |
+| SC2016 | Expressions don't expand in single quotes | Here-doc strings or template blocks intentionally contain literal `$vars` |
+| SC1091 | Not following sourced file (file not on disk or outside project) | External configs or generated files not available at lint time |
 
 ## Random Numbers
 
