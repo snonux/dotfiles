@@ -4,8 +4,7 @@ set -euo pipefail
 declare -r PROGRAM=${0##*/}
 declare -r GVFS_ROOT=${GVFS_ROOT:-"/run/user/$(id -u)/gvfs"}
 declare -r FUJIFILM_DEST=${FUJIFILM_DEST:-"$HOME/Documents/Inbox/Fujifilm"}
-declare -r SUPERNOTE_DEST=${SUPERNOTE_DEST:-"$HOME/Documents/Inbox/Note"}
-declare -r SUPERNOTE_PDF_DEST=${SUPERNOTE_PDF_DEST:-"$HOME/Documents/Supernote"}
+declare -r SUPERNOTE_DEST=${SUPERNOTE_DEST:-"$HOME/Documents/Inbox/Supernote"}
 declare -r CONVERT_PARALLELISM=${CONVERT_PARALLELISM:-3}
 
 declare -i TOTAL_FOUND=0
@@ -47,17 +46,15 @@ Import files from supported USB devices mounted through GVFS.
 Modes:
   auto       Import from the single supported device currently connected.
   fujifilm   Copy only JPEG files from a Fuji/Fujifilm camera.
-  supernote  Copy only the Note folder from a Supernote Nomad, then convert .note files to PDF.
+  supernote  Copy the Supernote Nomad Note folder, then convert .note files to PDF.
 
 Default destinations:
   Fujifilm JPEGs:        $FUJIFILM_DEST
-  Supernote Note files:  $SUPERNOTE_DEST
-  Supernote PDF files:   $SUPERNOTE_PDF_DEST
+  Supernote files:       $SUPERNOTE_DEST
 
 Environment overrides:
   FUJIFILM_DEST=/path/to/dir
   SUPERNOTE_DEST=/path/to/dir
-  SUPERNOTE_PDF_DEST=/path/to/dir
   CONVERT_PARALLELISM=3
   GVFS_ROOT=/run/user/UID/gvfs
 EOF_USAGE
@@ -389,12 +386,11 @@ import_supernote() {
   log "Device: Supernote Nomad"
   log "Source: $note_root"
   log "Destination: $dest"
-  log "PDF destination: $SUPERNOTE_PDF_DEST"
   log "Importing only the Supernote Note folder."
   copy_supernote_files_from_dir "$note_root" "$dest"
   log "Supernote note files are copied locally."
   log "It is safe to unplug the Supernote now if you eject/unmount it safely."
-  convert_supernote_notes_to_pdfs "$dest" "$SUPERNOTE_PDF_DEST"
+  convert_supernote_notes_to_pdfs "$dest" "$dest"
   finish_import "$dest"
 }
 

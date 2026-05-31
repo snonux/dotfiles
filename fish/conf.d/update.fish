@@ -74,8 +74,7 @@ function update::tools
         doas npm install -g opencode-ai
 
         echo "installing/updating pi-coding-agent globally via npm"
-        doas npm install -g @mariozechner/pi-coding-agent
-
+        doas npm install -g @earendil-works/pi-coding-agent
     end
 
     for pid in $pids
