@@ -150,7 +150,14 @@ end
 function taskwarrior::cleanup
     # Delete only tasks completed over 30 days ago
     test (task +random status:completed end.before:today-30days count) -gt 0; and yes | task +random status:completed end.before:today-30days delete &>/dev/null
-    test (task +agent status:completed end.before:today-30days count) -gt 0; and yes | task +agent status:completed end.before:today-30days delete &>/dev/null
+
+    # Export +agent tasks to a JSON history file before deleting them
+    set -l agent_history_dir ~/Documents/Taskwarrior/AgentsHistory
+    if test (task +agent status:completed end.before:today-30days count) -gt 0
+        test -d $agent_history_dir; or mkdir -p $agent_history_dir
+        task +agent status:completed end.before:today-30days export >"$agent_history_dir/tw-agent-export-"(date +%Y%m%d-%H%M%S)".json"
+        yes | task +agent status:completed end.before:today-30days delete &>/dev/null
+    end
 end
 
 function taskwarrior::unscheduled
