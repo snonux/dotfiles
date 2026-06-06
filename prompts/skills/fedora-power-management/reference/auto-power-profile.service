@@ -1,0 +1,11 @@
+[Unit]
+Description=Switch power profile based on AC/battery state
+After=tuned.service tuned-ppd.service
+Wants=tuned-ppd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/auto-power-profile
+
+[Install]
+WantedBy=multi-user.target

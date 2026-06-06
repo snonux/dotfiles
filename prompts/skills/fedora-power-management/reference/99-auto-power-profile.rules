@@ -1,0 +1,2 @@
+# Re-evaluate the power profile whenever an AC adapter or charger changes state.
+SUBSYSTEM=="power_supply", ACTION=="change", RUN+="/usr/bin/systemctl --no-block start auto-power-profile.service"

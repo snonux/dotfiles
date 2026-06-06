@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+#
+# auto-power-profile - switch the tuned-ppd power profile based on AC/battery.
+#
+#   On external power (AC or USB-C charging): performance
+#   On battery:                               balanced
+#
+set -euo pipefail
+
+readonly AC_PROFILE='performance'
+readonly BATTERY_PROFILE='balanced'
+
+# Determine whether the laptop runs on external power.
+#
+# The battery "status" is the most reliable signal because it also reflects
+# USB-C PD charging, not just the classic Mains/ACAD line. Anything other than
+# "Discharging" (Charging, Full, Not charging) means we are on external power.
+# Fall back to the Mains "online" flag if no battery status is readable.
+on_external_power() {
+    local f status
+    for f in /sys/class/power_supply/*/status; do
+        [[ -r "$f" ]] || continue
+        status=$(<"$f")
+        [[ "$status" == 'Unknown' ]] && continue
+        [[ "$status" == 'Discharging' ]] && return 1
+        return 0
+    done
+
+    for f in /sys/class/power_supply/*/type; do
+        [[ -r "$f" ]] || continue
+        [[ "$(<"$f")" == 'Mains' ]] || continue
+        [[ -r "${f%/type}/online" ]] || continue
+        [[ "$(<"${f%/type}/online")" == '1' ]] && return 0
+    done
+
+    return 1
+}
+
+main() {
+    local profile
+    if on_external_power; then
+        profile="$AC_PROFILE"
+    else
+        profile="$BATTERY_PROFILE"
+    fi
+
+    busctl --system set-property \
+        org.freedesktop.UPower.PowerProfiles \
+        /org/freedesktop/UPower/PowerProfiles \
+        org.freedesktop.UPower.PowerProfiles \
+        ActiveProfile s "$profile"
+
+    echo "auto-power-profile: set ActiveProfile=$profile"
+}
+
+main "$@"
