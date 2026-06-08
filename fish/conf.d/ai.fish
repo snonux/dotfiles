@@ -14,6 +14,10 @@ abbr -a suggest hexai
 abbr -a explain 'hexai explain'
 abbr -a research 'hexai research'
 
+# pi coding agent — local Ollama Gemma4 26B
+abbr -a pi-local 'pi --model gemma4:26b-a4b-it-qat-32k-ctx --no-tools'
+abbr -a pi-local-tools 'pi --model gemma4:26b-a4b-it-qat-32k-ctx'
+
 if test -f ~/git/hypr/hypr.fish
     source ~/git/hypr/hypr.fish
 end
