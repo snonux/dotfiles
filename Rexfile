@@ -24,6 +24,25 @@ sub ensure_dir {
       for glob $src_glob;
 }
 
+# Remove regular files in $dst_dir whose basename is not produced by
+# $src_glob. Dotfiles and subdirectories are left untouched so that
+# tool-generated state (e.g. .claude, .ruby-lsp) is preserved.
+sub prune_dir {
+    my ( $src_glob, $dst_dir ) = @_;
+    return unless -d $dst_dir;
+
+    my %keep = map { basename($_) => 1 } glob $src_glob;
+
+    for my $path ( glob "$dst_dir/*" ) {
+        next unless -f $path;
+        my $name = basename($path);
+        next if $keep{$name};
+
+        Rex::Logger::info("Pruning stale file $path");
+        file $path, ensure => 'absent';
+    }
+}
+
 sub ensure_file {
     my ( $src_file, $dst_file, $file_mode ) = @_;
 
@@ -215,7 +234,10 @@ task 'home_prompts', sub {
 };
 
 desc 'Install ~/scripts';
-task 'home_scripts', sub { ensure "$DOT/scripts/*" => "$HOME/scripts/", '0750' };
+task 'home_scripts', sub {
+    ensure "$DOT/scripts/*" => "$HOME/scripts/", '0750';
+    prune_dir "$DOT/scripts/*" => "$HOME/scripts";
+};
 
 desc 'Install ~/.ssh files';
 task 'home_ssh', sub { ensure "$DOT/ssh/config" => "$HOME/.ssh/config", '0600' };
