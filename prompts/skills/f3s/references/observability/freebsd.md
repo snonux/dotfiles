@@ -1,4 +1,4 @@
-# Monitoring FreeBSD Hosts (f0, f1, f2)
+# Monitoring FreeBSD Hosts (f0, f1, f2, f3)
 
 Scraping the FreeBSD bhyve hosts from in-cluster Prometheus. Includes the
 node_exporter setup, the additional scrape config, and the recording rules
@@ -11,7 +11,7 @@ dashboards expect.
 # On each FreeBSD host
 doas pkg install -y node_exporter
 doas sysrc node_exporter_enable=YES
-# Bind to WireGuard interface (f0=192.168.2.130, f1=192.168.2.131, f2=192.168.2.132)
+# Bind to WireGuard interface (f0=192.168.2.130, f1=192.168.2.131, f2=192.168.2.132, f3=192.168.2.133)
 doas sysrc node_exporter_args='--web.listen-address=192.168.2.130:9100'
 doas service node_exporter start
 ```
@@ -27,6 +27,7 @@ doas service node_exporter start
       - '192.168.2.130:9100'  # f0 via WireGuard
       - '192.168.2.131:9100'  # f1 via WireGuard
       - '192.168.2.132:9100'  # f2 via WireGuard
+      - '192.168.2.133:9100'  # f3 via WireGuard
       labels:
         os: freebsd
 ```
