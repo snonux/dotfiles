@@ -59,6 +59,7 @@ Short LAN aliases for all f3s hosts (short, `.lan`, and `.lan.buetow.org` varian
 | tmux | 3.2a | `dnf install -y tmux` |
 | tmux prefix | C-g | **Rocky override** — nested tmux (see below) |
 | fish | 3.7.1 | `dnf install -y fish` (EPEL) |
+| helix | 25.07.1 | `dnf install -y helix helix-themes` (EPEL) |
 | amp | 0.7.1 | Downloaded binary from GitHub releases |
 | claude-code | 2.1.169 | `npm install -g @anthropic-ai/claude-code` |
 | pi coding agent | 0.79.0 | `npm install -g @earendil-works/pi-coding-agent` |
