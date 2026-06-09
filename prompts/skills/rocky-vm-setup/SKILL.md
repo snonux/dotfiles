@@ -57,16 +57,40 @@ Short LAN aliases for all f3s hosts (short, `.lan`, and `.lan.buetow.org` varian
 | Tool | Version | How Installed |
 |------|---------|---------------|
 | tmux | 3.2a | `dnf install -y tmux` |
+| tmux prefix | C-g | **Rocky override** — nested tmux (see below) |
 | fish | 3.7.1 | `dnf install -y fish` (EPEL) |
 | amp | 0.7.1 | Downloaded binary from GitHub releases |
 | claude-code | 2.1.169 | `npm install -g @anthropic-ai/claude-code` |
-| pi coding agent | 0.74.2 | `npm install -g @earendil-works/pi-coding-agent` |
+| pi coding agent | 0.79.0 | `npm install -g @earendil-works/pi-coding-agent` |
 | taskwarrior | 2.6.2 | **Built from source** (see below) |
 | Rex | 1.16.1 | `cpanm Rex` (requires expat-devel, perl-LWP-Protocol-https) |
 | zoxide | 0.9.8 | `dnf install -y zoxide` (EPEL) |
 | fzf | 0.58.0 | `dnf install -y fzf` (EPEL) |
 | fzf fish plugin | — | **fisher install PatrickF1/fzf.fish** |
 | ask, hexai*, gt, gitsyncer, etc. | — | `go install codeberg.org/snonux/...` (see update::tools) |
+
+### Nested tmux (C-g on rocky)
+
+Earth (outer tmux) uses the default **C-b** prefix. Rocky (inner tmux) uses **C-g** so you can control both layers.
+
+**Workflow:**
+| Key | Action |
+|-----|--------|
+| `C-b c` | Create window in outer tmux (earth) |
+| `C-g c` | Create window in inner tmux (rocky) |
+| `C-b b` | Send `C-b` through to inner tmux |
+| `C-g g` | Send `C-g` through to inner-inner tmux |
+
+Rocky config is in `~/.config/tmux/tmux.rocky.conf` and sourced from `tmux.local.conf`:
+
+```sh
+# ~/.config/tmux/tmux.rocky.conf
+unbind C-b
+set -g prefix C-g
+bind C-g send-prefix
+```
+
+This is deployed by the `home_tmux_rocky` Rex task (runs only when `hostname =~ /rocky/`).
 
 ### Building taskwarrior from source
 
@@ -115,6 +139,8 @@ for prog in gitsyncer gos snonux; do
 done
 # (foostore, loadbars, totalrecall, goprecords may need X11/GL deps for GUI — skip on headless)
 ```
+
+**tmux 3.2a compatibility note:** The dotfiles `tmux.conf` includes `set -g extended-keys-format csi-u` (tmux 3.3+). On rocky this line is automatically stripped by the `home_tmux_rocky` Rex task. If you deploy manually, remove or comment out that line.
 
 ---
 
