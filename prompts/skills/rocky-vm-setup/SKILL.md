@@ -78,7 +78,7 @@ Earth (outer tmux) uses the default **C-b** prefix. Rocky (inner tmux) uses **C-
 | Layer | Prefix | Active Border | Status Bar |
 |-------|--------|---------------|------------|
 | **Earth (outer)** | `C-b` | **Magenta** | White-on-purple |
-| **Rocky (inner)** | `C-g` | **Bright Red** | **Black-on-bright-green** with `[ROCKY]` label |
+| **Rocky (inner)** | `C-g` | **Bright Red** | **Black-on-orange** with `[ROCKY]` label |
 
 **Workflow:**
 | Key | Action |
@@ -96,11 +96,12 @@ unbind C-b
 set -g prefix C-g
 bind C-g send-prefix
 
-# Drastic color scheme
+# Drastic RED/ORANGE color scheme
 set -g pane-active-border-style 'fg=brightred,bold'
-set -g status-style             'bg=brightgreen,fg=black,bold'
-set -g status-left              ' [ROCKY] #S '
-set -g window-status-current-style 'bg=black,fg=brightgreen,bold'
+set -g status-style             'bg=colour208,fg=black,bold'
+set -g status-left              ' [ROCKY] #[bg=brightred,fg=white] #S '
+set -g window-status-current-style 'bg=brightred,fg=white,bold'
+set -g window-status-style         'bg=colour208,fg=black'
 ```
 
 This is deployed by the `home_tmux_rocky` Rex task (runs only when `hostname =~ /rocky/`).
