@@ -59,4 +59,14 @@ set -g default-terminal 'tmux-256color'
 set -ga terminal-overrides ',xterm-256color:Tc,*-256color:Tc'
 ```
 
-Without this, tmux defaults to `TERM=screen` (8 colors) and helix themes break.
+Without `default-terminal`, tmux defaults to `TERM=screen` (8 colors).
+
+### Truecolor (24-bit / 16777216 colors)
+
+For truecolor themes in helix, `COLORTERM=truecolor` must also be present inside tmux. tmux strips it by default via `update-environment`. Pass it through:
+
+```sh
+set -g update-environment '... TERM COLORTERM'
+```
+
+Without this, helix sees `COLORTERM=` and falls back to 256 colors only, breaking truecolor themes.

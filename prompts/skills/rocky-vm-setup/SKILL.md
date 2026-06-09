@@ -114,6 +114,9 @@ set -g window-status-current-format ' #I*#[bg=brightred,fg=white] #W '
 # TERM inside tmux — must advertise 256 colors so helix/fzf/etc work
 set -g default-terminal 'tmux-256color'
 set -ga terminal-overrides ',xterm-256color:Tc,*-256color:Tc'
+
+# Pass COLORTERM through from outer SSH session so helix knows truecolor is available
+set -g update-environment 'DISPLAY SSH_ASKPASS SSH_AGENT_LAUNCHER SSH_AUTH_SOCK SSH_CONNECTION SSH_TTY WINDOWID XAUTHORITY TERM COLORTERM'
 ```
 
 This is deployed by the `home_tmux_rocky` Rex task (runs only when `hostname =~ /rocky/`).
