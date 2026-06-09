@@ -76,10 +76,10 @@ Earth (outer tmux) uses the default **C-b** prefix. Rocky (inner tmux) uses **C-
 
 **Visual distinction — you'll never confuse the two:**
 
-| Layer | Prefix | Active Border | Status Bar | Pane Indicators |
-|-------|--------|---------------|------------|-----------------|
-| **Earth (outer)** | `C-b` | **Magenta** | White-on-purple | Default blue |
-| **Rocky (inner)** | `C-g` | **Bright Red** | **Black-on-orange** with `[ROCKY]` label | **Red/orange** pane numbers, border labels |
+| Layer | Prefix | Active Border | Status Bar | Pane Indicators | TERM |
+|-------|--------|---------------|------------|-----------------|------|
+| **Earth (outer)** | `C-b` | **Magenta** | White-on-purple | Default blue | `tmux-256color` |
+| **Rocky (inner)** | `C-g` | **Bright Red** | **Black-on-orange** with `[ROCKY]` label | **Red/orange** pane numbers, border labels | `tmux-256color` |
 
 **Workflow:**
 | Key | Action |
@@ -110,6 +110,10 @@ set -g display-panes-active-colour brightred       # active pane number
 set -g pane-border-status         top              # show pane info on borders
 set -g pane-border-format         '#[fg=colour208] #{pane_index} #[fg=brightred]#{pane_title} '
 set -g window-status-current-format ' #I*#[bg=brightred,fg=white] #W '
+
+# TERM inside tmux — must advertise 256 colors so helix/fzf/etc work
+set -g default-terminal 'tmux-256color'
+set -ga terminal-overrides ',xterm-256color:Tc,*-256color:Tc'
 ```
 
 This is deployed by the `home_tmux_rocky` Rex task (runs only when `hostname =~ /rocky/`).
