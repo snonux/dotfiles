@@ -75,10 +75,10 @@ Earth (outer tmux) uses the default **C-b** prefix. Rocky (inner tmux) uses **C-
 
 **Visual distinction — you'll never confuse the two:**
 
-| Layer | Prefix | Active Border | Status Bar |
-|-------|--------|---------------|------------|
-| **Earth (outer)** | `C-b` | **Magenta** | White-on-purple |
-| **Rocky (inner)** | `C-g` | **Bright Red** | **Black-on-orange** with `[ROCKY]` label |
+| Layer | Prefix | Active Border | Status Bar | Pane Indicators |
+|-------|--------|---------------|------------|-----------------|
+| **Earth (outer)** | `C-b` | **Magenta** | White-on-purple | Default blue |
+| **Rocky (inner)** | `C-g` | **Bright Red** | **Black-on-orange** with `[ROCKY]` label | **Red/orange** pane numbers, border labels |
 
 **Workflow:**
 | Key | Action |
@@ -102,6 +102,13 @@ set -g status-style             'bg=colour208,fg=black,bold'
 set -g status-left              ' [ROCKY] #[bg=brightred,fg=white] #S '
 set -g window-status-current-style 'bg=brightred,fg=white,bold'
 set -g window-status-style         'bg=colour208,fg=black'
+
+# Active pane indicators
+set -g display-panes-colour       colour208       # prefix+q pane numbers
+set -g display-panes-active-colour brightred       # active pane number
+set -g pane-border-status         top              # show pane info on borders
+set -g pane-border-format         '#[fg=colour208] #{pane_index} #[fg=brightred]#{pane_title} '
+set -g window-status-current-format ' #I*#[bg=brightred,fg=white] #W '
 ```
 
 This is deployed by the `home_tmux_rocky` Rex task (runs only when `hostname =~ /rocky/`).
