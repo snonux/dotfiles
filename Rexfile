@@ -299,19 +299,33 @@ task 'home_tmux_rocky', sub {
         my $hostname = `hostname 2>/dev/null` // '';
         chomp $hostname;
         if ( $hostname =~ /rocky/ ) {
-            my $conf = "$HOME/.config/tmux/tmux.local.conf";
             my $line = "source-file ~/.config/tmux/tmux.rocky.conf";
+            my $local_conf = "$HOME/.config/tmux/tmux.local.conf";
+            my $main_conf  = "$HOME/.config/tmux/tmux.conf";
 
-            if ( -f $conf ) {
-                my $content = do { local $/; open my $fh, '<', $conf or die $!; <$fh> };
+            # Clean up stale reference from tmux.local.conf (moved to end of tmux.conf)
+            if ( -f $local_conf ) {
+                my $content = do { local $/; open my $fh, '<', $local_conf or die $!; <$fh> };
+                if ( $content =~ /\Q$line\E/ ) {
+                    $content =~ s/\n*\Q$line\E\n*/\n/;
+                    open my $fh, '>', $local_conf or die $!;
+                    print $fh $content;
+                    close $fh;
+                    Rex::Logger::info("Removed stale tmux.rocky.conf source from $local_conf");
+                }
+            }
+
+            # Append to the END of tmux.conf so rocky colors override shared config
+            if ( -f $main_conf ) {
+                my $content = do { local $/; open my $fh, '<', $main_conf or die $!; <$fh> };
                 if ( $content !~ /\Q$line\E/ ) {
-                    Rex::Logger::info("Appending tmux.rocky.conf source to $conf");
-                    open my $fh, '>>', $conf or die $!;
+                    Rex::Logger::info("Appending tmux.rocky.conf source to end of $main_conf");
+                    open my $fh, '>>', $main_conf or die $!;
                     print $fh "\n$line\n";
                     close $fh;
                 }
                 else {
-                    Rex::Logger::info("tmux.rocky.conf already sourced in $conf");
+                    Rex::Logger::info("tmux.rocky.conf already sourced in $main_conf");
                 }
             }
         }
