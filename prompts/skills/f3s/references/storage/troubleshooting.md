@@ -19,6 +19,38 @@ After NFS is restored on the server side, the `nfs-mount-monitor` systemd timer 
 
 **Note:** The monitor catches three failure modes: missing mountpoint, stat hang (reads unresponsive), and **silent write hang** (reads OK but writes block — the hardest case, e.g. stunnel-wrapped NFSv4 after a CARP failover). Watch the consecutive-failure counter via Prometheus (`nfs_mount_monitor_consecutive_failures`) — warning fires at ≥3, critical at ≥5. At 5 consecutive failures the node cordons itself and reboots.
 
+### Large file transfers from earth hang / WiFi slows to a crawl
+
+**Symptom**: copying a large file into earth's NFS mount hangs; kernel logs show
+`nfs: server 127.0.0.1 not responding, timed out` and `NFSv4: state recovery
+failed ... error = -116` (ESTALE). Unrelated WiFi traffic on earth (e.g. scp
+from f1) also slows dramatically at the same time.
+
+**Root cause**: earth's mount used `soft,timeo=10` (1.0s per RPC). Large writes
+abort mid-transfer, leaving a wedged NFS session that retransmits constantly and
+saturates 2.4GHz WiFi airtime — which throttles all of earth's WiFi traffic. This
+is a **client-side** problem; f0 itself is healthy (verified: local write to
+`zdata` ~1.6 GB/s, pool ONLINE, disk_wait ~1ms, cores 71–79°C).
+
+**Fix** (no f0 reboot needed — rebooting f0 only "worked" as a side effect of
+tearing down the wedged session, and it disrupts the k3s cluster via CARP failover):
+
+```sh
+# On earth: clear the wedged session
+sudo systemctl restart stunnel
+
+# Fix the mount options (see nfs.md → earth client config): use timeo=150, soft
+# Force new options past the cached superblock if a process still holds the mount:
+sudo umount -l /data/nfs/earthdata
+sudo mount -t nfs4 -o port=2323,_netdev,soft,timeo=150,retrans=3,nosharecache \
+  127.0.0.1:/earthdata /data/nfs/earthdata
+```
+
+Then redo the transfer with `rsync --remove-source-files` (not `mv`), which avoids
+corrupt partials. Diagnostics that confirmed the transport (not f0) was the limit:
+raw ssh earth→f0 ~3 MB/s, NFS ~5 MB/s, while the radio negotiated 97/206 Mbit/s —
+the ceiling is single-stream TCP over jittery 2.4GHz WiFi + stunnel TLS, not f0 I/O.
+
 ### Checklist for NFS outage on CARP MASTER (f0 or f1)
 
 ```sh

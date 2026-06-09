@@ -37,6 +37,8 @@ Detailed reference documentation is in the `references/` subfolder:
 
 Package repository details were split into the sibling `pkgrepo` skill. Use `pkgrepo` for `pkgrepo.f3s.buetow.org`, repo layout, package publication, and client repo configuration.
 
+The plain Rocky Linux VM on f3 (`rocky`, `192.168.1.123`) is documented in the sibling [`rocky-vm-setup`](skills/rocky-vm-setup) skill. Use that for SSH keys, git remotes, tooling (tmux/fish/claude-code/pi/taskwarrior/Rex), zrepl replication, and user privileges.
+
 ## Quick Reference: Host IPs
 
 | Host | Role | LAN IP | WireGuard IP |

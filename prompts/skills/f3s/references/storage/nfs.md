@@ -160,3 +160,45 @@ NFS path structure on k3s nodes: `/data/nfs/k3svolumes/<app>/`
 
 The `nfs-mount-monitor` watchdog on each r-node detects and repairs stale or
 hung mounts automatically — see [nfs-mount-monitor.md](nfs-mount-monitor.md).
+
+## NFS Client Configuration (earth, roaming laptop)
+
+`earth` mounts two exports (`/earthdata`, `/k3svolumes`) the same way as the
+r-nodes — local stunnel client on `127.0.0.1:2323` → CARP VIP `192.168.1.138:2323`.
+Certs live in `/etc/stunnel/` (`earth-stunnel.pem`, `ca-cert.pem`). The mounts are
+`noauto` and mounted on demand.
+
+**Mount options differ from the r-nodes on purpose.** The r-nodes are on a fast,
+stable LAN and use `hard,timeo=600`. `earth` roams on WiFi, so it uses `soft` so it
+fails instead of hanging forever when off-network. The working `/etc/fstab` lines:
+
+```
+127.0.0.1:/earthdata   /data/nfs/earthdata   nfs4 port=2323,_netdev,soft,timeo=150,retrans=3,nofail,noauto 0 0
+127.0.0.1:/k3svolumes  /data/nfs/k3svolumes  nfs4 port=2323,_netdev,soft,timeo=150,retrans=3,nofail,noauto 0 0
+```
+
+> **Critical: do NOT use `timeo=10` on earth.** `timeo` is in **deciseconds**, so
+> `timeo=10` = **1.0s per RPC**. A large write is split into many `wsize` (128KB)
+> RPCs plus a final `COMMIT`; with `soft,timeo=10,retrans=2`, any single RPC or the
+> COMMIT that can't be acked within ~1s over jittery WiFi makes the soft mount abort
+> mid-transfer with EIO. That both **corrupts the partial file** and leaves a wedged
+> NFS session that retransmits constantly, saturating 2.4GHz WiFi airtime (slows ALL
+> WiFi traffic, e.g. unrelated scp to/from earth). `timeo=150` (15s) gives each RPC
+> and the COMMIT enough slack to ride out WiFi jitter while still failing eventually
+> if truly disconnected. Drop the deprecated `intr` option (no-op on modern Linux).
+
+**Superblock caching gotcha:** Linux NFS shares one superblock per `server:export`,
+so remounting with new options is ignored while any process still references the old
+mount (e.g. a shell with its cwd inside it). Either release all references first, or
+remount with `-o nosharecache` to force a fresh superblock with the new options.
+
+**The real fix is the mount option, not the transfer tool.** With `timeo=150` the
+mount never wedges, so transfers just complete and plain `cp`/`mv` are perfectly
+safe — they check return codes and report errors normally. The one time we saw a
+half-finalized destination file, it was *not* a `cp`/`mv` flaw: the in-flight `mv`
+was killed mid-finalize by a forced f0 reboot + stunnel restart that we only did
+*because* the mount had wedged (the `timeo=10` bug). Fix the hang and that whole
+chain disappears. `rsync` (temp-file-then-rename, `--remove-source-files` only after
+a verified copy) is worth using as **interruption insurance** on a flaky WiFi link —
+it can't leave a bad file under the real name if the link dies mid-transfer — but it
+is not a substitute for the `timeo` fix and `cp`/`mv` do not "cause corruption."
