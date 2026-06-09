@@ -66,9 +66,20 @@ Disk:
 
 ```text
 /zroot/bhyve/rocky/disk0.img
-100G sparse file
+200G sparse file  (was 100G, expanded 2026-06-09)
 NVMe emulation
 ```
+
+Guest disk layout (LVM on GPT):
+
+| Device | Size | Type | Mount |
+|--------|------|------|-------|
+| /dev/nvme0n1p1 | 600M | EFI System | /boot/efi |
+| /dev/nvme0n1p2 | 1G | ext4 | /boot |
+| /dev/nvme0n1p3 | ~198G | Linux LVM | PV for rlm_rocky |
+| └─ rlm_rocky-root | 61.5G | XFS | / |
+| └─ rlm_rocky-swap | 6.9G | swap | [SWAP] |
+| └─ rlm_rocky-home | 130G | XFS | /home |
 
 ## Verification
 

@@ -48,7 +48,7 @@ Package repository details were split into the sibling `pkgrepo` skill. Use `pkg
 | r0 | Rocky Linux VM on f0 | 192.168.1.120 | 192.168.2.120 |
 | r1 | Rocky Linux VM on f1 | 192.168.1.121 | 192.168.2.121 |
 | r2 | Rocky Linux VM on f2 | 192.168.1.122 | 192.168.2.122 |
-| rocky | Plain Rocky Linux VM on f3 | 192.168.1.123 | — |
+| rocky | Plain Rocky Linux VM on f3 | 192.168.1.123 | 192.168.2.123 |
 | blowfish | OpenBSD internet GW | — | 192.168.2.110 |
 | fishfinger | OpenBSD internet GW | — | 192.168.2.111 |
 | earth | Fedora laptop (roaming) | — | 192.168.2.200 |
