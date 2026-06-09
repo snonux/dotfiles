@@ -52,7 +52,7 @@ jobs:
   # It is now replicated from f3 → f2 (see f3 zrepl config below).
 ```
 
-## f3 configuration (push: freebsd VM → f2)
+## f3 configuration (push: VMs → f2)
 
 ```yaml
 global:
@@ -68,7 +68,8 @@ jobs:
       type: tcp
       address: "192.168.2.132:8888"   # f2 WireGuard IP
     filesystems:
-      "zroot/bhyve/freebsd": true     # development FreeBSD VM
+      "zroot/bhyve/freebsd": true   # development FreeBSD VM
+      "zroot/bhyve/rocky": true     # plain Rocky Linux VM
     send:
       encrypted: true
     snapshotting:
@@ -131,6 +132,18 @@ datasets. Snapshot creation should be owned by zrepl. On f2,
 daily_zfs_snapshot_enable="NO"
 weekly_zfs_snapshot_enable="NO"
 monthly_zfs_snapshot_enable="NO"
+```
+
+The local zrepl `snap` job on f3 also excludes both VM datasets so they are only snapshotted by the push job:
+
+```yaml
+  - name: local_zfs_snapshots
+    type: snap
+    filesystems:
+      "zroot<": true
+      "zroot/bhyve/freebsd": false
+      "zroot/bhyve/rocky": false
+    ...
 ```
 
 The local zrepl `snap` job on f2 also explicitly excludes `zroot/sink<`.

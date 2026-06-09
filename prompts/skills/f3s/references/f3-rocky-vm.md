@@ -110,3 +110,4 @@ doas vm info rocky
 - Keep this VM plain unless a later task explicitly installs packages or assigns a service role.
 - Root SSH is intentionally enabled for LAN-only administration.
 - The guest was installed from the Rocky Linux 9.7 minimal ISO using an unattended kickstart. See `bootstrap-rocky-bhyve.md` for the bootstrap procedure.
+- Replicated to f2 via zrepl (`f3_to_f2_freebsd` job, every 10 min → `zroot/sink/f3/zroot/bhyve/rocky`). Only zrepl-managed snapshots; excluded from local `zfs-periodic`.

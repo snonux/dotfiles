@@ -38,7 +38,7 @@ If the answer suggests improvements or inconsistencies, address them first. Only
 **Once the completion criteria above are met:**
 
 1. **Self-review** (see above). Then spawn a **sub-agent** with **fresh context** (no prior conversation).
-2. Sub-agent reviews the diff, code, or deliverables for the task (including test coverage and test quality — see "What the review sub-agent must check") and **reports back** to the main agent (review comments, suggestions, issues).
+2. The sub-agent's role is an **expert critical reviewer**. Its **only goal** is to find bugs and design flaws in the subject under review. It must be thorough, skeptical, and uncompromising. The sub-agent reviews the diff, code, or deliverables (including test coverage and test quality — see "What the review sub-agent must check") and **reports back** to the main agent with every bug, design flaw, missed edge case, suspicious pattern, or test-quality issue it found. Praise and suggestions for enhancement should only be included when they directly illuminate an underlying flaw or risk.
 3. Main agent **addresses all review comments** from the sub-agent — no exceptions. Fix or respond to every point.
 4. If code changed after review comments were addressed: **Self-review again** (see above), then **spawn another sub-agent** (fresh context again) to **review the updated code** (including test coverage and test quality) and confirm the fixes. If this follow-up review finds further issues and additional code changes are made, repeat this step until the review is satisfied.
 5. **Commit all changes to git** (e.g. `git add` and `git commit` with a message that references the task). Do not mark the task complete with uncommitted changes.
