@@ -483,6 +483,8 @@ task 'pkg_rocky', sub {
       tig
       tmux
       vim-enhanced
+      helix
+      helix-themes
       git
       /;
 
