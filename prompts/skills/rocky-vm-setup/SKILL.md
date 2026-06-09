@@ -73,6 +73,13 @@ Short LAN aliases for all f3s hosts (short, `.lan`, and `.lan.buetow.org` varian
 
 Earth (outer tmux) uses the default **C-b** prefix. Rocky (inner tmux) uses **C-g** so you can control both layers.
 
+**Visual distinction — you'll never confuse the two:**
+
+| Layer | Prefix | Active Border | Status Bar |
+|-------|--------|---------------|------------|
+| **Earth (outer)** | `C-b` | **Magenta** | White-on-purple |
+| **Rocky (inner)** | `C-g` | **Bright Red** | **Black-on-bright-green** with `[ROCKY]` label |
+
 **Workflow:**
 | Key | Action |
 |-----|--------|
@@ -88,6 +95,12 @@ Rocky config is in `~/.config/tmux/tmux.rocky.conf` and sourced from `tmux.local
 unbind C-b
 set -g prefix C-g
 bind C-g send-prefix
+
+# Drastic color scheme
+set -g pane-active-border-style 'fg=brightred,bold'
+set -g status-style             'bg=brightgreen,fg=black,bold'
+set -g status-left              ' [ROCKY] #S '
+set -g window-status-current-style 'bg=black,fg=brightgreen,bold'
 ```
 
 This is deployed by the `home_tmux_rocky` Rex task (runs only when `hostname =~ /rocky/`).
