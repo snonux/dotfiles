@@ -451,3 +451,36 @@ task 'home', sub {
     require Rex::TaskList;
     run_task $_ for Rex::TaskList->create()->get_all_tasks('^home_');
 };
+
+
+desc 'Install packages on Rocky Linux';
+task 'pkg_rocky', sub {
+    my @pkgs = qw/
+      fd-find
+      ncdu
+      ack
+      fish
+      bat
+      ctags
+      fzf
+      golang
+      htop
+      java-latest-openjdk-devel
+      lynx
+      make
+      nodejs
+      ripgrep
+      ruby
+      strace
+      zoxide
+      tig
+      tmux
+      vim-enhanced
+      git
+      /;
+
+    for my $pkg (@pkgs) {
+        Rex::Logger::info("Installing package $pkg");
+        pkg $pkg, ensure => "installed";
+    }
+};
