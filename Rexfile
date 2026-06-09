@@ -448,6 +448,7 @@ task 'pkg_rocky', sub {
       ripgrep
       ruby
       strace
+      zoxide
       tig
       tmux
       vim-enhanced
@@ -456,6 +457,6 @@ task 'pkg_rocky', sub {
 
     for my $pkg (@pkgs) {
         Rex::Logger::info("Installing package $pkg");
-        run "sudo dnf install -y $pkg";
+        pkg $pkg, ensure => "installed";
     }
 };
