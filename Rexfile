@@ -295,25 +295,32 @@ task 'home_tmux', sub {
 
 desc 'Install tmux rocky overrides (C-g prefix for nested tmux)';
 task 'home_tmux_rocky', sub {
-    if ( $^O eq 'linux' && (hostname() // '') =~ /rocky/ ) {
-        my $conf = "$HOME/.config/tmux/tmux.local.conf";
-        my $line = "source-file ~/.config/tmux/tmux.rocky.conf";
+    if ( $^O eq 'linux' ) {
+        my $hostname = `hostname 2>/dev/null` // '';
+        chomp $hostname;
+        if ( $hostname =~ /rocky/ ) {
+            my $conf = "$HOME/.config/tmux/tmux.local.conf";
+            my $line = "source-file ~/.config/tmux/tmux.rocky.conf";
 
-        if ( -f $conf ) {
-            my $content = do { local $/; open my $fh, '<', $conf or die $!; <$fh> };
-            if ( $content !~ /\Q$line\E/ ) {
-                Rex::Logger::info("Appending tmux.rocky.conf source to $conf");
-                open my $fh, '>>', $conf or die $!;
-                print $fh "\n$line\n";
-                close $fh;
+            if ( -f $conf ) {
+                my $content = do { local $/; open my $fh, '<', $conf or die $!; <$fh> };
+                if ( $content !~ /\Q$line\E/ ) {
+                    Rex::Logger::info("Appending tmux.rocky.conf source to $conf");
+                    open my $fh, '>>', $conf or die $!;
+                    print $fh "\n$line\n";
+                    close $fh;
+                }
+                else {
+                    Rex::Logger::info("tmux.rocky.conf already sourced in $conf");
+                }
             }
-            else {
-                Rex::Logger::info("tmux.rocky.conf already sourced in $conf");
-            }
+        }
+        else {
+            Rex::Logger::info( 'Skipping tmux rocky overrides (not on rocky)', 'warn' );
         }
     }
     else {
-        Rex::Logger::info( 'Skipping tmux rocky overrides (not on rocky)', 'warn' );
+        Rex::Logger::info( 'Skipping tmux rocky overrides (not on linux)', 'warn' );
     }
 };
 
