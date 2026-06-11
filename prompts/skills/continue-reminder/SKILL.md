@@ -13,7 +13,7 @@ Use this skill when a coding agent running inside a tmux pane gets paused (rate-
 - You need to schedule a delayed `continue` or equivalent command
 - The agent lives in a tmux pane and accepts keyboard input to resume
 - You want the resume to happen automatically even if you step away
-- You support multiple coding agents (Claude, Codex, OpenCode, AMP) and need per-agent specifics
+- You support multiple coding agents (Claude, Codex, OpenCode, ampcode) and need per-agent specifics
 
 ## How It Works
 
@@ -30,7 +30,7 @@ Each coding agent has its own quirks (prompt text, resume command, key sequences
 - [Claude](references/claude.md) — Claude Code CLI in tmux, rate-limit screen, `continue`
 - [Codex](references/codex.md) — Placeholder for Codex CLI specifics
 - [OpenCode](references/opencode.md) — Placeholder for OpenCode Agent specifics
-- [AMP](references/amp.md) — Placeholder for AMP agent specifics
+- [ampcode](references/amp.md) — Placeholder for ampcode agent specifics
 
 ## Common Ingredients
 
