@@ -10,6 +10,14 @@ function qwen
     ollama launch opencode --model qwen3.5:cloud -y -- run $argv
 end
 
+function skills
+    ls ~/Notes/Prompts/skills
+end
+
+function prompts
+    ls ~/Notes/Prompts/prompts
+end
+
 abbr -a suggest hexai
 abbr -a explain 'hexai explain'
 abbr -a research 'hexai research'
