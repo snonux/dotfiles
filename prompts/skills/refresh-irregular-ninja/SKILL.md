@@ -30,6 +30,11 @@ tool and deploy it to both mirrors (`fishfinger.buetow.org` and
   (`/home/paul/Syncthing/Pixel7Pro/DCIM/Irregular Ninja/irregular.ninja`).
 - `~/git/irregular.ninja/irregular.ninja/dist/`: generated output (HTML, photos, thumbs,
   blurs, `index.html`, `shuriken.json`).
+- `~/git/irregular.ninja/irregular.ninja/cache/`: volatile per-photo EXIF identify
+  cache (parallel to `dist/`). Persists across runs so unchanged photos skip the
+  slow `identify`, making regenerates much faster. It is **not** part of the
+  published site — never rsync it to the servers. Safe to delete (forces a full
+  EXIF rebuild); `--clean` leaves it in place, `--force` clears it once per run.
 
 ## Workflow
 
@@ -78,6 +83,8 @@ tool and deploy it to both mirrors (`fishfinger.buetow.org` and
    (`/usr/share/shuriken/templates/default`); a feature needing newer templates
    (e.g. a stats page) requires the installed `shuriken`/templates to be updated
    first.
+7. Only `dist/` is deployed. Never rsync the `cache/` directory to the servers —
+   it is a local build accelerator, not part of the published site.
 
 ## Expected Output
 
