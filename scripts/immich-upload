@@ -9,6 +9,7 @@
 set -euo pipefail
 
 IMMICH_URL="http://immich.f3s.lan.buetow.org"
+# IMMICH_URL="http://immich.f3s.buetow.org"
 API_KEY_FILE="$HOME/.immich_paul_key"
 
 # Supported image extensions (case-insensitive)
