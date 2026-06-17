@@ -8,8 +8,9 @@
 
 set -euo pipefail
 
-IMMICH_URL="http://immich.f3s.lan.buetow.org"
-# IMMICH_URL="http://immich.f3s.buetow.org"
+IMMICH_LAN_URL="http://immich.f3s.lan.buetow.org"   # LAN-only, fast when on home network
+IMMICH_PUBLIC_URL="https://immich.f3s.buetow.org"   # public, works from anywhere
+IMMICH_URL=""                                        # auto-detected in main()
 API_KEY_FILE="$HOME/.immich_paul_key"
 
 # Supported image extensions (case-insensitive)
@@ -24,6 +25,29 @@ die() { echo "ERROR: $1" >&2; exit 1; }
 warn() { echo "WARN: $1" >&2; }
 
 info() { echo "==> $1"; }
+
+# Probe the Immich /api/server/ping endpoint at the given base URL.
+# Returns success only on HTTP 200 within a short timeout (follows redirects).
+immich_reachable() {
+    local url="$1"
+    local code
+    code=$(curl -sL -m 5 -o /dev/null -w '%{http_code}' \
+        "$url/api/server/ping" 2>/dev/null) || return 1
+    [[ "$code" == "200" ]]
+}
+
+# Pick the LAN URL if reachable, otherwise fall back to the public URL.
+detect_immich_url() {
+    if immich_reachable "$IMMICH_LAN_URL"; then
+        IMMICH_URL="$IMMICH_LAN_URL"
+        info "Using LAN ingress: $IMMICH_URL"
+    elif immich_reachable "$IMMICH_PUBLIC_URL"; then
+        IMMICH_URL="$IMMICH_PUBLIC_URL"
+        info "LAN ingress unreachable, using public ingress: $IMMICH_URL"
+    else
+        die "Immich is not reachable via LAN ($IMMICH_LAN_URL) or public ($IMMICH_PUBLIC_URL)"
+    fi
+}
 
 # Compute SHA1 (hex, lowercase) for a file.
 file_sha1() {
@@ -232,6 +256,8 @@ main() {
     if [[ -z "$api_key" ]]; then
         die "API key file is empty: $API_KEY_FILE"
     fi
+
+    detect_immich_url
 
     if [[ -f "$src" ]]; then
         # Single file upload
