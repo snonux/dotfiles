@@ -54,8 +54,8 @@ function worktime::supersync
     # uprecords collect/import live in the (private) worktime repo so that
     # host-specific details stay out of the public dotfiles repo. The script
     # guards internally (collect on Darwin, import on earth).
-    sh $WORKTIME_DIR/.uprecords-sync.sh collect
-    sh $WORKTIME_DIR/.uprecords-sync.sh import
+    sh $WORKTIME_DIR/scripts/uprecords-sync.sh collect
+    sh $WORKTIME_DIR/scripts/uprecords-sync.sh import
     worktime::supersync_sync no_sync_quotes
 end
 
