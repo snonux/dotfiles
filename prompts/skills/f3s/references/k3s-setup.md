@@ -7,5 +7,6 @@ over WireGuard.
 ## Sub-references
 
 - [Install](k3s-setup/install.md) — bootstrap, kubeconfig, etcd/controller-manager metrics, built-in components, NFS PV pattern, ArgoCD, node IP summary, useful commands
+- [Remote access (off-LAN)](k3s-setup/remote-access.md) — reaching the cluster while roaming: jump via OpenBSD frontend (`ssh -A rex@fishfinger.buetow.org` → `ssh root@r0.wg0` → `kubectl`), one-shot commands, and SSH port-forward tunnel
 - [Ingress](k3s-setup/ingress.md) — OpenBSD `relayd` (internet) and FreeBSD `relayd` on CARP VIP (LAN), cert-manager wildcard, ingress pattern
 - [Troubleshooting](k3s-setup/troubleshooting.md) — etcd Raft log corruption recovery; cluster-wide NFS outage pointer

@@ -48,7 +48,7 @@ function worktime::supersync_sync
     cd -
 end
 
-function worktime::darwin_uprecords
+function worktime::uprecords::darwin::collect
     if test (uname) != Darwin
         return
     end
@@ -80,10 +80,49 @@ function worktime::darwin_uprecords
     end
 end
 
+function worktime::uprecords::darwin::import
+    if test (hostname) != earth
+        return
+    end
+
+    if not test -d $WORKTIME_DIR
+        return
+    end
+
+    set -l src_host MBDVXJ4XKH9C
+    set -l goprecords_host mega-m3-pro
+    set -l base_url https://goprecords.f3s.buetow.org
+
+    set -l config_dir (test -n "$XDG_CONFIG_HOME"; and echo $XDG_CONFIG_HOME; or echo ~/.config)
+    set -l token_file $config_dir/goprecords-upload-$goprecords_host/token
+    if not test -r $token_file
+        echo "worktime::uprecords::darwin::import: cannot read $token_file (create the goprecords key for $goprecords_host)" >&2
+        return 0
+    end
+    set -l token (string trim <$token_file)
+
+    # Map the file kind (extension) collected in the repo to the goprecords
+    # upload kind.
+    set -l records_file $WORKTIME_DIR/uprecords-$src_host.records
+    set -l txt_file $WORKTIME_DIR/uprecords-$src_host.txt
+
+    for pair in records:$records_file txt:$txt_file
+        set -l kind (string split -m1 ':' $pair)[1]
+        set -l file (string split -m1 ':' $pair)[2]
+        if not test -f $file
+            continue
+       end
+        curl -fsS -X PUT --data-binary "@$file" \
+            -H "Authorization: Bearer $token" \
+            "$base_url/upload/$goprecords_host/$kind"
+    end
+end
+
 function worktime::supersync
     worktime::supersync_sync sync_quotes
     taskwarrior::invoke
-    worktime::darwin_uprecords
+    worktime::uprecords::darwin::collect
+    worktime::uprecords::darwin::import
     worktime::supersync_sync no_sync_quotes
 end
 
