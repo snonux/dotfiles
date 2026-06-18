@@ -298,9 +298,27 @@ function _taskwarrior::fill_random_slot
         return
     end
 
-    # Pick one entry at random and tag it with both +random and the source file tag
-    set -l entry $entries[(builtin random 1 (count $entries))]
-    set -l parsed (_taskwarrior::random_quote_parse_entry $entry)
+    # Descriptions of pending +random tasks, used to avoid creating duplicates
+    set -l existing (task status:pending +random export | jq -r '.[].description')
+
+    # Pick a random entry, retrying if its description already exists as a
+    # pending +random task. Try at most 3 times; if all attempts collide we give up on this slot rather than looping forever (there may be nothing else to pick).
+    set -l parsed
+    for attempt in (seq 3)
+        set -l entry $entries[(builtin random 1 (count $entries))]
+        set -l candidate (_taskwarrior::random_quote_parse_entry $entry)
+        if not contains -- "$candidate[2]" $existing
+            set parsed $candidate
+            break
+        end
+    end
+
+    # All attempts hit an already-pending task; skip adding for this slot
+    if test (count $parsed) -eq 0
+        return
+    end
+
+    # Tag the chosen entry with both +random and the source file tag
     set -l add_args --tag random --tag $file_tag
     test -n "$parsed[1]"; and set -a add_args --project $parsed[1]
     test (builtin random 1 10) -eq 1; and set -a add_args --tag work
