@@ -15,7 +15,7 @@ Increment the version of the project, tag it in git, commit, and push.
 
 - For Go-based projects, look for the `internal/version.go` file.
 - We use semantic versioning: `x.y.z`.
-  - For bug fixes, increment only `z` (the patch version).
-  - For new features, increment `y` (the minor version) and reset `z` to 0.
+  - For small changes (including minor feature tweaks, config/default-value updates, and bug fixes), increment only `z` (the patch version). When in doubt, prefer a patch bump.
+  - For significant new features, increment `y` (the minor version) and reset `z` to 0.
   - Never increment `x` (the major version) unless explicitly specified.
 - Commit the version change, create a git tag matching the new version, and push both the commit and the tag.
