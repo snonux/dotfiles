@@ -66,18 +66,18 @@ Copy to **`/usr/local/bin/`** (system) or **`~/.local/bin/`** (user), set **`GOP
 
 The Mac (Apple Silicon, **`Darwin`**) is **not** a direct upload client. Instead:
 
-The logic lives in a **POSIX helper kept in the (private) worktime repo**, **`~/git/worktime/scripts/uprecords-sync.sh`** (subcommands `collect` / `import`), so host-specific details stay out of the public dotfiles repo. The fish function **`worktime::supersync`** (in `dotfiles/fish/conf.d/worktime.fish`) just calls `sh $WORKTIME_DIR/scripts/uprecords-sync.sh collect` then `… import`.
+The logic lives in a **fish helper kept in the (private) worktime repo**, **`~/git/worktime/scripts/uprecords-sync.fish`** (functions `worktime::uprecords::darwin::collect` / `…::import`), so host-specific details stay out of the public dotfiles repo. `dotfiles/fish/conf.d/worktime.fish` **`source`**s it, and **`worktime::supersync`** calls both functions.
 
-1. On the Mac, **`scripts/uprecords-sync.sh collect`** copies the local **uptimed** records into the **worktime** git repo as
+1. On the Mac, **`worktime::uprecords::darwin::collect`** copies the local **uptimed** records into the **worktime** git repo as
    **`uprecords-MBDVXJ4XKH9C.records`** and **`uprecords-MBDVXJ4XKH9C.txt`**, and they get synced via `git` (part of **`worktime::supersync`**). Guards on `uname = Darwin`.
-2. On **earth** (the only host that publishes), **`scripts/uprecords-sync.sh import`** reads those repo files and **`PUT`**s them to goprecords, **re-labelling** the raw host `MBDVXJ4XKH9C` → **`mega-m3-pro`**:
+2. On **earth** (the only host that publishes), **`worktime::uprecords::darwin::import`** reads those repo files and **`PUT`**s them to goprecords, **re-labelling** the raw host `MBDVXJ4XKH9C` → **`mega-m3-pro`**:
    - `PUT /upload/mega-m3-pro/records` and `PUT /upload/mega-m3-pro/txt`
    - token at **`~/.config/goprecords-upload-mega-m3-pro/token`** (`0600`).
    - Guards on `hostname = earth`; exits cleanly (warning) if the token is missing.
 3. Automation: `goprecords-upload-earth.service` has a **second `ExecStart`** that runs the import hourly alongside earth's own upload:
    ```ini
    ExecStart=%h/.local/bin/goprecords-upload-earth.sh
-   ExecStart=/bin/sh %h/git/worktime/scripts/uprecords-sync.sh import
+   ExecStart=/usr/local/sbin/fish -c worktime::uprecords::darwin::import
    ```
    The import is a **no-op off earth** (guards on `hostname = earth`) and exits cleanly with a warning if the `mega-m3-pro` token is absent, so it never fails the service.
 

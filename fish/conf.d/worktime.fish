@@ -48,14 +48,20 @@ function worktime::supersync_sync
     cd -
 end
 
+# uprecords collect/import helpers live in the (private) worktime repo so that
+# host-specific details stay out of the public dotfiles repo. The functions
+# guard internally (collect on Darwin, import on earth).
+if test -f $WORKTIME_DIR/scripts/uprecords-sync.fish
+    source $WORKTIME_DIR/scripts/uprecords-sync.fish
+end
+
 function worktime::supersync
     worktime::supersync_sync sync_quotes
     taskwarrior::invoke
-    # uprecords collect/import live in the (private) worktime repo so that
-    # host-specific details stay out of the public dotfiles repo. The script
-    # guards internally (collect on Darwin, import on earth).
-    sh $WORKTIME_DIR/scripts/uprecords-sync.sh collect
-    sh $WORKTIME_DIR/scripts/uprecords-sync.sh import
+    if functions -q worktime::uprecords::darwin::collect
+        worktime::uprecords::darwin::collect
+        worktime::uprecords::darwin::import
+    end
     worktime::supersync_sync no_sync_quotes
 end
 
