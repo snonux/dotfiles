@@ -112,21 +112,39 @@ function taskwarrior::export::wins
     end
 end
 
-function taskwarrior::export
-    _taskwarrior::set_import_export_tags
-    set -l ts (date +%s)
+# Exports all tasks tagged +$tag for both pending and completed status into
+# per-status .json files named after $file_label, then deletes the exported
+# tasks. $file_label drives the filename so the matching importer (which keys
+# off either TASK_IMPORT_TAG or the hostname) can pick the files up later.
+function _taskwarrior::export_tag
+    set -l tag $argv[1]
+    set -l file_label $argv[2]
+    set -l ts $argv[3]
 
     for task_status in pending completed
-        set -l count (task +$TASK_EXPORT_TAG status:$task_status count)
+        set -l count (task +$tag status:$task_status count)
 
         if test $count -eq 0
             continue
         end
 
-        echo "Exporting $count $task_status tasks to $TASK_EXPORT_TAG"
-        task +$TASK_EXPORT_TAG status:$task_status export >"$WORKTIME_DIR/tw-$TASK_EXPORT_TAG-export-$ts-$task_status.json"
-        yes | task +$TASK_EXPORT_TAG status:$task_status delete &>/dev/null
+        echo "Exporting $count $task_status tasks to $file_label"
+        task +$tag status:$task_status export >"$WORKTIME_DIR/tw-$file_label-export-$ts-$task_status.json"
+        yes | task +$tag status:$task_status delete &>/dev/null
     end
+end
+
+function taskwarrior::export
+    _taskwarrior::set_import_export_tags
+    set -l ts (date +%s)
+
+    # Export the OS-specific work/personal tag under its own tag name.
+    _taskwarrior::export_tag $TASK_EXPORT_TAG $TASK_EXPORT_TAG $ts
+
+    # Export everything tagged +rocky under the "rocky" file label so the rocky
+    # host imports them via the hostname-based import path. The +rocky export is
+    # independent of the work/personal handling and runs on every host.
+    _taskwarrior::export_tag rocky rocky $ts
 
     taskwarrior::export::bd
     taskwarrior::export::maybe
@@ -141,6 +159,9 @@ function taskwarrior::import
         rm $import
     end
 
+    # Hostname-keyed exports are imported only on the matching host. The +rocky
+    # exports are written as tw-rocky-export-*.json, so this picks them up when
+    # the local hostname is "rocky".
     find $WORKTIME_DIR -name "tw-(hostname)-export-*.json" | while read -l import
         task import $import
         rm $import
