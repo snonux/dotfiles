@@ -74,6 +74,14 @@ Before claiming any verification, confirm the local toolchain can actually build
 * **Annotate the blocker explicitly:** Record what is missing and the impact with `ask annotate <id> "<note>"`—name the missing header/tool, what you verified, and what you could not.
 * **Never claim full verification when it did not run:** State precisely what was and was not verified (e.g. "vet + gofmt clean; `./internal/bpf` not built—`bpf/bpf.h` missing; eBPF tests not run"). Do not imply a green build or passing tests that never executed.
 
+### Long-running / timeout-exceeding test suites
+
+Distinct from a *missing* toolchain (see "Environment preflight and verification honesty"): here the toolchain works, but the full suite is too SLOW to finish within the go-test / mage / command timeout (e.g. `mage integrationTest` runs > 30m). Run a focused subset rather than nothing, and be explicit that you did so.
+
+* **Run a representative subset within the timeout:** Scope to the package(s) the change touches and skip the slow target—e.g. `go test ./internal/foo/... -run <Pattern> -short`. Prefer `-short` (have slow tests honor `testing.Short()`), build tags, or `-run` to exclude expensive integration/E2E tests; run the unit subset when the full integration suite can't complete.
+* **Annotate the intentional skip:** Record with `ask annotate <id> "<note>"` that the full suite was *intentionally* skipped, why (exceeds timeout, not a failure), which subset ran, and the result—e.g. "integrationTest skipped (>30m, timeout); ran `go test ./internal/foo/... -short` → pass".
+* **Acceptance implications:** A focused subset is NOT full verification. Be explicit about residual risk—untested integration paths, packages not touched—so the reviewer/orchestrator can decide whether to accept or run the full suite out-of-band. As in 8q0, never imply the full suite passed when it never ran.
+
 ### Build system
 
 Use Mage (Magefile.go) for build, install and test targets (and deinstall/uninstall when needed).
