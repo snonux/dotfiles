@@ -33,6 +33,51 @@ Include these checks in the sub-agent's review report.
 
 If the answer suggests improvements or inconsistencies, address them first. Only then hand off to the sub-agent. Do not skip this step.
 
+## Commit only in-scope files (pre-existing dirty worktree)
+
+The worktree may already be dirty **before this task starts** — e.g. the user's
+own unrelated edits to `.gitignore`, `start.sh`, or other files. Those changes
+are **not yours to commit**. (This is distinct from a *stalled worker* that left
+broken, half-applied edits mid-task — for that, see `6-recover-stalled-task.md`.
+Here the dirty changes are intact, unrelated user work, not corruption.)
+
+To avoid committing unrelated files:
+
+1. **At task start, and again before committing, run `git status`** and classify
+   every dirty path:
+
+   - **In-scope** — files this task created or modified. These get committed.
+   - **Out-of-scope** — pre-existing or unrelated changes (the user's own work).
+     These get **left exactly as they were**.
+
+   ```bash
+   git status --short            # full picture of what is dirty
+   ```
+
+2. **Stage only the in-scope files by explicit path.** Never blanket-add when the
+   worktree had pre-existing unrelated changes:
+
+   ```bash
+   git add path/to/changed_file path/to/other_changed_file   # explicit paths only
+   ```
+
+   Do **not** use `git add -A`, `git add .`, or `git commit -a` here — they would
+   sweep up the user's unrelated edits into your commit.
+
+3. **Never commit unrelated files.** Leave out-of-scope changes untouched in the
+   worktree; do not stage, commit, revert, or stash them.
+
+4. **Record the in-scope/out-of-scope decision in an annotation** so the history
+   is honest and the next worker knows what was deliberately left alone (see
+   `4-annotate-update-task.md`):
+
+   ```bash
+   ask annotate <id> "Committed in-scope: <files>. Left out-of-scope (unrelated, untouched): <files>."
+   ```
+
+If you cannot confidently tell whether a dirty file is in-scope, treat it as
+out-of-scope and leave it alone rather than risk committing the user's work.
+
 ## Before marking complete (after criteria are met)
 
 **Once the completion criteria above are met:**
@@ -41,7 +86,7 @@ If the answer suggests improvements or inconsistencies, address them first. Only
 2. The sub-agent's role is an **expert critical reviewer**. Its **only goal** is to find bugs and design flaws in the subject under review. It must be thorough, skeptical, and uncompromising. The sub-agent reviews the diff, code, or deliverables (including test coverage and test quality — see "What the review sub-agent must check") and **reports back** to the main agent with every bug, design flaw, missed edge case, suspicious pattern, or test-quality issue it found. Praise and suggestions for enhancement should only be included when they directly illuminate an underlying flaw or risk.
 3. Main agent **addresses all review comments** from the sub-agent — no exceptions. Fix or respond to every point.
 4. If code changed after review comments were addressed: **Self-review again** (see above), then **spawn another sub-agent** (fresh context again) to **review the updated code** (including test coverage and test quality) and confirm the fixes. If this follow-up review finds further issues and additional code changes are made, repeat this step until the review is satisfied.
-5. **Commit all changes to git** (e.g. `git add` and `git commit` with a message that references the task). Do not mark the task complete with uncommitted changes.
+5. **Commit all changes to git** (e.g. `git add` and `git commit` with a message that references the task). Do not mark the task complete with uncommitted changes. Stage **only the in-scope files by explicit path** — never `git add -A`/`git add .` when the worktree had pre-existing unrelated changes (see "Commit only in-scope files" above).
 6. Only then:
 
 ```bash
@@ -58,6 +103,7 @@ Use the alias ID from the selection step or current task details when marking th
 - A task is not done until: best practices met, code compiles, all tests pass, negative tests included where plausible, and all first-round review comments are addressed (including coverage and test-quality checks), **and all changes are committed to git**. If code changed after review comments, a second sub-agent review must confirm the updated code.
 - Before every sub-agent review handoff, do the self-review: "Did it all make sense? Is there a better way?" Fix anything that comes up, then hand off.
 - **On completion, commit all changes to git** before running `ask done <id>`; do not leave uncommitted work when marking a task complete.
+- **Commit only in-scope files.** Check `git status` first, stage in-scope files by explicit path, never `git add -A`/`git add .` over a pre-existing dirty worktree, and never commit the user's unrelated changes. Record the in-scope/out-of-scope split in an annotation (see "Commit only in-scope files").
 - Complete with `ask done <id>` only after completion criteria, self-review(s), first review, addressing all comments, and git commit are satisfied. Add a follow-up sub-agent review only when code changed after review comments.
 - When completing a task, note which tasks were unblocked (dependents that became ready), if any.
 - **After completing a task, automatically progress to the next task in the list** (when all tests and required sub-agent review(s) pass and the task is done). Start the next ready task from `ask ready`; do not stop unless no next task is available or the user asks to stop.
