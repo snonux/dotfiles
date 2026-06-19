@@ -65,6 +65,15 @@ When writing or modifying Go code in the current project, follow all of the conv
 * Avoid large functions; split into smaller, focused helpers (max ~50 lines per function)
 * Avoid code duplication where reasonable
 
+### Environment preflight and verification honesty
+
+Before claiming any verification, confirm the local toolchain can actually build and run the relevant tests. A *missing or incomplete* toolchain (not slow tests) is common: e.g. CGO headers absent (`bpf/bpf.h` for eBPF code), or external tools not installed (`flutter`/`dart` for a companion app).
+
+* **Preflight first:** Verify the build/test path works before trusting it—run `go build ./...`, confirm required CGO headers are present, and confirm required external tools are on `PATH`. If preflight fails, do not claim the project builds.
+* **Run the smallest verifying subset that DOES work:** When part of the toolchain is missing, still verify what you can—`go vet ./...`, `gofmt -l .`, `go build` on the packages that do not need the missing headers, and the unit tests that do not require the missing tool. Use build tags or explicit package paths to skip the unbuildable parts.
+* **Annotate the blocker explicitly:** Record what is missing and the impact with `ask annotate <id> "<note>"`—name the missing header/tool, what you verified, and what you could not.
+* **Never claim full verification when it did not run:** State precisely what was and was not verified (e.g. "vet + gofmt clean; `./internal/bpf` not built—`bpf/bpf.h` missing; eBPF tests not run"). Do not imply a green build or passing tests that never executed.
+
 ### Build system
 
 Use Mage (Magefile.go) for build, install and test targets (and deinstall/uninstall when needed).
