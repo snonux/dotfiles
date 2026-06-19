@@ -28,9 +28,17 @@ ask start <id>
 
 Do this as soon as you start work on the task.
 
+## Picking up an already-started task
+
+If the task is already `start`ed but not `done`, a prior worker may have stalled
+or been interrupted mid-edit, leaving broken, uncommitted, partial changes.
+Before resuming, check for and clean up that situation: see
+`6-recover-stalled-task.md`.
+
 ## Conventions
 
 - Start each new task with a fresh context; rely on the task's description and annotations for all required context.
+- When picking up an already-started task, check for a stalled-worker situation (dirty worktree, broken build) before assuming a clean state — see `6-recover-stalled-task.md`.
 - Run `ask start <id>` when you start working on the task, not only when listing or completing.
 - Do not start a second task for the same project while one is already started and not done, unless the user explicitly asks.
 - When a task is selected via the review/overview step, use the alias ID from the list or task details for subsequent `start` operations.

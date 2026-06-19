@@ -57,6 +57,7 @@ When beginning a new task, **always use a fresh context** — spawn a sub-agent 
 |--------|------|
 | **Create task** | `references/00-context.md` + `references/1-create-task.md` (include refs to all context required) |
 | **Start task** | `references/00-context.md` + `references/2-start-task.md` (start with fresh context; use task refs) |
+| **Recover a stalled/interrupted task** | `references/00-context.md` + `references/6-recover-stalled-task.md` (detect partial edits, revert cleanly, resume) |
 | **Complete task** | `references/00-context.md` + `references/3-complete-task.md` |
 | **Annotate / update task** | `references/00-context.md` + `references/4-annotate-update-task.md` |
 | **Review / overview tasks** | `references/00-context.md` + `references/5-review-overview-tasks.md` |
