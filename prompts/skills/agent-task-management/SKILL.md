@@ -5,9 +5,19 @@ description: "Manage agent tasks scoped to the current git project using the `as
 
 # Agent Task Management
 
-Tasks are scoped to the current git repository via the `ask` CLI. **Load only the files you need** for the current action so the whole skill does not need to be in context.
+> **STOP — `ask` is a CLI with FIXED subcommands, NOT a natural-language interface.**
+> It does not understand free text, sentences, or skill names. `agent-task-management`
+> is the name of *this Claude skill* — it is **never** an `ask` subcommand. Do **not** run
+> `ask agent-task-management …`, `ask <free text>`, or anything not in the invocation
+> contract below.
 
-The task CLI at `ask` provides subcommands (`list`, `ready`, `add`, `info`, `start`, `stop`, `done`, `annotate`, `modify`, `tag`, `priority`, `dep`, `delete`, `urgency`) that operate on agent-managed tasks in the current project. It is not a natural-language interface and does not understand skill names. Use normal subcommand syntax only.
+## Invocation contract
+
+The only valid form is `ask <subcommand> [args]`. The subcommands are:
+
+`list`, `ready`, `add`, `info`, `start`, `stop`, `done`, `annotate`, `modify`, `tag`, `priority`, `dep`, `delete`, `urgency`.
+
+Anything not expressible as one of these subcommands is unsupported — do not improvise.
 
 Valid examples:
 
@@ -20,12 +30,14 @@ Valid examples:
 - `ask annotate <id> "progress note"`
 - `ask done <id>`
 
-Invalid examples:
+Invalid (will not work):
 
-- `ask agent-task-management ...`
-- `ask list tasks`
-- `ask show task 298`
+- `ask agent-task-management ...`  ← skill name, not a subcommand
+- `ask list tasks`                 ← `list` takes no natural-language object
+- `ask show task 298`              ← no `show` subcommand; use `ask info <id>`
 - any other natural-language phrasing passed to `ask`
+
+Tasks are scoped to the current git repository via the `ask` CLI. **Load only the files you need** for the current action so the whole skill does not need to be in context.
 
 **Alias IDs are the selectors to use for task work.** `ask add` prints `created task <alias-id>`, and subsequent task commands in this workflow should keep using that alias ID throughout the workflow.
 
