@@ -25,6 +25,7 @@ Detailed reference documentation is in the `references/` subfolder:
 - [Bootstrap Rocky bhyve VM](references/bootstrap-rocky-bhyve.md) — Runbook for creating a new plain Rocky Linux bhyve guest with unattended kickstart
 - [WireGuard Mesh](references/wireguard.md) — Mesh topology, IP assignments, peer configs
 - [Storage](references/storage.md) — index into `references/storage/`: ZFS (zdata), zrepl, CARP, NFS over stunnel, nfs-mount-monitor, troubleshooting (incl. thermal), backups & local-path
+- [Remote Access](references/remote-access.md) — reaching f-hosts, r-VMs, rocky, and Pis from outside the LAN via fishfinger/blowfish ProxyJump; user/key requirements per host type; f3 WireGuard caveat
 - [k3s Setup](references/k3s-setup.md) — index into `references/k3s-setup/`: install (bootstrap, kubeconfig, PVs, ArgoCD), remote access off-LAN (jump via OpenBSD frontend → `root@r0.wg0` → kubectl), ingress (OpenBSD/FreeBSD relayd, cert-manager), troubleshooting (etcd recovery)
 - [Observability](references/observability.md) — index into `references/observability/`: stack (Prometheus/Alloy/Loki/Tempo + alerting), FreeBSD monitoring (node_exporter + recording rules)
 - [Immich](references/immich.md) — Photo server deployment, job queue stats, troubleshooting
