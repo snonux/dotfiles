@@ -7,6 +7,10 @@ description: "Process photo directories to detect duplicates, burst sequences, s
 
 Clean up photo directories by detecting duplicates, burst sequences, and blurry/outlier frames. Provide actionable keep/delete recommendations with safe staged deletion.
 
+## Reference Files
+
+- [Auto-enhance](references/auto-enhance.md) — standalone ImageMagick 7 batch script (`auto-enhance-photos.sh`) for auto-orientation, auto-levels, auto-gamma, mild brightness/saturation. Use this to *improve* surviving keepers, separate from the culling workflow below.
+
 ## When to Use
 
 - User asks to **deduplicate**, **find duplicates**, or **detect near-duplicates** in a photo folder.
@@ -146,87 +150,6 @@ For each burst, present:
 - **Portraits with shallow DOF** may have a blurry background but sharp subject. The global edge-variance metric can mis-rank these if the background dominates. For critical portrait bursts, the user should visually review the top-ranked frames rather than auto-deleting.
 - **Different compositions** within a short time window (e.g. wide shot → close-up) may cluster as a single burst by timestamp. The hamming distance check catches this — if consecutive frames differ by > 20, they are different compositions and should not be auto-deleted.
 
----
+## Auto-Enhancement
 
-## 7. Auto-Enhancement Script (Color, White Balance, Orientation)
-
-A standalone Bash script using ImageMagick 7 to batch-process JPEGs with auto-orientation, auto-levels, auto-gamma, mild brightness boost, and conservative saturation.
-
-### Script: `auto-enhance-photos.sh`
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-DIR="${1:-.}"
-DIR="$(cd "$DIR" && pwd)"
-
-mapfile -t files < <(find "$DIR" -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.jpeg' \) | sort | while read -r f; do
-    base="$(basename "$f")"
-    [[ "$base" =~ -b\.[Jj][Pp][Ee]?[Gg]$ ]] && continue
-    echo "$f"
-done)
-
-count="${#files[@]}"
-[ "$count" -eq 0 ] && { echo "No JPEG files found."; exit 0; }
-
-echo "Found $count image(s) to enhance."
-
-processed=0; skipped=0; errors=0
-for src in "${files[@]}"; do
-    base="$(basename "$src")"
-    if [[ "$base" =~ \.([Jj][Pp][Ee]?[Gg])$ ]]; then
-        ext="${BASH_REMATCH[1]}"
-        stem="${base%.$ext}"
-        dst="$DIR/${stem}-b.${ext}"
-    else
-        dst="$DIR/${base}-b.jpg"
-    fi
-
-    [ -f "$dst" ] && { echo "SKIP  $base"; ((skipped++)) || true; continue; }
-
-    echo "PROC  $base  ->  $(basename "$dst")"
-    if magick "$src" \
-        -auto-orient \
-        -auto-level \
-        -auto-gamma \
-        -modulate 105,105 \
-        -contrast-stretch 1%x1% \
-        -quality 95 \
-        "$dst" 2>/dev/null; then
-        ((processed++)) || true
-    else
-        echo "ERR   $base"; ((errors++)) || true
-    fi
-done
-
-echo "Done — Processed: $processed  Skipped: $skipped  Errors: $errors"
-```
-
-### What each operation does
-
-| Flag | Effect |
-|------|--------|
-| `-auto-orient` | Reads EXIF `Orientation` tag and physically rotates the image if needed |
-| `-auto-level` | Stretches the histogram to use the full tonal range (fixes mild under/over exposure) |
-| `-auto-gamma` | Computes and applies an automatic gamma correction |
-| `-modulate 105,105` | Increases brightness by 5% and saturation by 5%. *Adjust the second number to taste:* `100` = no saturation change, `110` = more vivid colors |
-| `-contrast-stretch 1%x1%` | Slightly stretches shadows and highlights for extra pop |
-| `-quality 95` | High-quality JPEG output to minimize re-compression artifacts |
-
-### Output naming
-
-Input `DSCF5854.JPG` → Output `DSCF5854-b.JPG` in the **same directory**.
-Already-processed `-b` files are skipped on subsequent runs.
-
-### Adjusting saturation
-
-If the user finds results **too saturated**, lower the second number in `-modulate`:
-```bash
--modulate 105,100   # brightness +5%, no saturation change
-```
-
-If the user wants **more vivid** results, raise it:
-```bash
--modulate 105,115   # brightness +5%, saturation +15%
-```
+After culling, optionally improve the surviving keepers with the standalone ImageMagick batch script. See [references/auto-enhance.md](references/auto-enhance.md) for the full `auto-enhance-photos.sh` script, a per-flag explanation, output naming, and saturation tuning.
