@@ -19,14 +19,22 @@ doas freebsd-update install
 doas reboot
 ```
 
-Version upgrade example (14.2 → 14.3):
+Version upgrade example (minor release, e.g. 15.0 → 15.1 or 14.2 → 14.3 — two-pass flow):
 ```sh
-doas freebsd-update fetch && doas freebsd-update install && doas reboot
-doas freebsd-update -r 14.3-RELEASE upgrade
-doas freebsd-update install && doas reboot
-doas freebsd-update install
-doas pkg update && doas pkg upgrade && doas reboot
+# 1. Patch current release first
+PAGER=cat doas freebsd-update fetch && PAGER=cat doas freebsd-update install
+# 2. Fetch upgrade (answer y to "does this look reasonable?")
+printf 'y\n' | doas sh -c 'PAGER=cat freebsd-update -r 15.1-RELEASE upgrade'
+# 3. Pass 1: install new kernel, reboot
+doas sh -c 'PAGER=cat freebsd-update install' && doas reboot
+# 4. Pass 2: install new userland, upgrade packages
+doas sh -c 'PAGER=cat freebsd-update install' && doas pkg upgrade -y
+# 5. Pass 3: remove old libraries, reboot
+doas sh -c 'PAGER=cat freebsd-update install' && doas reboot
+# 6. Post-upgrade: apply sysctl renames, start VMs, uncordon k3s node
+doas sed -i '' 's/vfs.zfs.min_auto_ashift/vfs.zfs.vdev.min_auto_ashift/' /etc/sysctl.conf
 ```
+Note: `freebsd-update` requires a TTY (use `-tt` in ssh) and drops env vars under doas (use `doas sh -c 'PAGER=cat ...'`).
 
 Major version upgrade (14.3 → 15.0) — run one host at a time:
 ```sh
@@ -84,7 +92,13 @@ This was observed on `freebsd.lan` (FreeBSD bhyve VM on f3): `/etc/resolv.conf` 
 - **NFS privileged ports**: FreeBSD 15.0 sets `nfs_reserved_port_only=YES` in `/etc/defaults/rc.conf`, which causes the nfsd rc script to set `vfs.nfsd.nfs_privport=1` at startup — blocking NFS clients connecting via stunnel (unprivileged ports). **Important**: setting `vfs.nfsd.nfs_privport=0` in `/etc/sysctl.conf` or `/boot/loader.conf` does NOT work because the nfsd rc script overrides it. The correct fix on **each f-host**: `doas sysrc nfs_reserved_port_only=NO`
 - **WireGuard interface address**: FreeBSD 15.0 requires a prefix length when setting interface addresses. Add `/32` to IPv4 `Address` lines in `/usr/local/etc/wireguard/wg0.conf` (e.g. `Address = 192.168.2.130/32`). Without this, `service wireguard start` fails with "setting interface address without mask is no longer supported".
 
-Current version: **FreeBSD 15.0-RELEASE** (as of Part 8, upgraded from 14.3).
+Current version: **FreeBSD 15.1-RELEASE** (as of Part 9, minor upgrade from 15.0 using the two-pass flow).
+
+## Breaking Changes in 15.1 to Watch For
+- **ZFS sysctl rename**: `vfs.zfs.min_auto_ashift` was renamed to `vfs.zfs.vdev.min_auto_ashift`. Emits deprecation warning at boot if old name is still in `/etc/sysctl.conf`; removed in FreeBSD 16. Fix: `doas sed -i '' 's/vfs.zfs.min_auto_ashift/vfs.zfs.vdev.min_auto_ashift/' /etc/sysctl.conf`
+- **ZFS libzfs7/libzpool7 SONAME bump**: ABI-breaking change; `doas pkg upgrade` after the new kernel is booted handles this. After upgrade, verify `doas zrepl status` — zrepl uses libzfs Go bindings.
+- **if_bridge/if_epair MAC change**: bridge adapter self-MAC changes (collision-flaw fix). VMs with static `network0_mac` in their bhyve config are unaffected (their own NIC MACs don't change).
+- **CARP failover + NFS sink dataset**: `carpcontrol.sh` must set `readonly=off` on `zdata/sink/f0/zdata/enc/nfsdata` when f1 becomes MASTER, and rollback to the last snapshot + restore `readonly=on` on BACKUP transition; otherwise zrepl replication breaks after every failover. Fixed in `f3s/freebsd-hosts/carp/carpcontrol.sh` (commits 6c13b6a + c9f06a2).
 
 ## /etc/hosts
 
