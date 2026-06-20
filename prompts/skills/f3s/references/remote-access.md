@@ -30,10 +30,15 @@ One-shot from the laptop (handy for scripts/automation):
 ssh -A -J rex@fishfinger.buetow.org paul@f0.wg0 "sh -c 'hostname; doas freebsd-version'"
 ```
 
-Use `f0.wg0` / `f1.wg0` / `f2.wg0` — the WireGuard hostnames as seen from
-the gateway. **Note:** `f3.wg0` is not currently reachable from the gateways
-(its WireGuard path does not route through fishfinger/blowfish); reach f3 from
-a host already on the LAN, or investigate the WireGuard peer config on f3.
+Use `f0.wg0` / `f1.wg0` / `f2.wg0` / `f3.wg0` — the WireGuard hostnames as
+seen from the gateway. `f3.wg0` resolves to `192.168.2.133`:
+
+```sh
+ssh -A -J rex@fishfinger.buetow.org paul@192.168.2.133   # f3 direct via WireGuard
+```
+
+(Previously the f3↔GW WireGuard tunnel was broken due to key mismatches; fixed
+in gq0 — pubkeys and PSKs corrected on f3 and on fishfinger/blowfish.)
 
 ### Reaching r-VMs (Rocky Linux) and `rocky`
 
