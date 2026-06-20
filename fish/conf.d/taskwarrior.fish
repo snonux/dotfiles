@@ -113,13 +113,13 @@ function taskwarrior::export::wins
 end
 
 # Exports all tasks tagged +$tag for both pending and completed status into
-# per-status .json files named after $file_label, then deletes the exported
-# tasks. $file_label drives the filename so the matching importer (which keys
-# off either TASK_IMPORT_TAG or the hostname) can pick the files up later.
+# per-status .json files in $WORKTIME_DIR, then deletes the exported tasks. The
+# tag name doubles as the file label (tw-<tag>-export-<ts>-<status>.json) so the
+# importer can match the files again by tag name or, for host-routed tags like
+# "rocky", by hostname. See _taskwarrior::import_label for the matching side.
 function _taskwarrior::export_tag
     set -l tag $argv[1]
-    set -l file_label $argv[2]
-    set -l ts $argv[3]
+    set -l ts $argv[2]
 
     for task_status in pending completed
         set -l count (task +$tag status:$task_status count)
@@ -128,9 +128,21 @@ function _taskwarrior::export_tag
             continue
         end
 
-        echo "Exporting $count $task_status tasks to $file_label"
-        task +$tag status:$task_status export >"$WORKTIME_DIR/tw-$file_label-export-$ts-$task_status.json"
+        echo "Exporting $count $task_status tasks tagged +$tag"
+        task +$tag status:$task_status export >"$WORKTIME_DIR/tw-$tag-export-$ts-$task_status.json"
         yes | task +$tag status:$task_status delete &>/dev/null
+    end
+end
+
+# Imports and removes every export file in $WORKTIME_DIR whose embedded label
+# (the <label> in tw-<label>-export-*.json) matches $label. The label is either a
+# tag name or a hostname. See _taskwarrior::export_tag for the producing side.
+function _taskwarrior::import_label
+    set -l label $argv[1]
+
+    find $WORKTIME_DIR -name "tw-$label-export-*.json" | while read -l import
+        task import $import
+        rm $import
     end
 end
 
@@ -138,13 +150,12 @@ function taskwarrior::export
     _taskwarrior::set_import_export_tags
     set -l ts (date +%s)
 
-    # Export the OS-specific work/personal tag under its own tag name.
-    _taskwarrior::export_tag $TASK_EXPORT_TAG $TASK_EXPORT_TAG $ts
-
-    # Export everything tagged +rocky under the "rocky" file label so the rocky
-    # host imports them via the hostname-based import path. The +rocky export is
-    # independent of the work/personal handling and runs on every host.
-    _taskwarrior::export_tag rocky rocky $ts
+    # Export this host's outgoing work/personal tag plus the host-routed +rocky
+    # tasks. Each tag is exported under its own name as the file label; +rocky is
+    # exported on every host so the rocky VM can import it via its hostname.
+    for tag in $TASK_EXPORT_TAG rocky
+        _taskwarrior::export_tag $tag $ts
+    end
 
     taskwarrior::export::bd
     taskwarrior::export::maybe
@@ -154,17 +165,12 @@ end
 function taskwarrior::import
     _taskwarrior::set_import_export_tags
 
-    find $WORKTIME_DIR -name "tw-$TASK_IMPORT_TAG-export-*.json" | while read -l import
-        task import $import
-        rm $import
-    end
-
-    # Hostname-keyed exports are imported only on the matching host. The +rocky
-    # exports are written as tw-rocky-export-*.json, so this picks them up when
-    # the local hostname is "rocky".
-    find $WORKTIME_DIR -name "tw-(hostname)-export-*.json" | while read -l import
-        task import $import
-        rm $import
+    # Import files labelled with this host's incoming work/personal tag, plus
+    # files labelled with this host's name. The +rocky exports are labelled
+    # "rocky", so the rocky host imports them through the hostname match while
+    # other hosts leave them in place for the rocky VM to pick up.
+    for label in $TASK_IMPORT_TAG (hostname)
+        _taskwarrior::import_label $label
     end
 end
 
