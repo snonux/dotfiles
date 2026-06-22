@@ -9,11 +9,50 @@ just times out:
 Unable to connect to the server: dial tcp 192.168.1.120:6443: i/o timeout
 ```
 
-The WireGuard mesh IPs (`192.168.2.120` etc.) are also not directly reachable
-from a roaming laptop, because the laptop's `wg1` interface does not peer
-straight to the r-VMs.
+## Preferred method: a dedicated `wg0` kubectl context (direct over WireGuard)
 
-## Working method: jump through an OpenBSD frontend
+From **earth** the WireGuard mesh IPs **are** directly reachable
+(`192.168.2.120` = `r0.wg0.wan.buetow.org`), so `kubectl` can talk straight to
+the API server over `wg0` — no jump host needed. The k3s API cert already has
+the `r0.wg0.wan.buetow.org` / `r1.wg0…` / `r2.wg0…` SANs (see install.md
+`--tls-san`), so TLS verifies cleanly with no overrides.
+
+Add a second cluster + context to `~/.kube/config` alongside the LAN `default`
+one, reusing the same `certificate-authority-data` and `default` user:
+
+```yaml
+clusters:
+- cluster:
+    certificate-authority-data: <same as default>
+    server: https://r0.wg0.wan.buetow.org:6443   # 192.168.2.120
+  name: wg0
+contexts:
+- context:
+    cluster: wg0
+    namespace: services
+    user: default
+  name: wg0
+```
+
+Then switch by location:
+
+```sh
+kubectl config use-context default   # on the f3s LAN (home)
+kubectl config use-context wg0       # on the road (WireGuard)
+kubectl --context=wg0 get nodes      # one-off without switching
+```
+
+Notes:
+
+- `default` → `https://r0.lan.buetow.org:6443` (LAN, `192.168.1.120`); `wg0` →
+  `https://r0.wg0.wan.buetow.org:6443` (mesh, `192.168.2.120`).
+- For failover, point a `wg0` variant at `r1.wg0` / `r2.wg0` (all three are SANs
+  on the cert) if r0 is down.
+- This requires the laptop's WireGuard to actually route to the r-VM mesh IPs.
+  If a particular client's `wg` does **not** peer to the r-VMs, fall back to the
+  OpenBSD-frontend jump method below.
+
+## Fallback method: jump through an OpenBSD frontend
 
 The OpenBSD internet gateways **fishfinger** and **blowfish** are reachable
 from the public internet *and* sit on the WireGuard mesh, so they can reach the

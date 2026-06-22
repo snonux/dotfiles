@@ -5,6 +5,26 @@ unreachable directly. The f-hosts (`f0`–`f3`) and VMs have LAN IPs
 (`192.168.1.x`) and WireGuard IPs (`192.168.2.x`), but a roaming laptop's
 `wg0` only peers to the OpenBSD gateways — not directly to the homelab mesh.
 
+## Direct SSH from `earth` (when on the VPN)
+
+`earth` has been given a return route to the mesh: `192.168.2.200/32, fd42:beef:cafe:2::200/128`
+was added to the **fishfinger** peer's `AllowedIPs` on `f0`, `f1`, `f2`, `r0`, `r1`,
+`r2`, and `rocky`. So when earth's `wg0` is up, you can SSH directly — no ProxyJump
+needed:
+
+```sh
+ssh paul@f0.wg0     # also f1.wg0, f2.wg0
+ssh root@r0.wg0     # also r1.wg0, r2.wg0
+ssh root@rocky.wg0
+```
+
+This is earth-specific (other roaming clients like `pixel7pro` still need ProxyJump),
+returns go via fishfinger only, and it is currently a **manual, non-durable** change
+(reverted by a `wireguardmeshgenerator` regen; durability tracked as the generator
+`+reachableRoaming` task). See `wireguard.md` → "Direct SSH from a roaming client
+to mesh hosts" for details and constraints. The ProxyJump method below remains the
+general fallback and the way to reach hosts not yet patched (e.g. `pi0`/`pi1`, `f3`).
+
 ## Working method: jump through an OpenBSD gateway
 
 **fishfinger** and **blowfish** are reachable from the public internet *and*

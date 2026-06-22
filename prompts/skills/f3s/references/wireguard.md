@@ -171,7 +171,23 @@ Endpoint = 46.23.94.99:56709
 PersistentKeepalive = 25
 ```
 
-Roaming clients route all traffic (`0.0.0.0/0`) through gateways, only connect to blowfish/fishfinger, and cannot be directly reached by LAN hosts.
+Roaming clients route all traffic (`0.0.0.0/0`) through gateways and only **peer** to blowfish/fishfinger (they are not full-mesh members). By default they cannot be directly reached by mesh hosts, because no mesh host carries the roaming client's wg0 IP in any peer's `AllowedIPs` — so the mesh host has no return route and sends replies out its LAN interface, where they are lost.
+
+### Direct SSH from a roaming client to mesh hosts (earth enhancement)
+
+`earth` is an exception: its wg0 IP (`192.168.2.200/32`, `fd42:beef:cafe:2::200/128`) has been added to the **fishfinger** peer's `AllowedIPs` on `f0`, `f1`, `f2`, `r0`, `r1`, `r2`, and `rocky`, so those hosts route `192.168.2.200` back through `wg0` to fishfinger, which forwards to earth. This lets you SSH directly from earth over the VPN with no ProxyJump:
+
+```sh
+ssh paul@f0.wg0    # also f1.wg0, f2.wg0
+ssh root@r0.wg0    # also r1.wg0, r2.wg0
+ssh root@rocky.wg0
+```
+
+Constraints / notes:
+- earth still only **peers** to the gateways — reachability is via gateway forwarding plus a return route on the mesh side, not a direct peer relationship.
+- Returns go via **fishfinger only**, not blowfish. earth's `blowfish` peer ends up with `allowed ips: (none)` in the running config because both gateway peers are configured with `0.0.0.0/0, ::/0` and wg-quick can only install one default route (see the dual-`0.0.0.0/0` troubleshooting note below). Returns via blowfish would be dropped by earth.
+- `pi0`/`pi1` are not yet reachable directly from earth; they need the same `.200` addition to their fishfinger peer if desired.
+- This is currently a **manual, non-durable** change — it is reverted by any `wireguardmeshgenerator` regen because earth is in every infra host's `exclude_peers`. The durable version is tracked as generator `ask` tasks (`+reachableRoaming`); see the `wireguardmeshgenerator` project task list.
 
 ## /etc/hosts Entries for WireGuard
 
@@ -249,6 +265,23 @@ ipv4_with_mask = hosts[myself]['os'] == 'FreeBSD' ? "#{ipv4}/32" : ipv4
 
 Note: `reload` only reconfigures peers/PSKs — it does not change the running interface address. A `restart` is needed to pick up the address change if the interface is already running.
 
+## Troubleshooting: Regenerated Keypair Breaks the Tunnel
+
+If a host's wg0 PrivateKey (and PSKs) are regenerated out-of-band (e.g. OS reinstall) but the peer configs on the other side are not updated, handshakes silently fail: `wg show` shows `0 B received` on the client and `endpoint: (none), rx=0` for that peer on the gateway, even though packets leave the client (confirmed with `tcpdump` on the wifi interface). WireGuard drops initiations it cannot authenticate and emits nothing, so the symptom is one-way traffic with no replies.
+
+All three must match on both sides:
+- the client's **PublicKey** as configured in the gateway's peer block,
+- the gateway's **PublicKey** as configured in the client's peer block (must equal `wg show wg0 public-key` on the gateway),
+- the per-pair **PresharedKey** (must be identical on both sides).
+
+When fixing this by hand, also update the `wireguardmeshgenerator` `keys/` directory (`keys/<host>/priv.key`, `pub.key`, `keys/psk/<sorted_pair>.key`) so a regen reproduces the live configs — otherwise the next `--generate`/`--install` reverts the fix. This is tracked as the generator `+credentials` task.
+
+## Troubleshooting: Dual `0.0.0.0/0` on Roaming Clients
+
+A roaming client config that gives `AllowedIPs = 0.0.0.0/0, ::/0` to **both** gateway peers (as the generator currently does for `gateway: true`) is only partially functional: wg-quick can install only one default route, so the second peer silently ends up with `allowed ips: (none)` in the running config and is **not** a real failover. On `earth`, `sudo wg show` shows fishfinger with `0.0.0.0/0, ::/0` and blowfish with `(none)`.
+
+Consequence: all return traffic to earth must go via fishfinger (the peer earth actually accepts traffic from). This is why the direct-SSH return route is added to the fishfinger peer only. A proper fix (single primary gateway with failover, or `Table = off` with policy routing) is tracked as the generator `+roamingFailover` task.
+
 ## Traffic Flows
 
 | Flow | Purpose |
@@ -260,3 +293,4 @@ Note: `reload` only reconfigures peers/PSKs — it does not change the running i
 | rN ↔ rM | k3s intra-cluster traffic |
 | fN ↔ fM | zrepl storage replication |
 | earth/pixel7pro ↔ gateways | Remote access (all traffic routed through VPN) |
+| earth ↔ fN/rN/rocky (via fishfinger) | Direct SSH from the VPN to mesh hosts (earth's IP added to the fishfinger peer AllowedIPs on those hosts; no ProxyJump needed) |
