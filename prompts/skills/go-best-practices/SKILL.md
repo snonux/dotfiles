@@ -43,6 +43,7 @@ When writing or modifying Go code in the current project, follow all of the conv
 ### Errors and interfaces
 
 * Use error wrapping (`fmt.Errorf` with `%w`) to provide context for errors
+* Never silently ignore returned errors—check them, or discard them explicitly with `_ =`. Run `errcheck ./...` to catch silently ignored errors (install and usage: `references/errcheck.md`)
 * Prefer explicit interface satisfaction for public types: `var _ MyInterface = (*MyType)(nil)`
 * Keep interfaces small and focused; accept interfaces, return concrete types
 
@@ -64,6 +65,13 @@ When writing or modifying Go code in the current project, follow all of the conv
 * Avoid `panic` except for truly unrecoverable errors (e.g. programmer errors)
 * Avoid large functions; split into smaller, focused helpers (max ~50 lines per function)
 * Avoid code duplication where reasonable
+
+### AI-assisted tools and guardrails
+
+When writing or modifying Go code (especially with an AI agent), run static-analysis guardrails as part of verification, not just `go build`/`go test`.
+
+* **errcheck:** Run `errcheck ./...` to catch silently ignored errors—one of the most common Go bugs. Treat findings as defects: check the error (wrap with `%w`) or discard it explicitly with `_ =`. Do not silence it by deleting the check. See `references/errcheck.md` for install instructions, flags, exclude files, and how to wire it into the Magefile / CI / pre-commit hooks.
+* Be honest about what actually ran: if errcheck (or any tool) is not installed or could not run, say so rather than implying the code was checked.
 
 ### Environment preflight and verification honesty
 
