@@ -176,6 +176,8 @@ case "$ACTION" in
         shutdown_host "f0" "$F0_IP"
         shutdown_host "f1" "$F1_IP"
         shutdown_host "f2" "$F2_IP"
+        # Power off the rack fans once all hosts are shutting down.
+        shelly_set "false"
         echo ""
         echo "✓ Shutdown commands sent to all Beelinks."
         exit 0
