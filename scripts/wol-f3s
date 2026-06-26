@@ -38,6 +38,13 @@ PI1_IP="192.168.1.126"
 PI2_IP="192.168.1.127"
 PI3_IP="192.168.1.128"
 
+# Shelly Plug M Gen 3 controlling the rack fans (HTTP RPC API).
+# It is powered on when waking all hosts and powered off when shutting all
+# hosts down. The plug uses digest auth (user "admin"); the password is read
+# from ~/.shelly_plug if that file exists.
+SHELLY_IP="192.168.1.28"
+SHELLY_PASS_FILE="${HOME}/.shelly_plug"
+
 # SSH user
 SSH_USER="paul"
 
@@ -55,6 +62,29 @@ wake() {
 
     echo "Sending WoL packet to $name ($mac)..."
     wol -i "$BROADCAST" "$mac"
+}
+
+# shelly_set turns the rack-fan Shelly plug on or off.
+#   $1 — "true" to power on, "false" to power off
+shelly_set() {
+    local on=$1
+    local label="on"
+    [[ "$on" == "false" ]] && label="off"
+
+    local auth=()
+    if [[ -r "$SHELLY_PASS_FILE" ]]; then
+        local pass
+        pass="$(head -n 1 "$SHELLY_PASS_FILE" | tr -d '\r\n')"
+        [[ -n "$pass" ]] && auth=(--digest -u "admin:$pass")
+    fi
+
+    echo "Turning rack-fan Shelly plug $label ($SHELLY_IP)..."
+    if curl -s --max-time 5 "${auth[@]}" \
+        "http://${SHELLY_IP}/rpc/Switch.Set?id=0&on=${on}" >/dev/null; then
+        echo "  ✓ Shelly plug switched $label"
+    else
+        echo "  ✗ Failed to reach Shelly plug at $SHELLY_IP"
+    fi
 }
 
 # umount_nfs_mounts tries to umount all currently mounted NFS filesystems on
@@ -128,6 +158,8 @@ case "$ACTION" in
         wake "f3" "$F3_MAC"
         ;;
     all|"")
+        # Power on the rack fans before booting the hosts.
+        shelly_set "true"
         wake "f0" "$F0_MAC"
         wake "f1" "$F1_MAC"
         wake "f2" "$F2_MAC"
@@ -185,6 +217,8 @@ case "$ACTION" in
         shutdown_host "pi1" "$PI1_IP"
         shutdown_host "pi2" "$PI2_IP"
         shutdown_host "pi3" "$PI3_IP"
+        # Power off the rack fans once all hosts are shutting down.
+        shelly_set "false"
         echo ""
         echo "✓ Shutdown commands sent to all machines."
         exit 0
