@@ -20,6 +20,7 @@ Detailed reference documentation is in the `references/` subfolder:
 - [Hardware](references/hardware.md) — Beelink S12 Pro specs, network switch, IPs, MAC addresses, Wake-on-LAN
 - [FreeBSD Setup](references/freebsd-setup.md) — Base OS install, packages, ZFS snapshots, configuration
 - [UPS & Power](references/ups-power.md) — APC BX750MI, apcupsd config on f0/f1/f2
+- [Console (HDMI/JetKVM) & Shutdown](references/console-jetkvm-shutdown.md) — FreeBSD 15.1 regressed console to vga 640x480 (fix `efi_max_resolution="1080p"` in loader.conf); JetKVM on f1, only 1080p captures; shutdown hang (`rc.shutdown` 90s watchdog → single-user → un-wakeable by WoL) from slow bhyve k3s guest stop — **mitigated 2026-06-28**: `rcshutdown_timeout="300"` set on f0/f1/f2 (vm-bhyve 1.7.3 has no `stop_timeout` lever); safe remote-reboot procedure (`vm stopall` then `reboot`)
 - [Rocky Linux VMs](references/rocky-linux-vms.md) — Bhyve, vm-bhyve, VM config, NVMe disk fix; FreeBSD VM on f3 (migrated from f0)
 - [f3 Rocky VM](references/f3-rocky-vm.md) — Plain Rocky Linux 9 VM on f3 (`rocky`, `192.168.1.123`), autostart policy, root SSH
 - [Bootstrap Rocky bhyve VM](references/bootstrap-rocky-bhyve.md) — Runbook for creating a new plain Rocky Linux bhyve guest with unattended kickstart
@@ -36,6 +37,7 @@ Detailed reference documentation is in the `references/` subfolder:
 - [Pi-hole on Pis](references/pihole-pi.md) — **pi2/pi3** Docker Pi-hole, **`~/pihole`**, **`*.f3s.lan.buetow.org` → 192.168.1.138**, paths under **`f3s/pihole/docker-pi/`**
 - [goprecords / uptimed uploads](references/goprecords-uptimed.md) — **`https://goprecords.f3s.buetow.org`**, **`PUT /upload`**, OpenBSD **Rex** daily vs **FreeBSD/Pi** manual hourly **`cron`** / **systemd**, **`contrib/goprecords-upload-client.sh`**, **geheim** tokens
 - [Player](references/player.md) — **`https://player.f3s.buetow.org`**, image build/push workflow, Helm chart path, ArgoCD sync, NFS PV/PVC notes
+- [Shelly Plug (Rack Fans)](references/shelly-plug.md) — **Shelly Plug M Gen 3** at **`192.168.1.28`** powering the rack fans; digest auth (`admin`), secret on **`/keys/shelly_plug.secret`** (f-hosts) / **`~/.shelly_plug`** (earth/Pis); boot-time auto-on rc.d service (**`f3s/freebsd-hosts/shelly-fans/`**), `wol-f3s` on/off integration, HTTP RPC API
 
 Package repository details were split into the sibling `pkgrepo` skill. Use `pkgrepo` for `pkgrepo.f3s.buetow.org`, repo layout, package publication, and client repo configuration.
 
