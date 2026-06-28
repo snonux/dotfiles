@@ -66,7 +66,7 @@ Without `default-terminal`, tmux defaults to `TERM=screen` (8 colors).
 For truecolor themes in helix, `COLORTERM=truecolor` must also be present inside tmux. tmux strips it by default via `update-environment`. Pass it through:
 
 ```sh
-set -g update-environment '... TERM COLORTERM'
+set -g update-environment 'DISPLAY SSH_ASKPASS SSH_AGENT_LAUNCHER SSH_AUTH_SOCK SSH_CONNECTION SSH_TTY WINDOWID XAUTHORITY TERM COLORTERM'
 ```
 
 Without this, helix sees `COLORTERM=` and falls back to 256 colors only, breaking truecolor themes.

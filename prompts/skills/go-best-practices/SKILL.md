@@ -90,7 +90,9 @@ Follow it for any Go verification. The Go-specific concrete actions:
   Use build tags or explicit package paths to skip the unbuildable parts.
 * **Slow suite within timeout:** `go test ./internal/foo/... -run <Pattern>
   -short`. Prefer `-short` (have slow tests honor `testing.Short()`), build
-  tags, or `-run` to exclude expensive integration/E2E tests.
+  tags, or `-run` to exclude expensive integration/E2E tests. Example: `mage
+  integrationTest` runs > 30m; scope to the changed package and skip that
+  target.
 
 ### Build system
 
