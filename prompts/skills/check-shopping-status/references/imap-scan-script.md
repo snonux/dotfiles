@@ -4,15 +4,29 @@ This script implements steps 1-3 of the workflow (scan all Shopping folders,
 classify, extract tracking codes/carriers) in a single pass. It is read-only
 (`BODY.PEEK`, `readonly=True`) and idempotent.
 
+## Prerequisites (from the `protonbridge-imap` skill)
+
+The IMAP connection is **not** re-derived here. Load credentials and connect as
+shown in the [`protonbridge-imap` skill](../protonbridge-imap/SKILL.md): load
+`~/.protonbridge` into the environment, then `imaplib.IMAP4` → `starttls`
+(self-signed cert, so `ssl.CERT_NONE`) → `login`, yielding a logged-in
+connection `M`. The `decode_header`-based subject decode pattern shown there is
+reused below via a small local `dh()` wrapper.
+
+This one-shot assumes `M` is already a logged-in IMAP4 connection. Only the
+shopping-specific scanning/classification/extraction logic below is unique to
+this skill.
+
+## Shopping scan
+
+`dh()` is a small local def that wraps `decode_header` (shown in
+`protonbridge-imap`); kept inline because it runs on every subject/sender.
+
 ```bash
 set -a; . ~/.protonbridge; . ~/.amazon; set +a
 python3 - <<'PY'
 import imaplib, os, ssl, email, re, html
 from email.header import decode_header
-
-ctx = ssl.create_default_context(); ctx.check_hostname=False; ctx.verify_mode=ssl.CERT_NONE
-M = imaplib.IMAP4(os.environ['IMAP_HOST'], int(os.environ['IMAP_PORT']))
-M.starttls(ssl_context=ctx); M.login(os.environ['IMAP_USER'], os.environ['IMAP_PASS'])
 
 def dh(s):
     if not s: return ''

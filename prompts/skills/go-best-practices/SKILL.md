@@ -73,22 +73,24 @@ When writing or modifying Go code (especially with an AI agent), run static-anal
 * **errcheck:** Run `errcheck ./...` to catch silently ignored errors—one of the most common Go bugs. Treat findings as defects: check the error (wrap with `%w`) or discard it explicitly with `_ =`. Do not silence it by deleting the check. See `references/errcheck.md` for install instructions, flags, exclude files, and how to wire it into the Magefile / CI / pre-commit hooks.
 * Be honest about what actually ran: if errcheck (or any tool) is not installed or could not run, say so rather than implying the code was checked.
 
-### Environment preflight and verification honesty
+### Verification honesty (Go specifics)
 
-Before claiming any verification, confirm the local toolchain can actually build and run the relevant tests. A *missing or incomplete* toolchain (not slow tests) is common: e.g. CGO headers absent (`bpf/bpf.h` for eBPF code), or external tools not installed (`flutter`/`dart` for a companion app).
+The general discipline — preflight the toolchain, run the smallest verifying
+subset that works, annotate blockers with `ask annotate`, never claim full
+verification that did not run, and the long-running-suite subset rule — lives in
+the [`agent-task-management` skill](../agent-task-management/references/verification-honesty.md).
+Follow it for any Go verification. The Go-specific concrete actions:
 
-* **Preflight first:** Verify the build/test path works before trusting it—run `go build ./...`, confirm required CGO headers are present, and confirm required external tools are on `PATH`. If preflight fails, do not claim the project builds.
-* **Run the smallest verifying subset that DOES work:** When part of the toolchain is missing, still verify what you can—`go vet ./...`, `gofmt -l .`, `go build` on the packages that do not need the missing headers, and the unit tests that do not require the missing tool. Use build tags or explicit package paths to skip the unbuildable parts.
-* **Annotate the blocker explicitly:** Record what is missing and the impact with `ask annotate <id> "<note>"`—name the missing header/tool, what you verified, and what you could not.
-* **Never claim full verification when it did not run:** State precisely what was and was not verified (e.g. "vet + gofmt clean; `./internal/bpf` not built—`bpf/bpf.h` missing; eBPF tests not run"). Do not imply a green build or passing tests that never executed.
-
-### Long-running / timeout-exceeding test suites
-
-Distinct from a *missing* toolchain (see "Environment preflight and verification honesty"): here the toolchain works, but the full suite is too SLOW to finish within the go-test / mage / command timeout (e.g. `mage integrationTest` runs > 30m). Run a focused subset rather than nothing, and be explicit that you did so.
-
-* **Run a representative subset within the timeout:** Scope to the package(s) the change touches and skip the slow target—e.g. `go test ./internal/foo/... -run <Pattern> -short`. Prefer `-short` (have slow tests honor `testing.Short()`), build tags, or `-run` to exclude expensive integration/E2E tests; run the unit subset when the full integration suite can't complete.
-* **Annotate the intentional skip:** Record with `ask annotate <id> "<note>"` that the full suite was *intentionally* skipped, why (exceeds timeout, not a failure), which subset ran, and the result—e.g. "integrationTest skipped (>30m, timeout); ran `go test ./internal/foo/... -short` → pass".
-* **Acceptance implications:** A focused subset is NOT full verification. Be explicit about residual risk—untested integration paths, packages not touched—so the reviewer/orchestrator can decide whether to accept or run the full suite out-of-band. As in 8q0, never imply the full suite passed when it never ran.
+* **Preflight:** `go build ./...`; confirm CGO headers are present (e.g.
+  `bpf/bpf.h` for eBPF code) and external tools are on `PATH` (e.g.
+  `flutter`/`dart` for a companion app).
+* **Smallest verifying subset when part of the toolchain is missing:**
+  `go vet ./...`, `gofmt -l .`, `go build` on the packages that do not need the
+  missing headers, and the unit tests that do not require the missing tool.
+  Use build tags or explicit package paths to skip the unbuildable parts.
+* **Slow suite within timeout:** `go test ./internal/foo/... -run <Pattern>
+  -short`. Prefer `-short` (have slow tests honor `testing.Short()`), build
+  tags, or `-run` to exclude expensive integration/E2E tests.
 
 ### Build system
 

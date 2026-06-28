@@ -16,7 +16,7 @@ Update an existing blog post in ~/git/foo.zone-content/gemtext/gemfeed/ in the g
 1. Identify the blog post file in `~/git/foo.zone-content/gemtext/gemfeed/` matching the name or slug given by the user. If multiple matches exist, ask which one.
 2. Read the matched `.gmi.tpl` file to understand its current content.
 3. If the user hasn't specified what to update, ask what changes should be made.
-4. Apply the requested changes while preserving the existing gemtext style and structure. Also add an updated note before the new or modified text like this "> Updated Tue 27 Jan: Added SECTION about SHORT DESCRIPTION here"
+4. Apply the requested changes while preserving the existing gemtext style and structure. Follow the shared foo.zone conventions in [`blog-writing-style/references/gemtext-conventions.md`](../blog-writing-style/references/gemtext-conventions.md) (post structure, TOC `⇢` format, links, images/diagrams, format constraints like no Markdown bold/italic). Also add an updated note before the new or modified text like this "> Updated Tue 27 Jan: Added SECTION about SHORT DESCRIPTION here"
 5. Also add an "last updated" note to the blog post's publishing date, format like this  "> Published at 2025-07-13T16:44:29+03:00, last updated Tue 27 Jan 10:09:08 EET 2026"
 6. Show a diff or summary of the changes before writing.
 7. After writing, commit and push the changes to git.
