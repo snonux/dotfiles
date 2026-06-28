@@ -47,6 +47,7 @@ declare -ra EXCLUDES=(
   "/.cargo/"
   "/.bun/"
   "/.android/"
+  "/.config/google-chrome/"
 
   # --- Common regenerable junk anywhere in the tree ---
   "node_modules/"
