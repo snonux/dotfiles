@@ -1,0 +1,10 @@
+[Unit]
+Description=Backup home directory to f2 (encrypted ZFS via rsync over SSH)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/scripts/home-backup
+Nice=10
+IOSchedulingClass=idle

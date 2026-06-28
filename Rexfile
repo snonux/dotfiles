@@ -470,6 +470,10 @@ task 'home_systemd_user', sub {
     # Enable the random-wallpaper timer so it starts on login.
     Rex::Logger::info('Enabling random-wallpaper.timer');
     run 'systemctl --user enable random-wallpaper.timer';
+
+    # Enable the home-backup timer so it starts on login.
+    Rex::Logger::info('Enabling home-backup.timer');
+    run 'systemctl --user enable home-backup.timer';
 };
 
 desc 'Install all my ~ files';

@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+# Backup the home directory to a remote SSH location using rsync.
+#
+# Excludes large, regenerable, or already-replicated data (caches, trash,
+# build artifacts, git checkouts, syncthing, media libraries, VM images,
+# etc.). See the EXCLUDES array below for the full list.
+#
+# Usage:
+#   home-backup                 # Run the backup (real run)
+#   home-backup -n              # Dry run (show what would transfer)
+#   home-backup -d user@host:/path/backup   # Override destination
+#
+# The destination can also be set via the BACKUP_DEST environment variable.
+
+set -euo pipefail
+
+declare -r PROGRAM=${0##*/}
+
+# Remote SSH destination. Defaults to the encrypted ZFS dataset on f2
+# (zdata/enc/earth-backup, inherits aes-256-gcm encryption from zdata/enc).
+# Override with the BACKUP_DEST env var or the -d flag.
+declare DEST=${BACKUP_DEST:-"paul@f2.lan:/data/enc/earth-backup"}
+
+# Source directory (trailing slash matters for rsync: copy contents of $HOME).
+declare -r SRC="$HOME/"
+
+declare DRY_RUN=""
+
+# Paths/patterns to exclude from the backup. Patterns are relative to $HOME.
+declare -ra EXCLUDES=(
+  # --- Explicitly excluded by request ---
+  "/git/"
+  "/syncthing/"
+  "/Pictures/"
+  "/Music/"
+  "/.gradle/"
+  "/.thunderbird/"
+
+  # --- Caches / trash / regenerable data ---
+  "/.cache/"
+  "/.local/share/Trash/"
+  "/.local/share/baloo/"
+  "/.local/share/containers/"
+  "/.local/share/gnome-boxes/"
+  "/.npm/"
+  "/go/"
+  "/.cargo/"
+  "/.bun/"
+  "/.android/"
+
+  # --- Common regenerable junk anywhere in the tree ---
+  "node_modules/"
+  ".cache/"
+  "*.tmp"
+  "/.var/app/*/cache/"
+
+  # --- Runtime / volatile ---
+  "/.gvfs/"
+  "/.dbus/"
+)
+
+log() {
+  printf '%s\n' "$*"
+}
+
+error() {
+  log "$*" >&2
+}
+
+usage() {
+  cat <<EOF
+Usage: $PROGRAM [-n] [-d DEST]
+
+  -n           Dry run (show what would be transferred, transfer nothing)
+  -d DEST      Remote SSH destination (user@host:/path), overrides BACKUP_DEST
+  -h           Show this help
+
+Destination may also be set via the BACKUP_DEST environment variable
+or by editing the DEST variable at the top of this script.
+EOF
+}
+
+main() {
+  while getopts ':nd:h' opt; do
+    case "$opt" in
+      n) DRY_RUN="--dry-run" ;;
+      d) DEST="$OPTARG" ;;
+      h) usage; exit 0 ;;
+      :) error "Option -$OPTARG requires an argument."; usage; exit 2 ;;
+      ?) error "Unknown option: -$OPTARG"; usage; exit 2 ;;
+    esac
+  done
+
+  if [[ "$DEST" == CHANGEME_* || -z "$DEST" ]]; then
+    error "No backup destination set."
+    error "Set BACKUP_DEST, pass -d user@host:/path, or edit DEST in $PROGRAM."
+    exit 1
+  fi
+
+  # Build the rsync exclude arguments.
+  local -a exclude_args=()
+  local pattern
+  for pattern in "${EXCLUDES[@]}"; do
+    exclude_args+=("--exclude=$pattern")
+  done
+
+  log "Source:      $SRC"
+  log "Destination: $DEST"
+  [[ -n "$DRY_RUN" ]] && log "Mode:        DRY RUN (no data transferred)"
+  log ""
+
+  # rsync flags:
+  #   -a  archive (recursive, perms, times, symlinks, etc.)
+  #   -H  preserve hard links
+  #   -A  preserve ACLs
+  #   -X  preserve extended attributes
+  #   --numeric-ids        don't map uid/gid by name on the remote
+  #   --partial --progress resumable transfers with progress output
+  #   --delete             mirror: remove remote files that no longer exist locally
+  #   --delete-excluded    also remove previously-backed-up excluded paths
+  #   --human-readable     human-readable sizes
+  #   -e ssh               transport over SSH
+  rsync \
+    -aHAX \
+    --numeric-ids \
+    --partial --progress \
+    --delete --delete-excluded \
+    --human-readable \
+    ${DRY_RUN:+$DRY_RUN} \
+    -e ssh \
+    "${exclude_args[@]}" \
+    "$SRC" \
+    "$DEST"
+
+  log ""
+  log "Backup complete."
+}
+
+main "$@"
