@@ -52,7 +52,7 @@ fisher install PatrickF1/fzf.fish
 yes | task >/dev/null 2>&1
 
 # 4. Install Go tooling binaries (run as paul)
-for prog in ask hexai hexai-lsp-server hexai-tmux-action hexai-tmux-edit hexai-mcp-server; do
+for prog in ask hexai hexai-lsp-server hexai-tmux-action hexai-mcp-server; do
     go install codeberg.org/snonux/hexai/cmd/$prog@latest
 done
 for prog in tasksamurai timesamurai gt; do
