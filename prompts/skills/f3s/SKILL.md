@@ -38,6 +38,7 @@ Detailed reference documentation is in the `references/` subfolder:
 - [Pi-hole on Pis](references/pihole-pi.md) — **pi2/pi3** Docker Pi-hole, **`~/pihole`**, **`*.f3s.lan.buetow.org` → 192.168.1.138**, paths under **`f3s/pihole/docker-pi/`**
 - [goprecords / uptimed uploads](references/goprecords-uptimed.md) — **`https://goprecords.f3s.buetow.org`**, **`PUT /upload`**, OpenBSD **Rex** daily vs **FreeBSD/Pi** manual hourly **`cron`** / **systemd**, **`contrib/goprecords-upload-client.sh`**, **geheim** tokens
 - [Player](references/player.md) — **`https://player.f3s.buetow.org`**, image build/push workflow, Helm chart path, ArgoCD sync, NFS PV/PVC notes
+- [yChat](references/ychat.md) — **`https://ychat.f3s.lan.buetow.org/`**, legacy C++ chat server, image build/push, Helm chart (`f3s/ychat/helm-chart`) + ArgoCD, **not yet deployed** (DB-backed build needs a PVC for `/app/data`)
 - [Shelly Plug (Rack Fans)](references/shelly-plug.md) — **Shelly Plug M Gen 3** at **`192.168.1.28`** powering the rack fans; digest auth (`admin`), secret on **`/keys/shelly_plug.secret`** (f-hosts) / **`~/.shelly_plug`** (earth/Pis); boot-time auto-on rc.d service (**`f3s/freebsd-hosts/shelly-fans/`**), `wol-f3s` on/off integration, HTTP RPC API
 
 Package repository details were split into the sibling `pkgrepo` skill. Use `pkgrepo` for `pkgrepo.f3s.buetow.org`, repo layout, package publication, and client repo configuration.
