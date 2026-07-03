@@ -12,7 +12,7 @@ Upstream install and examples live in the repo: `doc/installation.md`, `examples
 | **r0–r2** | Rocky Linux 9 **x86_64** (bhyve VMs, k3s nodes) | Cross-build **linux/amd64**, `nozstd` | Often `root@rN.lan.buetow.org` (see [Rocky Linux VMs](rocky-linux-vms.md)); add `root` (and `paul` if present) to **Server.Permissions.Users** in `dtail.json` |
 | **blowfish, fishfinger** | OpenBSD 7.8 **amd64** | Native OpenBSD package build | `rex@blowfish.buetow.org`, `rex@fishfinger.buetow.org` |
 
-`pi0`/`pi1` are **NetBSD** now (see `bootstrap-netbsd-pi.md`) and deliberately do **not** run DTail — would need an untested `GOOS=netbsd GOARCH=arm64` cross-build and an `rc.d` script.
+`pi0`/`pi1` run **NetBSD** (see `bootstrap-netbsd-pi.md`) and do **not** run DTail — would need an untested `GOOS=netbsd GOARCH=arm64` cross-build and an `rc.d` script.
 
 **Key cache filenames matter:** `examples/update_key_cache.sh.example` only scans `/home/*` and writes `/var/run/dserver/cache/USER.authorized_keys`. In this lab, DTail auth worked only after writing the exact cache filename for the login user:
 

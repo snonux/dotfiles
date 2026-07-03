@@ -11,14 +11,14 @@ Hybrid WireGuard topology connecting the f3s infrastructure mesh, two gateway-on
 
 **Limited-peer nodes** (connect to the gateways, plus `rocky` — not full mesh):
 - `pi0` — **NetBSD 10.1** on Raspberry Pi 3 (`192.168.2.203`)
-- `pi1` — **NetBSD 10.1** on Raspberry Pi 3 (`192.168.2.204`) — converted after `pi0`, same procedure, both peers up successfully first try on `pi1` since the `pi0`-derived runbook already had all the gotchas baked in
+- `pi1` — **NetBSD 10.1** on Raspberry Pi 3 (`192.168.2.204`)
 
 **Roaming clients** (connect only to gateways):
 - `earth` — Fedora laptop (192.168.2.200)
 - `pixel7pro` — Android phone (192.168.2.201)
 
 Even `fN <-> rN` tunnels exist (technically redundant since the VM runs on the host) to keep config uniform.
-`pi0` and `pi1` are not full-mesh peers; each has exactly 3 peers: `blowfish`, `fishfinger`, and `rocky` (verified against both hosts' live configs — not gateway-only as older notes here claimed).
+`pi0` and `pi1` are not full-mesh peers; each has exactly 3 peers: `blowfish`, `fishfinger`, and `rocky`.
 
 ### `pi0`/`pi1` (NetBSD): no native `wg(4)`, use `wireguard-go` instead
 

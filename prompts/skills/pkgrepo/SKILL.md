@@ -31,6 +31,6 @@ Use `f3s` alongside this skill when the task depends on broader host-role or clu
 - `f0` as the FreeBSD NFS/PV host for `/data/nfs/k3svolumes/pkgrepo/`
 - `fishfinger` and `blowfish` as the OpenBSD frontend hosts
 - `r0-r2` as Rocky Linux x86_64 bhyve VMs
-- `pi2-pi3` as Rocky Linux aarch64 Raspberry Pi nodes (`pi0`/`pi1` were reinstalled to NetBSD — see the `f3s` skill's `bootstrap-netbsd-pi.md` — and are no longer Rocky package-repo clients)
+- `pi2-pi3` as Rocky Linux aarch64 Raspberry Pi nodes (`pi0`/`pi1` run NetBSD — see the `f3s` skill's `bootstrap-netbsd-pi.md` — and are not Rocky package-repo clients)
 - `earth` as the Fedora laptop used for package publication and verification
 - `f0-f3` as FreeBSD hosts

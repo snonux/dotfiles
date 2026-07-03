@@ -85,7 +85,7 @@ OpenBSD packages are signed with `signify(1)` via `pkg_sign`:
 
 ## Rocky Linux (r0–r2, pi2–pi3)
 
-`pi0`/`pi1` were reinstalled to NetBSD (see `f3s` skill's `bootstrap-netbsd-pi.md`) and are no longer Rocky clients of this repo.
+`pi0`/`pi1` run NetBSD (see `f3s` skill's `bootstrap-netbsd-pi.md`) and are not Rocky clients of this repo.
 
 Architecture-specific repo URLs:
 - `https://pkgrepo.f3s.buetow.org/rockylinux/9/x86_64/`  (r0–r2)
