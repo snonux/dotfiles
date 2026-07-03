@@ -9,16 +9,27 @@ Hybrid WireGuard topology connecting the f3s infrastructure mesh, two gateway-on
 - `r0`, `r1`, `r2` — Rocky Linux Bhyve VMs
 - `blowfish`, `fishfinger` — OpenBSD internet gateways (OpenBSD Amsterdam and Hetzner)
 
-**Gateway-only peers** (connect only to gateways):
-- `pi0` — Rocky Linux 9 on Raspberry Pi 3 (`192.168.2.203`)
-- `pi1` — Rocky Linux 9 on Raspberry Pi 3 (`192.168.2.204`)
+**Limited-peer nodes** (connect to the gateways, plus `rocky` — not full mesh):
+- `pi0` — **NetBSD 10.1** on Raspberry Pi 3 (`192.168.2.203`)
+- `pi1` — **NetBSD 10.1** on Raspberry Pi 3 (`192.168.2.204`) — converted after `pi0`, same procedure, both peers up successfully first try on `pi1` since the `pi0`-derived runbook already had all the gotchas baked in
 
 **Roaming clients** (connect only to gateways):
 - `earth` — Fedora laptop (192.168.2.200)
 - `pixel7pro` — Android phone (192.168.2.201)
 
 Even `fN <-> rN` tunnels exist (technically redundant since the VM runs on the host) to keep config uniform.
-`pi0` and `pi1` are intentionally not full-mesh peers; they only establish tunnels to `blowfish` and `fishfinger`.
+`pi0` and `pi1` are not full-mesh peers; each has exactly 3 peers: `blowfish`, `fishfinger`, and `rocky` (verified against both hosts' live configs — not gateway-only as older notes here claimed).
+
+### `pi0`/`pi1` (NetBSD): no native `wg(4)`, use `wireguard-go` instead
+
+The `wg` kernel module documented above does **not** ship in the evbarm-aarch64 10.1 module set (confirmed: absent from all 249 modules under `/stand/evbarm/10.1/modules`, so `ifconfig wg0 create` fails outright) — despite `wg(4)` being upstream NetBSD since 9.2, this platform/release combination just doesn't have it. Fixed with pkgsrc's `wireguard-go` (userspace) + `wireguard-tools` (`wg` CLI only — no `wg-quick` in this package) instead:
+
+- Interface must be named `tunN` (`wireguard-go` on NetBSD requires this — `wg0` is rejected: "Interface name must be tun[0-9]*"). Used `tun0`.
+- Bring the interface up **and address it** (`ifconfig tun0 inet <ip> <ip> netmask 255.255.255.255`) *before* starting `wireguard-go`, or its read loop dies immediately with `EHOSTDOWN` ("host is down") and does not retry.
+- `wg setconf tun0 <conf>` takes the normal `[Interface]`/`[Peer]` format (including `PersistentKeepalive`, unlike native `wgconfig` which has no keepalive flag at all) — same keys/PSKs as the `wg-quick`-format file `wireguardmeshgenerator` already renders to `dist/pi0/etc/wireguard/wg0.conf`, just fed to a different tool.
+- No `wg-quick` means **no automatic routes**: each peer's AllowedIPs needs an explicit `route add -inet <ip>/32 <local-tun-ip> -iface` (and `-inet6` for the v6 ones) — `wg` only does the crypto/routing decision inside the tunnel, not the OS route table.
+- All of this is wired into a custom `/etc/rc.d/wireguard` script (there's no stock rc.d for this) since there's no native `ifconfig.wg0`/wg-quick integration to hook into.
+- Follow-up not yet done: `wireguardmeshgenerator.rb` only branches on `os == 'Linux' | 'FreeBSD' | 'OpenBSD'` and always emits `wg-quick`-style files; `wireguardmeshgenerator.yaml`'s `pi0:`/`pi1:` entries still say `os: Linux` with a `systemctl reload wg-quick@wg0.service` `reload_cmd`. Until the generator gains NetBSD support, both nodes' WireGuard configs are manually-maintained exceptions that a future `--generate`/`--install` regen would otherwise clobber.
 
 ## WireGuard IP Assignments
 
@@ -33,8 +44,8 @@ Even `fN <-> rN` tunnels exist (technically redundant since the VM runs on the h
 | r2 | 192.168.2.122 | fd42:beef:cafe:2::122 | Rocky VM (k3s node) |
 | blowfish | 192.168.2.110 | fd42:beef:cafe:2::110 | OpenBSD internet GW |
 | fishfinger | 192.168.2.111 | fd42:beef:cafe:2::111 | OpenBSD internet GW |
-| pi0 | 192.168.2.203 | fd42:beef:cafe:2::203 | Rocky Linux 9 on Raspberry Pi 3 (gateway-only peer) |
-| pi1 | 192.168.2.204 | fd42:beef:cafe:2::204 | Rocky Linux 9 on Raspberry Pi 3 (gateway-only peer) |
+| pi0 | 192.168.2.203 | fd42:beef:cafe:2::203 | NetBSD 10.1 on Raspberry Pi 3 (limited-peer: blowfish/fishfinger/rocky) |
+| pi1 | 192.168.2.204 | fd42:beef:cafe:2::204 | NetBSD 10.1 on Raspberry Pi 3 (limited-peer: blowfish/fishfinger/rocky) |
 | earth | 192.168.2.200 | fd42:beef:cafe:2::200 | Fedora laptop (roaming) |
 | pixel7pro | 192.168.2.201 | fd42:beef:cafe:2::201 | Android phone (roaming) |
 
@@ -54,7 +65,9 @@ doas service wireguard start
 doas wg show  # check public key and listen port
 ```
 
-## Rocky Linux Setup (r0, r1, r2, pi0, pi1)
+## Rocky Linux Setup (r0, r1, r2)
+
+(`pi0`/`pi1` used to follow this same setup but are now NetBSD — see "`pi0`/`pi1` (NetBSD): no native `wg(4)`" above instead.)
 
 ```sh
 dnf install -y wireguard-tools
@@ -246,7 +259,7 @@ The script generates all configs and can push them via SSH.
 
 Current mesh-specific notes:
 
-- `pi0` and `pi1` are defined as Rocky Linux hosts but excluded from all non-gateway peers, so they only tunnel to `blowfish` and `fishfinger`
+- `pi0` and `pi1` are defined in the generator's YAML as Rocky Linux hosts (now stale — both are NetBSD; the generator has no NetBSD support yet, see above) and excluded from most non-gateway peers, so they only tunnel to `blowfish`, `fishfinger`, and `rocky`
 - Installed config ownership must be OS-specific:
   - Linux: `root:root`
   - BSD: `root:wheel`

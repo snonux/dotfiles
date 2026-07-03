@@ -33,7 +33,9 @@ make dtail-rocky     # Rocky Linux: x86_64 + aarch64 RPMs + repodata
 
 **FreeBSD config note:** `dtail-freebsd.json.tpl` uses **absolute paths** for `CacheDir` and `HostKeyFile` (`/var/run/dserver/cache/...`). FreeBSD's `daemon(8)` resets CWD to `/`, so the relative `"cache"` in the standard template resolves to `/cache` — silently breaking key lookup.
 
-### Rocky Linux (r0–r2 amd64, pi0–pi3 aarch64)
+### Rocky Linux (r0–r2 amd64, pi2–pi3 aarch64)
+
+`pi0`/`pi1` were reinstalled to NetBSD (see `f3s` skill's `bootstrap-netbsd-pi.md`) and deliberately do **not** run DTail — see the NetBSD client note below.
 
 | File |
 |------|
@@ -48,7 +50,7 @@ Rocky notes:
 - Key-cache helper handles both `/root/.ssh/authorized_keys` and `/home/*/.ssh/authorized_keys` — `root` works on r0–r2 without manual cache copy
 - `dserver.service` includes `RuntimeDirectory=dserver` and `ExecStartPre` to recreate `/var/run/dserver` (tmpfs) on Rocky
 - Repo is unsigned (`gpgcheck=0`)
-- `aarch64` RPM is built on pi0 — Fedora's rpmbuild refuses to emit `aarch64` binary RPMs from an x86_64 host
+- `aarch64` RPM is built on pi2 (was pi0 until it was reinstalled to NetBSD) — Fedora's rpmbuild refuses to emit `aarch64` binary RPMs from an x86_64 host
 
 ## Install / Update
 
@@ -92,7 +94,7 @@ doas chmod 755 /usr/local/etc/periodic/daily/200.dserver-update-key-cache
 ### Rocky Linux (dnf)
 
 ```sh
-# On r0–r2 (root) or pi0–pi3 (paul with sudo):
+# On r0–r2 (root) or pi2–pi3 (paul with sudo):
 sudo dnf upgrade dtail
 sudo systemctl restart dserver
 sudo systemctl start dserver-update-keycache.service   # repopulate after restart
@@ -124,9 +126,9 @@ dcat --plain --noColor --trustAllHosts --user paul \
 dcat --plain --noColor --trustAllHosts --user root \
   --servers r0.lan.buetow.org,r1.lan.buetow.org,r2.lan.buetow.org --files /etc/fstab
 
-# Raspberry Pis (pi0–pi3, user paul)
+# Raspberry Pis (pi2–pi3, user paul) -- pi0/pi1 are NetBSD now and don't run DTail
 dcat --plain --noColor --trustAllHosts --user paul \
-  --servers pi0.lan.buetow.org,pi1.lan.buetow.org,pi2.lan.buetow.org,pi3.lan.buetow.org \
+  --servers pi2.lan.buetow.org,pi3.lan.buetow.org \
   --files /etc/fstab
 ```
 

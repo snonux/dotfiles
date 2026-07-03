@@ -57,7 +57,7 @@ Cross-compilation from Linux fails for CGo (e.g. packages with DataDog/zstd). Us
 
 - **OpenBSD**: native build on the local QEMU/KVM build VM (see [openbsd-build-vm.md](openbsd-build-vm.md))
 - **FreeBSD**: cross-compile with `CGO_ENABLED=0 -tags nozstd` — disables zstd support but allows static cross-compile
-- **Rocky Linux**: built locally on earth (x86_64) and on pi0 (aarch64 via rpmbuild)
+- **Rocky Linux**: built locally on earth (x86_64) and on pi2 (aarch64 via rpmbuild) — was pi0 until it was reinstalled to NetBSD; pi2 is the current designated aarch64 Rocky build host
 
 ## Manual Packaging Reference
 

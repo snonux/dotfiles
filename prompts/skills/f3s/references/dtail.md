@@ -8,14 +8,16 @@ Upstream install and examples live in the repo: `doc/installation.md`, `examples
 
 | Hosts | OS / arch | dserver binary | Typical SSH user |
 |-------|-----------|----------------|------------------|
-| **pi0–pi3** | Rocky Linux 9 **aarch64** (Raspberry Pi 3) | Cross-build **linux/arm64**, `nozstd` | `paul@piN.lan.buetow.org` |
+| **pi2–pi3** | Rocky Linux 9 **aarch64** (Raspberry Pi 3) | Cross-build **linux/arm64**, `nozstd` | `paul@piN.lan.buetow.org` |
 | **r0–r2** | Rocky Linux 9 **x86_64** (bhyve VMs, k3s nodes) | Cross-build **linux/amd64**, `nozstd` | Often `root@rN.lan.buetow.org` (see [Rocky Linux VMs](rocky-linux-vms.md)); add `root` (and `paul` if present) to **Server.Permissions.Users** in `dtail.json` |
 | **blowfish, fishfinger** | OpenBSD 7.8 **amd64** | Native OpenBSD package build | `rex@blowfish.buetow.org`, `rex@fishfinger.buetow.org` |
+
+`pi0`/`pi1` are **NetBSD** now (see `bootstrap-netbsd-pi.md`) and deliberately do **not** run DTail — would need an untested `GOOS=netbsd GOARCH=arm64` cross-build and an `rc.d` script.
 
 **Key cache filenames matter:** `examples/update_key_cache.sh.example` only scans `/home/*` and writes `/var/run/dserver/cache/USER.authorized_keys`. In this lab, DTail auth worked only after writing the exact cache filename for the login user:
 
 - **r0–r2**: `root.authorized_keys`
-- **pi0–pi3**: `paul.authorized_keys`
+- **pi2–pi3**: `paul.authorized_keys`
 - **blowfish, fishfinger**: `rex.authorized_keys`
 
 If clients connect as **root**, copy keys once (e.g. after install) and on key changes:
@@ -156,7 +158,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags nozstd -o dserver-linux-amd
 
 ## Installation checklist (each server)
 
-Do this on **each** target (pi0–pi3 and/or r0–r2). Adjust **user** if you are not using `paul` on the node.
+Do this on **each** target (pi2–pi3 and/or r0–r2 — not pi0/pi1, which are NetBSD and don't run DTail). Adjust **user** if you are not using `paul` on the node.
 
 1. **Binary**: `/usr/local/bin/dserver`, mode `0755`, owned by root.
 2. **OS user**: `dserver` system account (`useradd -r -d /var/lib/dserver -s /sbin/nologin -U dserver`).
@@ -184,7 +186,7 @@ Do this on **each** target (pi0–pi3 and/or r0–r2). Adjust **user** if you ar
 
 ```bash
 dcat --plain --noColor --trustAllHosts --user paul \
-  --servers pi0.lan.buetow.org,pi1.lan.buetow.org,pi2.lan.buetow.org,pi3.lan.buetow.org \
+  --servers pi2.lan.buetow.org,pi3.lan.buetow.org \
   --files /etc/fstab
 
 dcat --plain --noColor --trustAllHosts --user root \

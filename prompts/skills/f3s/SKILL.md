@@ -1,6 +1,6 @@
 ---
 name: f3s
-description: Reference skill for the f3s homelab—four Beelink S12 Pro hosts (f0/f1/f2/f3) running FreeBSD with Rocky Linux Bhyve VMs and a k3s Kubernetes cluster. f0/f1/f2 run r0/r1/r2 k3s nodes; f3 is standalone bhyve only (not part of k3s) and hosts the plain Rocky Linux VM named rocky. Four Raspberry Pi 3 nodes (pi0–pi3) on Rocky Linux 9; pi2/pi3 run Pi-hole (Docker) and LAN wildcard DNS for *.f3s.lan.buetow.org. Covers DTail/dserver on Pis (arm64) and k3s VMs (amd64). Use when troubleshooting or making configuration decisions for the f3s setup.
+description: Reference skill for the f3s homelab—four Beelink S12 Pro hosts (f0/f1/f2/f3) running FreeBSD with Rocky Linux Bhyve VMs and a k3s Kubernetes cluster. f0/f1/f2 run r0/r1/r2 k3s nodes; f3 is standalone bhyve only (not part of k3s) and hosts the plain Rocky Linux VM named rocky. Four Raspberry Pi 3 nodes (pi0–pi3): pi0 and pi1 are NetBSD 10.1 (the static f3s.buetow.org/snonux.foo HTTP pair), pi2/pi3 are still Rocky Linux 9 running Pi-hole (Docker) and LAN wildcard DNS for *.f3s.lan.buetow.org. Covers DTail/dserver on Pis (arm64) and k3s VMs (amd64). Use when troubleshooting or making configuration decisions for the f3s setup.
 ---
 
 # f3s Homelab Reference
@@ -24,6 +24,7 @@ Detailed reference documentation is in the `references/` subfolder:
 - [Rocky Linux VMs](references/rocky-linux-vms.md) — Bhyve, vm-bhyve, VM config, NVMe disk fix; FreeBSD VM on f3 (migrated from f0)
 - [f3 Rocky VM](references/f3-rocky-vm.md) — Plain Rocky Linux 9 VM on f3 (`rocky`, `192.168.1.123`), autostart policy, root SSH
 - [Bootstrap Rocky bhyve VM](references/bootstrap-rocky-bhyve.md) — Runbook for creating a new plain Rocky Linux bhyve guest with unattended kickstart
+- [Bootstrap NetBSD Pi](references/bootstrap-netbsd-pi.md) — Runbook for converting a Rocky Pi to NetBSD, validated twice now (`pi0` then `pi1`, both reboot-tested): doas/pkgin bootstrap, WireGuard via userspace `wireguard-go` (no native `wg(4)` on this platform), bozohttpd (`-X` for dir-listing parity, vhost symlinks for every real routed hostname from day one), uptimed built from source, npf firewall, content-sync direction. Only `pi2`/`pi3` (Pi-hole) remain Rocky.
 - [WireGuard Mesh](references/wireguard.md) — Mesh topology, IP assignments, peer configs
 - [Storage](references/storage.md) — index into `references/storage/`: ZFS (zdata), zrepl, CARP, NFS over stunnel, nfs-mount-monitor, troubleshooting (incl. thermal), backups & local-path
 - [r-node Deploy (Rex)](references/r-node-deploy.md) — reusable Rex rollout to **r0/r1/r2** (`f3s/r-nodes/Rexfile`, task `nfs_mount_monitor`): root SSH, `parallelism 3`, idempotent `file`/`on_change` reload, verify with `systemctl`/`journalctl`
@@ -60,14 +61,14 @@ The plain Rocky Linux VM on f3 (`rocky`, `192.168.1.123`) is documented in the s
 | earth | Fedora laptop (roaming) | — | 192.168.2.200 |
 | pixel7pro | Android (roaming) | — | 192.168.2.201 |
 | f3s-storage-ha | CARP VIP (f0/f1) | 192.168.1.138 | — |
-| pi0 | Raspberry Pi 3, Rocky Linux 9, static `f3s.buetow.org` backend | 192.168.1.125 | 192.168.2.203 |
-| pi1 | Raspberry Pi 3, Rocky Linux 9, static `f3s.buetow.org` backend | 192.168.1.126 | 192.168.2.204 |
+| pi0 | Raspberry Pi 3, **NetBSD 10.1** (evbarm-aarch64), static `f3s.buetow.org` backend | 192.168.1.125 | 192.168.2.203 |
+| pi1 | Raspberry Pi 3, **NetBSD 10.1** (evbarm-aarch64), static `f3s.buetow.org` backend | 192.168.1.126 | 192.168.2.204 |
 | pi2 | Raspberry Pi 3, Rocky Linux 9, Pi-hole (Docker, host net) | 192.168.1.127 | — |
 | pi3 | Raspberry Pi 3, Rocky Linux 9, Pi-hole (Docker, host net) | 192.168.1.128 | — |
 
 ## Raspberry Pi Nodes
 
-Four Raspberry Pi 3 boards running Rocky Linux 9.2 (Blue Onyx) aarch64 from the SIG/AltArch image (`RockyLinuxRpi_9-latest.img.xz`). Each has:
+`pi2`/`pi3` run Rocky Linux 9.2 (Blue Onyx) aarch64 from the SIG/AltArch image (`RockyLinuxRpi_9-latest.img.xz`). `pi0` and `pi1` were both reinstalled to **NetBSD 10.1** (evbarm-aarch64) — `pi0` first (2026-07-03), `pi1` the same day once `pi0` was validated. Each Rocky Pi has:
 
 - User `paul` with passwordless sudo and SSH key auth
 - Static IP on eth0 via NetworkManager
@@ -77,19 +78,23 @@ Four Raspberry Pi 3 boards running Rocky Linux 9.2 (Blue Onyx) aarch64 from the 
 - No GRUB — boots via Pi's native bootloader (`/boot/cmdline.txt`)
 - Custom RPi kernel from the `rockyrpi` repo
 
+`pi0`/`pi1` (NetBSD) differ: user `paul` in `wheel`, privilege escalation via a **real `doas`** (pkgsrc `security/doas`, `permit nopass :wheel`) — not the `alias doas=sudo` shell alias `pi2`/`pi3` carry in `/etc/profile.d/doas.sh`, which doesn't expand in the non-interactive shell an SSH command runs in and so silently breaks `wol-f3s shutdown-pis`/`shutdown-all` for the Rocky Pis (`doas poweroff` resolves to nothing) — only the NetBSD nodes actually work with that script today. Config repo home for NetBSD-specific setup: `f3s/pi-netbsd/`. Full conversion runbook: [Bootstrap NetBSD Pi](references/bootstrap-netbsd-pi.md).
+
 Current role split:
 
-- `pi0` and `pi1` serve static `f3s.buetow.org` content behind OpenBSD `relayd` over WireGuard
+- `pi0` and `pi1` serve static `f3s.buetow.org`/`snonux.foo` content behind OpenBSD `relayd` over WireGuard. WireGuard peers are `blowfish`, `fishfinger`, **and `rocky`** (not gateway-only to just the two frontends, despite older docs here). Both nodes reboot-tested (2026-07-03): all rc.d services (`wireguard`, `bozohttpd`, `uptimed`, `npf`) and both crontabs come back automatically.
 - `pi2` and `pi3` run **Pi-hole** in Docker (`network_mode: host`, `~/pihole` on each host). Tracked dnsmasq LAN wildcard: **`f3s/pihole/docker-pi/`** in the conf repo; details in [references/pihole-pi.md](references/pihole-pi.md).
 
-### lighttpd Configuration
+### Webserver Configuration
 
-Config file: `/etc/lighttpd/lighttpd.conf` (managed directly on pi0/pi1, not in a config repo)
+Both `pi0` and `pi1` run **bozohttpd** (built into NetBSD base, no package/config file) via a custom `/etc/rc.d/bozohttpd` (the stock rc.d/httpd script ignores `httpd_flags` entirely — never references it — so flags had to go directly in this script's own `command_args`), using `-v`/`-V` for vhosting instead of lighttpd's `$HTTP["host"]` regex match — a vhost needs a directory *literally* named after the hostname (e.g. `snonux.foo/`, with `www.snonux.foo` a symlink to it). Also needs **`-X`** (directory indexing) to match lighttpd's old `dir-listing.activate = "enable"` — without it, bare directories with no `index.html` (e.g. `/fotos/<gallery>/` at the top level) 404 instead of showing a listing; caught on `pi0` by a live redundancy test (stopped the other node's webserver, `curl`'d every page through the public domains) and included from the start on `pi1`.
 
-- Document root: `/var/www/html`
+**bozohttpd `-V` fallback bug** (hit and fixed on `pi0`, avoided on `pi1` since the fix was already baked in): `f3s.buetow.org` (the real routed hostname — relayd forwards `f3s.buetow.org`/`www.f3s.buetow.org`/`standby.f3s.buetow.org`, all Host-matched via `match request header "Host" value ... forward to <f3s_static_proxy>` in `relayd.conf` on the frontends; there is no separate `scifi.f3s.buetow.org` subdomain, `/scifi/` is just a **path** under it) had no dedicated vhost directory, so it hit the `-V` fallback — and bozohttpd's directory-without-trailing-slash redirect in that fallback path uses its own **system hostname** (e.g. `pi0.lan.buetow.org`) instead of the client's `Host:` header, unlike a vhost-*matched* request (which correctly echoes back the matched name, e.g. `snonux.foo`). Since the system hostname doesn't resolve outside the LAN, external clients following that redirect would hang. **Fixed** with self-referencing vhost symlinks so these hostnames become vhost matches instead of fallbacks: `ln -sf . /var/www/html/f3s.buetow.org`, same for `www.f3s.buetow.org` and `standby.f3s.buetow.org`.
+
+- Document root: `/var/www/html` (same path both nodes now — the historical `/var/www/html/snonux` vs `/var/www/html/snonux.foo` naming difference no longer applies since `pi1` was reinstalled and now mirrors `pi0`'s tree exactly)
 - SSH access: `ssh paul@piN.lan.buetow.org -p 22`
-- Host-based virtual hosting maps domains to subdirectories:
-  - `snonux.foo` / `www.snonux.foo` → `/var/www/html/snonux`
+- Host-based virtual hosting maps domains to subdirectories: `snonux.foo` / `www.snonux.foo` → `/var/www/html/snonux.foo`
+- Content sync direction flipped mid-migration: `pi1` → `pi0` while `pi1` was still the only node with real content (Rocky), then reversed to `pi0` → `pi1` once `pi1` was also reinstalled (`pi0` is now the long-lived source of truth). `pi1`'s hourly pull is `/usr/local/bin/sync-from-pi0.sh` (cron `:47`); `pi0`'s old `sync-from-pi1.sh` (cron `:17`) is a harmless now-pointless leftover pulling from a node with no independent content anymore.
 
 **Why Host-based vhosts?** `relayd` on the OpenBSD frontends cannot rewrite URL paths. It forwards requests with the original path intact. To serve a subdirectory as root for a domain, lighttpd must remap the document root based on the `Host` header.
 
@@ -104,7 +109,7 @@ $HTTP["host"] =~ "^(www\.)?snonux\.foo$" {
 
 ## DTail (dserver)
 
-Distributed log access over SSH on port **2222** (not sshd’s 22). **pi0–pi3**: cross-build **linux/arm64** + `DTAIL_NO_ZSTD=yes`. **r0–r2** (k3s Rocky VMs): **linux/amd64** only; install as **root** over SSH; **`dtail.json` must list `root` in `Server.Permissions.Users`**; mirror **`/root/.ssh/authorized_keys`** → `/var/run/dserver/cache/root.authorized_keys` because the key-cache script only walks `/home/*`. **firewalld**: open **2222/tcp**. Rebuild clients from current **dtail** `master` if the “trust these hosts” prompt still hangs (stdout pause bug fixed upstream).
+Distributed log access over SSH on port **2222** (not sshd’s 22). **pi2–pi3**: cross-build **linux/arm64** + `DTAIL_NO_ZSTD=yes`. **pi0**/**pi1** (NetBSD) do **not** run DTail — deliberately deferred on both; would need an untested `GOOS=netbsd GOARCH=arm64` cross-build and an `rc.d` script in place of the systemd unit. **r0–r2** (k3s Rocky VMs): **linux/amd64** only; install as **root** over SSH; **`dtail.json` must list `root` in `Server.Permissions.Users`**; mirror **`/root/.ssh/authorized_keys`** → `/var/run/dserver/cache/root.authorized_keys` because the key-cache script only walks `/home/*`. **firewalld**: open **2222/tcp**. Rebuild clients from current **dtail** `master` if the “trust these hosts” prompt still hangs (stdout pause bug fixed upstream).
 
 Details: [references/dtail.md](references/dtail.md) (section **dserver on r0, r1, r2**).
 

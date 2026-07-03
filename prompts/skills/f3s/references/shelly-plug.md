@@ -93,7 +93,16 @@ wake via WoL when this was set up — deploy when it is back online).
 
 `wol-f3s` (dotfiles `scripts/wol-f3s`; deployed to `/home/paul/scripts/wol-f3s`
 on earth and `/usr/local/bin/wol-f3s` on pi0/pi1/pi2) controls the plug as part
-of bulk power actions:
+of bulk power actions. On `pi0`/`pi1` (NetBSD) this needed: pkgsrc `bash`
+(already present as a dependency of other packages) and pkgsrc `wol` installed,
+the shebang changed from `#!/bin/bash` to `#!/usr/pkg/bin/bash` on the deployed
+copy (dotfiles' own copy for earth/Linux stays as-is), `~/.shelly_plug` copied
+over (missing on a fresh image), and `/etc/hosts` entries for `f0`–`f3`/`pi2`–`pi3`
+(cross-Pi/host `.lan.buetow.org` resolution isn't reliable — same DNS gap
+noted elsewhere in this skill). End-to-end verified from `pi0` (2026-07-03):
+woke `f3` via WoL, toggled the shelly plug off/on, shut `f3` back down via
+`wol-f3s shutdown-f3` — all worked. Note single-host `wol-f3s f3`/`shutdown-f3`
+does **not** touch the shelly plug (only the bulk `all`/`shutdown-all` paths do).
 
 - `wol-f3s` / `all` → `shelly_set true` **before** sending WoL packets (fans on).
 - `wol-f3s shutdown-all` → `shelly_set false` **after** all hosts/Pis are down
