@@ -26,10 +26,10 @@ The `wg` kernel module documented above does **not** ship in the evbarm-aarch64 
 
 - Interface must be named `tunN` (`wireguard-go` on NetBSD requires this — `wg0` is rejected: "Interface name must be tun[0-9]*"). Used `tun0`.
 - Bring the interface up **and address it** (`ifconfig tun0 inet <ip> <ip> netmask 255.255.255.255`) *before* starting `wireguard-go`, or its read loop dies immediately with `EHOSTDOWN` ("host is down") and does not retry.
-- `wg setconf tun0 <conf>` takes the normal `[Interface]`/`[Peer]` format (including `PersistentKeepalive`, unlike native `wgconfig` which has no keepalive flag at all) — same keys/PSKs as the `wg-quick`-format file `wireguardmeshgenerator` already renders to `dist/pi0/etc/wireguard/wg0.conf`, just fed to a different tool.
+- `wg setconf tun0 <conf>` takes the normal `[Interface]`/`[Peer]` format (including `PersistentKeepalive`, unlike native `wgconfig` which has no keepalive flag at all) — but strictly rejects wg-quick extensions like `Address`/`DNS` ("Line unrecognized"), so the config fed to it has neither; the interface address is applied separately via `ifconfig`.
 - No `wg-quick` means **no automatic routes**: each peer's AllowedIPs needs an explicit `route add -inet <ip>/32 <local-tun-ip> -iface` (and `-inet6` for the v6 ones) — `wg` only does the crypto/routing decision inside the tunnel, not the OS route table.
 - All of this is wired into a custom `/etc/rc.d/wireguard` script (there's no stock rc.d for this) since there's no native `ifconfig.wg0`/wg-quick integration to hook into.
-- Follow-up not yet done: `wireguardmeshgenerator.rb` only branches on `os == 'Linux' | 'FreeBSD' | 'OpenBSD'` and always emits `wg-quick`-style files; `wireguardmeshgenerator.yaml`'s `pi0:`/`pi1:` entries still say `os: Linux` with a `systemctl reload wg-quick@wg0.service` `reload_cmd`. Until the generator gains NetBSD support, both nodes' WireGuard configs are manually-maintained exceptions that a future `--generate`/`--install` regen would otherwise clobber.
+- `wireguardmeshgenerator` (`~/git/wireguardmeshgenerator`) generates both the `tun0.conf` and the `/etc/rc.d/wireguard` script (routes included, derived from each host's peer list) for `os: NetBSD` entries, and installs/reloads them over SSH the same way it does for every other OS. `doas` on NetBSD resets `PATH` to exclude both `/usr/pkg/bin` (hence the per-host `wg_bin` override in the YAML) and `/usr/sbin` (hence the generator using a full path for `chown` there).
 
 ## WireGuard IP Assignments
 
@@ -259,7 +259,7 @@ The script generates all configs and can push them via SSH.
 
 Current mesh-specific notes:
 
-- `pi0` and `pi1` are defined in the generator's YAML as Rocky Linux hosts (now stale — both are NetBSD; the generator has no NetBSD support yet, see above) and excluded from most non-gateway peers, so they only tunnel to `blowfish`, `fishfinger`, and `rocky`
+- `pi0` and `pi1` are defined in the generator's YAML as `os: NetBSD` and excluded from most non-gateway peers, so they only tunnel to `blowfish`, `fishfinger`, and `rocky`
 - Installed config ownership must be OS-specific:
   - Linux: `root:root`
   - BSD: `root:wheel`
