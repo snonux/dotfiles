@@ -42,8 +42,18 @@ PI3_IP="192.168.1.128"
 # It is powered on when waking all hosts and powered off when shutting all
 # hosts down. The plug uses digest auth (user "admin"); the password is read
 # from ~/.shelly_plug if that file exists.
+#
+# The shutdown paths need root (to umount NFS), so this script is typically
+# run via sudo. Under sudo $HOME becomes /root, where ~/.shelly_plug does not
+# exist — so resolve the file relative to the invoking user's home when
+# $SUDO_USER is set, falling back to $HOME otherwise.
 SHELLY_IP="192.168.1.28"
-SHELLY_PASS_FILE="${HOME}/.shelly_plug"
+if [[ -n "${SUDO_USER:-}" ]]; then
+    _shelly_home="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+    SHELLY_PASS_FILE="${_shelly_home:-$HOME}/.shelly_plug"
+else
+    SHELLY_PASS_FILE="${HOME}/.shelly_plug"
+fi
 
 # SSH user
 SSH_USER="paul"
@@ -78,12 +88,22 @@ shelly_set() {
         [[ -n "$pass" ]] && auth=(--digest -u "admin:$pass")
     fi
 
+    if [[ ${#auth[@]} -eq 0 ]]; then
+        echo "  ⚠️  No Shelly password found at $SHELLY_PASS_FILE"
+        echo "     — cannot switch plug $label (digest auth required)."
+        return 1
+    fi
+
     echo "Turning rack-fan Shelly plug $label ($SHELLY_IP)..."
-    if curl -s --max-time 5 "${auth[@]}" \
+    # --fail is essential: without it curl returns 0 even on an HTTP 401
+    # (auth failure), which would falsely report success while the plug is
+    # left untouched.
+    if curl -s --fail --max-time 5 "${auth[@]}" \
         "http://${SHELLY_IP}/rpc/Switch.Set?id=0&on=${on}" >/dev/null; then
         echo "  ✓ Shelly plug switched $label"
     else
-        echo "  ✗ Failed to reach Shelly plug at $SHELLY_IP"
+        echo "  ✗ Failed to switch Shelly plug at $SHELLY_IP (auth or network error)"
+        return 1
     fi
 }
 
