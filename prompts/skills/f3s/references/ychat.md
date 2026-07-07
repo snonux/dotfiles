@@ -4,12 +4,16 @@ yChat is a legacy (2007) C++ HTTP web chat server, revived to build in Docker
 with a mandatory embedded-SQLite backend. It is deployed on the f3s k3s
 cluster as a GitOps-managed service.
 
-> **Not yet deployed as of this writing.** The live cluster
-> (`https://ychat.f3s.lan.buetow.org/`) still runs an **older, in-memory-only,
-> no-database image**. Rolling out the current DB-backed build is a deliberate
-> follow-up, not automatic: it needs a persistent volume (PVC) for `/app/data`
-> — the existing Helm chart was written for the no-DB build and doesn't
-> provision one yet.
+> **Deployed.** The live LAN URL **https://ychat.f3s.lan.buetow.org/** serves
+> image tag `67babb2` (the DB-backed build), with a persistent volume
+> (`ychat-data-pvc`, hostPath-backed NFS share) mounted at `/app/data`, so
+> registered accounts survive pod restarts. The no-DB build that previously
+> ran live has been retired.
+
+This reference is the single home for f3s-specific deployment details. The
+public app repo (`ychat` on https://codeberg.org/snonux/ychat) deliberately
+keeps deployment/cluster specifics **out of scope** — everything below lives
+here instead.
 
 ## Repositories and paths
 
@@ -60,15 +64,20 @@ The Deployment pulls `registry.lan.buetow.org:30001/ychat:<TAG>` (tag matches
 - **Logs** (`/app/log`: `access_log`, `system_log`, `rooms/<room>`) go to an
   `emptyDir` — ephemeral by design.
 - **SQLite database** (`/app/data/ychat.db`) holds registered accounts and
-  needs a real persistent volume (PVC) to survive pod rescheduling. The
-  current Helm chart doesn't provision one — this is the main blocker for
-  rolling out the DB-backed build.
+  is backed by the `ychat-data-pvc` persistent volume (hostPath-backed NFS
+  share, mounted at `/app/data`), so accounts survive pod rescheduling.
 
 Only registered accounts persist (in SQLite). Sessions/rooms/online-state are
 in-memory, and unregistered `chat.enableguest=true` guest chatters are wiped
 on restart — only the accounts table persists.
 
-## Follow-ups before this build goes live
+## Runtime config notes
 
-- Provision a PVC for `/app/data` and update the Helm chart.
-- Deploy the DB-backed image and ArgoCD-sync it.
+- Configuration is `ychat/etc/ychat.conf`, baked into the image at
+  `/app/etc/ychat.conf`. Any config key can be overridden at runtime with
+  `-o <key> <value>` (the image already does this for
+  `chat.session.md5hash=false` and `chat.database.dbname=data/ychat.db`).
+- The `/exec` command module is removed from the image entirely
+  (defense-in-depth against its shell-injection RCE), and operator status
+  via `chat.defaultop` requires a database-authenticated registered account —
+  an unregistered guest can never claim it.
