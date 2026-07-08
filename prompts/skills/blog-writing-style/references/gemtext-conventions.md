@@ -28,7 +28,7 @@ italic (`*text*`). Gemtexter will not render these. Never use `**...**` or
 ## Post structure (in order)
 
 1. `# Title` (first line)
-2. `> Published at YYYY-MM-DDTHH:MM:SS+02:00` (ISO 8601 with timezone)
+2. `> Published at YYYY-MM-DDTHH:MM:SS+02:00` (ISO 8601 with timezone) — **do not write this line manually**; Gemtexter inserts it automatically on `--generate` (using the file mtime) when it is missing. Leave it out of the `.gmi.tpl`.
 3. Optional: ASCII art in a fenced code block (triple backticks) — only if it
    fits the topic (diagram, device, logo).
 4. Short intro paragraph(s)
@@ -41,14 +41,11 @@ italic (`*text*`). Gemtexter will not render these. Never use `**...**` or
 
 ## Table of Contents
 
-Add a hand-written TOC after the intro/first image, before the first `##`:
+Use the Gemtexter TOC macro — do **not** hand-write the TOC. Place this single line after the intro/first image, before the first `##` section:
 
-- Heading: `## Table of Contents` then a blank line
-- List with `* ⇢` and indentation by section level:
-  - `* ⇢ Post title` (one arrow = document title)
-  - `* ⇢ ⇢ Section name` (two arrows = each `##` section)
-  - `* ⇢ ⇢ ⇢ Subsection name` (three arrows = each `###` subsection)
-- List every `##` and `###` in the same order as in the body.
+`<< template::inline::toc`
+
+On `--generate`, Gemtexter expands it into the `## Table of Contents` heading plus `* ⇢` entries by section level (`#` → one arrow, `##` → two arrows, `###` → three arrows), skipping headings inside code blocks. Because it is generated from the headings, it never goes stale.
 
 ## Links
 
