@@ -24,7 +24,7 @@ Detailed reference documentation is in the `references/` subfolder:
 - [Rocky Linux VMs](references/rocky-linux-vms.md) — Bhyve, vm-bhyve, VM config, NVMe disk fix; FreeBSD VM on f3 (migrated from f0)
 - [f3 Rocky VM](references/f3-rocky-vm.md) — Plain Rocky Linux 9 VM on f3 (`rocky`, `192.168.1.123`), autostart policy, root SSH
 - [Bootstrap Rocky bhyve VM](references/bootstrap-rocky-bhyve.md) — Runbook for creating a new plain Rocky Linux bhyve guest with unattended kickstart
-- [NetBSD Pi Setup](references/bootstrap-netbsd-pi.md) — How services are installed on `pi0`/`pi1` (NetBSD): doas/pkgin bootstrap, WireGuard via userspace `wireguard-go` (no native `wg(4)` on this platform), bozohttpd (`-X` for dir-listing parity, vhost symlinks for every real routed hostname), uptimed built from source, npf firewall, content-sync setup.
+- [NetBSD Pi Setup](references/bootstrap-netbsd-pi.md) — How services are installed on `pi0`/`pi1` (NetBSD): doas/pkgin bootstrap, WireGuard via userspace `wireguard-go` (no native `wg(4)` on this platform), bozohttpd (`-X` for dir-listing parity, vhost symlinks for every real routed hostname), uptimed built from source, npf firewall, content-sync setup. dserver (DTail) is installed from the custom pkgrepo — see the `pkgrepo` skill's `dtail-package.md`.
 - [WireGuard Mesh](references/wireguard.md) — Mesh topology, IP assignments, peer configs
 - [Storage](references/storage.md) — index into `references/storage/`: ZFS (zdata), zrepl, CARP, NFS over stunnel, nfs-mount-monitor, troubleshooting (incl. thermal), backups & local-path
 - [r-node Deploy (Rex)](references/r-node-deploy.md) — reusable Rex rollout to **r0/r1/r2** (`f3s/r-nodes/Rexfile`, task `nfs_mount_monitor`): root SSH, `parallelism 3`, idempotent `file`/`on_change` reload, verify with `systemctl`/`journalctl`
@@ -83,7 +83,7 @@ The plain Rocky Linux VM on f3 (`rocky`, `192.168.1.123`) is documented in the s
 
 Current role split:
 
-- `pi0` and `pi1` serve static `f3s.buetow.org`/`snonux.foo` content behind OpenBSD `relayd` over WireGuard. WireGuard peers are `blowfish`, `fishfinger`, **and `rocky`** (not gateway-only to just the two frontends, despite older docs here). All rc.d services (`wireguard`, `bozohttpd`, `uptimed`, `npf`) and both crontabs are enabled via `rc.conf` and come back automatically on reboot.
+- `pi0` and `pi1` serve static `f3s.buetow.org`/`snonux.foo` content behind OpenBSD `relayd` over WireGuard. WireGuard peers are `blowfish`, `fishfinger`, **and `rocky`** (not gateway-only to just the two frontends, despite older docs here). All rc.d services (`wireguard`, `bozohttpd`, `uptimed`, `npf`, `dserver`) and both crontabs are enabled via `rc.conf` and come back automatically on reboot.
 - `pi2` and `pi3` run **Pi-hole** in Docker (`network_mode: host`, `~/pihole` on each host). Tracked dnsmasq LAN wildcard: **`f3s/pihole/docker-pi/`** in the conf repo; details in [references/pihole-pi.md](references/pihole-pi.md).
 
 ### Webserver Configuration
@@ -110,7 +110,7 @@ $HTTP["host"] =~ "^(www\.)?snonux\.foo$" {
 
 ## DTail (dserver)
 
-Distributed log access over SSH on port **2222** (not sshd’s 22). **pi2–pi3**: cross-build **linux/arm64** + `DTAIL_NO_ZSTD=yes`. **pi0**/**pi1** (NetBSD) do **not** run DTail — deliberately deferred on both; would need an untested `GOOS=netbsd GOARCH=arm64` cross-build and an `rc.d` script in place of the systemd unit. **r0–r2** (k3s Rocky VMs): **linux/amd64** only; install as **root** over SSH; **`dtail.json` must list `root` in `Server.Permissions.Users`**; mirror **`/root/.ssh/authorized_keys`** → `/var/run/dserver/cache/root.authorized_keys` because the key-cache script only walks `/home/*`. **firewalld**: open **2222/tcp**. Rebuild clients from current **dtail** `master` if the “trust these hosts” prompt still hangs (stdout pause bug fixed upstream).
+Distributed log access over SSH on port **2222** (not sshd’s 22). **pi2–pi3**: cross-build **linux/arm64** + `DTAIL_NO_ZSTD=yes`. **pi0**/**pi1** (NetBSD): run dserver since 2026-07-09 from the custom pkgrepo (`GOOS=netbsd GOARCH=arm64 CGO_ENABLED=0 -tags nozstd` cross-build, NetBSD `rc.d` script, npf port **2222** rule; see the `pkgrepo` skill's `dtail-package.md`). **r0–r2** (k3s Rocky VMs): **linux/amd64** only; install as **root** over SSH; **`dtail.json` must list `root` in `Server.Permissions.Users`**; mirror **`/root/.ssh/authorized_keys`** → `/var/run/dserver/cache/root.authorized_keys` because the key-cache script only walks `/home/*`. **firewalld**: open **2222/tcp**. Rebuild clients from current **dtail** `master` if the “trust these hosts” prompt still hangs (stdout pause bug fixed upstream).
 
 Details: [references/dtail.md](references/dtail.md) (section **dserver on r0, r1, r2**).
 

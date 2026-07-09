@@ -57,6 +57,7 @@ Cross-compilation from Linux fails for CGo (e.g. packages with DataDog/zstd). Us
 
 - **OpenBSD**: native build on the local QEMU/KVM build VM (see [openbsd-build-vm.md](openbsd-build-vm.md))
 - **FreeBSD**: cross-compile with `CGO_ENABLED=0 -tags nozstd` — disables zstd support but allows static cross-compile
+- **NetBSD**: cross-compile with `CGO_ENABLED=0 GOOS=netbsd GOARCH=arm64 -tags nozstd`; packaging (`pkg_create`) runs natively on pi0 because `+BUILD_INFO` must match the target host
 - **Rocky Linux**: built locally on earth (x86_64) and on pi2 (aarch64 via rpmbuild)
 
 ## Manual Packaging Reference
@@ -83,6 +84,30 @@ pkg_create \
 scp package.tgz f0.lan.buetow.org:/tmp/
 ssh -p 22 f0.lan.buetow.org "doas cp /tmp/package.tgz /data/nfs/k3svolumes/pkgrepo/openbsd/7.8/packages/amd64/"
 ```
+
+### NetBSD (on pi0)
+
+```sh
+# pkg_* tools are in /usr/sbin (not in the non-interactive SSH PATH)
+# Files staged under stagedir (-p), installed relative to / (-I);
+# @owner root / @group wheel in the packing list keeps installed files root-owned.
+/usr/sbin/pkg_create \
+    -B build-info \
+    -c commentfile \
+    -d descfile \
+    -f packing-list \
+    -I / \
+    -p stagedir \
+    output/package-name-1.0.tgz
+# pkg_summary.gz enables pkgin (pkg_add alone doesn't need it)
+/usr/sbin/pkg_info -X output/*.tgz | gzip -9 > output/pkg_summary.gz
+# Copy to PV via f0
+scp -P 22 output/* f0.lan.buetow.org:/tmp/
+ssh -p 22 f0.lan.buetow.org "doas cp /tmp/package-name-1.0.tgz /tmp/pkg_summary.gz /data/nfs/k3svolumes/pkgrepo/netbsd/10.1/packages/aarch64/"
+```
+
+NetBSD package versions must not contain dashes (the last dash separates the
+package name from the version), so DTail's `4.3.2-ng` becomes `4.3.2ng`.
 
 ## Install/Update on Frontends via Rex
 

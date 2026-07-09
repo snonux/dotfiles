@@ -248,6 +248,7 @@ group "external" on $ext_if {
 	pass stateful out final all
 	pass stateful in final family inet4 proto tcp to $ext_if port 22
 	pass stateful in final family inet4 proto tcp to $ext_if port 80
+	pass stateful in final family inet4 proto tcp to $ext_if port 2222
 	pass stateful in final family inet4 proto icmp all
 }
 
@@ -262,6 +263,9 @@ group default {
 	block all
 }
 ```
+
+Port 2222 is dserver (DTail) — see the `pkgrepo` skill's `dtail-package.md`
+for the install steps.
 
 `family inet4`/`inet6` must be explicit on multi-family interfaces or
 `npfctl validate` fails with "address family mismatch". `proto <name>` must

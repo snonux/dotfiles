@@ -83,9 +83,25 @@ OpenBSD packages are signed with `signify(1)` via `pkg_sign`:
 - Signing happens automatically during `make pkg-openbsd` / `make pkg`
 - `pkg_add` verifies the signature — no `-D unsigned` needed
 
+## NetBSD (pi0, pi1)
+
+No persistent repo config needed — install/update straight from the package URL (repo is unsigned):
+
+```sh
+export PATH=/usr/sbin:$PATH   # pkg_* live in /usr/sbin, not in the default non-interactive PATH
+doas pkg_add https://pkgrepo.f3s.buetow.org/netbsd/10.1/packages/aarch64/dtail-4.3.2ng.tgz    # first install
+doas pkg_add -u https://pkgrepo.f3s.buetow.org/netbsd/10.1/packages/aarch64/dtail-4.3.2ng.tgz # update to newer version
+```
+
+Notes:
+- Same-version reinstall: `pkg_add -u` skips it — `doas pkg_delete dtail` first, then `pkg_add` again
+- `pkg_summary.gz` is published alongside the packages, so the repo URL could also be added to `/usr/pkg/etc/pkgin/repositories.conf` for pkgin; today plain `pkg_add` is used
+- Version in the URL path must match the host OS release (currently 10.1) and the arch is `aarch64` (`uname -p`)
+- pkgsrc packages from cdn.netbsd.org still install normally via pkgin — the custom repo lives under a different prefix (`/` with files in `/usr/local`, `/etc`) and doesn't conflict
+
 ## Rocky Linux (r0–r2, pi2–pi3)
 
-`pi0`/`pi1` run NetBSD (see `f3s` skill's `bootstrap-netbsd-pi.md`) and are not Rocky clients of this repo.
+`pi0`/`pi1` run NetBSD (see above and the `f3s` skill's `bootstrap-netbsd-pi.md`) and are not Rocky clients of this repo.
 
 Architecture-specific repo URLs:
 - `https://pkgrepo.f3s.buetow.org/rockylinux/9/x86_64/`  (r0–r2)

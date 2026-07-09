@@ -8,6 +8,7 @@ DTail is a multi-binary package (6 binaries + config + service script). There ar
 cd ~/git/conf/packages
 make dtail-openbsd   # OpenBSD: native build on QEMU/KVM VM (CGo/zstd supported)
 make dtail-freebsd   # FreeBSD: cross-compiled on Linux (CGO_ENABLED=0, nozstd — .zst logs unsupported)
+make dtail-netbsd    # NetBSD/aarch64: cross-compiled on Linux (CGO_ENABLED=0, nozstd), packaged natively on pi0
 make dtail-rocky     # Rocky Linux: x86_64 + aarch64 RPMs + repodata
 ```
 
@@ -31,11 +32,26 @@ make dtail-rocky     # Rocky Linux: x86_64 + aarch64 RPMs + repodata
 | `/usr/local/etc/rc.d/dserver` | `frontends/etc/rc.d/dserver-freebsd.tpl` |
 | `/usr/local/bin/dserver-update-key-cache.sh` | `frontends/scripts/dserver-update-key-cache-freebsd.sh.tpl` (sh) |
 
-**FreeBSD config note:** `dtail-freebsd.json.tpl` uses **absolute paths** for `CacheDir` and `HostKeyFile` (`/var/run/dserver/cache/...`). FreeBSD's `daemon(8)` resets CWD to `/`, so the relative `"cache"` in the standard template resolves to `/cache` — silently breaking key lookup.
+**FreeBSD config note:** `dtail-freebsd.json.tpl` uses **absolute paths** for `CacheDir` and `HostKeyFile` (`/var/run/dserver/cache/...`). FreeBSD's `daemon(8)` resets CWD to `/`, so the relative `"cache"` in the standard template resolves to `/cache` — silently breaking key lookup. (Since dtail commit `fec2f9d`, absolute `CacheDir` paths also resolve independently of the CWD dserver was started from — before that fix, a manual service restart from a home directory broke public key auth.)
+
+### NetBSD (pi0, pi1 — aarch64)
+
+Package name is `dtail-4.3.2ng` — NetBSD versions must not contain dashes, so `-ng` becomes `ng`.
+
+| File | Source template |
+|------|----------------|
+| `/usr/local/bin/dserver`, `dcat`, `dgrep`, `dmap`, `dtail`, `dtailhealth` | cross-compiled `GOOS=netbsd GOARCH=arm64 CGO_ENABLED=0 -tags nozstd` |
+| `/etc/dserver/dtail.json` | `frontends/etc/dserver/dtail-netbsd.json.tpl` (absolute `CacheDir`/`HostKeyFile` paths, like FreeBSD) |
+| `/etc/rc.d/dserver` | `frontends/etc/rc.d/dserver-netbsd.tpl` |
+| `/usr/local/bin/dserver-update-key-cache.sh` | `frontends/scripts/dserver-update-key-cache-netbsd.sh.tpl` (sh) |
+
+NetBSD notes:
+- `pkg_create` runs natively on pi0 (Makefile ships binaries + templates there via SSH and runs `packages/scripts/pkg-dtail-netbsd.sh`); `pkg_summary.gz` for pkgin is generated and uploaded alongside
+- NetBSD has no `daemon(8)` and dserver doesn't daemonize — the rc.d script backgrounds it via `command_args="... &"` and runs it as user `dserver` (`dserver_user`)
+- `/var/run` is volatile — the rc.d `start_precmd` recreates `/var/run/dserver/cache` and re-runs the key-cache helper on every start; a daily root cron entry (`dserver-update-key-cache.sh`) keeps it fresh
+- npf firewall needs `pass stateful in final family inet4 proto tcp to $ext_if port 2222` in the `"external"` group of `/etc/npf.conf`
 
 ### Rocky Linux (r0–r2 amd64, pi2–pi3 aarch64)
-
-`pi0`/`pi1` run NetBSD (see `f3s` skill's `bootstrap-netbsd-pi.md`) and do **not** run DTail — see the NetBSD client note below.
 
 | File |
 |------|
@@ -91,6 +107,37 @@ doas chmod 755 /usr/local/etc/periodic/daily/200.dserver-update-key-cache
 - `pkg install -fy` replaces `/usr/local/etc/dserver/dtail.json` with the package version; local customisations are lost
 - Avoid inline one-liners with `||`, `!`, or multi-quote strings over SSH to FreeBSD (csh) — pipe a script to `doas /bin/sh` instead or use separate SSH commands
 
+### NetBSD (manual, pi0–pi1)
+
+```sh
+# All as root via doas; pkg_* tools live in /usr/sbin (not in non-interactive SSH PATH)
+export PATH=/usr/sbin:$PATH
+
+# Service group + user (once per host)
+doas groupadd dserver
+doas useradd -g dserver -d /var/run/dserver -s /sbin/nologin -c "DTail server" dserver
+
+# Install / update from the custom repo
+doas pkg_add https://pkgrepo.f3s.buetow.org/netbsd/10.1/packages/aarch64/dtail-4.3.2ng.tgz
+doas pkg_add -u https://pkgrepo.f3s.buetow.org/netbsd/10.1/packages/aarch64/dtail-4.3.2ng.tgz  # newer version
+# Same-version reinstall: pkg_delete dtail first, then pkg_add
+
+# Enable and start (rc.d script ships in the package)
+doas sh -c 'echo dserver=YES >> /etc/rc.conf'   # once per host
+doas /etc/rc.d/dserver start
+
+# Open port 2222 (once per host): add to the "external" group in /etc/npf.conf:
+#   pass stateful in final family inet4 proto tcp to $ext_if port 2222
+# then: doas npfctl validate && doas npfctl reload
+
+# Daily key-cache refresh (once per host; rc.d start also refreshes it)
+# root crontab entry: 30 4 * * * /usr/local/bin/dserver-update-key-cache.sh >/dev/null 2>&1
+```
+
+**NetBSD gotchas:**
+- The key cache lives in volatile `/var/run` but the rc.d `start_precmd` recreates and repopulates it on every start — no manual re-run needed after restart or reboot
+- `dserver -version` panics when run as root (`Not allowed to run as UID 0`) — check with `su -m dserver -c '/usr/local/bin/dserver -version'` or as a normal user
+
 ### Rocky Linux (dnf)
 
 ```sh
@@ -126,9 +173,14 @@ dcat --plain --noColor --trustAllHosts --user paul \
 dcat --plain --noColor --trustAllHosts --user root \
   --servers r0.lan.buetow.org,r1.lan.buetow.org,r2.lan.buetow.org --files /etc/fstab
 
-# Raspberry Pis (pi2–pi3, user paul) -- pi0/pi1 run NetBSD and don't run DTail
+# Raspberry Pis Rocky (pi2–pi3, user paul)
 dcat --plain --noColor --trustAllHosts --user paul \
   --servers pi2.lan.buetow.org,pi3.lan.buetow.org \
+  --files /etc/fstab
+
+# Raspberry Pis NetBSD (pi0–pi1, user paul)
+dcat --plain --noColor --trustAllHosts --user paul \
+  --servers pi0.lan.buetow.org,pi1.lan.buetow.org \
   --files /etc/fstab
 ```
 
@@ -139,4 +191,5 @@ dcat --plain --noColor --trustAllHosts --user paul \
 | 2026-04-19 | FreeBSD f0–f3 | `dtail-4.3.2-ng` installed, dserver running under `daemon(8)`, `dcat /etc/fstab` ✓ (`--user paul`) |
 | 2026-04-19 | OpenBSD blowfish, fishfinger | `dtail-4.3.2-ng` current, `dcat /etc/fstab` ✓ (`--user rex`) |
 | 2026-04-19 | Rocky r0–r2 | `dtail-4.3.2-ng` current, dserver running, `dcat /etc/fstab` ✓ (`--user root`) |
-| 2026-04-19 | Rocky pi0–pi3 | `dtail-4.3.2-ng` current, dserver running, `dcat /etc/fstab` ✓ (`--user paul`) |
+| 2026-04-19 | Rocky pi0–pi3 | `dtail-4.3.2-ng` current, dserver running, `dcat /etc/fstab` ✓ (`--user paul`) — pi0/pi1 since re-imaged to NetBSD |
+| 2026-07-09 | NetBSD pi0–pi1 | `dtail-4.3.2ng` installed (first NetBSD deployment), dserver running as `dserver` on 2222, `dcat /etc/fstab` ✓ (`--user paul`) |

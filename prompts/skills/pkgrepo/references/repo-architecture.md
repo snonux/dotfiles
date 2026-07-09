@@ -1,12 +1,12 @@
 # Repo Architecture
 
-Custom FreeBSD, OpenBSD, and Rocky Linux package repository served from k3s.
+Custom FreeBSD, OpenBSD, NetBSD, and Rocky Linux package repository served from k3s.
 
 ## Overview
 
 - **nginx pod** in k3s `infra` namespace serves static files from a PV
 - URL: `https://pkgrepo.f3s.buetow.org`
-- Path prefixes: `/freebsd/`, `/openbsd/`, `/rockylinux/`
+- Path prefixes: `/freebsd/`, `/openbsd/`, `/netbsd/`, `/rockylinux/`
 - TLS terminated by OpenBSD relayd on the internet gateways (not in the pod)
 - DNS, ACME certs, httpd fallback, and relayd routing auto-generated from `@f3s_hosts` in `frontends/Rexfile`
 - HTTP always redirected to HTTPS by the OpenBSD gateways — client URLs must use `https://`
@@ -26,6 +26,10 @@ Custom FreeBSD, OpenBSD, and Rocky Linux package repository served from k3s.
     7.8/
       packages/
         amd64/            # .tgz files (signify-signed)
+  netbsd/
+    10.1/
+      packages/
+        aarch64/          # .tgz files (unsigned) + pkg_summary.gz for pkgin
   rockylinux/
     9/
       x86_64/             # .rpm files + repodata/
@@ -46,6 +50,7 @@ Custom FreeBSD, OpenBSD, and Rocky Linux package repository served from k3s.
 | `packages/scripts/pkg-openbsd.sh` | Runs on fishfinger via SSH: `pkg_create` + signify signing |
 | `packages/scripts/pkg-dtail-openbsd.sh` | DTail multi-binary OpenBSD packaging |
 | `packages/scripts/pkg-dtail-freebsd.sh` | DTail multi-binary FreeBSD packaging |
+| `packages/scripts/pkg-dtail-netbsd.sh` | DTail multi-binary NetBSD packaging (runs on pi0 via SSH: `pkg_create` + `pkg_summary.gz`) |
 | `packages/scripts/pkg-dtail-rpm.sh` | Builds DTail RPMs from prebuilt or locally built payloads |
 
 ## SSH Access for Package Tasks
@@ -55,6 +60,7 @@ Custom FreeBSD, OpenBSD, and Rocky Linux package repository served from k3s.
 | f0 (FreeBSD, NFS) | `ssh -p 22 f0.lan.buetow.org` | `doas` | PV is local; default shell is **csh** |
 | fishfinger (OpenBSD) | `ssh rex@fishfinger.buetow.org` | `doas` | OpenBSD packages built here, then copied to f0 PV |
 | blowfish (OpenBSD) | `ssh rex@blowfish.buetow.org` | `doas` | Same setup as fishfinger |
+| pi0 (NetBSD) | `ssh -p 22 paul@pi0.lan.buetow.org` | `doas` | NetBSD packages assembled here (`pkg_create`), then copied to f0 PV; non-interactive SSH PATH lacks `/usr/sbin` (`pkg_*` live there) |
 
 ## Nginx Pod Gotcha — Stale NFS Handle
 
@@ -69,5 +75,6 @@ kubectl -n infra rollout status deployment/pkgrepo
 
 - **FreeBSD**: version follows ABI naming (`FreeBSD:15:amd64`); packages unsigned (`signature_type: "NONE"`); always regenerate metadata with `pkg repo` after adding/removing packages
 - **OpenBSD**: no repo index needed — `pkg_add` fetches by name; packages signed with signify; version in path must match host OS (currently 7.8)
+- **NetBSD**: packages unsigned; `pkg_add` works with a direct package URL, `pkg_summary.gz` alongside the packages enables pkgin; package versions must not contain dashes (`4.3.2-ng` → `4.3.2ng`); `+BUILD_INFO` (`MACHINE_ARCH`/`OS_VERSION`) is checked by `pkg_add` on install, which is why packages are assembled natively on pi0
 - **Rocky Linux**: standard DNF layout; unsigned repo (`gpgcheck=0`); architecture-specific paths (`x86_64` / `aarch64`)
 - **FreeBSD csh**: default shell is csh — avoid inline one-liners with `||`, `&&`, `!`, or multi-line quoting over SSH; use piped `/bin/sh` or separate SSH invocations
