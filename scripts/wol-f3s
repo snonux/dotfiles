@@ -44,12 +44,15 @@ PI3_IP="192.168.1.128"
 # from ~/.shelly_plug if that file exists.
 #
 # The shutdown paths need root (to umount NFS), so this script is typically
-# run via sudo. Under sudo $HOME becomes /root, where ~/.shelly_plug does not
-# exist — so resolve the file relative to the invoking user's home when
-# $SUDO_USER is set, falling back to $HOME otherwise.
+# run elevated. When elevated, $HOME becomes root's home, where ~/.shelly_plug
+# does not exist — so resolve the file relative to the invoking user's home
+# ($SUDO_USER under sudo on Linux, $DOAS_USER under doas on NetBSD Pis),
+# falling back to $HOME otherwise. Uses ~-expansion (portable) rather than
+# getent, which does not exist on NetBSD.
 SHELLY_IP="192.168.1.28"
-if [[ -n "${SUDO_USER:-}" ]]; then
-    _shelly_home="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+_shelly_user="${SUDO_USER:-${DOAS_USER:-}}"
+if [[ -n "$_shelly_user" ]]; then
+    _shelly_home="$(eval echo "~${_shelly_user}")"
     SHELLY_PASS_FILE="${_shelly_home:-$HOME}/.shelly_plug"
 else
     SHELLY_PASS_FILE="${HOME}/.shelly_plug"
