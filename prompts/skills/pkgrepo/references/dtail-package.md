@@ -41,7 +41,7 @@ Package name is `dtail-4.3.2ng` — NetBSD versions must not contain dashes, so 
 | File | Source template |
 |------|----------------|
 | `/usr/local/bin/dserver`, `dcat`, `dgrep`, `dmap`, `dtail`, `dtailhealth` | cross-compiled `GOOS=netbsd GOARCH=arm64 CGO_ENABLED=0 -tags nozstd` |
-| `/etc/dserver/dtail.json` | `frontends/etc/dserver/dtail-netbsd.json.tpl` (absolute `CacheDir`/`HostKeyFile` paths, like FreeBSD) |
+| `/etc/dserver/dtail.json` | `frontends/etc/dserver/dtail-netbsd.json.tpl` (absolute `CacheDir` like FreeBSD; `HostKeyFile` in persistent `/var/db/dserver/ssh_host_key`) |
 | `/etc/rc.d/dserver` | `frontends/etc/rc.d/dserver-netbsd.tpl` |
 | `/usr/local/bin/dserver-update-key-cache.sh` | `frontends/scripts/dserver-update-key-cache-netbsd.sh.tpl` (sh) |
 
@@ -49,6 +49,7 @@ NetBSD notes:
 - `pkg_create` runs natively on pi0 (Makefile ships binaries + templates there via SSH and runs `packages/scripts/pkg-dtail-netbsd.sh`); `pkg_summary.gz` for pkgin is generated and uploaded alongside
 - NetBSD has no `daemon(8)` and dserver doesn't daemonize — the rc.d script backgrounds it via `command_args="... &"` and runs it as user `dserver` (`dserver_user`)
 - `/var/run` is volatile — the rc.d `start_precmd` recreates `/var/run/dserver/cache` and re-runs the key-cache helper on every start; a daily root cron entry (`dserver-update-key-cache.sh`) keeps it fresh
+- The SSH host key lives in persistent `/var/db/dserver/ssh_host_key` (created by the precmd) so it survives reboots — unlike FreeBSD, where it sits in volatile `/var/run` and changes every restart. Packages before 2026-07-09 used the volatile path; after upgrading, DTail clients without `--trustAllHosts` must re-accept the host key once
 - npf firewall needs `pass stateful in final family inet4 proto tcp to $ext_if port 2222` in the `"external"` group of `/etc/npf.conf`
 
 ### Rocky Linux (r0–r2 amd64, pi2–pi3 aarch64)
@@ -135,6 +136,7 @@ doas /etc/rc.d/dserver start
 ```
 
 **NetBSD gotchas:**
+- The package deliberately does not create the `dserver` user/group (matching the FreeBSD package) — run the `groupadd`/`useradd` step above before the first service start or the rc.d precmd fails
 - The key cache lives in volatile `/var/run` but the rc.d `start_precmd` recreates and repopulates it on every start — no manual re-run needed after restart or reboot
 - `dserver -version` panics when run as root (`Not allowed to run as UID 0`) — check with `su -m dserver -c '/usr/local/bin/dserver -version'` or as a normal user
 
