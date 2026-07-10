@@ -45,11 +45,11 @@ Import files from supported USB devices mounted through GVFS.
 
 Modes:
   auto       Import from the single supported device currently connected.
-  fujifilm   Copy only JPEG files from a Fuji/Fujifilm camera.
+  fujifilm   Copy JPEG, RAW, and video files from a Fuji/Fujifilm camera.
   supernote  Copy the Supernote Nomad Note folder, then convert .note files to PDF.
 
 Default destinations:
-  Fujifilm JPEGs:        $FUJIFILM_DEST
+  Fujifilm media:        $FUJIFILM_DEST
   Supernote files:       $SUPERNOTE_DEST
 
 Environment overrides:
@@ -114,16 +114,17 @@ find_supernote_root() {
   return 1
 }
 
-is_jpeg_name() {
+is_fujifilm_media_name() {
   local name=$1
 
   case "$name" in
-    *.[Jj][Pp][Gg]|*.[Jj][Pp][Ee][Gg]) return 0 ;;
+    *.[Jj][Pp][Gg]|*.[Jj][Pp][Ee][Gg]|*.[Rr][Aa][Ff]|\
+      *.[Mm][Oo][Vv]|*.[Mm][Pp]4|*.[Aa][Vv][Ii]) return 0 ;;
     *) return 1 ;;
   esac
 }
 
-copy_fujifilm_jpegs_from_dir() {
+copy_fujifilm_media_from_dir() {
   local source_dir=$1 dest_root=$2
   local name _ignored type source_path dest_path
 
@@ -133,10 +134,10 @@ copy_fujifilm_jpegs_from_dir() {
 
     case "$type" in
       *directory*)
-        copy_fujifilm_jpegs_from_dir "$source_path" "$dest_root"
+        copy_fujifilm_media_from_dir "$source_path" "$dest_root"
         ;;
       *regular*)
-        is_jpeg_name "$name" || continue
+        is_fujifilm_media_name "$name" || continue
         increment TOTAL_FOUND
         dest_path="$dest_root/$name"
 
@@ -361,8 +362,8 @@ import_fujifilm() {
   log "Device: Fujifilm camera"
   log "Source: $root"
   log "Destination: $dest"
-  log "Importing JPEG files only; RAW files are ignored."
-  copy_fujifilm_jpegs_from_dir "$root" "$dest"
+  log "Importing JPEG, RAW, and video files."
+  copy_fujifilm_media_from_dir "$root" "$dest"
   finish_import "$dest"
 }
 
