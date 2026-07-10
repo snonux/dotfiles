@@ -31,7 +31,8 @@ OpenBSD notes:
   2. Reinstall the package (same-version: `pkg_add -u` is a no-op — `doas pkg_delete dtail` then `doas env PKG_PATH=... pkg_add dtail`)
   3. `doas rcctl restart dserver` — without this the running daemon keeps the old relative-path config until reboot
   (done on fishfinger 2026-07-10; **blowfish still runs the pre-2026-07-10 package**)
-- From the WireGuard VPN, `f0.lan.buetow.org` may not route — run the Makefile with `make dtail-openbsd FREEBSD_HOST=f0.wg0`
+- Since 2026-07-10 the rc.d script sets `rc_bg=YES` and calls `rc_cmd "$1"` normally — dserver does not daemonize itself, and rc.subr's `rc_bg` is the proper way to background it. Earlier packages backgrounded the whole framework (`rc_cmd $1 &`), which hid `rc_pre` failures and the start result from `rcctl`
+- From the WireGuard VPN, `f0.lan.buetow.org` may not route — run the Makefile with `make dtail-openbsd FREEBSD_HOST=f0.wg0` (same override applies to the other `dtail-*` targets, which upload via f0)
 
 ### FreeBSD (f0–f3)
 
@@ -42,7 +43,15 @@ OpenBSD notes:
 | `/usr/local/etc/rc.d/dserver` | `frontends/etc/rc.d/dserver-freebsd.tpl` |
 | `/usr/local/bin/dserver-update-key-cache.sh` | `frontends/scripts/dserver-update-key-cache-freebsd.sh.tpl` (sh) |
 
-**FreeBSD config note:** `dtail-freebsd.json.tpl` uses **absolute paths** for `CacheDir` and `HostKeyFile` (`/var/run/dserver/cache/...`). FreeBSD's `daemon(8)` resets CWD to `/`, so the relative `"cache"` in the standard template resolves to `/cache` — silently breaking key lookup. (Since dtail commit `fec2f9d`, absolute `CacheDir` paths also resolve independently of the CWD dserver was started from — before that fix, a manual service restart from a home directory broke public key auth.)
+**FreeBSD config note:** `dtail-freebsd.json.tpl` uses **absolute paths** for `CacheDir` and `HostKeyFile`. FreeBSD's `daemon(8)` resets CWD to `/`, so the relative `"cache"` in the standard template resolves to `/cache` — silently breaking key lookup. (Since dtail commit `fec2f9d`, absolute `CacheDir` paths also resolve independently of the CWD dserver was started from — before that fix, a manual service restart from a home directory broke public key auth.)
+
+FreeBSD notes:
+- FreeBSD's `cleanvar` purges `/var/run` at boot, so the SSH host key lives in persistent `/var/db/dserver/ssh_host_key` (mirrors NetBSD/OpenBSD). The rc.d `start_precmd` recreates `/var/run/dserver/cache` and `/var/db/dserver` and re-runs `dserver-update-key-cache.sh` on every start; the daily periodic job keeps it fresh afterwards
+- Packages before 2026-07-10 kept the host key in volatile `/var/run/dserver/cache/ssh_host_key` — it regenerated on every reboot. When upgrading a host from such a package, migrate the key FIRST (before restarting dserver) to preserve the host identity:
+  1. `doas install -d -o dserver -m 0700 /var/db/dserver && doas cp -p /var/run/dserver/cache/ssh_host_key /var/db/dserver/ssh_host_key`
+  2. `doas pkg update -f && doas pkg install -fy dtail` (same-version force reinstall)
+  3. `doas service dserver restart`
+  (done on f0/f1/f2 2026-07-10 — sha256 of the migrated key verified identical; **f3 was unreachable and still runs the pre-2026-07-10 package**)
 
 ### NetBSD (pi0, pi1 — aarch64)
 
@@ -59,7 +68,7 @@ NetBSD notes:
 - `pkg_create` runs natively on pi0 (Makefile ships binaries + templates there via SSH and runs `packages/scripts/pkg-dtail-netbsd.sh`); `pkg_summary.gz` for pkgin is generated and uploaded alongside
 - NetBSD has no `daemon(8)` and dserver doesn't daemonize — the rc.d script backgrounds it via `command_args="... &"` and runs it as user `dserver` (`dserver_user`)
 - `/var/run` is volatile — the rc.d `start_precmd` recreates `/var/run/dserver/cache` and re-runs the key-cache helper on every start; a daily root cron entry (`dserver-update-key-cache.sh`) keeps it fresh
-- The SSH host key lives in persistent `/var/db/dserver/ssh_host_key` (created by the precmd) so it survives reboots — unlike FreeBSD, where it sits in volatile `/var/run` and changes every restart. Packages before 2026-07-09 used the volatile path; after upgrading, DTail clients without `--trustAllHosts` must re-accept the host key once
+- The SSH host key lives in persistent `/var/db/dserver/ssh_host_key` (created by the precmd) so it survives reboots — since 2026-07-10 FreeBSD uses the same layout. Packages before 2026-07-09 used the volatile path; after upgrading, DTail clients without `--trustAllHosts` must re-accept the host key once
 - npf firewall needs `pass stateful in final family inet4 proto tcp to $ext_if port 2222` in the `"external"` group of `/etc/npf.conf`
 
 ### Rocky Linux (r0–r2 amd64, pi2–pi3 aarch64)
@@ -103,7 +112,8 @@ doas pw useradd dserver -d /var/run/dserver -s /usr/sbin/nologin
 doas sysrc dserver_enable=YES
 doas service dserver start
 
-# Populate key cache immediately (also runs daily via periodic)
+# Key cache is populated by the rc.d start_precmd on every service start;
+# run manually only when authorized_keys changed without a restart:
 doas /usr/local/bin/dserver-update-key-cache.sh
 
 # Register daily key cache refresh
@@ -114,7 +124,7 @@ doas chmod 755 /usr/local/etc/periodic/daily/200.dserver-update-key-cache
 ```
 
 **FreeBSD gotchas:**
-- `service dserver restart` clears `/var/run/dserver` (it's recreated by rc.d `start_precmd`, but the key cache files are gone) — always re-run `dserver-update-key-cache.sh` after any restart
+- Since the 2026-07-10 package the rc.d `start_precmd` re-runs `dserver-update-key-cache.sh` on every start, so the key cache repopulates automatically after restart or reboot (older packages required a manual re-run after any restart)
 - `pkg install -fy` replaces `/usr/local/etc/dserver/dtail.json` with the package version; local customisations are lost
 - Avoid inline one-liners with `||`, `!`, or multi-quote strings over SSH to FreeBSD (csh) — pipe a script to `doas /bin/sh` instead or use separate SSH commands
 
@@ -205,3 +215,5 @@ dcat --plain --noColor --trustAllHosts --user paul \
 | 2026-04-19 | Rocky r0–r2 | `dtail-4.3.2-ng` current, dserver running, `dcat /etc/fstab` ✓ (`--user root`) |
 | 2026-04-19 | Rocky pi0–pi3 | `dtail-4.3.2-ng` current, dserver running, `dcat /etc/fstab` ✓ (`--user paul`) — pi0/pi1 since re-imaged to NetBSD |
 | 2026-07-09 | NetBSD pi0–pi1 | `dtail-4.3.2ng` installed (first NetBSD deployment), dserver running as `dserver` on 2222, `dcat /etc/fstab` ✓ (`--user paul`) |
+| 2026-07-10 | FreeBSD f0–f2 | `dtail-4.3.2-ng` reinstalled with persistent host key (`/var/db/dserver`) — key migrated first, sha256 identical, mtime preserved; rc.d precmd repopulates key cache; `dcat /etc/fstab` ✓ (`--user paul`). **f3 unreachable (no route via wg0) — still on the pre-2026-07-10 package, migrate + upgrade when back** |
+| 2026-07-10 | OpenBSD fishfinger | `dtail-4.3.2-ng` reinstalled (rc_bg rc.d + hardened key-cache script); host key sha256/mtime unchanged, `rcctl restart` reports ok, `dcat /etc/fstab` ✓ (`--user rex`). blowfish still on the older package |
