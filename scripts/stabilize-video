@@ -14,6 +14,7 @@
 set -euo pipefail
 
 VADEVICE="/dev/dri/renderD128"
+trf_dir=""              # set by main; cleaned up by EXIT trap
 QUALITY="${QUALITY:-34}"          # HEVC CQP quality (higher = smaller)
 SHAKINESS="${SHAKINESS:-5}"       # vidstab shakiness 1..10
 ACCURACY="${ACCURACY:-15}"        # vidstab accuracy 1..15
@@ -92,9 +93,8 @@ main() {
 
   # Build the work list, skipping clips whose output already exists.
   local -a todo=()
-  local trf_dir
   trf_dir=$(mktemp -d -t stabilize-video.XXXXXX)
-  trap 'rm -rf "$trf_dir"' EXIT
+  trap '[[ -n "$trf_dir" ]] && rm -rf "$trf_dir"' EXIT
 
   for src in "${_mov_files[@]}"; do
     local out
