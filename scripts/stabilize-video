@@ -9,7 +9,8 @@
 #   stabilize-video clip1.MOV clip2.MOV   # or pass explicit files
 #
 # Outputs are written next to each source as `stabilised-<base>.mp4`.
-# Clips that already have a stabilized output are skipped.
+# On successful stabilization (output decodes OK) the original .MOV is
+# deleted. Clips that already have a stabilized output are skipped.
 
 set -euo pipefail
 
@@ -158,6 +159,9 @@ main() {
     if ffmpeg -v error -i "$out" -f null - 2>&1; then
       printf '  %-28s %s -> %s  (%ss, decode OK)\n' \
         "$base" "$src_h" "$out_h" "$dur"
+      # Stabilization succeeded — remove the original .MOV.
+      rm -f -- "$src"
+      echo "    deleted source: $src"
     else
       printf '  %-28s %s -> %s  DECODE ERROR\n' "$base" "$src_h" "$out_h" >&2
     fi
