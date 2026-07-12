@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+# Stabilize shaky Fujifilm X100V .MOV clips with ffmpeg's 2-pass vidstab
+# filter and encode compact 4K HEVC .mp4 output on Intel VAAPI (software
+# libx265 fallback when the GPU is unavailable).
+#
+# Usage:
+#   stabilize-video [DIR]                 # stabilize all *.MOV in DIR
+#   stabilize-video ~/Videos              # specify a directory
+#   stabilize-video clip1.MOV clip2.MOV   # or pass explicit files
+#
+# Outputs are written next to each source as `stabilised-<base>.mp4`.
+# Clips that already have a stabilized output are skipped.
+
+set -euo pipefail
+
+VADEVICE="/dev/dri/renderD128"
+QUALITY="${QUALITY:-34}"          # HEVC CQP quality (higher = smaller)
+SHAKINESS="${SHAKINESS:-5}"       # vidstab shakiness 1..10
+ACCURACY="${ACCURACY:-15}"        # vidstab accuracy 1..15
+UNSHARP="unsharp=5:5:0.8:3:3:0.4"
+
+# Collect the list of .MOV files to process.
+_mov_files=()
+if [[ $# -gt 0 ]]; then
+  for arg in "$@"; do
+    if [[ -d "$arg" ]]; then
+      while IFS= read -r -d '' f; do
+        _mov_files+=("$f")
+      done < <(find "$arg" -maxdepth 1 -type f -iname '*.MOV' -print0)
+    elif [[ -f "$arg" ]]; then
+      _mov_files+=("$arg")
+    else
+      echo "stabilize-video: not a file or directory: $arg" >&2
+      exit 1
+    fi
+  done
+else
+  while IFS= read -r -d '' f; do
+    _mov_files+=("$f")
+  done < <(find . -maxdepth 1 -type f -iname '*.MOV' -print0)
+fi
+
+if [[ ${#_mov_files[@]} -eq 0 ]]; then
+  echo "stabilize-video: no .MOV files found" >&2
+  exit 0
+fi
+
+# Detect whether VAAPI HEVC is usable on the configured device.
+_vaapi_ok=no
+if [[ -c "$VADEVICE" ]] \
+  && ffmpeg -hide_banner -vaapi_device "$VADEVICE" \
+       -f lavfi -i color=black:s=320x240:d=0.1 \
+       -vf 'format=nv12,hwupload' \
+       -c:v hevc_vaapi -f null - 2>/dev/null; then
+  _vaapi_ok=yes
+fi
+
+# Pass 1: motion detection (all clips in parallel — CPU-bound, read-only).
+_pass1() {
+  local src="$1" trf="$2"
+  ffmpeg -y -i "$src" \
+    -vf "vidstabdetect=shakiness=${SHAKINESS}:accuracy=${ACCURACY}:result=${trf}" \
+    -f null - 2>&1
+}
+
+# Pass 2: transform + sharpen + encode (serial — GPU is the bottleneck).
+_pass2() {
+  local src="$1" trf="$2" out="$3"
+  local vf="vidstabtransform=input=${trf},${UNSHARP}"
+  if [[ "$_vaapi_ok" == yes ]]; then
+    ffmpeg -y -vaapi_device "$VADEVICE" -i "$src" \
+      -map 0:v:0 -map '0:a:0?' \
+      -vf "${vf},format=nv12,hwupload" \
+      -c:v hevc_vaapi -rc_mode CQP -global_quality "$QUALITY" -tag:v hvc1 \
+      -c:a aac -b:a 128k -movflags +faststart "$out" 2>&1
+  else
+    ffmpeg -y -i "$src" \
+      -map 0:v:0 -map '0:a:0?' \
+      -vf "$vf" \
+      -c:v libx265 -preset medium -crf 28 -tag:v hvc1 \
+      -c:a aac -b:a 128k -movflags +faststart "$out" 2>&1
+  fi
+}
+
+_base() { basename "${1%.MOV}"; }
+_outfor() { printf '%s/stabilised-%s.mp4' "$(dirname "$1")" "$(basename "${1%.MOV}")"; }
+
+main() {
+  echo "stabilize-video: ${#_mov_files[@]} clip(s) to process"
+  echo "  device : $VADEVICE"
+  echo "  quality: $QUALITY (vaapi: $_vaapi_ok)"
+
+  # Build the work list, skipping clips whose output already exists.
+  local -a todo=()
+  local trf_dir
+  trf_dir=$(mktemp -d -t stabilize-video.XXXXXX)
+  trap 'rm -rf "$trf_dir"' EXIT
+
+  for src in "${_mov_files[@]}"; do
+    local out
+    out=$(_outfor "$src")
+    if [[ -f "$out" ]]; then
+      echo "  skip (exists): $out"
+      continue
+    fi
+    todo+=("$src")
+  done
+
+  if [[ ${#todo[@]} -eq 0 ]]; then
+    echo "stabilize-video: nothing to do (all outputs present)" >&2
+    exit 0
+  fi
+
+  # Pass 1 — parallel motion detection.
+  echo ""
+  echo "==> Pass 1: motion detection"
+  local pids=()
+  for src in "${todo[@]}"; do
+    local base trf
+    base=$(_base "$src")
+    trf="${trf_dir}/${base}.trf"
+    echo "  [P1] $src"
+    _pass1 "$src" "$trf" | sed "s/^/    [$base P1] /" &
+    pids+=("$!")
+  done
+  local fail=0
+  for pid in "${pids[@]}"; do
+    wait "$pid" || ((++fail))
+  done
+  if ((fail > 0)); then
+    echo "stabilize-video: pass 1 failed for $fail clip(s)" >&2
+    exit 1
+  fi
+
+  # Pass 2 — serial stabilize + encode.
+  echo ""
+  echo "==> Pass 2: stabilize + encode ($(_vaapi_label))"
+  for src in "${todo[@]}"; do
+    local base trf out
+    base=$(_base "$src")
+    trf="${trf_dir}/${base}.trf"
+    out=$(_outfor "$src")
+    echo "  [P2] $src -> $out"
+    _pass2 "$src" "$trf" "$out" | tail -3 | sed "s/^/    [$base P2] /"
+  done
+
+  # Verify outputs decode cleanly and report size reduction.
+  echo ""
+  echo "==> Verify"
+  for src in "${todo[@]}"; do
+    local base out src_h out_h dur
+    base=$(_base "$src")
+    out=$(_outfor "$src")
+    src_h=$(du -h "$src" | cut -f1)
+    out_h=$(du -h "$out" | cut -f1)
+    dur=$(ffprobe -v error -show_entries format=duration \
+      -of csv=p=0 "$out")
+    if ffmpeg -v error -i "$out" -f null - 2>&1; then
+      printf '  %-28s %s -> %s  (%ss, decode OK)\n' \
+        "$base" "$src_h" "$out_h" "$dur"
+    else
+      printf '  %-28s %s -> %s  DECODE ERROR\n' "$base" "$src_h" "$out_h" >&2
+    fi
+  done
+
+  echo ""
+  echo "stabilize-video: done"
+}
+
+_vaapi_label() {
+  if [[ "$_vaapi_ok" == yes ]]; then
+    echo "vaapi hevc"
+  else
+    echo "software libx265"
+  fi
+}
+
+main "$@"
