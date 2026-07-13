@@ -3,7 +3,9 @@ set -euo pipefail
 
 declare -r PROGRAM=${0##*/}
 declare -r GVFS_ROOT=${GVFS_ROOT:-"/run/user/$(id -u)/gvfs"}
-declare -r FUJIFILM_DEST=${FUJIFILM_DEST:-"$HOME/Documents/Inbox/Fujifilm"}
+declare -r FUJIFILM_DEST=${FUJIFILM_DEST:-"$HOME/Pictures/Fujifilm.Inbox"}
+declare -r FUJIFILM_RAW_DEST=${FUJIFILM_RAW_DEST:-"$HOME/Pictures/Fujifilm.RAW"}
+declare -r GPX_DIR=${GPX_DIR:-"$HOME/Documents/GPX"}
 declare -r SUPERNOTE_DEST=${SUPERNOTE_DEST:-"$HOME/Documents/Inbox/Supernote"}
 declare -r CONVERT_PARALLELISM=${CONVERT_PARALLELISM:-3}
 
@@ -14,6 +16,7 @@ declare -i TOTAL_FAILED=0
 declare -i TOTAL_CONVERTED=0
 declare -i TOTAL_CONVERT_SKIPPED=0
 declare -a CLEANUP_PATHS=()
+declare -a IMPORTED_IMAGE_PATHS=()
 
 log() {
   printf '%s\n' "$*"
@@ -49,11 +52,15 @@ Modes:
   supernote  Copy the Supernote Nomad Note folder, then convert .note files to PDF.
 
 Default destinations:
-  Fujifilm media:        $FUJIFILM_DEST
+  Fujifilm JPEG/video:   $FUJIFILM_DEST
+  Fujifilm RAW:          $FUJIFILM_RAW_DEST
+  GPX tracks:            $GPX_DIR
   Supernote files:       $SUPERNOTE_DEST
 
 Environment overrides:
   FUJIFILM_DEST=/path/to/dir
+  FUJIFILM_RAW_DEST=/path/to/dir
+  GPX_DIR=/path/to/dir
   SUPERNOTE_DEST=/path/to/dir
   CONVERT_PARALLELISM=3
   GVFS_ROOT=/run/user/UID/gvfs
@@ -114,18 +121,50 @@ find_supernote_root() {
   return 1
 }
 
-is_fujifilm_media_name() {
+is_raw_media_name() {
   local name=$1
 
   case "$name" in
-    *.[Jj][Pp][Gg]|*.[Jj][Pp][Ee][Gg]|*.[Rr][Aa][Ff]|\
+    *.[3][Ff][Rr]|*.[Aa][Rr][Ww]|*.[Cc][Rr]2|*.[Cc][Rr]3|\
+      *.[Dd][Cc][Rr]|*.[Dd][Nn][Gg]|*.[Ee][Rr][Ff]|*.[Gg][Pp][Rr]|\
+      *.[Ii][Ii][Qq]|*.[Kk][Dd][Cc]|*.[Mm][Ee][Ff]|*.[Mm][Oo][Ss]|\
+      *.[Mm][Rr][Ww]|*.[Nn][Ee][Ff]|*.[Nn][Rr][Ww]|*.[Oo][Rr][Ff]|\
+      *.[Pp][Ee][Ff]|*.[Rr][Aa][Ff]|*.[Rr][Aa][Ww]|*.[Rr][Ww]2|\
+      *.[Rr][Ww][Ll]|*.[Ss][Rr]2|*.[Ss][Rr][Ff]|*.[Ss][Rr][Ww]|\
+      *.[Xx]3[Ff]) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_fujifilm_media_name() {
+  local name=$1
+
+  if is_raw_media_name "$name"; then
+    return 0
+  fi
+
+  case "$name" in
+    *.[Jj][Pp][Gg]|*.[Jj][Pp][Ee][Gg]|\
       *.[Mm][Oo][Vv]|*.[Mm][Pp]4|*.[Aa][Vv][Ii]) return 0 ;;
     *) return 1 ;;
   esac
 }
 
+is_fujifilm_image_name() {
+  local name=$1
+
+  if is_raw_media_name "$name"; then
+    return 0
+  fi
+
+  case "$name" in
+    *.[Jj][Pp][Gg]|*.[Jj][Pp][Ee][Gg]) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 copy_fujifilm_media_from_dir() {
-  local source_dir=$1 dest_root=$2
+  local source_dir=$1 dest_root=$2 raw_dest_root=$3
   local name _ignored type source_path dest_path
 
   while IFS=$'\t' read -r name _ignored type _ignored; do
@@ -134,12 +173,16 @@ copy_fujifilm_media_from_dir() {
 
     case "$type" in
       *directory*)
-        copy_fujifilm_media_from_dir "$source_path" "$dest_root"
+        copy_fujifilm_media_from_dir "$source_path" "$dest_root" "$raw_dest_root"
         ;;
       *regular*)
         is_fujifilm_media_name "$name" || continue
         increment TOTAL_FOUND
-        dest_path="$dest_root/$name"
+        if is_raw_media_name "$name"; then
+          dest_path="$raw_dest_root/$name"
+        else
+          dest_path="$dest_root/$name"
+        fi
 
         if [[ -e $dest_path ]]; then
           log "skip existing: $name"
@@ -150,12 +193,52 @@ copy_fujifilm_media_from_dir() {
         log "copy: $source_path -> $dest_path"
         if gio copy -- "$source_path" "$dest_path"; then
           increment TOTAL_COPIED
+          if is_fujifilm_image_name "$name"; then
+            IMPORTED_IMAGE_PATHS+=("$dest_path")
+          fi
         else
           increment TOTAL_FAILED
         fi
         ;;
     esac
   done < <(gio list -a standard::name,standard::type "$source_dir")
+}
+
+geotag_imported_images() {
+  local -a gpx_files=() geotag_args=()
+  local gpx_file
+
+  if [[ ${#IMPORTED_IMAGE_PATHS[@]} -eq 0 ]]; then
+    log "No new images to GPS tag."
+    return 0
+  fi
+
+  if [[ -d $GPX_DIR ]]; then
+    mapfile -d '' -t gpx_files \
+      < <(find "$GPX_DIR" -type f -iname '*.gpx' -print0 | sort -z)
+  fi
+
+  if [[ ${#gpx_files[@]} -eq 0 ]]; then
+    log "No GPX files found under $GPX_DIR; skipping GPS tagging."
+    return 0
+  fi
+
+  require_command exiftool || {
+    increment TOTAL_FAILED
+    return 1
+  }
+
+  for gpx_file in "${gpx_files[@]}"; do
+    geotag_args+=(-geotag "$gpx_file")
+  done
+
+  log "GPS tagging ${#IMPORTED_IMAGE_PATHS[@]} image(s) from ${#gpx_files[@]} GPX file(s)."
+  if ! exiftool -overwrite_original -P "${geotag_args[@]}" \
+    -- "${IMPORTED_IMAGE_PATHS[@]}"; then
+    error "GPS tagging failed."
+    increment TOTAL_FAILED
+    return 1
+  fi
 }
 
 gio_modified_time() {
@@ -350,7 +433,7 @@ finish_import() {
 
 import_fujifilm() {
   local dest=${1:-$FUJIFILM_DEST}
-  local root
+  local raw_dest=$FUJIFILM_RAW_DEST root
 
   root=$(find_fujifilm_root) || {
     error "No GVFS Fuji/Fujifilm camera mount found under $GVFS_ROOT"
@@ -358,13 +441,16 @@ import_fujifilm() {
     return 1
   }
 
-  mkdir -p "$dest"
+  mkdir -p "$dest" "$raw_dest"
   log "Device: Fujifilm camera"
   log "Source: $root"
-  log "Destination: $dest"
+  log "JPEG/video destination: $dest"
+  log "RAW destination: $raw_dest"
+  log "GPX track directory: $GPX_DIR"
   log "Importing JPEG, RAW, and video files."
-  copy_fujifilm_media_from_dir "$root" "$dest"
-  finish_import "$dest"
+  copy_fujifilm_media_from_dir "$root" "$dest" "$raw_dest"
+  geotag_imported_images || true
+  finish_import "$dest (JPEG/video), $raw_dest (RAW)"
 }
 
 import_supernote() {
