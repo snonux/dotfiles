@@ -113,6 +113,12 @@ upload_file() {
     tmpfile=$(mktemp)
     trap "rm -f $tmpfile" RETURN
 
+    # Immich 3.x dropped the deviceAssetId/deviceId columns (migration
+    # DropDeviceIdAndDeviceAssetId). The /api/assets endpoint still tolerates
+    # those multipart fields but ignores them, so they are removed here to stay
+    # correct and future-proof. Duplicate detection is done server-side via the
+    # x-immich-checksum header (and the bulk-upload-check pre-pass), which
+    # returns HTTP 200 {"status":"duplicate"} instead of 201 {"status":"created"}.
     local http_code
     http_code=$(curl -s -o "$tmpfile" -w '%{http_code}' -X POST \
         -H "x-api-key: $api_key" \
@@ -121,8 +127,6 @@ upload_file() {
         -F "fileCreatedAt=$fileCreatedAt" \
         -F "fileModifiedAt=$fileModifiedAt" \
         -F "filename=$filename" \
-        -F "deviceAssetId=$checksum" \
-        -F "deviceId=immich-upload-cli" \
         "$IMMICH_URL/api/assets" 2>/dev/null) || { http_code="000"; }
 
     if [[ "$http_code" == "200" ]]; then
