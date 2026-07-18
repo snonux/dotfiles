@@ -32,6 +32,6 @@ Use `f3s` alongside this skill when the task depends on broader host-role or clu
 - `fishfinger` and `blowfish` as the OpenBSD frontend hosts
 - `r0-r2` as Rocky Linux x86_64 bhyve VMs
 - `pi2-pi3` as Rocky Linux aarch64 Raspberry Pi nodes
-- `pi0`/`pi1` as NetBSD aarch64 Raspberry Pi nodes (see the `f3s` skill's `bootstrap-netbsd-pi.md`) — NetBSD repo clients and the native NetBSD package build host (`pi0`)
+- `pi0`/`pi1` as NetBSD aarch64 Raspberry Pi nodes (see the `f3s-raspberry-pi` skill's `bootstrap-netbsd-pi.md`) — NetBSD repo clients and the native NetBSD package build host (`pi0`)
 - `earth` as the Fedora laptop used for package publication and verification
 - `f0-f3` as FreeBSD hosts

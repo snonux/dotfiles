@@ -9,8 +9,8 @@
 ## Prerequisites
 
 - All Rocky Linux VMs (r0, r1, r2) updated and running
-- WireGuard mesh fully configured (see [wireguard.md](../wireguard.md))
-- NVMe disk emulation in place (see [rocky-linux-vms.md](../rocky-linux-vms.md)) — critical for etcd performance
+- WireGuard mesh fully configured (see [wireguard.md](../../f3s/references/wireguard.md))
+- NVMe disk emulation in place (see [rocky-linux-vms.md](../../f3s/references/rocky-linux-vms.md)) — critical for etcd performance
 
 ## Installation
 
@@ -107,8 +107,8 @@ Persistent volumes use `hostPath` pointing to NFS-mounted paths:
 ```
 
 NFS is mounted on all r nodes at `/data/nfs/k3svolumes` via stunnel → CARP VIP →
-freeBSD NFS — see [storage/nfs.md](../storage/nfs.md). The
-[`nfs-mount-monitor`](../storage/nfs-mount-monitor.md) watchdog auto-repairs
+freeBSD NFS — see [storage/nfs.md](../../f3s-storage/references/nfs.md). The
+[`nfs-mount-monitor`](../../f3s-storage/references/nfs-mount-monitor.md) watchdog auto-repairs
 hung mounts and force-deletes stuck pods.
 
 Example PV:

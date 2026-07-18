@@ -10,7 +10,7 @@ Upstream install and examples live in the repo: `doc/installation.md`, `examples
 |-------|-----------|----------------|------------------|
 | **pi0–pi1** | NetBSD 10.1 **aarch64** (Raspberry Pi 3, see `bootstrap-netbsd-pi.md`) | Cross-build **netbsd/arm64**, `nozstd`; installed via `pkg_add` from the custom pkgrepo | `paul@piN.lan.buetow.org` |
 | **pi2–pi3** | Rocky Linux 9 **aarch64** (Raspberry Pi 3) | Cross-build **linux/arm64**, `nozstd` | `paul@piN.lan.buetow.org` |
-| **r0–r2** | Rocky Linux 9 **x86_64** (bhyve VMs, k3s nodes) | Cross-build **linux/amd64**, `nozstd` | Often `root@rN.lan.buetow.org` (see [Rocky Linux VMs](rocky-linux-vms.md)); add `root` (and `paul` if present) to **Server.Permissions.Users** in `dtail.json` |
+| **r0–r2** | Rocky Linux 9 **x86_64** (bhyve VMs, k3s nodes) | Cross-build **linux/amd64**, `nozstd` | Often `root@rN.lan.buetow.org` (see [Rocky Linux VMs](../../f3s/references/rocky-linux-vms.md)); add `root` (and `paul` if present) to **Server.Permissions.Users** in `dtail.json` |
 | **blowfish, fishfinger** | OpenBSD 7.8 **amd64** | Native OpenBSD package build | `rex@blowfish.buetow.org`, `rex@fishfinger.buetow.org` |
 
 `pi0`/`pi1` (NetBSD) run dserver since 2026-07-09 from the `dtail` package in the custom pkgrepo — build pipeline (`make dtail-netbsd`), install steps, rc.d/npf details, and gotchas live in the `pkgrepo` skill's `dtail-package.md`.
@@ -40,7 +40,7 @@ chmod 600 /var/run/dserver/cache/paul.authorized_keys
 
 ## dserver on r0, r1, r2 (k3s Rocky VMs, amd64)
 
-These hosts are the **x86_64** guests on f0/f1/f2. SSH and VM background: [Rocky Linux VMs](rocky-linux-vms.md), **DTail subsection** (same content in short form): [DTail (dserver) on r0–r2](rocky-linux-vms.md#dtail-dserver-on-r0r2). Shortcut index file: [dserver.d](dserver.d). **Do not** install the Pi **arm64** binary here.
+These hosts are the **x86_64** guests on f0/f1/f2. SSH and VM background: [Rocky Linux VMs](../../f3s/references/rocky-linux-vms.md), **DTail subsection** (same content in short form): [DTail (dserver) on r0–r2](../../f3s/references/rocky-linux-vms.md#dtail-dserver-on-r0r2). Shortcut index file: [dserver.d](dserver.d). **Do not** install the Pi **arm64** binary here.
 
 | Item | Value |
 |------|--------|
@@ -202,7 +202,7 @@ Use hostnames that resolve from where you run the client (often `*.lan.buetow.or
 
 For package-repo-backed DTail and other custom package repo tasks, use the sibling `pkgrepo` skill and its reference:
 
-- [Package Repositories](../../pkgrepo/references/package-repos.md)
+- [Package Repositories](../../pkgrepo/references/repo-architecture.md)
 
 That skill now owns:
 

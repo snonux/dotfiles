@@ -1,6 +1,6 @@
 ---
 name: f3s
-description: "Reference skill for the f3s homelab—four Beelink S12 Pro hosts (f0/f1/f2/f3) running FreeBSD with Rocky Linux Bhyve VMs and a k3s Kubernetes cluster. f0/f1/f2 run r0/r1/r2 k3s nodes; f3 is standalone bhyve only (not part of k3s) and hosts the plain Rocky Linux VM named rocky. Four Raspberry Pi 3 nodes (pi0–pi3): pi0 and pi1 run NetBSD 10.1 (the static f3s.buetow.org/snonux.foo HTTP pair), pi2/pi3 run Rocky Linux 9 with Pi-hole (Docker) and LAN wildcard DNS for *.f3s.lan.buetow.org. Covers DTail/dserver on Pis (arm64) and k3s VMs (amd64). Use when troubleshooting or making configuration decisions for the f3s setup."
+description: "Hub reference skill for the f3s homelab—four Beelink S12 Pro hosts (f0/f1/f2/f3) running FreeBSD with Rocky Linux Bhyve VMs and a k3s Kubernetes cluster. f0/f1/f2 run r0/r1/r2 k3s nodes; f3 is standalone bhyve only (not part of k3s) and hosts the plain Rocky Linux VM named rocky; plus four Raspberry Pi 3 nodes (pi0–pi3). This hub owns the master host/IP inventory, the physical hosts, bhyve layer, power, WireGuard mesh, and off-LAN access; detailed subsystems live in sibling skills: f3s-storage, f3s-k3s, f3s-observability, f3s-workloads, f3s-raspberry-pi, f3s-dtail (also pkgrepo, rocky-vm-setup). Use for host/network/context questions or as the entry point to the f3s skill family."
 ---
 
 # f3s Homelab Reference
@@ -15,7 +15,10 @@ description: "Reference skill for the f3s homelab—four Beelink S12 Pro hosts (
 
 ## Reference Files
 
-Detailed reference documentation is in the `references/` subfolder:
+This hub keeps the cross-cutting host/network references that every other f3s
+skill links back to. Topic-specific detail lives in the sibling skills (see
+"Related skills" below). Detailed reference documentation is in the `references/`
+subfolder:
 
 - [Hardware](references/hardware.md) — Beelink S12 Pro specs, network switch, IPs, MAC addresses, Wake-on-LAN
 - [FreeBSD Setup](references/freebsd-setup.md) — Base OS install, packages, ZFS snapshots, configuration
@@ -24,26 +27,9 @@ Detailed reference documentation is in the `references/` subfolder:
 - [Rocky Linux VMs](references/rocky-linux-vms.md) — Bhyve, vm-bhyve, VM config, NVMe disk fix; FreeBSD VM on f3 (migrated from f0)
 - [f3 Rocky VM](references/f3-rocky-vm.md) — Plain Rocky Linux 9 VM on f3 (`rocky`, `192.168.1.123`), autostart policy, root SSH
 - [Bootstrap Rocky bhyve VM](references/bootstrap-rocky-bhyve.md) — Runbook for creating a new plain Rocky Linux bhyve guest with unattended kickstart
-- [NetBSD Pi Setup](references/bootstrap-netbsd-pi.md) — How services are installed on `pi0`/`pi1` (NetBSD): doas/pkgin bootstrap, WireGuard via userspace `wireguard-go` (no native `wg(4)` on this platform), bozohttpd (`-X` for dir-listing parity, vhost symlinks for every real routed hostname), uptimed built from source, npf firewall, content-sync setup. dserver (DTail) is installed from the custom pkgrepo — see the `pkgrepo` skill's `dtail-package.md`.
-- [WireGuard Mesh](references/wireguard.md) — Mesh topology, IP assignments, peer configs
-- [Storage](references/storage.md) — index into `references/storage/`: ZFS (zdata), zrepl, CARP, NFS over stunnel, nfs-mount-monitor, troubleshooting (incl. thermal), backups & local-path
-- [r-node Deploy (Rex)](references/r-node-deploy.md) — reusable Rex rollout to **r0/r1/r2** (`f3s/r-nodes/Rexfile`, task `nfs_mount_monitor`): root SSH, `parallelism 3`, idempotent `file`/`on_change` reload, verify with `systemctl`/`journalctl`
+- [WireGuard Mesh](references/wireguard.md) — Mesh topology, IP assignments, peer configs (the canonical WireGuard reference for the whole homelab)
 - [Remote Access](references/remote-access.md) — reaching f-hosts, r-VMs, rocky, and Pis from outside the LAN via fishfinger/blowfish ProxyJump; user/key requirements per host type; f3 WireGuard caveat
-- [k3s Setup](references/k3s-setup.md) — index into `references/k3s-setup/`: install (bootstrap, kubeconfig, PVs, ArgoCD), remote access off-LAN (jump via OpenBSD frontend → `root@r0.wg0` → kubectl), ingress (OpenBSD/FreeBSD relayd, cert-manager), troubleshooting (etcd recovery)
-- [Observability](references/observability.md) — index into `references/observability/`: stack (Prometheus/Alloy/Loki/Tempo + alerting), FreeBSD monitoring (node_exporter + recording rules)
-- [Immich](references/immich.md) — Photo server deployment, job queue stats, troubleshooting
-- [Garage](references/garage.md) — Garage cluster, edge domain routing, S3 bucket/key workflow, troubleshooting
-- [DTail / dserver](references/dtail.md) — dserver: Pis **arm64** vs r0–r2 **amd64**, r-VM **root** + `root.authorized_keys` cache, firewalld **2222**, systemd timers
-- [dserver.d](references/dserver.d) — index: links to **Rocky r-VM DTail** subsection and full **dtail.md**
-- [Pi-hole on Pis](references/pihole-pi.md) — **pi2/pi3** Docker Pi-hole, **`~/pihole`**, **`*.f3s.lan.buetow.org` → 192.168.1.138**, paths under **`f3s/pihole/docker-pi/`**
-- [goprecords / uptimed uploads](references/goprecords-uptimed.md) — **`https://goprecords.f3s.buetow.org`**, **`PUT /upload`**, OpenBSD **Rex** daily vs **FreeBSD/Pi** manual hourly **`cron`** / **systemd**, **`contrib/goprecords-upload-client.sh`**, **geheim** tokens
-- [Player](references/player.md) — **`https://player.f3s.buetow.org`**, image build/push workflow, Helm chart path, ArgoCD sync, NFS PV/PVC notes
-- [yChat](references/ychat.md) — **`https://ychat.f3s.lan.buetow.org/`**, legacy C++ chat server, image build/push, Helm chart (`f3s/ychat/helm-chart`) + ArgoCD, **deployed** (image tag `67babb2`, `ychat-data-pvc` hostPath-backed NFS share at `/app/data`); this is the single home for f3s deployment details (the public ychat repo keeps cluster specifics out of scope)
 - [Shelly Plug (Rack Fans)](references/shelly-plug.md) — **Shelly Plug M Gen 3** at **`192.168.1.28`** powering the rack fans; digest auth (`admin`), secret on **`/keys/shelly_plug.secret`** (f-hosts) / **`~/.shelly_plug`** (earth/Pis); boot-time auto-on rc.d service (**`f3s/freebsd-hosts/shelly-fans/`**), `wol-f3s` on/off integration, HTTP RPC API
-
-Package repository details were split into the sibling `pkgrepo` skill. Use `pkgrepo` for `pkgrepo.f3s.buetow.org`, repo layout, package publication, and client repo configuration.
-
-The plain Rocky Linux VM on f3 (`rocky`, `192.168.1.123`) is documented in the sibling [`rocky-vm-setup`](skills/rocky-vm-setup) skill. Use that for SSH keys, git remotes, tooling (tmux/fish/claude-code/pi/taskwarrior/Rex), zrepl replication, and user privileges.
 
 ## Quick Reference: Host IPs
 
@@ -67,52 +53,20 @@ The plain Rocky Linux VM on f3 (`rocky`, `192.168.1.123`) is documented in the s
 | pi2 | Raspberry Pi 3, Rocky Linux 9, Pi-hole (Docker, host net) | 192.168.1.127 | — |
 | pi3 | Raspberry Pi 3, Rocky Linux 9, Pi-hole (Docker, host net) | 192.168.1.128 | — |
 
-## Raspberry Pi Nodes
+## Related skills
 
-`pi2`/`pi3` run Rocky Linux 9.2 (Blue Onyx) aarch64 from the SIG/AltArch image (`RockyLinuxRpi_9-latest.img.xz`). `pi0` and `pi1` run **NetBSD 10.1** (evbarm-aarch64). Each Rocky Pi has:
+Detailed subsystems were carved out of this hub into focused sibling skills. Load
+the one that matches the task; this hub stays the canonical home for the host/IP
+table, physical hosts, WireGuard mesh, and off-LAN access that they all link back to.
 
-- User `paul` with passwordless sudo and SSH key auth
-- Static IP on eth0 via NetworkManager
-- Hostname `piN.lan.buetow.org`
-- Filesystem expanded with `rootfs-expand`
-- Default `rocky` user still present (password: `rockylinux`)
-- No GRUB — boots via Pi's native bootloader (`/boot/cmdline.txt`)
-- Custom RPi kernel from the `rockyrpi` repo
-
-`pi0`/`pi1` (NetBSD) differ: user `paul` in `wheel`, privilege escalation via a **real `doas`** (pkgsrc `security/doas`, `permit nopass :wheel`) — not the `alias doas=sudo` shell alias `pi2`/`pi3` carry in `/etc/profile.d/doas.sh`, which doesn't expand in the non-interactive shell an SSH command runs in and so silently breaks `wol-f3s shutdown-pis`/`shutdown-all` for the Rocky Pis (`doas poweroff` resolves to nothing) — only the NetBSD nodes actually work with that script today. Config repo home for NetBSD-specific setup: `f3s/pi-netbsd/`. Service setup details: [NetBSD Pi Setup](references/bootstrap-netbsd-pi.md).
-
-Current role split:
-
-- `pi0` and `pi1` serve static `f3s.buetow.org`/`snonux.foo` content behind OpenBSD `relayd` over WireGuard. WireGuard peers are `blowfish`, `fishfinger`, **and `rocky`** (not gateway-only to just the two frontends, despite older docs here). All rc.d services (`wireguard`, `bozohttpd`, `uptimed`, `npf`, `dserver`) and both crontabs are enabled via `rc.conf` and come back automatically on reboot.
-- `pi2` and `pi3` run **Pi-hole** in Docker (`network_mode: host`, `~/pihole` on each host). Tracked dnsmasq LAN wildcard: **`f3s/pihole/docker-pi/`** in the conf repo; details in [references/pihole-pi.md](references/pihole-pi.md).
-
-### Webserver Configuration
-
-Both `pi0` and `pi1` run **bozohttpd** (built into NetBSD base, no package/config file) via a custom `/etc/rc.d/bozohttpd` (the stock rc.d/httpd script ignores `httpd_flags` entirely — never references it — so flags had to go directly in this script's own `command_args`), using `-v`/`-V` for vhosting instead of lighttpd's `$HTTP["host"]` regex match — a vhost needs a directory *literally* named after the hostname (e.g. `snonux.foo/`, with `www.snonux.foo` a symlink to it). Also needs **`-X`** (directory indexing) — without it, bare directories with no `index.html` (e.g. `/fotos/<gallery>/` at the top level) 404 instead of showing a listing.
-
-**bozohttpd `-V` fallback note**: `f3s.buetow.org` (the real routed hostname — relayd forwards `f3s.buetow.org`/`www.f3s.buetow.org`/`standby.f3s.buetow.org`, all Host-matched via `match request header "Host" value ... forward to <f3s_static_proxy>` in `relayd.conf` on the frontends; there is no separate `scifi.f3s.buetow.org` subdomain, `/scifi/` is just a **path** under it) needs its own vhost directory — without one it hits the `-V` fallback, and bozohttpd's directory-without-trailing-slash redirect in that fallback path uses its own **system hostname** (e.g. `pi0.lan.buetow.org`) instead of the client's `Host:` header, unlike a vhost-*matched* request (which correctly echoes back the matched name, e.g. `snonux.foo`). Since the system hostname doesn't resolve outside the LAN, external clients following that redirect would hang. Fixed with self-referencing vhost symlinks so these hostnames become vhost matches instead of fallbacks: `ln -sf . /var/www/html/f3s.buetow.org`, same for `www.f3s.buetow.org` and `standby.f3s.buetow.org`.
-
-- Document root: `/var/www/html` (same path on both nodes)
-- SSH access: `ssh paul@piN.lan.buetow.org -p 22`
-- Host-based virtual hosting maps domains to subdirectories: `snonux.foo` / `www.snonux.foo` → `/var/www/html/snonux.foo`
-- `pi1` pulls content hourly from `pi0` (`/usr/local/bin/sync-from-pi0.sh`, cron `:47`) — `pi0` is the source of truth for the docroot.
-
-**Why Host-based vhosts?** `relayd` on the OpenBSD frontends cannot rewrite URL paths. It forwards requests with the original path intact. To serve a subdirectory as root for a domain, lighttpd must remap the document root based on the `Host` header.
-
-Example vhost block:
-```
-$HTTP["host"] =~ "^(www\.)?snonux\.foo$" {
-  server.document-root = "/var/www/html/snonux"
-}
-```
-
-**Note**: The pcre2 JIT warning (`no more memory`) on Pi 3 hardware is harmless — regex matching still works, just without JIT compilation.
-
-## DTail (dserver)
-
-Distributed log access over SSH on port **2222** (not sshd’s 22). **pi2–pi3**: cross-build **linux/arm64** + `DTAIL_NO_ZSTD=yes`. **pi0**/**pi1** (NetBSD): run dserver since 2026-07-09 from the custom pkgrepo (`GOOS=netbsd GOARCH=arm64 CGO_ENABLED=0 -tags nozstd` cross-build, NetBSD `rc.d` script, npf port **2222** rule; see the `pkgrepo` skill's `dtail-package.md`). **r0–r2** (k3s Rocky VMs): **linux/amd64** only; install as **root** over SSH; **`dtail.json` must list `root` in `Server.Permissions.Users`**; mirror **`/root/.ssh/authorized_keys`** → `/var/run/dserver/cache/root.authorized_keys` because the key-cache script only walks `/home/*`. **firewalld**: open **2222/tcp**. Rebuild clients from current **dtail** `master` if the “trust these hosts” prompt still hangs (stdout pause bug fixed upstream).
-
-Details: [references/dtail.md](references/dtail.md) (section **dserver on r0, r1, r2**).
+- [`f3s-storage`](../f3s-storage/SKILL.md) — ZFS (`zdata`), zrepl, CARP VIP, NFS over stunnel, nfs-mount-monitor, USB keys, backups, storage troubleshooting
+- [`f3s-k3s`](../f3s-k3s/SKILL.md) — k3s cluster install, off-LAN access, ingress, ArgoCD, etcd recovery, r-node Rex rollout
+- [`f3s-observability`](../f3s-observability/SKILL.md) — Prometheus/Alloy/Loki/Tempo + alerting, FreeBSD node_exporter
+- [`f3s-raspberry-pi`](../f3s-raspberry-pi/SKILL.md) — pi0/pi1 NetBSD static `f3s.buetow.org`/`snonux.foo` site (bozohttpd), pi2/pi3 Pi-hole + LAN wildcard DNS
+- [`f3s-workloads`](../f3s-workloads/SKILL.md) — hosted apps: Immich, Garage, Player, yChat, goprecords/uptimed
+- [`f3s-dtail`](../f3s-dtail/SKILL.md) — DTail/dserver deployment/ops (SSH port 2222)
+- [`pkgrepo`](../pkgrepo/SKILL.md) — `pkgrepo.f3s.buetow.org`, repo layout, package publication, client repo config (incl. the `dtail` package build)
+- [`rocky-vm-setup`](../rocky-vm-setup/SKILL.md) — the plain Rocky Linux VM on f3 (`rocky`, `192.168.1.123`): SSH keys, git remotes, tooling, zrepl, user privileges
 
 ## Config Repository
 

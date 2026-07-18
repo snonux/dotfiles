@@ -36,7 +36,7 @@ Install **`curl`** and **`uptimed`** on every client that uploads.
 | OpenBSD frontends | **fishfinger**, **blowfish** | **Rex** **`goprecords_upload`** in **`~/git/conf/frontends`**; **`/etc/daily.local`** runs **`/usr/local/bin/goprecords-upload.sh`** once per **day** | Tokens in **geheim** **`secrets/etc/goprecords/<host>.token`**; template **`scripts/goprecords-upload.sh.tpl`** |
 | FreeBSD (Beelinks) | **f0**–**f3** (LAN **`192.168.1.130`–`133`**) | Manual **hourly** **root** **`cron`** calling **`goprecords-upload-client.sh`** with **`GOPRECORDS_HOST=f0`** … **`f3`** | **`/var/db/uptimed/records`**; SSH: **`fN.lan.buetow.org`** or **`192.168.1.(130+N)`** for **fN**, **`-p 22`** |
 | Raspberry Pi (Rocky) | **pi2**–**pi3** | Manual **hourly** **systemd** **timer** (see README) | **`/var/spool/uptimed/records`**; uptimed waits for chronyd via a systemd override (see below); SSH: **`piN.lan.buetow.org`**, **`-p 22`** |
-| Raspberry Pi (NetBSD) | **pi0**–**pi1** | Manual **hourly** **root** **`cron`** (no systemd) calling **`goprecords-upload-client.sh`** with **`GOPRECORDS_HOST=pi0`**/**`pi1`** | **`/var/spool/uptimed/records`**; `ntpdate=YES` and uptimed requires the `ntpdate` rc.d milestone; see [NetBSD Pi setup](bootstrap-netbsd-pi.md#uptimed-built-from-source--no-prebuilt-package); SSH: **`piN.lan.buetow.org`**, **`-p 22`** |
+| Raspberry Pi (NetBSD) | **pi0**–**pi1** | Manual **hourly** **root** **`cron`** (no systemd) calling **`goprecords-upload-client.sh`** with **`GOPRECORDS_HOST=pi0`**/**`pi1`** | **`/var/spool/uptimed/records`**; `ntpdate=YES` and uptimed requires the `ntpdate` rc.d milestone; see [NetBSD Pi setup](../../f3s-raspberry-pi/references/bootstrap-netbsd-pi.md#uptimed-built-from-source--no-prebuilt-package); SSH: **`piN.lan.buetow.org`**, **`-p 22`** |
 | Fedora laptop | **earth** | **user** **systemd** **`oneshot` + hourly timer** `goprecords-upload-earth.{service,timer}` | Service sets **`Environment=GOPRECORDS_HOST=earth`** and runs **`~/.local/bin/goprecords-upload-earth.sh`**; token **`~/.config/goprecords-upload-earth/token`** |
 | Mac (uptimed) → published by earth | **mega-m3-pro** (raw host `MBDVXJ4XKH9C`) | Mac drops records into the **worktime** git repo; **earth** pushes them via a **second `ExecStart`** in `goprecords-upload-earth.service` | See [Mac / mega-m3-pro via earth](#mac--mega-m3-pro-via-earth) below |
 
@@ -122,7 +122,7 @@ The logic lives in a **fish helper kept in the (private) worktime repo**, **`~/g
 kubectl exec -n services deployment/goprecords -- \
   goprecords --create-client-key mega-m3-pro -stats-dir=/data/stats
 ```
-Re-issuing **replaces** any previous `mega-m3-pro` token (the Mac used to upload directly until it switched to the repo route). When roaming, reach the cluster via the OpenBSD frontend jump (see [k3s remote access](k3s-setup/remote-access.md)), then store the printed token in `~/.config/goprecords-upload-mega-m3-pro/token` on earth.
+Re-issuing **replaces** any previous `mega-m3-pro` token (the Mac used to upload directly until it switched to the repo route). When roaming, reach the cluster via the OpenBSD frontend jump (see [k3s remote access](../../f3s-k3s/references/remote-access.md)), then store the printed token in `~/.config/goprecords-upload-mega-m3-pro/token` on earth.
 
 ## Related conf repo paths
 

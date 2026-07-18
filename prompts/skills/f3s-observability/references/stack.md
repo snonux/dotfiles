@@ -68,7 +68,7 @@ kubeControllerManager:
     insecureSkipVerify: true
 ```
 
-Also requires k3s config changes on each r node — see [k3s-setup/install.md](../k3s-setup/install.md).
+Also requires k3s config changes on each r node — see [k3s-setup/install.md](../../f3s-k3s/references/install.md).
 
 ### Grafana credentials
 

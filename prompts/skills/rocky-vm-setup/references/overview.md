@@ -2,7 +2,7 @@
 
 The `rocky` VM is a plain Rocky Linux 9 bhyve guest on **f3** (LAN IP `192.168.1.123`, WireGuard `192.168.2.123`). It is **not** part of the k3s cluster and serves as a general-purpose build / dev / git client VM.
 
-Parent infrastructure: see the [`f3s`](skills/f3s) skill (f3 host, zrepl, bhyve, git server).
+Parent infrastructure: see the [`f3s`](../../f3s/SKILL.md) skill (f3 host, zrepl, bhyve, git server).
 
 ## SSH Keys
 

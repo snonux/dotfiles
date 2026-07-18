@@ -137,7 +137,7 @@ ssh -A -J rex@fishfinger.buetow.org root@r0.wg0 \
 
 - The **behavior** of the deployed monitor (probes, fail-counter, cordon &
   auto-reboot escalation, alerting) is documented separately in
-  [storage/nfs-mount-monitor.md](storage/nfs-mount-monitor.md). This file
+  [storage/nfs-mount-monitor.md](../../f3s-storage/references/nfs-mount-monitor.md). This file
   covers only the *deploy mechanism*; that one covers *what gets deployed*.
 - There are sibling Rexfiles in the conf repo (`f3s/garage/Rexfile`,
   `frontends/Rexfile`) that follow the same group/user/idempotent-`file`

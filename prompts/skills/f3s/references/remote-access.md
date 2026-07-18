@@ -63,7 +63,7 @@ in gq0 — pubkeys and PSKs corrected on f3 and on fishfinger/blowfish.)
 ### Reaching r-VMs (Rocky Linux) and `rocky`
 
 The k3s Rocky VMs (`r0`–`r2`) and the standalone `rocky` VM allow SSH as
-**`root`** directly. See [k3s-setup/remote-access.md](k3s-setup/remote-access.md)
+**`root`** directly. See [k3s-setup/remote-access.md](../../f3s-k3s/references/remote-access.md)
 for the cluster-access workflow.
 
 ```sh

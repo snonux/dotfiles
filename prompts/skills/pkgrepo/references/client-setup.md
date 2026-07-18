@@ -101,7 +101,7 @@ Notes:
 
 ## Rocky Linux (r0–r2, pi2–pi3)
 
-`pi0`/`pi1` run NetBSD (see above and the `f3s` skill's `bootstrap-netbsd-pi.md`) and are not Rocky clients of this repo.
+`pi0`/`pi1` run NetBSD (see above and the `f3s-raspberry-pi` skill's `bootstrap-netbsd-pi.md`) and are not Rocky clients of this repo.
 
 Architecture-specific repo URLs:
 - `https://pkgrepo.f3s.buetow.org/rockylinux/9/x86_64/`  (r0–r2)

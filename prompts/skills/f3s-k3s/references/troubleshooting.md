@@ -46,4 +46,4 @@ kubectl get nodes  # r1 should return to Ready
 
 If NFS goes down cluster-wide, the root cause is usually on the FreeBSD NFS
 server side (f0/f1). Check CARP state, stunnel, nfsd, and
-`vfs.nfsd.nfs_privport` — see [storage/troubleshooting.md](../storage/troubleshooting.md).
+`vfs.nfsd.nfs_privport` — see [storage/troubleshooting.md](../../f3s-storage/references/troubleshooting.md).

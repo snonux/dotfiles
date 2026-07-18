@@ -1,4 +1,9 @@
-# Observability Stack
+---
+name: f3s-observability
+description: Reference skill for the f3s homelab observability stack, Prometheus, Grafana Alloy, Loki, Tempo, and alerting on the k3s cluster, plus FreeBSD host monitoring (node_exporter + recording rules). Use when working on metrics, logs, traces, dashboards, or alerts for the homelab. Part of the f3s homelab skill family (hub, [`f3s`](../f3s/SKILL.md)).
+---
+
+# f3s Observability Stack
 
 Observability stack deployed into the `monitoring` namespace of the k3s cluster.
 
@@ -20,10 +25,16 @@ Observability stack deployed into the `monitoring` namespace of the k3s cluster.
 | **Loki** | Log aggregation (single-binary mode) | **Disabled** |
 | **Tempo** | Distributed tracing backend | **Disabled** |
 
-## Sub-references
+## When to Use
 
-- [Stack](observability/stack.md) — install Prometheus / Alloy / Loki / Tempo, alerting → Gogios, Prometheus TSDB recovery, LogQL queries, NFS storage paths
-- [FreeBSD Monitoring](observability/freebsd.md) — `node_exporter` on f-hosts, scrape config, memory & ZFS recording rules
+- Working on metrics, logs, traces, dashboards, or alerts for the homelab
+- Prometheus/Alloy config, alerting, TSDB recovery, or FreeBSD host monitoring
+- For the k3s cluster this runs on, see [`f3s-k3s`](../f3s-k3s/SKILL.md); for hosts/IPs, the [`f3s`](../f3s/SKILL.md) hub.
+
+## Reference Files
+
+- [Stack](references/stack.md) — install Prometheus / Alloy / Loki / Tempo, alerting → Gogios, Prometheus TSDB recovery, LogQL queries, NFS storage paths
+- [FreeBSD Monitoring](references/freebsd.md) — `node_exporter` on f-hosts, scrape config, memory & ZFS recording rules
 
 ## Monitoring Scope
 

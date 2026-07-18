@@ -38,7 +38,7 @@ Admin UI: **`http://pi2.lan.buetow.org/admin/`** (and pi3).
 
 ## Timekeeping on the RTC-less Pis
 
-pi2 and pi3 have no hardware RTC, so their clocks are stale briefly during boot until chronyd synchronizes. `uptimed` must not start in that window: both hosts use a systemd override that waits for `chronyc waitsync`, preventing invalid boot timestamps and missing active markers in goprecords. The canonical override, recovery procedure, and verification commands are in [goprecords-uptimed.md](goprecords-uptimed.md#rocky-pi-uptimed-clock-synchronization).
+pi2 and pi3 have no hardware RTC, so their clocks are stale briefly during boot until chronyd synchronizes. `uptimed` must not start in that window: both hosts use a systemd override that waits for `chronyc waitsync`, preventing invalid boot timestamps and missing active markers in goprecords. The canonical override, recovery procedure, and verification commands are in [goprecords-uptimed.md](../../f3s-workloads/references/goprecords-uptimed.md#rocky-pi-uptimed-clock-synchronization).
 
 ## Public DNS note
 

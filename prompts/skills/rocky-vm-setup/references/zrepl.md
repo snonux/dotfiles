@@ -9,4 +9,4 @@ The rocky VM dataset `zroot/bhyve/rocky` is managed by **zrepl** on the FreeBSD 
 | Retention | 10 immediate + 24 hourly + 14 daily |
 | Local snap job | `zroot/bhyve/rocky` excluded from `local_zfs_snapshots` |
 
-See [`f3s` skill zrepl.md](skills/f3s/references/storage/zrepl.md) for full config.
+See [`f3s` skill zrepl.md](../../f3s-storage/references/zrepl.md) for full config.
