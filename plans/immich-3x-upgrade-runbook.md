@@ -1,11 +1,57 @@
 # Immich 3.x Upgrade Runbook (f3s)
 
-**Status:** PLAN ONLY. Nothing in this document has been applied to the live cluster.
-Executing it later is a separate, deliberate action.
+**Status:** ✅ COMPLETED on 2026-07-18. Immich was upgraded live from v2.7.5 to
+**v3.0.3** on VectorChord. See the "Execution record" section below for what actually
+happened and the findings that this plan (written beforehand) could not confirm.
 
 **Task:** `7t0` — Upgrade the Immich f3s installation to 3.x.
 
 **Date written:** 2026-07-18
+
+---
+
+## Execution record (2026-07-18) — what actually happened
+
+The upgrade was carried out live, GitOps-driven, and completed successfully. Outcome:
+
+- **server + machine-learning:** `v2.7.5` → **`v3.0.3`**
+- **postgres:** `tensorchord/pgvecto-rs:pg16-v0.3.0` →
+  **`ghcr.io/immich-app/postgres:16-vectorchord0.4.3-pgvector0.8.0-pgvectors0.3.0`**
+  (chosen to match the installed `vectors` 0.3.0 catalog; verified to exist on ghcr
+  with a `linux/amd64` manifest before use).
+- **Data intact & migrated:** 87,522 assets; 78,159 + 15,139 embeddings reindexed onto
+  the `vchordrq` (VectorChord) access method; old `vectors`/pgvecto.rs extension dropped.
+- **Backups taken first:** ZFS snapshot `zdata/enc/nfsdata@immich-pre-3x-20260718` on f0
+  (CARP MASTER) + a 287 MB `pg_dump` custom-format archive. Snapshot cleanup tracked as
+  task `dv0` (due 2026-08-01).
+
+### Findings the plan flagged `[VERIFY]` — now resolved
+
+1. **ArgoCD lives in namespace `cicd`** (not `argocd`); the app is `immich`.
+2. **The `f3s/argocd-apps/services/*.yaml` Application manifests are NOT GitOps-synced.**
+   They carry `kubectl.kubernetes.io/last-applied-configuration` and have no app-of-apps /
+   ApplicationSet owner, so a git change to them has no effect until `kubectl apply -f
+   <file>` is run. **The Immich version pin (`image.tag`) lives in
+   `f3s/argocd-apps/services/immich.yaml`** — so Stage B = edit that file, push to the
+   `r0` remote, **and** `kubectl apply` it. By contrast each app's *source dir* (e.g.
+   `f3s/immich/helm-chart/`, where `postgres.yaml` lives) IS ArgoCD-synced from the
+   in-cluster git-server (`r0` = `ssh://git@r0:30022/repos/conf.git`) with self-heal on
+   (imperative `kubectl` edits get reverted in ~20s — go through git).
+3. **`shared_preload_libraries` swap is clean:** the old value came from a command-line
+   arg (not persisted in PGDATA), so no stale `vectors.so`-only override fought the Immich
+   image's `vchord.so, vectors.so` template. Confirmed both preloaded after the swap.
+4. **Immich v2.7.5 auto-runs the VectorChord reindex** on startup once `vchord` is
+   available — Stage A does not require the 3.x server (log: "Reindexing clip_index … do
+   not restart").
+5. **3.x removed `deviceId`/`deviceAssetId`** (migration `DropDeviceIdAndDeviceAssetId`).
+   The `/api/assets` endpoint still tolerates but ignores them; `scripts/immich-upload`
+   was cleaned up regardless. `scripts/immich-export` (`/api/search/metadata`,
+   `/api/assets/{id}/original`) was verified unaffected.
+
+### Commits
+
+- conf repo (pushed to **both** `r0` and codeberg): `a536047` (Stage A), `1c67c58` (Stage B).
+- dotfiles repo: `7f2d41d` (`immich-upload` 3.x fix).
 
 ---
 
