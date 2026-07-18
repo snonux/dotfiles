@@ -17,7 +17,7 @@ The **`HOSTNAME`** in the URL must match the name passed to **`--create-client-k
 - **`f0.lan` is not a hostname** (it will not resolve). Use the **full** name **`f0.lan.buetow.org`**, or the **LAN IP** from the f3s table (**`192.168.1.130`** for **f0**, **`.131`–`.133`** for **f1**–**f3**).
 - **FreeBSD Beelinks and Pis:** **`ssh -p 22 paul@…`** (default SSH port). Your **`~/.ssh/config`** may use **port 2** for **OpenBSD frontends** only — that does **not** apply to **f0**–**f3** or **pi0**–**pi3**.
 - **Pis:** **`pi0.lan.buetow.org`** … **`pi3.lan.buetow.org`** (full FQDN), port **22**.
-- **Manual upload test over SSH:** Beelinks use **`doas env GOPRECORDS_HOST=fN /usr/local/bin/goprecords-upload-client.sh`** (not **`sudo`** — often absent). Pis use **`sudo env GOPRECORDS_HOST=piN …`**.
+- **Manual upload test over SSH:** Beelinks use **`doas env GOPRECORDS_HOST=fN /usr/local/bin/goprecords-upload-client.sh`** (not **`sudo`** — often absent). Rocky Pis use **`sudo env GOPRECORDS_HOST=piN …`**. NetBSD Pis use **`doas env PATH=/usr/pkg/bin:/usr/bin:/bin:/usr/sbin:/sbin GOPRECORDS_HOST=piN /usr/pkg/bin/goprecords-upload-client.sh`**; the explicit path is required so the script can find pkgsrc `curl` and `uprecords` under `doas`.
 
 ## Where it is documented in-repo
 
@@ -35,8 +35,8 @@ Install **`curl`** and **`uptimed`** on every client that uploads.
 |--------|--------|------------|--------|
 | OpenBSD frontends | **fishfinger**, **blowfish** | **Rex** **`goprecords_upload`** in **`~/git/conf/frontends`**; **`/etc/daily.local`** runs **`/usr/local/bin/goprecords-upload.sh`** once per **day** | Tokens in **geheim** **`secrets/etc/goprecords/<host>.token`**; template **`scripts/goprecords-upload.sh.tpl`** |
 | FreeBSD (Beelinks) | **f0**–**f3** (LAN **`192.168.1.130`–`133`**) | Manual **hourly** **root** **`cron`** calling **`goprecords-upload-client.sh`** with **`GOPRECORDS_HOST=f0`** … **`f3`** | **`/var/db/uptimed/records`**; SSH: **`fN.lan.buetow.org`** or **`192.168.1.(130+N)`** for **fN**, **`-p 22`** |
-| Raspberry Pi (Rocky) | **pi2**–**pi3** | Manual **hourly** **systemd** **timer** (see README) | **`/var/spool/uptimed/records`**; SSH: **`piN.lan.buetow.org`**, **`-p 22`** |
-| Raspberry Pi (NetBSD) | **pi0**–**pi1** | Manual **hourly** **root** **`cron`** (no systemd) calling **`goprecords-upload-client.sh`** with **`GOPRECORDS_HOST=pi0`**/**`pi1`** | **`/var/spool/uptimed/records`** (uptimed built from source — no prebuilt aarch64 pkgsrc package); SSH: **`piN.lan.buetow.org`**, **`-p 22`** |
+| Raspberry Pi (Rocky) | **pi2**–**pi3** | Manual **hourly** **systemd** **timer** (see README) | **`/var/spool/uptimed/records`**; uptimed waits for chronyd via a systemd override (see below); SSH: **`piN.lan.buetow.org`**, **`-p 22`** |
+| Raspberry Pi (NetBSD) | **pi0**–**pi1** | Manual **hourly** **root** **`cron`** (no systemd) calling **`goprecords-upload-client.sh`** with **`GOPRECORDS_HOST=pi0`**/**`pi1`** | **`/var/spool/uptimed/records`**; `ntpdate=YES` and uptimed requires the `ntpdate` rc.d milestone; see [NetBSD Pi setup](bootstrap-netbsd-pi.md#uptimed-built-from-source--no-prebuilt-package); SSH: **`piN.lan.buetow.org`**, **`-p 22`** |
 | Fedora laptop | **earth** | **user** **systemd** **`oneshot` + hourly timer** `goprecords-upload-earth.{service,timer}` | Service sets **`Environment=GOPRECORDS_HOST=earth`** and runs **`~/.local/bin/goprecords-upload-earth.sh`**; token **`~/.config/goprecords-upload-earth/token`** |
 | Mac (uptimed) → published by earth | **mega-m3-pro** (raw host `MBDVXJ4XKH9C`) | Mac drops records into the **worktime** git repo; **earth** pushes them via a **second `ExecStart`** in `goprecords-upload-earth.service` | See [Mac / mega-m3-pro via earth](#mac--mega-m3-pro-via-earth) below |
 
@@ -62,6 +62,41 @@ The canonical unified script is **`scripts/goprecords-upload-client.sh`** (also 
 Copy to **`/usr/local/bin/`** (system) or **`~/.local/bin/`** (user), set **`GOPRECORDS_HOST`** per machine (**cron** **`env`** or **`systemd`** **`Environment`**/**`EnvironmentFile`**). Full snippets: **goprecords** **`README.md`**.
 
 > **earth gotcha:** `goprecords-upload-earth.sh` is a *copy of the generic* `goprecords-upload-client.sh`, so it aborts with `set GOPRECORDS_HOST` unless the var is provided. The service therefore **must** carry `Environment=GOPRECORDS_HOST=earth`. (A missing env var silently broke earth uploads for ~a month — symptom: stale timestamp on the report, service `status=1/FAILURE` with `set GOPRECORDS_HOST` in `journalctl --user -u goprecords-upload-earth`.)
+
+## Rocky Pi uptimed clock synchronization
+
+**pi2** and **pi3** have no hardware RTC. At boot their clocks initially use a stale timestamp until chronyd synchronizes with NTP. The packaged `uptimed.service` only declares `After=time-sync.target`; that target does not guarantee chronyd has obtained valid time. If uptimed starts too early, it records the stale boot date and goprecords may omit the host's `*` active marker because activity is calculated from the newest record's boot time plus uptime, not from upload time.
+
+Both Pis have this override at **`/etc/systemd/system/uptimed.service.d/time-sync.conf`**:
+
+```ini
+[Unit]
+Wants=network-online.target chronyd.service
+After=network-online.target chronyd.service
+
+[Service]
+ExecStartPre=/usr/bin/chronyc waitsync 60 0.5
+```
+
+Apply or verify it with:
+
+```sh
+sudo systemctl daemon-reload
+sudo systemd-analyze verify uptimed.service
+sudo systemctl restart uptimed
+systemctl show uptimed -p ExecStartPre -p ExecMainStartTimestamp
+```
+
+`chronyc waitsync 60 0.5` allows up to 60 attempts and starts uptimed once the remaining clock correction is at most 0.5 seconds. It works as the service's unprivileged `daemon` user.
+
+If a Pi already has a stale current record, restart uptimed after NTP is synchronized, then run the normal upload immediately:
+
+```sh
+sudo systemctl restart uptimed
+sudo systemctl start goprecords-upload.service
+```
+
+Check the source and uploaded records with `uprecords -a`, `/var/spool/uptimed/records`, and the goprecords `LastUpdated` report. This repaired pi3 on **2026-07-16**: its uploader had been healthy, but its only stored boot timestamp was from **2025-12-02**; restarting uptimed added the correct **2026-06-25** boot timestamp and restored the `*` marker. A subsequent pi3 reboot verified the override: chronyd stepped the stale clock at **13:00:57 UTC**, `chronyc waitsync` succeeded, and uptimed started afterward at **13:01:03 UTC** with the correct current boot date.
 
 ## Mac / mega-m3-pro via earth
 

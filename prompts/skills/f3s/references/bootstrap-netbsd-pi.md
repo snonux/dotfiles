@@ -212,10 +212,37 @@ Write a custom `/etc/rc.d/uptimed` (upstream ships a Linux-init `etc/rc.uptimed`
 not usable directly):
 
 ```sh
+# PROVIDE: uptimed
+# REQUIRE: NETWORKING ntpdate
+# KEYWORD: shutdown
+
 command="/usr/pkg/sbin/uptimed"
 pidfile="/var/run/uptimed.pid"
 command_args="-p ${pidfile}"
 ```
+
+These Raspberry Pis have no hardware RTC. NetBSD initializes the wall clock
+from the root filesystem timestamp, which can be stale after power-off. Merely
+starting `ntpd` is not a synchronization barrier, so enable the synchronous
+boot-time correction in `/etc/rc.conf`:
+
+```sh
+ntpdate=YES
+```
+
+The explicit `ntpdate` requirement above ensures that uptimed starts only after
+the clock has been set from the network. Verify the boot ordering with:
+
+```sh
+/sbin/rcorder /etc/rc.d/* | egrep '/(NETWORKING|ntpdate|ntpd|uptimed)$'
+```
+
+The expected order is `NETWORKING`, `ntpdate`, `ntpd`, then `uptimed`. This was
+deployed and reboot-tested one node at a time on both pi0 and pi1 on
+**2026-07-16**. `ntpdate` corrected pi0 by 12.29 seconds and pi1 by 12.68
+seconds before uptimed started; their new current records had the correct boot
+times, both webservers returned HTTP 200, and no historical record repair was
+necessary.
 
 Run `uptimed -b` once (creates the boot ID), enable with `uptimed=YES`.
 

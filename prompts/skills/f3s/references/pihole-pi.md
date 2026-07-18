@@ -36,6 +36,10 @@ dig @pi3.lan.buetow.org f3s.lan.buetow.org +short       # expect 192.168.1.138
 
 Admin UI: **`http://pi2.lan.buetow.org/admin/`** (and pi3).
 
+## Timekeeping on the RTC-less Pis
+
+pi2 and pi3 have no hardware RTC, so their clocks are stale briefly during boot until chronyd synchronizes. `uptimed` must not start in that window: both hosts use a systemd override that waits for `chronyc waitsync`, preventing invalid boot timestamps and missing active markers in goprecords. The canonical override, recovery procedure, and verification commands are in [goprecords-uptimed.md](goprecords-uptimed.md#rocky-pi-uptimed-clock-synchronization).
+
 ## Public DNS note
 
 **`frontends/var/nsd/zones/master/buetow.org.zone.tpl`** already has **`*.f3s.lan IN A 192.168.1.138`** for authoritative **`buetow.org`**; Pi-hole on the LAN keeps the same mapping for clients that use pi2/pi3 as resolver.
