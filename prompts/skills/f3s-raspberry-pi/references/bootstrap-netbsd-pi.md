@@ -291,7 +291,7 @@ group default {
 }
 ```
 
-Port 2222 is dserver (DTail) — see the `pkgrepo` skill's `dtail-package.md`
+Port 2222 is dserver (DTail) — see the `f3s-pkgrepo` skill's `dtail-package.md`
 for the install steps.
 
 `family inet4`/`inet6` must be explicit on multi-family interfaces or

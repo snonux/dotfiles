@@ -1,6 +1,6 @@
 ---
-name: pkgrepo
-description: Reference skill for the homelab package repositories behind pkgrepo.f3s.buetow.org. Covers FreeBSD pkg, OpenBSD pkg_add, NetBSD pkg_add, Rocky Linux dnf repos, PV layout, nginx/ArgoCD wiring, DTail package publishing, and client repo configuration. Use when publishing packages, troubleshooting repository access or metadata, or deciding how packages should be installed from the custom repo.
+name: f3s-pkgrepo
+description: Reference skill for the homelab package repositories behind pkgrepo.f3s.buetow.org. Covers FreeBSD pkg, OpenBSD pkg_add, NetBSD pkg_add, Rocky Linux dnf repos, PV layout, nginx/ArgoCD wiring, DTail package publishing, and client repo configuration. Use when publishing packages, troubleshooting repository access or metadata, or deciding how packages should be installed from the custom repo. Part of the f3s homelab skill family (hub, [`f3s`](../f3s/SKILL.md)).
 ---
 
 # Package Repo Reference

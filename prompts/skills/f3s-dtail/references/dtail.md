@@ -13,7 +13,7 @@ Upstream install and examples live in the repo: `doc/installation.md`, `examples
 | **r0–r2** | Rocky Linux 9 **x86_64** (bhyve VMs, k3s nodes) | Cross-build **linux/amd64**, `nozstd` | Often `root@rN.lan.buetow.org` (see [Rocky Linux VMs](../../f3s/references/rocky-linux-vms.md)); add `root` (and `paul` if present) to **Server.Permissions.Users** in `dtail.json` |
 | **blowfish, fishfinger** | OpenBSD 7.8 **amd64** | Native OpenBSD package build | `rex@blowfish.buetow.org`, `rex@fishfinger.buetow.org` |
 
-`pi0`/`pi1` (NetBSD) run dserver since 2026-07-09 from the `dtail` package in the custom pkgrepo — build pipeline (`make dtail-netbsd`), install steps, rc.d/npf details, and gotchas live in the `pkgrepo` skill's `dtail-package.md`.
+`pi0`/`pi1` (NetBSD) run dserver since 2026-07-09 from the `dtail` package in the custom pkgrepo — build pipeline (`make dtail-netbsd`), install steps, rc.d/npf details, and gotchas live in the `f3s-pkgrepo` skill's `dtail-package.md`.
 
 **Key cache filenames matter:** `examples/update_key_cache.sh.example` only scans `/home/*` and writes `/var/run/dserver/cache/USER.authorized_keys`. In this lab, DTail auth worked only after writing the exact cache filename for the login user:
 
@@ -160,7 +160,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags nozstd -o dserver-linux-amd
 
 ## Installation checklist (each server)
 
-Do this on **each** Linux target (pi2–pi3 and/or r0–r2). pi0/pi1 are NetBSD and install the `dtail` package from the custom pkgrepo instead — see the `pkgrepo` skill's `dtail-package.md`. Adjust **user** if you are not using `paul` on the node.
+Do this on **each** Linux target (pi2–pi3 and/or r0–r2). pi0/pi1 are NetBSD and install the `dtail` package from the custom pkgrepo instead — see the `f3s-pkgrepo` skill's `dtail-package.md`. Adjust **user** if you are not using `paul` on the node.
 
 1. **Binary**: `/usr/local/bin/dserver`, mode `0755`, owned by root.
 2. **OS user**: `dserver` system account (`useradd -r -d /var/lib/dserver -s /sbin/nologin -U dserver`).
@@ -200,9 +200,9 @@ Use hostnames that resolve from where you run the client (often `*.lan.buetow.or
 
 ## Package-managed DTail
 
-For package-repo-backed DTail and other custom package repo tasks, use the sibling `pkgrepo` skill and its reference:
+For package-repo-backed DTail and other custom package repo tasks, use the sibling `f3s-pkgrepo` skill and its reference:
 
-- [Package Repositories](../../pkgrepo/references/repo-architecture.md)
+- [Package Repositories](../../f3s-pkgrepo/references/repo-architecture.md)
 
 That skill now owns:
 

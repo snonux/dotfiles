@@ -83,10 +83,16 @@ obvious they belong together: `f3s-storage`, `f3s-k3s`, `f3s-workloads`,
 hyphens, ≤64 chars) and is applied uniformly to all six.
 
 Note this is a **prefix**, not a trailing suffix (`f3s-storage`, not `storage-f3s`):
-a prefix is what groups them alphabetically beside `f3s`. The existing siblings
-`pkgrepo` and `rocky-vm-setup` stay unprefixed (they are not being renamed); only the
-new f3s carve-outs take the `f3s-` marker. The earlier unprefixed `homelab-*`
-alternative is rejected.
+a prefix is what groups them alphabetically beside `f3s`. The earlier unprefixed
+`homelab-*` alternative is rejected.
+
+**Update (post-execution):** the two pre-existing siblings were **also renamed for
+consistency**, since both are f3s-scoped — `pkgrepo` → **`f3s-pkgrepo`** (it *is*
+`pkgrepo.f3s.buetow.org`) and `rocky-vm-setup` → **`f3s-rocky-vm-setup`** (the `rocky`
+VM runs on the f3s host f3). So the whole family now carries the `f3s-` prefix. All
+cross-references (including inbound links and prose mentions of the *skills*) were
+updated; references to the package **repository** `pkgrepo.f3s.buetow.org` were left
+unchanged.
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: skill-maintenance
-description: "Maintain the ~/.agents/skills collection: audit skills against the Agent Skills spec, enforce DRY across skills (one canonical home for shared knowledge; cross-link, don't duplicate), sub-divide oversized skills into focused references/ (the f3s/rocky-vm-setup index pattern), and commit/sync changes. Use when asked to review, refactor, audit, or health-check skills, or to apply best practices to the skills collection. Triggers on: skill maintenance, audit skills, review skills, refactor skills, skill health, DRY skills, sub-divide skill, skill best practices."
+description: "Maintain the ~/.agents/skills collection: audit skills against the Agent Skills spec, enforce DRY across skills (one canonical home for shared knowledge; cross-link, don't duplicate), sub-divide oversized skills into focused references/ (the f3s/f3s-rocky-vm-setup index pattern), and commit/sync changes. Use when asked to review, refactor, audit, or health-check skills, or to apply best practices to the skills collection. Triggers on: skill maintenance, audit skills, review skills, refactor skills, skill health, DRY skills, sub-divide skill, skill best practices."
 ---
 
 # Skill Maintenance
@@ -23,7 +23,7 @@ Detailed reference documentation is in the `references/` subfolder:
 
 - [Best Practices](references/best-practices.md) — the Agent Skills spec rules + pi specifics: progressive disclosure (metadata ~100 tokens always loaded; instructions <5000 tokens / <500 lines; resources on demand), frontmatter, name rules, description, structure, scripts, references, file refs one level deep, validation.
 - [DRY Across Skills](references/dry-across-skills.md) — DRY principles for a skill collection: one canonical home for shared knowledge; cross-link via `../sibling/SKILL.md`; when to share a reference vs. keep a skill self-contained; how to resolve conflicts; worked examples from this collection.
-- [Sub-division](references/sub-division.md) — when and how to sub-divide an oversized skill into focused `references/`: the index pattern (`f3s`, `rocky-vm-setup`), the "SKILL.md must not duplicate its own references" rule, naming and sizing reference files, keeping refs one level deep.
+- [Sub-division](references/sub-division.md) — when and how to sub-divide an oversized skill into focused `references/`: the index pattern (`f3s`, `f3s-rocky-vm-setup`), the "SKILL.md must not duplicate its own references" rule, naming and sizing reference files, keeping refs one level deep.
 - [Audit Checklist](references/audit-checklist.md) — the concrete step-by-step checklist for reviewing a single skill or sweeping the whole collection.
 
 ## Quick Checklist

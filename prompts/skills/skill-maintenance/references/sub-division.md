@@ -2,7 +2,7 @@
 
 When a skill grows too large, sub-divide it into a slim `SKILL.md` index plus
 focused `references/`. The model in this collection is `f3s` and
-`rocky-vm-setup`: a short overview + a "Reference Files" list + a tiny
+`f3s-rocky-vm-setup`: a short overview + a "Reference Files" list + a tiny
 quick-reference, with all detail living in `references/*.md`.
 
 ## When to sub-divide
@@ -11,7 +11,7 @@ Sub-divide when any of these hold:
 
 - `SKILL.md` exceeds ~500 lines or ~5000 tokens (the spec's soft target).
 - `SKILL.md` re-inlines content that already exists in its own `references/`
-  (the worst DRY offender — `rocky-vm-setup` was this before refactoring).
+  (the worst DRY offender — `f3s-rocky-vm-setup` was this before refactoring).
 - A single reference file covers multiple unrelated topics (split it).
 - The agent would need to load the whole `SKILL.md` when only one section is
   relevant.
@@ -24,7 +24,7 @@ Do **not** sub-divide when:
   — thresholds and code are inseparable; keep inline).
 - The skill is a single linear procedure with no reusable sub-topics.
 
-## The index pattern (f3s / rocky-vm-setup)
+## The index pattern (f3s / f3s-rocky-vm-setup)
 
 A sub-divided `SKILL.md` should contain:
 
@@ -65,8 +65,8 @@ grep -l "<unique line from SKILL.md>" skill/references/*.md
 
 - **Good index models:** `f3s`, `c-best-practices`, `bash-best-practices`,
   `agent-task-management`, `llm-benchmark-comparison`, `music-collection`,
-  `rocky-vm-setup` (after refactor).
-- **Sub-divided during the DRY pass:** `rocky-vm-setup` (260 → ~40 line index),
+  `f3s-rocky-vm-setup` (after refactor).
+- **Sub-divided during the DRY pass:** `f3s-rocky-vm-setup` (260 → ~40 line index),
   `blog-writing-style` (216 → ~120 lines; examples moved to `references/`).
 - **Borderline, kept inline by design:** `photo-processing` (snippets are the
   skill's value), `check-shopping-status` (already delegates to 2 refs).

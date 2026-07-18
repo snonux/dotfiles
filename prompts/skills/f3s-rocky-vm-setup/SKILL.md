@@ -1,6 +1,6 @@
 ---
-name: rocky-vm-setup
-description: Reference for the plain Rocky Linux 9 bhyve VM (host `rocky`, 192.168.1.123) running on f3. Covers SSH keys, local git server remotes, tooling (tmux, fish, amp, claude-code, pi, taskwarrior, Rex), zrepl replication, and restricted user privileges. Use when working on or replicating the rocky VM configuration.
+name: f3s-rocky-vm-setup
+description: Reference for the plain Rocky Linux 9 bhyve VM (host `rocky`, 192.168.1.123) running on f3. Covers SSH keys, local git server remotes, tooling (tmux, fish, amp, claude-code, pi, taskwarrior, Rex), zrepl replication, and restricted user privileges. Use when working on or replicating the rocky VM configuration. Part of the f3s homelab skill family (hub, [`f3s`](../f3s/SKILL.md)).
 ---
 
 # Rocky VM Setup Reference

@@ -13,7 +13,7 @@ The four Raspberry Pi 3 nodes of the f3s homelab. The master host/IP inventory
 - Configuring or troubleshooting pi0–pi3 (NetBSD static site pair, or Rocky Pi-hole pair)
 - The static `f3s.buetow.org` / `snonux.foo` site (bozohttpd, relayd forwarding, vhosts)
 - Pi-hole and `*.f3s.lan.buetow.org` LAN wildcard DNS
-- For the WireGuard mesh these depend on, see the [`f3s`](../f3s/SKILL.md) hub's `wireguard.md`; for DTail/dserver on the Pis, [`f3s-dtail`](../f3s-dtail/SKILL.md); for building the NetBSD dserver package, the [`pkgrepo`](../pkgrepo/SKILL.md) skill.
+- For the WireGuard mesh these depend on, see the [`f3s`](../f3s/SKILL.md) hub's `wireguard.md`; for DTail/dserver on the Pis, [`f3s-dtail`](../f3s-dtail/SKILL.md); for building the NetBSD dserver package, the [`f3s-pkgrepo`](../f3s-pkgrepo/SKILL.md) skill.
 
 ## Node roles
 
@@ -50,5 +50,5 @@ canonical detail in [references/bootstrap-netbsd-pi.md](references/bootstrap-net
 
 ## Reference Files
 
-- [NetBSD Pi Setup](references/bootstrap-netbsd-pi.md) — how services are installed on `pi0`/`pi1` (NetBSD): doas/pkgin bootstrap, WireGuard via userspace `wireguard-go` (no native `wg(4)`), bozohttpd (`-X` dir-listing, vhost symlinks), uptimed from source, npf firewall, content-sync. dserver (DTail) is installed from the custom pkgrepo — see the [`pkgrepo`](../pkgrepo/SKILL.md) skill's `dtail-package.md`.
+- [NetBSD Pi Setup](references/bootstrap-netbsd-pi.md) — how services are installed on `pi0`/`pi1` (NetBSD): doas/pkgin bootstrap, WireGuard via userspace `wireguard-go` (no native `wg(4)`), bozohttpd (`-X` dir-listing, vhost symlinks), uptimed from source, npf firewall, content-sync. dserver (DTail) is installed from the custom pkgrepo — see the [`f3s-pkgrepo`](../f3s-pkgrepo/SKILL.md) skill's `dtail-package.md`.
 - [Pi-hole on Pis](references/pihole-pi.md) — **pi2/pi3** Docker Pi-hole, **`~/pihole`**, **`*.f3s.lan.buetow.org` → 192.168.1.138**, paths under **`f3s/pihole/docker-pi/`**

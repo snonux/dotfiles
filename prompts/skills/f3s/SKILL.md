@@ -1,6 +1,6 @@
 ---
 name: f3s
-description: "Hub reference skill for the f3s homelab—four Beelink S12 Pro hosts (f0/f1/f2/f3) running FreeBSD with Rocky Linux Bhyve VMs and a k3s Kubernetes cluster. f0/f1/f2 run r0/r1/r2 k3s nodes; f3 is standalone bhyve only (not part of k3s) and hosts the plain Rocky Linux VM named rocky; plus four Raspberry Pi 3 nodes (pi0–pi3). This hub owns the master host/IP inventory, the physical hosts, bhyve layer, power, WireGuard mesh, and off-LAN access; detailed subsystems live in sibling skills: f3s-storage, f3s-k3s, f3s-observability, f3s-workloads, f3s-raspberry-pi, f3s-dtail (also pkgrepo, rocky-vm-setup). Use for host/network/context questions or as the entry point to the f3s skill family."
+description: "Hub reference skill for the f3s homelab—four Beelink S12 Pro hosts (f0/f1/f2/f3) running FreeBSD with Rocky Linux Bhyve VMs and a k3s Kubernetes cluster. f0/f1/f2 run r0/r1/r2 k3s nodes; f3 is standalone bhyve only (not part of k3s) and hosts the plain Rocky Linux VM named rocky; plus four Raspberry Pi 3 nodes (pi0–pi3). This hub owns the master host/IP inventory, the physical hosts, bhyve layer, power, WireGuard mesh, and off-LAN access; detailed subsystems live in sibling skills: f3s-storage, f3s-k3s, f3s-observability, f3s-workloads, f3s-raspberry-pi, f3s-dtail (also f3s-pkgrepo, f3s-rocky-vm-setup). Use for host/network/context questions or as the entry point to the f3s skill family."
 ---
 
 # f3s Homelab Reference
@@ -65,8 +65,8 @@ table, physical hosts, WireGuard mesh, and off-LAN access that they all link bac
 - [`f3s-raspberry-pi`](../f3s-raspberry-pi/SKILL.md) — pi0/pi1 NetBSD static `f3s.buetow.org`/`snonux.foo` site (bozohttpd), pi2/pi3 Pi-hole + LAN wildcard DNS
 - [`f3s-workloads`](../f3s-workloads/SKILL.md) — hosted apps: Immich, Garage, Player, yChat, goprecords/uptimed
 - [`f3s-dtail`](../f3s-dtail/SKILL.md) — DTail/dserver deployment/ops (SSH port 2222)
-- [`pkgrepo`](../pkgrepo/SKILL.md) — `pkgrepo.f3s.buetow.org`, repo layout, package publication, client repo config (incl. the `dtail` package build)
-- [`rocky-vm-setup`](../rocky-vm-setup/SKILL.md) — the plain Rocky Linux VM on f3 (`rocky`, `192.168.1.123`): SSH keys, git remotes, tooling, zrepl, user privileges
+- [`f3s-pkgrepo`](../f3s-pkgrepo/SKILL.md) — `pkgrepo.f3s.buetow.org`, repo layout, package publication, client repo config (incl. the `dtail` package build)
+- [`f3s-rocky-vm-setup`](../f3s-rocky-vm-setup/SKILL.md) — the plain Rocky Linux VM on f3 (`rocky`, `192.168.1.123`): SSH keys, git remotes, tooling, zrepl, user privileges
 
 ## Config Repository
 
