@@ -11,8 +11,9 @@ set -euo pipefail
 
 IMMICH_URL="http://immich.f3s.lan.buetow.org"
 DEST_DIR="/home/paul/Pictures/Pictures.Processing"
-DATE_AFTER="2026-01-01T00:00:00.000Z"
-DATE_BEFORE="2026-03-31T23:59:59.000Z"
+# Immich treats takenAfter/takenBefore as exclusive boundaries.
+DATE_AFTER="2026-03-31T23:59:59.999Z"
+DATE_BEFORE="2026-07-01T00:00:00.000Z"
 PAGE_SIZE=100
 
 # Load keys explicitly — declare -A with inline $() substitutions can silently
