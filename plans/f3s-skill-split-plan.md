@@ -74,16 +74,19 @@ Existing siblings already carved out of f3s (precedent for this pattern):
 - **Refs one level deep.** Subfolders (`storage/`, `k3s-setup/`,
   `observability/`) migrate wholesale — they are already correctly nested.
 
-### Naming convention
+### Naming convention — DECIDED: `f3s-` prefix on all carve-outs
 
-Recommend an **`f3s-` prefix** for every carve-out so they read as one family and
-sort together in the skills list (`f3s-storage`, `f3s-k3s`, …). This is spec-valid
-(lowercase, hyphens, ≤64 chars). The existing siblings (`pkgrepo`,
-`rocky-vm-setup`) are unprefixed subject-names; that alternative is acceptable too,
-but the prefix is preferred here because these skills are tightly bound to the f3s
-homelab and benefit from grouped discoverability. If the user prefers unprefixed,
-use `homelab-storage`, `homelab-k3s`, etc. — pick one convention and apply it
-uniformly.
+**Decision (confirmed by the user):** every carve-out keeps the **`f3s-` prefix** so
+they read as one family and sort together right next to the `f3s` skill, making it
+obvious they belong together: `f3s-storage`, `f3s-k3s`, `f3s-workloads`,
+`f3s-raspberry-pi`, `f3s-observability`, `f3s-dtail`. This is spec-valid (lowercase,
+hyphens, ≤64 chars) and is applied uniformly to all six.
+
+Note this is a **prefix**, not a trailing suffix (`f3s-storage`, not `storage-f3s`):
+a prefix is what groups them alphabetically beside `f3s`. The existing siblings
+`pkgrepo` and `rocky-vm-setup` stay unprefixed (they are not being renamed); only the
+new f3s carve-outs take the `f3s-` marker. The earlier unprefixed `homelab-*`
+alternative is rejected.
 
 ---
 
