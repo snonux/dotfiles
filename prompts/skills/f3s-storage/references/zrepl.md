@@ -198,6 +198,35 @@ doas zfs mount zdata/sink/f0/zdata/enc/nfsdata
 doas zfs set readonly=on zdata/sink/f0/zdata/enc/nfsdata   # prevent replication breakage
 ```
 
+## Replication liveness check
+
+A small cron job on f0 writes a canary file into the replicated dataset so its
+presence and mtime on f1's read-only sink reveals how fresh the zrepl
+replication is.
+
+On **f0** (root crontab), every 10 minutes, gated on a sentinel file so the
+canary only runs when the dataset is actually in use:
+
+```
+*/10 * * * * test -f /data/nfs/nfs.DO_NOT_REMOVE && /usr/bin/touch /data/nfs/nfs.LIVE_CHECK
+```
+
+`/data/nfs` on f0 is `zdata/enc/nfsdata` — the dataset the `f0_to_f1_nfsdata`
+job pushes to f1 every minute. zrepl snapshots + sends, so the touched
+`nfs.LIVE_CHECK` (and its mtime) appear on f1's read-only sink at
+`/data/nfs/nfs.LIVE_CHECK` within roughly one replication interval.
+
+On **f1**, read the replica to check freshness (the sink is read-only):
+
+```sh
+stat -f '%Sm' /data/nfs/nfs.LIVE_CHECK     # f0's last touch time, as replicated
+date '+%Sm'                                  # compare to now
+```
+
+If the mtime lags more than ~10–11 minutes behind real time, zrepl replication
+is stalled (see Troubleshooting). The `/data/nfs/nfs.DO_NOT_REMOVE` sentinel
+also doubles as the zrepl-replication canary guard. Installed on f0 2026-07-20.
+
 ## Failover design: intentionally read-only replica
 
 The standby replica is read-only by design. Manual failover (not automatic) to prevent split-brain. To fix broken replication after accidental writes: `doas zfs rollback <snapshot>`.
