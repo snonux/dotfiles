@@ -114,3 +114,30 @@ change.
 Note: `zroot/sink/f3/zroot/bhyve/freebsd` on f2 has `mountpoint=none`; the
 reboot check expects its key to be `available`, but it is not mounted because it
 has no filesystem mountpoint.
+
+## Removable backup pool (`zusb`)
+
+`zusb` is a **4-disk raidz2 ZFS pool on 1.8 TB USB-SATA disks** (ASMT ASM235CM
+bridges) used as the **offline backup storage device** — plugged in and loaded
+**roughly once per quarter** to back up data, then exported and unplugged. It
+lives on whichever f-host it is currently plugged into (f1 as of 2026-07-20).
+
+It is **not** auto-imported or auto-mounted at boot and is **not** in any
+host's `zfskeys_datasets` (removable disks must never block boot). It is loaded
+manually with `/usr/local/bin/zusb-load` and exported with
+`/usr/local/bin/zusb-unload`.
+
+The encryption root is `zusb/data/enc`, rekeyed to the same raw-key-on-stick
+scheme as the other f-host secrets: `keyformat=raw`,
+`keylocation=file:///keys/zusb.key`. The 32-byte key file `/keys/zusb.key` is
+placed on **all four** `F3S_KEYS` sticks, and the load/unload scripts are
+deployed to **all four** f-hosts, so the disk stack can be re-plugged to any
+f-host and loaded there with no per-host setup.
+
+`zusb/data/enc` was migrated from t450, where it was unlocked via a
+passphrase-protected `zroot/secret` keystore (`/zroot/secret/zroot.enc.key`);
+that old passphrase key is now obsolete for `zusb`.
+
+Scripts and deployment docs live in the conf repo at
+`f3s/freebsd-hosts/zusb/` (`zusb-load`, `zusb-unload`, `README.md`). The raw
+key itself is **not** in git — it is copied stick-to-stick like the other keys.
