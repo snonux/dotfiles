@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+declare -r PROGRAM=${0##*/}
+declare -r REMOTE_APK=/data/local/tmp/koreader.apk
+declare -r PACKAGE=org.koreader.launcher
+
+usage() {
+  printf 'Usage: %s PATH_TO_KOREADER_APK\n' "$PROGRAM"
+}
+
+die() {
+  printf '%s: %s\n' "$PROGRAM" "$*" >&2
+  exit 1
+}
+
+cleanup() {
+  adb shell rm -f "$REMOTE_APK" >/dev/null 2>&1 || true
+}
+
+(( $# == 1 )) || { usage >&2; exit 2; }
+declare -r APK=$1
+
+command -v adb >/dev/null 2>&1 || die 'adb is not installed'
+[[ -f $APK ]] || die "APK not found: $APK"
+
+adb get-state >/dev/null 2>&1 \
+  || die 'connect one Supernote with USB debugging enabled'
+
+declare MODEL
+MODEL=$(adb shell getprop ro.product.model | tr -d '\r')
+readonly MODEL
+[[ $MODEL == *Supernote* ]] || die "connected device is not a Supernote: $MODEL"
+
+trap cleanup EXIT
+printf 'Copying %s to %s...\n' "$APK" "$MODEL"
+adb push "$APK" "$REMOTE_APK"
+
+printf 'Installing KOReader...\n'
+adb shell pm install -r "$REMOTE_APK"
+
+declare INSTALLED_PACKAGES
+INSTALLED_PACKAGES=$(adb shell pm list packages | tr -d '\r')
+readonly INSTALLED_PACKAGES
+grep -Fxq "package:$PACKAGE" <<< "$INSTALLED_PACKAGES" \
+  || die 'KOReader package was not found after installation'
+
+printf 'KOReader installed successfully on %s.\n' "$MODEL"
