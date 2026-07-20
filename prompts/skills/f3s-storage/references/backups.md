@@ -2,9 +2,28 @@
 
 ## AWS S3 Glacier Deep Archive Backups
 
-Encrypted incremental ZFS snapshots from `zdata` pool backed up daily to **AWS S3 Glacier Deep Archive** via cron. Scripts adapted from FreeBSD Home NAS setup. Also performs periodic zpool scrubbing.
+The offsite backup is the **`zusb` quarterly workflow**. The removable `zusb`
+pool (see [USB Key Mounting](usb-keys.md) → "Removable backup pool (`zusb`)")
+is plugged into an f-host roughly once per quarter, and
+`/opt/snonux/bin/backup/backup` — which travels on the pool under
+`zusb/data/opt` — exports dated `zfs send` snapshots of the `zusb/data/*`
+datasets into encrypted archive chunks on `zusb/backup/<host>/<year>/`
+(`gzip` → `openssl enc -aes-256-cbc -pbkdf2 -pass file:/opt/snonux/secrets/<host>.backup.phrase` → `split`), then `aws s3 sync ... --storage-class DEEP_ARCHIVE`
+uploads them to `s3://org-buetow-backup/<host>/`. The script's `HOSTNAME=t450`
+override keeps the S3 key prefix stable across the t450→f-hosts migration.
 
-The **`zusb` quarterly backup** (`/opt/snonux/bin/backup/backup`, which travels on the `zusb` pool — see [USB Key Mounting](usb-keys.md) → "Removable backup pool (`zusb`)") also uploads to the same S3 Glacier Deep Archive bucket (`s3://org-buetow-backup/<host>/`). Both workflows need the AWS CLI on the host that runs them.
+The backup runs `aws` as root on whichever f-host currently hosts `zusb`, so the
+AWS CLI must be installed there and credentials wired in.
+
+**Reality note (2026-07-20):** there is **no daily `zdata`→S3 cron** on any
+f-host — the old "zdata daily to S3 via cron" setup is no longer present
+(verified: no aws/s3/backup cron entries in root's crontab on f0/f1/f2/f3, and
+no `/root/.aws` pre-existed on any of them). The `zusb` quarterly workflow
+above is the only live S3 offsite backup. It backs up the `zusb/data/*`
+personal datasets, **not** the f-host `zdata` pool; `zdata` redundancy comes
+from zrepl replication (f0→f1), not S3. If a daily `zdata`→S3 cron is ever
+reinstated, it would need its own always-available aws credentials (not the
+zusb-pool symlink below), since it must run without `zusb` imported.
 
 ### AWS CLI setup on a FreeBSD host
 
@@ -27,7 +46,12 @@ sudo chmod 600 /root/.aws/config
 sudo ln -sf /opt/snonux/secrets/aws.credentials /root/.aws/credentials
 ```
 
-Because the credentials are a symlink into `/opt` (`zusb/data/opt`), `aws` only resolves them while `zusb` is imported on that host. That is fine for the quarterly backup workflow (load `zusb` → run backup → export `zusb`); it is **not** suitable for the `zdata` daily-cron S3 backup on an f-host that does not normally have `zusb` imported — that host would need its own credentials copy (out of scope here).
+Because the credentials are a symlink into `/opt` (`zusb/data/opt`), `aws` only
+resolves them while `zusb` is imported on that host. That is exactly right for
+the quarterly workflow (load `zusb` → run backup → export `zusb`); on the other
+f-hosts the symlink is deliberately **dangling until `zusb` is replugged there**,
+at which point `/opt` mounts and it resolves. No secret material lives on host
+disks or in git.
 
 Verify (read-only):
 
@@ -37,7 +61,12 @@ aws sts get-caller-identity        # expect Arn arn:aws:iam::634617747016:user/o
 aws s3 ls s3://org-buetow-backup/   # expect the per-host prefixes (e.g. t450/)
 ```
 
-Installed 2026-07-20 on f1 (`py312-awscli-1.42.44`), matching the t450 setup (`py39-awscli-1.29.81`, same `/root/.aws/config` region and the same credentials symlink).
+Installed 2026-07-20 on **all f-hosts** (f0/f1/f2/f3, `py312-awscli-1.42.44`),
+matching the t450 setup (`py39-awscli-1.29.81`, same `/root/.aws/config` region
+and the same credentials symlink). Verified working on f1 (where `zusb` is
+hosted) via `aws sts get-caller-identity` → `org-buetow-backup-user`; on
+f0/f2/f3 the symlink is dangling until `zusb` is imported there. (f0 previously
+had a stale, never-configured `py311-awscli` package, now replaced by `py312`.)
 
 ## Local-Path Storage for SQLite Workloads
 
