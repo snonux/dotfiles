@@ -141,3 +141,10 @@ that old passphrase key is now obsolete for `zusb`.
 Scripts and deployment docs live in the conf repo at
 `f3s/freebsd-hosts/zusb/` (`zusb-load`, `zusb-unload`, `README.md`). The raw
 key itself is **not** in git — it is copied stick-to-stick like the other keys.
+
+The backup workflow itself is driven by `/opt/snonux/bin/backup/backup` (which
+travels on the pool under `zusb/data/opt`); its S3 sync leg needs the AWS CLI
+installed on the hosting f-host — see [Backups & Local-Path](backups.md) →
+"AWS CLI setup on a FreeBSD host". The S3 credentials also ride on the pool at
+`/opt/snonux/secrets/aws.credentials` and are wired in via a
+`/root/.aws/credentials` symlink, so no secret material lives on host disks.

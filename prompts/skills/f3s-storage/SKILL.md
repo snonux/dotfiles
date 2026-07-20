@@ -26,7 +26,7 @@ Note: original plan was HAST, replaced by **zrepl** (ZFS send/receive) — more 
 - [NFS over stunnel](references/nfs.md) — NFS server, mutual-TLS stunnel, Rocky client config, `/etc/fstab`
 - [nfs-mount-monitor](references/nfs-mount-monitor.md) — systemd watchdog on r-nodes (mount/stat/write probes, fail counter, cordon-and-reboot escalation)
 - [Troubleshooting](references/troubleshooting.md) — NFS issues, ZFS pool SUSPENDED recovery, **thermal** troubleshooting (Beelink S12 Pro)
-- [Backups & Local-Path](references/backups.md) — S3 Glacier Deep Archive, when to use `local-path` instead of NFS
+- [Backups & Local-Path](references/backups.md) — S3 Glacier Deep Archive, AWS CLI setup on a FreeBSD host (pkg + `/root/.aws` symlink to `/opt/snonux/secrets/aws.credentials`), when to use `local-path` instead of NFS
 
 ## Storage Summary
 
