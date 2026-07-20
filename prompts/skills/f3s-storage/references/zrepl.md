@@ -201,31 +201,39 @@ doas zfs set readonly=on zdata/sink/f0/zdata/enc/nfsdata   # prevent replication
 ## Replication liveness check
 
 A small cron job on f0 writes a canary file into the replicated dataset so its
-presence and mtime on f1's read-only sink reveals how fresh the zrepl
-replication is.
+content and mtime on f1's read-only sink reveal how fresh the zrepl replication
+is.
 
 On **f0** (root crontab), every 10 minutes, gated on a sentinel file so the
-canary only runs when the dataset is actually in use:
+canary only runs when the dataset is actually in use, the job touches the file
+and writes the current unix epoch into it:
 
 ```
-*/10 * * * * test -f /data/nfs/nfs.DO_NOT_REMOVE && /usr/bin/touch /data/nfs/nfs.LIVE_CHECK
+*/10 * * * * test -f /data/nfs/nfs.DO_NOT_REMOVE && /usr/bin/touch /data/nfs/nfs.LIVE_CHECK && /bin/date +\%s > /data/nfs/nfs.LIVE_CHECK
 ```
+
+Note: the `\%` is required — cron treats an unescaped `%` as a newline/stdin
+separator, so `date +%s` would silently break. In an interactive shell you'd
+write `date +%s` (no backslash).
 
 `/data/nfs` on f0 is `zdata/enc/nfsdata` — the dataset the `f0_to_f1_nfsdata`
-job pushes to f1 every minute. zrepl snapshots + sends, so the touched
-`nfs.LIVE_CHECK` (and its mtime) appear on f1's read-only sink at
+job pushes to f1 every minute. zrepl snapshots + sends, so `nfs.LIVE_CHECK`
+(its epoch content and mtime) appears on f1's read-only sink at
 `/data/nfs/nfs.LIVE_CHECK` within roughly one replication interval.
 
-On **f1**, read the replica to check freshness (the sink is read-only):
+On **f1**, read the replica to check freshness (the sink is read-only) — either
+compare the epoch inside the file to f1's clock, or compare mtimes:
 
 ```sh
-stat -f '%Sm' /data/nfs/nfs.LIVE_CHECK     # f0's last touch time, as replicated
-date '+%Sm'                                  # compare to now
+echo $(( $(date +%s) - $(cat /data/nfs/nfs.LIVE_CHECK) ))   # seconds since f0 last wrote (expect <~660)
+stat -f '%Sm' /data/nfs/nfs.LIVE_CHECK                      # f0's last write time, as replicated
+date '+%Sm'                                                  # compare to now
 ```
 
-If the mtime lags more than ~10–11 minutes behind real time, zrepl replication
-is stalled (see Troubleshooting). The `/data/nfs/nfs.DO_NOT_REMOVE` sentinel
-also doubles as the zrepl-replication canary guard. Installed on f0 2026-07-20.
+If the lag exceeds ~10–11 minutes (10-min cron interval + 1-min zrepl
+replication), zrepl replication is stalled (see Troubleshooting). The
+`/data/nfs/nfs.DO_NOT_REMOVE` sentinel also doubles as the canary guard.
+Installed on f0 2026-07-20.
 
 ## Failover design: intentionally read-only replica
 
