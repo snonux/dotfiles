@@ -15,7 +15,7 @@
       "descriptionSyncRoot": "/data/nfs/k3svolumes/git-server/repos"
     },
     {
-      "host": "paul@f1:/sr/data/enc/git",
+      "host": "paul@f1.lan:/srv/data/enc/git",
       "backupLocation": true
     }
   ],
