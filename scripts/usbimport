@@ -15,6 +15,7 @@ declare -i TOTAL_SKIPPED=0
 declare -i TOTAL_FAILED=0
 declare -i TOTAL_CONVERTED=0
 declare -i TOTAL_CONVERT_SKIPPED=0
+declare -i ALLOW_MISSING_GPS=0
 declare -a CLEANUP_PATHS=()
 declare -a IMPORTED_IMAGE_PATHS=()
 
@@ -42,9 +43,12 @@ trap cleanup EXIT
 
 usage() {
   cat <<EOF_USAGE
-Usage: $PROGRAM [auto|fujifilm|supernote|--test] [destination]
+Usage: $PROGRAM [--allow-missing-gps] [auto|fujifilm|supernote|--test] [destination]
 
 Import files from supported USB devices mounted through GVFS.
+
+Options:
+  --allow-missing-gps  Import camera images even when no GPS coordinates match.
 
 Modes:
   auto       Import from the single supported device currently connected.
@@ -206,7 +210,8 @@ copy_fujifilm_media_from_dir() {
 
 geotag_imported_images() {
   local -a gpx_files=() geotag_args=()
-  local gpx_file
+  local gpx_file missing_path
+  local -i missing_count=0
 
   if [[ ${#IMPORTED_IMAGE_PATHS[@]} -eq 0 ]]; then
     log "No new images to GPS tag."
@@ -219,8 +224,15 @@ geotag_imported_images() {
   fi
 
   if [[ ${#gpx_files[@]} -eq 0 ]]; then
-    log "No GPX files found under $GPX_DIR; skipping GPS tagging."
-    return 0
+    if [[ $ALLOW_MISSING_GPS -eq 1 ]]; then
+      log "No GPX files found under $GPX_DIR; importing without GPS coordinates."
+      return 0
+    fi
+
+    error "No GPX files found under $GPX_DIR."
+    error "Use --allow-missing-gps to import images without GPS coordinates."
+    TOTAL_FAILED=$((TOTAL_FAILED + ${#IMPORTED_IMAGE_PATHS[@]}))
+    return 1
   fi
 
   require_command exiftool || {
@@ -239,6 +251,29 @@ geotag_imported_images() {
     increment TOTAL_FAILED
     return 1
   fi
+
+  # These variables are evaluated by ExifTool, not the shell.
+  # shellcheck disable=SC2016
+  while IFS= read -r missing_path; do
+    [[ -n $missing_path ]] || continue
+    error "No GPS coordinates found: $missing_path"
+    increment missing_count
+  done < <(exiftool -if 'not (defined $GPSLatitude and defined $GPSLongitude)' \
+    -p '$FilePath' -- "${IMPORTED_IMAGE_PATHS[@]}")
+
+  if [[ $missing_count -eq 0 ]]; then
+    return 0
+  fi
+
+  if [[ $ALLOW_MISSING_GPS -eq 1 ]]; then
+    log "Importing $missing_count image(s) without GPS coordinates as requested."
+    return 0
+  fi
+
+  error "$missing_count image(s) have no matching GPS coordinates."
+  error "Use --allow-missing-gps to permit unmatched images."
+  TOTAL_FAILED=$((TOTAL_FAILED + missing_count))
+  return 1
 }
 
 gio_modified_time() {
@@ -524,8 +559,43 @@ run_self_test() {
 }
 
 main() {
-  local mode=${1:-auto}
-  local dest=${2:-}
+  local mode=auto dest='' argument
+  local mode_set=0
+
+  for argument in "$@"; do
+    case "$argument" in
+      --allow-missing-gps)
+        ALLOW_MISSING_GPS=1
+        ;;
+      -h|--help|--test|auto|fujifilm|supernote)
+        if [[ $mode_set -eq 1 ]]; then
+          error "Unexpected argument: $argument"
+          usage >&2
+          return 2
+        fi
+        mode=$argument
+        mode_set=1
+        ;;
+      -*)
+        error "Unknown option: $argument"
+        usage >&2
+        return 2
+        ;;
+      *)
+        if [[ $mode_set -eq 0 ]]; then
+          error "Unknown mode: $argument"
+          usage >&2
+          return 2
+        fi
+        if [[ -n $dest ]]; then
+          error "Unexpected argument: $argument"
+          usage >&2
+          return 2
+        fi
+        dest=$argument
+        ;;
+    esac
+  done
 
   case "$mode" in
     -h|--help)
@@ -546,17 +616,6 @@ main() {
     supernote)
       require_command gio
       import_supernote "$dest"
-      ;;
-    -* )
-      error "Unknown option: $mode"
-      usage >&2
-      return 2
-      ;;
-    *)
-      error "Unknown mode: $mode"
-      require_command gio
-      usage >&2
-      return 2
       ;;
   esac
 }
