@@ -42,6 +42,23 @@ podman push --tls-verify=false r0.lan.buetow.org:30001/ychat:$TAG
 podman push --tls-verify=false r0.lan.buetow.org:30001/ychat:latest
 ```
 
+When working off-LAN, `r0.lan.buetow.org` and the `r0` git remote resolve to
+the unreachable LAN address. Push through WireGuard instead:
+
+```sh
+podman tag ychat:$TAG r0.wg0.wan.buetow.org:30001/ychat:$TAG
+podman tag ychat:latest r0.wg0.wan.buetow.org:30001/ychat:latest
+podman push --tls-verify=false r0.wg0.wan.buetow.org:30001/ychat:$TAG
+podman push --tls-verify=false r0.wg0.wan.buetow.org:30001/ychat:latest
+
+cd ~/git/conf
+GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=accept-new' \
+  git push ssh://git@r0.wg0.wan.buetow.org:30022/repos/conf.git master
+```
+
+The registry hostname used in Kubernetes manifests remains
+`registry.lan.buetow.org:30001`; only the workstation's push endpoint changes.
+
 The registry is the f3s private registry on NodePort `30001` (plain
 HTTP/insecure). In Kubernetes manifests, pods pull the image as:
 
