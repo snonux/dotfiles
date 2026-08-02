@@ -109,6 +109,17 @@ command output and warrants checking k3s/etcd health after the next boot; SIGKIL
 can corrupt an in-flight etcd WAL, so this is a last resort rather than the normal
 shutdown path.
 
+**Retested 2026-08-02:** f2 initially exceeded the 240-second guest timeout. The
+Rocky guest had duplicate hard+soft mounts of `/data/nfs/k3svolumes`, caused by
+the NFS monitor timer directly requiring (and therefore immediately starting) its
+service during boot. After removing that race, shutdown still spent exactly 90
+seconds unmounting the hard NFS mount because systemd stopped its localhost
+stunnel transport concurrently. The durable fix in the `conf` repo orders k3s
+after the NFS mount and the mount after stunnel; shutdown reverses that order:
+k3s stops, NFS unmounts, then stunnel stops. The final f2 test reached Rocky
+system power-off in about 3 seconds and did not use the forced bhyve fallback.
+Persistent journals (256 MB cap) are now enabled on r0/r1/r2 for future diagnosis.
+
 ## 3. Safe remote-reboot procedure for an f-host
 
 Because a hung `rc.shutdown` can strand a host in single-user (unrecoverable remotely

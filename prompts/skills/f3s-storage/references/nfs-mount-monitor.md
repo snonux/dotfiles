@@ -76,9 +76,21 @@ preventing all health checks from being silently skipped forever.
 
 | Parameter | Value | Reason |
 |-----------|-------|--------|
-| `OnBootSec` | 30s | Let network and NFS client start before first check |
+| Unit ordering | `After=remote-fs.target` | Do not race the fstab NFS mount during boot |
+| `OnBootSec` | 30s | Let the mounted filesystem settle before the first check |
 | `OnUnitActiveSec` | 10s | Check interval; each run is bounded by a 60-second deadline |
 | `AccuracySec` | 1s | Prevent systemd batching from delaying the 10 s interval |
+
+Do **not** add `Requires=nfs-mount-monitor.service` to the timer. A timer already
+activates its matching service when it elapses; requiring the service starts it
+immediately with the timer and can create a second mount while the fstab mount is
+still starting.
+
+Shutdown ordering is explicit: k3s is ordered after
+`data-nfs-k3svolumes.mount`, and that mount requires and is ordered after
+`stunnel.service`. systemd reverses these relationships during shutdown, so k3s
+stops first, NFS unmounts while its TLS transport is available, and stunnel stops
+last. Without this, a hard NFS unmount waits for systemd's 90-second timeout.
 
 ## Managing the monitor during an extended NFS outage
 
