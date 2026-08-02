@@ -100,6 +100,15 @@ raising `rcshutdown_timeout` is the only effective mitigation on 1.7.3. (If a gu
 ever truly hangs and never ACPI-powers-off, even 300s won't help — but observed
 worst case is ~92s.)
 
+`wol-f3s` now avoids relying on that unbounded rc.d path: it sends the same two
+SIGTERM signals as vm-bhyve 1.7.3 (which requests guest ACPI shutdown), polls for
+up to 240 seconds, and only then SIGKILLs any remaining bhyve PID. It cannot call
+`vm stopall` here because that command itself waits indefinitely. The script
+refuses to power off if a VM still appears running. A forced stop is logged in the
+command output and warrants checking k3s/etcd health after the next boot; SIGKILL
+can corrupt an in-flight etcd WAL, so this is a last resort rather than the normal
+shutdown path.
+
 ## 3. Safe remote-reboot procedure for an f-host
 
 Because a hung `rc.shutdown` can strand a host in single-user (unrecoverable remotely

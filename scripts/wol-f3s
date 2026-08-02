@@ -61,6 +61,10 @@ fi
 # SSH user
 SSH_USER="paul"
 
+# Give guests time to handle the ACPI shutdown request before killing bhyve.
+# This must remain below the f-host rcshutdown_timeout (currently 300 seconds).
+VM_SHUTDOWN_TIMEOUT=240
+
 # Broadcast address for your LAN
 BROADCAST="192.168.1.255"
 
@@ -82,6 +86,7 @@ wake() {
 shelly_set() {
     local on=$1
     local label="on"
+    local status
     [[ "$on" == "false" ]] && label="off"
 
     local auth=()
@@ -101,8 +106,15 @@ shelly_set() {
     # --fail is essential: without it curl returns 0 even on an HTTP 401
     # (auth failure), which would falsely report success while the plug is
     # left untouched.
-    if curl -s --fail --max-time 5 "${auth[@]}" \
-        "http://${SHELLY_IP}/rpc/Switch.Set?id=0&on=${on}" >/dev/null; then
+    # Use the documented JSON-RPC POST form, then read status back. A successful
+    # HTTP response alone is not enough: Shelly RPC errors can be JSON bodies.
+    if curl -sS --fail --max-time 5 "${auth[@]}" \
+        -H 'Content-Type: application/json' -d "{\"id\":0,\"on\":${on}}" \
+        "http://${SHELLY_IP}/rpc/Switch.Set" >/dev/null &&
+        status="$(curl -sS --fail --max-time 5 "${auth[@]}" \
+        "http://${SHELLY_IP}/rpc/Switch.GetStatus?id=0")" &&
+        grep -Eq "\"output\"[[:space:]]*:[[:space:]]*${on}([,}])" \
+        <<<"$status"; then
         echo "  ✓ Shelly plug switched $label"
     else
         echo "  ✗ Failed to switch Shelly plug at $SHELLY_IP (auth or network error)"
@@ -155,14 +167,82 @@ umount_nfs_mounts() {
     return 0
 }
 
+shutdown_bhyve_host() {
+    local name=$1
+    local ip=$2
+
+    echo "Shutting down $name ($ip)..."
+    # Stop guests outside rc.shutdown so a stuck bhyve cannot trip init's
+    # shutdown watchdog and strand the host in networkless single-user mode.
+    # vm-bhyve 1.7.3 has no stop timeout, so enforce one here and use SIGKILL
+    # only after the grace period. The forced stop is deliberately loud: it
+    # can require an etcd health check/recovery after the next k3s boot.
+    if ssh -o BatchMode=yes -o ConnectTimeout=5 "$SSH_USER@$ip" \
+        "doas /bin/sh -s -- '$VM_SHUTDOWN_TIMEOUT'" <<'REMOTE_SHUTDOWN'
+timeout=$1
+
+echo "VM state before shutdown:"
+vm list
+
+get_bhyve_pids() {
+    pids=$(pgrep -f 'bhyve:')
+    pgrep_status=$?
+    if [ "$pgrep_status" -gt 1 ]; then
+        echo "ERROR: unable to inspect bhyve processes; refusing host poweroff" >&2
+        exit 1
+    fi
+    [ "$pgrep_status" -eq 0 ]
+}
+
+# vm-bhyve 1.7.3's stopall sends SIGTERM twice and then waits indefinitely.
+# Send the same ACPI shutdown signal ourselves so our polling timeout applies.
+if get_bhyve_pids; then
+    kill $pids 2>/dev/null || true
+    sleep 1
+    kill $pids 2>/dev/null || true
+fi
+
+elapsed=0
+while get_bhyve_pids; do
+    if [ "$elapsed" -ge "$timeout" ]; then
+        echo "WARNING: guest shutdown exceeded ${timeout}s; force-killing bhyve" >&2
+        echo "Force-killing bhyve PID(s): $pids" >&2
+        kill -9 $pids 2>/dev/null || true
+        sleep 2
+        break
+    fi
+    sleep 5
+    elapsed=$((elapsed + 5))
+done
+
+if get_bhyve_pids; then
+    echo "ERROR: a VM is still running; refusing host poweroff" >&2
+    exit 1
+fi
+
+echo "Guests stopped after ${elapsed}s; powering off host"
+poweroff
+REMOTE_SHUTDOWN
+    then
+        echo "  ✓ $name accepted the bounded shutdown sequence"
+    else
+        echo "  ✗ Failed to shut down $name (unreachable or a VM remained running)"
+        return 1
+    fi
+}
+
 shutdown_host() {
     local name=$1
     local ip=$2
 
     echo "Shutting down $name ($ip)..."
-    ssh -o ConnectTimeout=5 "$SSH_USER@$ip" "doas poweroff" 2>/dev/null && \
-        echo "  ✓ Shutdown command sent to $name" || \
+    if ssh -o BatchMode=yes -o ConnectTimeout=5 "$SSH_USER@$ip" \
+        "doas poweroff" 2>/dev/null; then
+        echo "  ✓ Shutdown command sent to $name"
+    else
         echo "  ✗ Failed to reach $name (already down?)"
+        return 1
+    fi
 }
 
 ACTION="${1:-all}"
@@ -182,7 +262,7 @@ case "$ACTION" in
         ;;
     all|"")
         # Power on the rack fans before booting the hosts.
-        shelly_set "true"
+        shelly_set "true" || exit 1
         wake "f0" "$F0_MAC"
         wake "f1" "$F1_MAC"
         wake "f2" "$F2_MAC"
@@ -196,11 +276,16 @@ case "$ACTION" in
         # Mute Gogios monitoring alerts for a day on both OpenBSD gateways
         ssh rex@blowfish.buetow.org touch /tmp/f3s_taken_down
         ssh rex@fishfinger.buetow.org touch /tmp/f3s_taken_down
-        shutdown_host "f0" "$F0_IP"
-        shutdown_host "f1" "$F1_IP"
-        shutdown_host "f2" "$F2_IP"
+        host_shutdown_failed=0
+        shutdown_bhyve_host "f0" "$F0_IP" || host_shutdown_failed=1
+        shutdown_bhyve_host "f1" "$F1_IP" || host_shutdown_failed=1
+        shutdown_bhyve_host "f2" "$F2_IP" || host_shutdown_failed=1
+        if [[ $host_shutdown_failed -ne 0 ]]; then
+            echo "✗ At least one Beelink did not complete shutdown; leaving rack fans on."
+            exit 1
+        fi
         # Power off the rack fans once all hosts are shutting down.
-        shelly_set "false"
+        shelly_set "false" || exit 1
         echo ""
         echo "✓ Shutdown commands sent to all Beelinks."
         exit 0
@@ -211,17 +296,22 @@ case "$ACTION" in
         # first is still the safe default to avoid stale state.
         echo "Checking for locally mounted NFS filesystems..."
         umount_nfs_mounts || exit 1
-        shutdown_host "f3" "$F3_IP"
+        shutdown_bhyve_host "f3" "$F3_IP" || exit 1
         echo ""
         echo "✓ Shutdown command sent to f3."
         exit 0
         ;;
     shutdown-pis)
         # Raspberry Pis do not serve NFS, so no umount check is needed here.
-        shutdown_host "pi0" "$PI0_IP"
-        shutdown_host "pi1" "$PI1_IP"
-        shutdown_host "pi2" "$PI2_IP"
-        shutdown_host "pi3" "$PI3_IP"
+        pi_shutdown_failed=0
+        shutdown_host "pi0" "$PI0_IP" || pi_shutdown_failed=1
+        shutdown_host "pi1" "$PI1_IP" || pi_shutdown_failed=1
+        shutdown_host "pi2" "$PI2_IP" || pi_shutdown_failed=1
+        shutdown_host "pi3" "$PI3_IP" || pi_shutdown_failed=1
+        if [[ $pi_shutdown_failed -ne 0 ]]; then
+            echo "✗ At least one Pi did not accept its shutdown command."
+            exit 1
+        fi
         echo ""
         echo "✓ Shutdown commands sent to all Pis."
         exit 0
@@ -235,15 +325,20 @@ case "$ACTION" in
         # Mute Gogios monitoring alerts for a day on both OpenBSD gateways
         ssh rex@blowfish.buetow.org touch /tmp/f3s_taken_down
         ssh rex@fishfinger.buetow.org touch /tmp/f3s_taken_down
-        shutdown_host "f0" "$F0_IP"
-        shutdown_host "f1" "$F1_IP"
-        shutdown_host "f2" "$F2_IP"
-        shutdown_host "pi0" "$PI0_IP"
-        shutdown_host "pi1" "$PI1_IP"
-        shutdown_host "pi2" "$PI2_IP"
-        shutdown_host "pi3" "$PI3_IP"
+        machine_shutdown_failed=0
+        shutdown_bhyve_host "f0" "$F0_IP" || machine_shutdown_failed=1
+        shutdown_bhyve_host "f1" "$F1_IP" || machine_shutdown_failed=1
+        shutdown_bhyve_host "f2" "$F2_IP" || machine_shutdown_failed=1
+        shutdown_host "pi0" "$PI0_IP" || machine_shutdown_failed=1
+        shutdown_host "pi1" "$PI1_IP" || machine_shutdown_failed=1
+        shutdown_host "pi2" "$PI2_IP" || machine_shutdown_failed=1
+        shutdown_host "pi3" "$PI3_IP" || machine_shutdown_failed=1
+        if [[ $machine_shutdown_failed -ne 0 ]]; then
+            echo "✗ At least one machine did not accept shutdown; leaving rack fans on."
+            exit 1
+        fi
         # Power off the rack fans once all hosts are shutting down.
-        shelly_set "false"
+        shelly_set "false" || exit 1
         echo ""
         echo "✓ Shutdown commands sent to all machines."
         exit 0

@@ -99,19 +99,24 @@ pkgsrc `wol` installed, the shebang changed from `#!/bin/bash` to
 earth/Linux stays as-is), `~/.shelly_plug` present, and `/etc/hosts` entries
 for `f0`–`f3`/`pi2`–`pi3` (cross-Pi/host `.lan.buetow.org` resolution isn't
 reliable — same DNS gap noted elsewhere in this skill). SSH trust from
-`pi0`/`pi1` to each `fN` host is required for the shutdown path (`ssh
-paul@fN "doas poweroff"`) — note the host key must be accepted for both the
-hostname **and** the bare IP, since the script connects by IP. Single-host
-`wol-f3s <host>`/`shutdown-<host>` does **not** touch the shelly plug — only
-the bulk `all`/`shutdown-all` paths do.
+`pi0`/`pi1` to each `fN` host is required for the shutdown path. Beelinks run a
+bounded guest-stop payload through `doas /bin/sh -s`; Pis run `doas poweroff`.
+The Beelinks currently permit passwordless `doas` for Paul's wheel membership.
+Note the host key must be accepted for both the hostname **and** the bare IP,
+since the script connects by IP. Single-host
+`wol-f3s <host>`/`shutdown-f3` does **not** touch the shelly plug — only the
+bulk `all`/`shutdown`/`shutdown-all` paths do.
 
 - `wol-f3s` / `all` → `shelly_set true` **before** sending WoL packets (fans on).
-- `wol-f3s shutdown-all` → `shelly_set false` **after** all hosts/Pis are down
-  (fans off last).
+- `wol-f3s shutdown` / `shutdown-all` → `shelly_set false` **after** all selected
+  hosts/Pis accept shutdown (fans off last).
 
 The `shelly_set` helper reads the password from `~/.shelly_plug` and uses digest
-auth; it no-ops gracefully if the file is missing. Partial actions (`shutdown`,
-per-host wakes) leave the plug untouched.
+auth. Missing credentials or an unverifiable relay state fail the bulk action:
+wake-up is aborted, while a failed fan-off leaves the fans running. It uses a
+JSON-RPC POST and reads `Switch.GetStatus` back, rather than treating HTTP success
+as proof that an RPC request changed the relay. Partial actions (`shutdown-pis`,
+`shutdown-f3`, per-host wakes) leave the plug untouched.
 
 ## Standalone control script
 
