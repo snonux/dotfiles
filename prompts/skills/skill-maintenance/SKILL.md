@@ -48,4 +48,4 @@ Detailed reference documentation is in the `references/` subfolder:
 5. **Decide.** Present the plan; get approval on conflicts before editing.
 6. **Refactor.** Apply edits; preserve all information (move, don't delete).
 7. **Verify.** Re-check link targets resolve and no `SKILL.md` duplicates its own references.
-8. **Commit.** Use the `commit-skills` skill to summarize and push changes from `~/git/dotfiles`.
+8. **Commit.** Use the `commit-skills` skill to summarize and push changes.

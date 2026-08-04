@@ -55,7 +55,7 @@ for f in ~/.agents/skills/*/SKILL.md; do printf "%5s %s\n" "$(wc -l < "$f")" "$f
 4. For DRY ownership conflicts, prepare a recommendation per [dry-across-skills.md](dry-across-skills.md) and **surface to the user** — do not silently decide.
 5. Present the plan with proposed refactors and the conflicts requiring decisions.
 6. After approval, apply edits (move, don't delete); re-verify links and "no SKILL.md duplicates its references".
-7. Commit/sync via the `commit-skills` skill from `~/git/dotfiles`.
+7. Commit/sync via the `commit-skills` skill.
 
 ## Health quick-stat (whole collection)
 
