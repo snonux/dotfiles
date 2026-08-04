@@ -8,8 +8,8 @@ Work on each new task **must begin with a fresh context** — a new sub-agent wi
 
 **If you are orchestrating via `/work-on-tasks`:** check how many actionable tasks are open (`ask ready`).
 
-- **4 or more open tasks → spawn a sub-agent** (or multiple sub-agents if they can work in parallel) for the implementation. Pass the full task description, all annotations, and the project root path to the sub-agent. Do not implement tasks in the orchestrator's own context.
-- **Fewer than 4 open tasks → implement directly** in the orchestrator's own context. Do **not** spawn sub-agents; the fresh-context overhead is not worth it for a small list.
+- **2 or more open tasks → spawn a sub-agent** (or multiple sub-agents if they can work in parallel) for the implementation. Pass the full task description, all annotations, and the project root path to the sub-agent. Do not implement tasks in the orchestrator's own context.
+- **Only 1 open task → implement directly** in the orchestrator's own context. Do **not** spawn a sub-agent; the fresh-context overhead is not worth it for a single task.
 
 **If you are starting a single task manually:** begin in a new session or compact first so the context is clean before you start working.
 

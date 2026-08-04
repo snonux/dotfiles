@@ -1,6 +1,6 @@
 # /work-on-tasks
 
-**Description:** Automatically work through tasks for the current git project using the `agent-task-management` skill. The command selects the best pending task, executes it (delegating to a fresh sub-agent when there are 4+ open tasks, or implementing directly when there are fewer than 4), completes it, and then auto-progresses to the next task until no actionable tasks remain.
+**Description:** Automatically work through tasks for the current git project using the `agent-task-management` skill. The command selects the best pending task, executes it (delegating to a fresh sub-agent when there are 2+ open tasks, or implementing directly when there is only 1), completes it, and then auto-progresses to the next task until no actionable tasks remain.
 
 **Parameters:**
 - strategy (optional): How to choose tasks when multiple are available (e.g., "highest-impact", "priority", "due-date", "quick-win")
@@ -25,8 +25,8 @@ You are the **orchestrator**. You pick tasks, mark them started, launch a sub-ag
 
 **Sub-agent threshold:** Before starting the loop, count the actionable tasks from `ask ready`. Decide once, up front:
 
-- **Fewer than 4 open tasks → work directly.** Do **not** spawn sub-agents. Implement each task yourself in the orchestrator's own context, running `ask start <id>`, doing the work, committing, and `ask done <id>` inline. The fresh-context overhead is not worth it for a small list, and staying in one context avoids re-loading project context for every task.
-- **4 or more open tasks → delegate per task.** Use the sub-agent-per-task flow described below. This keeps your context small and lets each task run with a clean slate.
+- **Only 1 open task → work directly.** Do **not** spawn a sub-agent. Implement the task yourself in the orchestrator's own context, running `ask start <id>`, doing the work, committing, and `ask done <id>` inline. The fresh-context overhead is not worth it for a single task, and staying in one context avoids re-loading project context.
+- **2 or more open tasks → delegate per task.** Use the sub-agent-per-task flow described below. This keeps your context small and lets each task run with a clean slate.
 
 Whatever mode you are in, you still pick tasks, mark them started/done, commit, and auto-progress.
 
@@ -36,7 +36,7 @@ Whatever mode you are in, you still pick tasks, mark them started/done, commit, 
    - Detect the current project from local git context (`git rev-parse --show-toplevel`)
    - Run `ask ready | head` to list actionable tasks
    - Ignore completed/deleted tasks and non-actionable blocked items
-   - Count the actionable tasks to determine the sub-agent threshold above (fewer than 4 → work directly; 4+ → delegate per task)
+   - Count the actionable tasks to determine the sub-agent threshold above (only 1 → work directly; 2+ → delegate per task)
 
 2. **Pick the next task** (default strategy: `{{strategy|highest-impact}}`):
    - Choose one actionable task based on impact, urgency, and clarity
@@ -48,14 +48,14 @@ Whatever mode you are in, you still pick tasks, mark them started/done, commit, 
 
 4. **Execute the task** (mode depends on the threshold decided in step 1):
 
-   **If working directly (fewer than 4 open tasks):**
+   **If working directly (only 1 open task):**
    - Implement the task yourself in the orchestrator's own context.
    - Run `ask info <id>` to load the full description and annotations.
    - Run `ask annotate <id> "<progress notes>"` as you work.
    - Complete all implementation, tests, and a git commit.
    - Then proceed to step 5 (you mark the task done yourself).
 
-   **If delegating (4+ open tasks):**
+   **If delegating (2+ open tasks):**
    - Spawn a **new sub-agent** with a self-contained prompt that includes:
      - The task ID and a one-line summary of what the task is about
      - Instruction to run `ask info <id>` as its **first action** to get the full description and all annotations (do not paste the description inline — the sub-agent fetches it fresh, keeping the prompt short)
@@ -84,17 +84,17 @@ Whatever mode you are in, you still pick tasks, mark them started/done, commit, 
 
 ### Why sub-agents per task (when delegating)?
 
-When there are 4+ tasks, each task runs in a **fresh context** with no carry-over from prior tasks. This:
+When there are 2+ tasks, each task runs in a **fresh context** with no carry-over from prior tasks. This:
 - Prevents context drift (e.g. hallucinated paths) that accumulates over long sessions
 - Matches the `agent-task-management` skill requirement: "Work on each new task must begin with a fresh context"
 - Keeps the orchestrator's context minimal throughout the entire run
 
-For fewer than 4 tasks the fresh-context overhead is not worth it — the orchestrator implements them directly. The `agent-task-management` "fresh context" requirement is satisfied by compaction / a new session when spawning a sub-agent is not warranted.
+For a single task the fresh-context overhead is not worth it — the orchestrator implements it directly. The `agent-task-management` "fresh context" requirement is satisfied by compaction / a new session when spawning a sub-agent is not warranted.
 
 ### Important behavior requirements
 
 - Do not ask the user to pick a task unless there is a true ambiguity or risk.
 - Default to autonomous execution.
 - Keep task scope tied to the current project.
-- Never implement tasks in the orchestrator's own context **when delegating** (4+ open tasks) — always delegate to a sub-agent. When there are fewer than 4 open tasks, implement directly instead of spawning sub-agents.
+- Never implement tasks in the orchestrator's own context **when delegating** (2+ open tasks) — always delegate to a sub-agent. When there is only 1 open task, implement directly instead of spawning a sub-agent.
 - After each sub-agent completes, immediately move to the next task.
