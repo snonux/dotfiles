@@ -43,7 +43,9 @@ Tasks are scoped to the current git repository via the `ask` CLI. **Load only th
 
 ## Context and compaction
 
-When beginning a new task, **always use a fresh context** — spawn a sub-agent (if orchestrating via `/work-on-tasks`) or start a new session. Do not carry implementation context from one task to the next; accumulated context causes drift (e.g. hallucinated paths) in long-running models. Compaction is a fallback only when spawning a sub-agent or new session is not possible.
+When beginning a new task, **use a fresh context** — spawn a sub-agent (if orchestrating via `/work-on-tasks`) or start a new session. Do not carry implementation context from one task to the next; accumulated context causes drift (e.g. hallucinated paths) in long-running models. Compaction is a fallback only when spawning a sub-agent or new session is not possible.
+
+**Exception — small task lists:** When orchestrating via `/work-on-tasks` and the number of actionable (`ask ready`) tasks is **fewer than 4**, do **not** spawn sub-agents. Implement the tasks directly in the orchestrator's own context instead. The fresh-context overhead is not justified for a small list. See the `/work-on-tasks` command for the full threshold rule.
 
 ## When to Use
 

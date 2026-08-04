@@ -6,7 +6,10 @@ Use with `00-context.md`. Project name and global rules apply (including one tas
 
 Work on each new task **must begin with a fresh context** — a new sub-agent with no prior conversation history. That way the task is executed with clear focus and no carry-over from other work.
 
-**If you are orchestrating via `/work-on-tasks`:** spawn a sub-agent for the implementation or even multiple sub-agents if they can work in parallel. Pass the full task description, all annotations, and the project root path to the sub-agent. Do not implement tasks in the orchestrator's own context.
+**If you are orchestrating via `/work-on-tasks`:** check how many actionable tasks are open (`ask ready`).
+
+- **4 or more open tasks → spawn a sub-agent** (or multiple sub-agents if they can work in parallel) for the implementation. Pass the full task description, all annotations, and the project root path to the sub-agent. Do not implement tasks in the orchestrator's own context.
+- **Fewer than 4 open tasks → implement directly** in the orchestrator's own context. Do **not** spawn sub-agents; the fresh-context overhead is not worth it for a small list.
 
 **If you are starting a single task manually:** begin in a new session or compact first so the context is clean before you start working.
 
