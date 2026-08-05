@@ -20,13 +20,9 @@
 ./skills/auditing-code-quality
 ./skills/bash-best-practices
 ./skills/beyond-solid-principles
-./skills/blog-writing-style
-./skills/burning-audio-cd
 ./skills/c-best-practices
-./skills/check-shopping-status
 ./skills/commit-skills
 ./skills/compose-blog-post
-./skills/creating-cd-mixes
 ./skills/find-code-bugs
 ./skills/go-best-practices
 ./skills/increment-version-and-push
