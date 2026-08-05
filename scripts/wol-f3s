@@ -60,6 +60,11 @@ fi
 
 # SSH user
 SSH_USER="paul"
+SSH_OPTIONS=(
+    -o StrictHostKeyChecking=no
+    -o UserKnownHostsFile=/dev/null
+    -o LogLevel=ERROR
+)
 
 # Give guests time to handle the ACPI shutdown request before killing bhyve.
 # This must remain below the f-host rcshutdown_timeout (currently 300 seconds).
@@ -106,11 +111,11 @@ shelly_set() {
     # --fail is essential: without it curl returns 0 even on an HTTP 401
     # (auth failure), which would falsely report success while the plug is
     # left untouched.
-    # Use the documented JSON-RPC POST form, then read status back. A successful
-    # HTTP response alone is not enough: Shelly RPC errors can be JSON bodies.
+    # Set the output using the query form supported by this plug's firmware,
+    # then read status back. A successful HTTP response alone is not enough:
+    # Shelly RPC errors can be JSON bodies.
     if curl -sS --fail --max-time 5 "${auth[@]}" \
-        -H 'Content-Type: application/json' -d "{\"id\":0,\"on\":${on}}" \
-        "http://${SHELLY_IP}/rpc/Switch.Set" >/dev/null &&
+        "http://${SHELLY_IP}/rpc/Switch.Set?id=0&on=${on}" >/dev/null &&
         status="$(curl -sS --fail --max-time 5 "${auth[@]}" \
         "http://${SHELLY_IP}/rpc/Switch.GetStatus?id=0")" &&
         grep -Eq "\"output\"[[:space:]]*:[[:space:]]*${on}([,}])" \
@@ -177,7 +182,7 @@ shutdown_bhyve_host() {
     # vm-bhyve 1.7.3 has no stop timeout, so enforce one here and use SIGKILL
     # only after the grace period. The forced stop is deliberately loud: it
     # can require an etcd health check/recovery after the next k3s boot.
-    if ssh -o BatchMode=yes -o ConnectTimeout=5 "$SSH_USER@$ip" \
+    if ssh "${SSH_OPTIONS[@]}" -o BatchMode=yes -o ConnectTimeout=5 "$SSH_USER@$ip" \
         "doas /bin/sh -s -- '$VM_SHUTDOWN_TIMEOUT'" <<'REMOTE_SHUTDOWN'
 timeout=$1
 
@@ -236,7 +241,7 @@ shutdown_host() {
     local ip=$2
 
     echo "Shutting down $name ($ip)..."
-    if ssh -o BatchMode=yes -o ConnectTimeout=5 "$SSH_USER@$ip" \
+    if ssh "${SSH_OPTIONS[@]}" -o BatchMode=yes -o ConnectTimeout=5 "$SSH_USER@$ip" \
         "doas poweroff" 2>/dev/null; then
         echo "  ✓ Shutdown command sent to $name"
     else
@@ -274,8 +279,8 @@ case "$ACTION" in
         echo "Checking for locally mounted NFS filesystems..."
         umount_nfs_mounts || exit 1
         # Mute Gogios monitoring alerts for a day on both OpenBSD gateways
-        ssh rex@blowfish.buetow.org touch /tmp/f3s_taken_down
-        ssh rex@fishfinger.buetow.org touch /tmp/f3s_taken_down
+        ssh "${SSH_OPTIONS[@]}" rex@blowfish.buetow.org touch /tmp/f3s_taken_down
+        ssh "${SSH_OPTIONS[@]}" rex@fishfinger.buetow.org touch /tmp/f3s_taken_down
         host_shutdown_failed=0
         shutdown_bhyve_host "f0" "$F0_IP" || host_shutdown_failed=1
         shutdown_bhyve_host "f1" "$F1_IP" || host_shutdown_failed=1
@@ -323,8 +328,8 @@ case "$ACTION" in
         echo "Checking for locally mounted NFS filesystems..."
         umount_nfs_mounts || exit 1
         # Mute Gogios monitoring alerts for a day on both OpenBSD gateways
-        ssh rex@blowfish.buetow.org touch /tmp/f3s_taken_down
-        ssh rex@fishfinger.buetow.org touch /tmp/f3s_taken_down
+        ssh "${SSH_OPTIONS[@]}" rex@blowfish.buetow.org touch /tmp/f3s_taken_down
+        ssh "${SSH_OPTIONS[@]}" rex@fishfinger.buetow.org touch /tmp/f3s_taken_down
         machine_shutdown_failed=0
         shutdown_bhyve_host "f0" "$F0_IP" || machine_shutdown_failed=1
         shutdown_bhyve_host "f1" "$F1_IP" || machine_shutdown_failed=1
