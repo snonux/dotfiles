@@ -26,7 +26,10 @@ end
 function supersync::prompts
     # Since files might have been added and/or modified withoug being
     # committed to git yet.
-    if test -d ~/git/dotfiles/prompts
+    # On Darwin (macOS) the public dotfiles repo is pull-only, so prompts are
+    # pushed to ~/git/helpers/prompts instead. The dotfiles/prompts branch is
+    # only ever pushed from Linux hosts.
+    if test -d ~/git/dotfiles/prompts -a (uname) != Darwin
         # For my Linux hosts
         cd ~/git/dotfiles/prompts
         find . -type f -name \*.md | xargs git add

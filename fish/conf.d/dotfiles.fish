@@ -11,8 +11,14 @@ function dotfiles::update::git
     set -l prev_pwd (pwd)
     cd $DOTFILES_DIR
     git pull
-    git commit -a
-    git push
+    # On macOS (Darwin) this dotfiles repo is read-only: pull only, never push.
+    # Host-specific changes are kept out of the public dotfiles repo.
+    if test (uname) = Darwin
+        echo "Darwin: skipping commit/push to dotfiles repo (pull-only)"
+    else
+        git commit -a
+        git push
+    end
     rex home
     cd "$prev_pwd"
 end
