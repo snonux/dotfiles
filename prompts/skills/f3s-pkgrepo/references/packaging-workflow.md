@@ -103,7 +103,7 @@ ssh -p 22 f0.lan.buetow.org "doas cp /tmp/package.tgz /data/nfs/k3svolumes/pkgre
 /usr/sbin/pkg_info -X output/*.tgz | gzip -9 > output/pkg_summary.gz
 # Copy to PV via f0
 scp -P 22 output/* f0.lan.buetow.org:/tmp/
-ssh -p 22 f0.lan.buetow.org "doas cp /tmp/package-name-1.0.tgz /tmp/pkg_summary.gz /data/nfs/k3svolumes/pkgrepo/netbsd/10.1/packages/aarch64/"
+ssh -p 22 f0.lan.buetow.org "doas cp /tmp/package-name-1.0.tgz /tmp/pkg_summary.gz /data/nfs/k3svolumes/pkgrepo/netbsd/11.0/packages/aarch64/"
 ```
 
 NetBSD package versions must not contain dashes (the last dash separates the

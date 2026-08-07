@@ -1,6 +1,6 @@
 # NetBSD services on pi0/pi1
 
-`pi0` and `pi1` run NetBSD 10.1 (evbarm-aarch64). This documents how their
+`pi0` and `pi1` run NetBSD 11.0 (evbarm-aarch64). This documents how their
 services are installed and configured — useful reference for troubleshooting,
 rebuilding a service, or reinstalling either node.
 
@@ -10,7 +10,7 @@ static-HTTP pair) simultaneously — one must always keep serving
 
 ## Base state
 
-- NetBSD 10.1 `GENERIC64` evbarm64 (aarch64)
+- NetBSD 11.0 `GENERIC64` evbarm64 (aarch64)
 - User `paul`, in group `wheel`, SSH key auth
 - Static LAN IP via `rc.conf` (`ifconfig_mue0="inet 192.168.1.12N netmask
   0xffffff00"`, `defaultroute="192.168.1.1"`)
@@ -26,7 +26,7 @@ static-HTTP pair) simultaneously — one must always keep serving
 ```sh
 ssh paul@piN.lan.buetow.org
 su -
-export PKG_PATH=https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/aarch64/10.1/All/
+export PKG_PATH=https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/aarch64/11.0/All/
 pkg_add -v pkgin
 pkgin -y update
 pkgin -y install doas rsync curl
@@ -52,9 +52,19 @@ real `doas` binary is why it works on `pi0`/`pi1`.
 `/usr/sbin` and `/usr/pkg/bin` — always use full paths (`doas
 /usr/sbin/chown`, `doas /usr/pkg/bin/wg`) or an explicit `PATH=` for cron.
 
-## WireGuard (userspace — no native `wg(4)` on this platform)
+## Major-version upgrade recovery lessons
 
-**`wg(4)` doesn't exist on evbarm-aarch64 10.1** — the module is absent from
+- Run the sets installation and its conditional orderly reboot together in one
+  HUP-resistant root shell, for example:
+  `doas sh -c 'trap "" HUP; /usr/pkg/sbin/sysupgrade sets </dev/null >/var/log/sysupgrade-sets.log 2>&1 && exec /sbin/shutdown -r now'`.
+  Do not depend on opening another SSH session after replacing userland.
+- After `etcupdate`, verify the active account databases, then prove a fresh
+  SSH key login and `doas` from a new session before releasing the existing
+  privileged session.
+
+## WireGuard (userspace deployment; 10.1 module finding retained as evidence)
+
+**Historical 10.1 finding:** `wg(4)` did not exist in the evbarm-aarch64 10.1 module set — the module was absent from
 all 249 files under `/stand/evbarm/10.1/modules`, so `ifconfig wg0 create`
 fails outright (`clone_command: Invalid argument`), despite `wg(4)` being
 upstream NetBSD since 9.2. Don't waste time on it; `wireguard-go` + `wg`
@@ -152,7 +162,7 @@ Enable with `bozohttpd=YES` in `/etc/rc.conf`.
 set -e
 STAGE=/tmp/wwwsync-cron
 mkdir -p "$STAGE"
-rsync -a --delete -e "ssh -o StrictHostKeyChecking=accept-new" \
+rsync -a --delete -e "ssh -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -i /home/paul/.ssh/id_ed25519" \
 	paul@pi0.lan.buetow.org:/var/www/html/ "$STAGE/"
 doas rsync -a --delete --exclude=snonux.foo "$STAGE/" /var/www/html/
 doas rsync -a --delete "$STAGE/snonux.foo/" /var/www/html/snonux.foo/
@@ -163,9 +173,11 @@ doas /usr/sbin/chown -R paul:wheel /var/www/html/snonux.foo
 ```
 
 Needs an SSH keypair for `paul` on `pi1`, authorized on `pi0`'s
-`~/.ssh/authorized_keys`, plus a static `/etc/hosts` entry for `pi0` (Pi-to-Pi
-`.lan.buetow.org` resolution isn't reliable — add the IP directly rather
-than debugging DNS).
+`~/.ssh/authorized_keys`. Keep unattended SSH pinned with
+`IdentitiesOnly=yes` and the dedicated key; forwarded-agent identities can
+otherwise exceed the server's authentication-attempt limit. Also add a static
+`/etc/hosts` entry for pi0 (Pi-to-Pi `.lan.buetow.org` resolution is not
+reliable — add the IP directly rather than debugging DNS).
 
 Install as `paul`'s crontab on `pi1` (not root's — needs the SSH key):
 `47 * * * * /usr/local/bin/sync-from-pi0.sh >$HOME/sync-from-pi0.log 2>&1`

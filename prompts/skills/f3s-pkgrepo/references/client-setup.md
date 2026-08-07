@@ -89,14 +89,14 @@ No persistent repo config needed — install/update straight from the package UR
 
 ```sh
 export PATH=/usr/sbin:$PATH   # pkg_* live in /usr/sbin, not in the default non-interactive PATH
-doas pkg_add https://pkgrepo.f3s.buetow.org/netbsd/10.1/packages/aarch64/dtail-4.3.2ng.tgz    # first install
-doas pkg_add -u https://pkgrepo.f3s.buetow.org/netbsd/10.1/packages/aarch64/dtail-4.3.2ng.tgz # update to newer version
+doas pkg_add https://pkgrepo.f3s.buetow.org/netbsd/11.0/packages/aarch64/dtail-4.3.2ng.tgz    # first install
+doas pkg_add -u https://pkgrepo.f3s.buetow.org/netbsd/11.0/packages/aarch64/dtail-4.3.2ng.tgz # update to newer version
 ```
 
 Notes:
 - Same-version reinstall: `pkg_add -u` skips it — `doas pkg_delete dtail` first, then `pkg_add` again
 - `pkg_summary.gz` is published alongside the packages, so the repo URL could also be added to `/usr/pkg/etc/pkgin/repositories.conf` for pkgin; today plain `pkg_add` is used
-- Version in the URL path must match the host OS release (currently 10.1) and the arch is `aarch64` (`uname -p`)
+- Version in the URL path must match the host OS release (currently 11.0) and the arch is `aarch64` (`uname -p`)
 - pkgsrc packages from cdn.netbsd.org still install normally via pkgin — the custom repo lives under a different prefix (`/` with files in `/usr/local`, `/etc`) and doesn't conflict
 
 ## Rocky Linux (r0–r2, pi2–pi3)

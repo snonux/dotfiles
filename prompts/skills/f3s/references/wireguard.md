@@ -10,8 +10,8 @@ Hybrid WireGuard topology connecting the f3s infrastructure mesh, two gateway-on
 - `blowfish`, `fishfinger` — OpenBSD internet gateways (OpenBSD Amsterdam and Hetzner)
 
 **Limited-peer nodes** (connect to the gateways, plus `rocky` — not full mesh):
-- `pi0` — **NetBSD 10.1** on Raspberry Pi 3 (`192.168.2.203`)
-- `pi1` — **NetBSD 10.1** on Raspberry Pi 3 (`192.168.2.204`)
+- `pi0` — **NetBSD 11.0** on Raspberry Pi 3 (`192.168.2.203`)
+- `pi1` — **NetBSD 11.0** on Raspberry Pi 3 (`192.168.2.204`)
 
 **Roaming clients** (connect only to gateways):
 - `earth` — Fedora laptop (192.168.2.200)
@@ -20,9 +20,9 @@ Hybrid WireGuard topology connecting the f3s infrastructure mesh, two gateway-on
 Even `fN <-> rN` tunnels exist (technically redundant since the VM runs on the host) to keep config uniform.
 `pi0` and `pi1` are not full-mesh peers; each has exactly 3 peers: `blowfish`, `fishfinger`, and `rocky`.
 
-### `pi0`/`pi1` (NetBSD): no native `wg(4)`, use `wireguard-go` instead
+### `pi0`/`pi1` (NetBSD): deployed userspace WireGuard
 
-The `wg` kernel module documented above does **not** ship in the evbarm-aarch64 10.1 module set (confirmed: absent from all 249 modules under `/stand/evbarm/10.1/modules`, so `ifconfig wg0 create` fails outright) — despite `wg(4)` being upstream NetBSD since 9.2, this platform/release combination just doesn't have it. Fixed with pkgsrc's `wireguard-go` (userspace) + `wireguard-tools` (`wg` CLI only — no `wg-quick` in this package) instead:
+Historical evidence from 10.1: the `wg` kernel module did **not** ship in that evbarm-aarch64 module set (confirmed absent from all 249 modules under `/stand/evbarm/10.1/modules`, so `ifconfig wg0 create` failed outright). The deployed configuration continues to use pkgsrc's `wireguard-go` (userspace) + `wireguard-tools` (`wg` CLI only — no `wg-quick` in this package):
 
 - Interface must be named `tunN` (`wireguard-go` on NetBSD requires this — `wg0` is rejected: "Interface name must be tun[0-9]*"). Used `tun0`.
 - Bring the interface up **and address it** (`ifconfig tun0 inet <ip> <ip> netmask 255.255.255.255`) *before* starting `wireguard-go`, or its read loop dies immediately with `EHOSTDOWN` ("host is down") and does not retry.
@@ -44,8 +44,8 @@ The `wg` kernel module documented above does **not** ship in the evbarm-aarch64 
 | r2 | 192.168.2.122 | fd42:beef:cafe:2::122 | Rocky VM (k3s node) |
 | blowfish | 192.168.2.110 | fd42:beef:cafe:2::110 | OpenBSD internet GW |
 | fishfinger | 192.168.2.111 | fd42:beef:cafe:2::111 | OpenBSD internet GW |
-| pi0 | 192.168.2.203 | fd42:beef:cafe:2::203 | NetBSD 10.1 on Raspberry Pi 3 (limited-peer: blowfish/fishfinger/rocky) |
-| pi1 | 192.168.2.204 | fd42:beef:cafe:2::204 | NetBSD 10.1 on Raspberry Pi 3 (limited-peer: blowfish/fishfinger/rocky) |
+| pi0 | 192.168.2.203 | fd42:beef:cafe:2::203 | NetBSD 11.0 on Raspberry Pi 3 (limited-peer: blowfish/fishfinger/rocky) |
+| pi1 | 192.168.2.204 | fd42:beef:cafe:2::204 | NetBSD 11.0 on Raspberry Pi 3 (limited-peer: blowfish/fishfinger/rocky) |
 | earth | 192.168.2.200 | fd42:beef:cafe:2::200 | Fedora laptop (roaming) |
 | pixel7pro | 192.168.2.201 | fd42:beef:cafe:2::201 | Android phone (roaming) |
 

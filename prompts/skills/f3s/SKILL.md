@@ -48,8 +48,8 @@ subfolder:
 | earth | Fedora laptop (roaming) | — | 192.168.2.200 |
 | pixel7pro | Android (roaming) | — | 192.168.2.201 |
 | f3s-storage-ha | CARP VIP (f0/f1) | 192.168.1.138 | — |
-| pi0 | Raspberry Pi 3, **NetBSD 10.1** (evbarm-aarch64), static `f3s.buetow.org` backend | 192.168.1.125 | 192.168.2.203 |
-| pi1 | Raspberry Pi 3, **NetBSD 10.1** (evbarm-aarch64), static `f3s.buetow.org` backend | 192.168.1.126 | 192.168.2.204 |
+| pi0 | Raspberry Pi 3, **NetBSD 11.0** (evbarm-aarch64), static `f3s.buetow.org` backend | 192.168.1.125 | 192.168.2.203 |
+| pi1 | Raspberry Pi 3, **NetBSD 11.0** (evbarm-aarch64), static `f3s.buetow.org` backend | 192.168.1.126 | 192.168.2.204 |
 | pi2 | Raspberry Pi 3, Rocky Linux 9, Pi-hole (Docker, host net) | 192.168.1.127 | — |
 | pi3 | Raspberry Pi 3, Rocky Linux 9, Pi-hole (Docker, host net) | 192.168.1.128 | — |
 

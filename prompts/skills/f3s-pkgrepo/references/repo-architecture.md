@@ -27,7 +27,7 @@ Custom FreeBSD, OpenBSD, NetBSD, and Rocky Linux package repository served from 
       packages/
         amd64/            # .tgz files (signify-signed)
   netbsd/
-    10.1/
+    11.0/
       packages/
         aarch64/          # .tgz files (unsigned) + pkg_summary.gz for pkgin
   rockylinux/

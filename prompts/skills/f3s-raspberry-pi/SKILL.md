@@ -1,6 +1,6 @@
 ---
 name: f3s-raspberry-pi
-description: Reference skill for the four Raspberry Pi 3 nodes of the f3s homelab, pi0/pi1 run NetBSD 10.1 (aarch64) serving static f3s.buetow.org / snonux.foo via bozohttpd behind OpenBSD relayd over WireGuard; pi2/pi3 run Rocky Linux 9 with Pi-hole in Docker and LAN wildcard DNS (`*.f3s.lan.buetow.org` to 192.168.1.138). Covers doas/pkgin bootstrap, bozohttpd vhosting, npf, uptimed, content sync, and the doas-alias shutdown pitfall. Use when configuring or troubleshooting the Pi nodes, the static site, or Pi-hole/LAN DNS. Part of the f3s homelab skill family (hub, [`f3s`](../f3s/SKILL.md)).
+description: Reference skill for the four Raspberry Pi 3 nodes of the f3s homelab, pi0/pi1 run NetBSD 11.0 (aarch64) serving static f3s.buetow.org / snonux.foo via bozohttpd behind OpenBSD relayd over WireGuard; pi2/pi3 run Rocky Linux 9 with Pi-hole in Docker and LAN wildcard DNS (`*.f3s.lan.buetow.org` to 192.168.1.138). Covers doas/pkgin bootstrap, bozohttpd vhosting, npf, uptimed, content sync, and the doas-alias shutdown pitfall. Use when configuring or troubleshooting the Pi nodes, the static site, or Pi-hole/LAN DNS. Part of the f3s homelab skill family (hub, [`f3s`](../f3s/SKILL.md)).
 ---
 
 # f3s Raspberry Pi Nodes
@@ -17,7 +17,7 @@ The four Raspberry Pi 3 nodes of the f3s homelab. The master host/IP inventory
 
 ## Node roles
 
-`pi2`/`pi3` run Rocky Linux 9.2 (Blue Onyx) aarch64 from the SIG/AltArch image (`RockyLinuxRpi_9-latest.img.xz`). `pi0` and `pi1` run **NetBSD 10.1** (evbarm-aarch64). Each Rocky Pi has:
+`pi2`/`pi3` run Rocky Linux 9.2 (Blue Onyx) aarch64 from the SIG/AltArch image (`RockyLinuxRpi_9-latest.img.xz`). `pi0` and `pi1` run **NetBSD 11.0** (evbarm-aarch64). Each Rocky Pi has:
 
 - User `paul` with passwordless sudo and SSH key auth
 - Static IP on eth0 via NetworkManager

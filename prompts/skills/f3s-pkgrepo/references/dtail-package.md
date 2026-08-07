@@ -139,8 +139,8 @@ doas groupadd dserver
 doas useradd -g dserver -d /var/run/dserver -s /sbin/nologin -c "DTail server" dserver
 
 # Install / update from the custom repo
-doas pkg_add https://pkgrepo.f3s.buetow.org/netbsd/10.1/packages/aarch64/dtail-4.3.2ng.tgz
-doas pkg_add -u https://pkgrepo.f3s.buetow.org/netbsd/10.1/packages/aarch64/dtail-4.3.2ng.tgz  # newer version
+doas pkg_add https://pkgrepo.f3s.buetow.org/netbsd/11.0/packages/aarch64/dtail-4.3.2ng.tgz
+doas pkg_add -u https://pkgrepo.f3s.buetow.org/netbsd/11.0/packages/aarch64/dtail-4.3.2ng.tgz  # newer version
 # Same-version reinstall: pkg_delete dtail first, then pkg_add
 
 # Enable and start (rc.d script ships in the package)

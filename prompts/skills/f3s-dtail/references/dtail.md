@@ -8,7 +8,7 @@ Upstream install and examples live in the repo: `doc/installation.md`, `examples
 
 | Hosts | OS / arch | dserver binary | Typical SSH user |
 |-------|-----------|----------------|------------------|
-| **pi0–pi1** | NetBSD 10.1 **aarch64** (Raspberry Pi 3, see `bootstrap-netbsd-pi.md`) | Cross-build **netbsd/arm64**, `nozstd`; installed via `pkg_add` from the custom pkgrepo | `paul@piN.lan.buetow.org` |
+| **pi0–pi1** | NetBSD 11.0 **aarch64** (Raspberry Pi 3, see `bootstrap-netbsd-pi.md`) | Cross-build **netbsd/arm64**, `nozstd`; installed via `pkg_add` from the custom pkgrepo | `paul@piN.lan.buetow.org` |
 | **pi2–pi3** | Rocky Linux 9 **aarch64** (Raspberry Pi 3) | Cross-build **linux/arm64**, `nozstd` | `paul@piN.lan.buetow.org` |
 | **r0–r2** | Rocky Linux 9 **x86_64** (bhyve VMs, k3s nodes) | Cross-build **linux/amd64**, `nozstd` | Often `root@rN.lan.buetow.org` (see [Rocky Linux VMs](../../f3s/references/rocky-linux-vms.md)); add `root` (and `paul` if present) to **Server.Permissions.Users** in `dtail.json` |
 | **blowfish, fishfinger** | OpenBSD 7.8 **amd64** | Native OpenBSD package build | `rex@blowfish.buetow.org`, `rex@fishfinger.buetow.org` |
