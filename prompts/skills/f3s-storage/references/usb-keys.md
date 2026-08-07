@@ -125,7 +125,12 @@ lives on whichever f-host it is currently plugged into (f1 as of 2026-07-20).
 It is **not** auto-imported or auto-mounted at boot and is **not** in any
 host's `zfskeys_datasets` (removable disks must never block boot). It is loaded
 manually with `/usr/local/bin/zusb-load` and exported with
-`/usr/local/bin/zusb-unload`.
+`/usr/local/bin/zusb-unload`. Unload resolves the four disks by their stable
+USB-SATA bridge serials, exports the pool, sends SCSI `STOP UNIT` to park/spin
+down each disk, then disables each USB device with `usbconfig power_off` before
+the stack is unplugged. Load performs the inverse when the pool is offline:
+`usbconfig power_on`, CAM discovery, SCSI `START UNIT`, readiness checks, and
+only then the ZFS import.
 
 The encryption root is `zusb/data/enc`, rekeyed to the same raw-key-on-stick
 scheme as the other f-host secrets: `keyformat=raw`,
