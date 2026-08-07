@@ -32,6 +32,13 @@ F1_IP="192.168.1.131"
 F2_IP="192.168.1.132"
 F3_IP="192.168.1.133"
 
+# k3s Rocky VMs on f0/f1/f2. Used as the readiness signal when un-muting
+# Gogios: the alerts we mute on shutdown are the Prometheus ones scraped from
+# this cluster, so the cluster being back is what makes them meaningful again.
+R0_IP="192.168.1.120"
+R1_IP="192.168.1.121"
+R2_IP="192.168.1.122"
+
 # Raspberry Pi IP addresses (no WoL support, shutdown only)
 PI0_IP="192.168.1.125"
 PI1_IP="192.168.1.126"
@@ -72,6 +79,54 @@ VM_SHUTDOWN_TIMEOUT=240
 
 # Broadcast address for your LAN
 BROADCAST="192.168.1.255"
+
+# Gogios mute marker. Created on shutdown so the Prometheus-derived checks stay
+# quiet while the cluster is deliberately down. Gogios expires it on its own
+# after PrometheusOnlyIfNotExistsMaxS (24h by default), but relying on that
+# expiry means a real outage after an early wake-up goes unnoticed for the rest
+# of the day — that hid a two-day audiobookshelf outage in August 2026. So the
+# wake path clears it explicitly instead.
+GOGIOS_MUTE_FILE="/tmp/f3s_taken_down"
+GOGIOS_GATEWAYS=(blowfish.buetow.org fishfinger.buetow.org)
+
+# How long to wait for the k3s nodes before giving up on un-muting.
+GOGIOS_UNMUTE_TIMEOUT=600
+
+mute_gogios() {
+    local gw
+    for gw in "${GOGIOS_GATEWAYS[@]}"; do
+        ssh "${SSH_OPTIONS[@]}" "rex@$gw" touch "$GOGIOS_MUTE_FILE"
+    done
+}
+
+# unmute_gogios waits for all three k3s nodes to answer before removing the
+# marker, so that alerts do not fire during the boot window.
+unmute_gogios() {
+    local deadline=$((SECONDS + GOGIOS_UNMUTE_TIMEOUT))
+    local ip gw pending=1
+
+    echo "Waiting for k3s nodes before un-muting Gogios monitoring..."
+    while (( SECONDS < deadline )); do
+        pending=0
+        for ip in "$R0_IP" "$R1_IP" "$R2_IP"; do
+            ping -c1 -W2 "$ip" &>/dev/null || pending=1
+        done
+        (( pending == 0 )) && break
+        sleep 15
+    done
+
+    if (( pending != 0 )); then
+        echo "⚠️  k3s nodes not all reachable after ${GOGIOS_UNMUTE_TIMEOUT}s;"
+        echo "    leaving Gogios muted. Clear it by hand once they are up:"
+        echo "    ssh rex@<gateway> rm -f $GOGIOS_MUTE_FILE"
+        return 1
+    fi
+
+    for gw in "${GOGIOS_GATEWAYS[@]}"; do
+        ssh "${SSH_OPTIONS[@]}" "rex@$gw" rm -f "$GOGIOS_MUTE_FILE"
+    done
+    echo "✓ Gogios monitoring un-muted."
+}
 
 wake() {
     local name=$1
@@ -271,6 +326,10 @@ case "$ACTION" in
         wake "f0" "$F0_MAC"
         wake "f1" "$F1_MAC"
         wake "f2" "$F2_MAC"
+        # Counterpart to the mute in the shutdown path below. Only the "all"
+        # wake clears it: waking a single host would un-mute alerts for the
+        # others that are still down.
+        unmute_gogios || true
         ;;
     shutdown|poweroff|down)
         # Umount local NFS filesystems first; abort if any are stuck.
@@ -278,9 +337,9 @@ case "$ACTION" in
         # so they will hang or corrupt if the servers go down while mounted.
         echo "Checking for locally mounted NFS filesystems..."
         umount_nfs_mounts || exit 1
-        # Mute Gogios monitoring alerts for a day on both OpenBSD gateways
-        ssh "${SSH_OPTIONS[@]}" rex@blowfish.buetow.org touch /tmp/f3s_taken_down
-        ssh "${SSH_OPTIONS[@]}" rex@fishfinger.buetow.org touch /tmp/f3s_taken_down
+        # Mute Gogios monitoring alerts on both OpenBSD gateways; the wake
+        # path clears the marker again once the k3s nodes are back.
+        mute_gogios
         host_shutdown_failed=0
         shutdown_bhyve_host "f0" "$F0_IP" || host_shutdown_failed=1
         shutdown_bhyve_host "f1" "$F1_IP" || host_shutdown_failed=1
@@ -327,9 +386,9 @@ case "$ACTION" in
         # so they will hang or corrupt if the servers go down while mounted.
         echo "Checking for locally mounted NFS filesystems..."
         umount_nfs_mounts || exit 1
-        # Mute Gogios monitoring alerts for a day on both OpenBSD gateways
-        ssh "${SSH_OPTIONS[@]}" rex@blowfish.buetow.org touch /tmp/f3s_taken_down
-        ssh "${SSH_OPTIONS[@]}" rex@fishfinger.buetow.org touch /tmp/f3s_taken_down
+        # Mute Gogios monitoring alerts on both OpenBSD gateways; the wake
+        # path clears the marker again once the k3s nodes are back.
+        mute_gogios
         machine_shutdown_failed=0
         shutdown_bhyve_host "f0" "$F0_IP" || machine_shutdown_failed=1
         shutdown_bhyve_host "f1" "$F1_IP" || machine_shutdown_failed=1
