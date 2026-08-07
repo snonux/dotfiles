@@ -98,7 +98,7 @@ Current version: **FreeBSD 15.1-RELEASE** (as of Part 9, minor upgrade from 15.0
 - **ZFS sysctl rename**: `vfs.zfs.min_auto_ashift` was renamed to `vfs.zfs.vdev.min_auto_ashift`. Emits deprecation warning at boot if old name is still in `/etc/sysctl.conf`; removed in FreeBSD 16. Fix: `doas sed -i '' 's/vfs.zfs.min_auto_ashift/vfs.zfs.vdev.min_auto_ashift/' /etc/sysctl.conf`
 - **ZFS libzfs7/libzpool7 SONAME bump**: ABI-breaking change; `doas pkg upgrade` after the new kernel is booted handles this. After upgrade, verify `doas zrepl status` — zrepl uses libzfs Go bindings.
 - **if_bridge/if_epair MAC change**: bridge adapter self-MAC changes (collision-flaw fix). VMs with static `network0_mac` in their bhyve config are unaffected (their own NIC MACs don't change).
-- **CARP failover + NFS sink dataset**: `carpcontrol.sh` must set `readonly=off` on `zdata/sink/f0/zdata/enc/nfsdata` when f1 becomes MASTER, and rollback to the last snapshot + restore `readonly=on` on BACKUP transition; otherwise zrepl replication breaks after every failover. Fixed in `f3s/freebsd-hosts/carp/carpcontrol.sh` (commits 6c13b6a + c9f06a2).
+- **CARP failover + NFS sink dataset**: `zdata/sink/f0/zdata/enc/nfsdata` on f1 must remain `readonly=on` in every CARP state. Never make the receiver writable or roll it back automatically: zrepl deliberately refuses a diverged receiver so its files can be inspected with `zfs diff` before any manual rollback or full re-seed. Enforced by `f3s/freebsd-hosts/carp/carpcontrol.sh`.
 
 ## /etc/hosts
 

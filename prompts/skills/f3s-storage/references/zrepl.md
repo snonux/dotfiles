@@ -237,7 +237,11 @@ Installed on f0 2026-07-20.
 
 ## Failover design: intentionally read-only replica
 
-The standby replica is read-only by design. Manual failover (not automatic) to prevent split-brain. To fix broken replication after accidental writes: `doas zfs rollback <snapshot>`.
+The standby replica is read-only by design, including while f1 is CARP MASTER.
+Never set the receiver `readonly=off`, and never roll it back automatically.
+If zrepl reports that the destination was modified, leave it untouched and
+inspect changes from the latest received snapshot with `zfs diff` before
+choosing a manual rollback or full re-seed.
 
 ## Troubleshooting
 
@@ -245,7 +249,14 @@ The standby replica is read-only by design. Manual failover (not automatic) to p
 # Signal manual replication
 doas zrepl signal wakeup f0_to_f1_nfsdata
 
-# Fix "no common snapshot" — destroy and re-replicate
+# Before destructive recovery, identify and inspect receiver-side divergence
+SINK=zdata/sink/f0/zdata/enc/nfsdata
+LAST=$(zfs list -H -t snapshot -o name -s creation -r "$SINK" | tail -1)
+zfs get "written@${LAST##*@}" "$SINK"
+zfs diff -FH "$LAST" "$SINK"
+
+# Fix "no common snapshot" only after confirming f0 is healthy and reviewing
+# the diff above — destroy the receiver and let zrepl perform a full send
 doas zfs destroy -r zdata/sink/f0/zdata/enc/nfsdata
 
 # Test network connectivity
