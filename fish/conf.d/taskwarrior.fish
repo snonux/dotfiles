@@ -232,7 +232,7 @@ end
 # everything after TAG is the task description.
 function taskwarrior::quicklogger
     # Directories to scan for quick-log files (ql-*)
-    set -l notes_dirs "$HOME/Notes" "$HOME/Notes/Quicklogger" "$WORKTIME_DIR"
+    set -l notes_dirs "$HOME/Notes" "$HOME/Notes/Quicklog" "$WORKTIME_DIR"
 
     for dir in $notes_dirs
         # Skip directories that don't exist on this machine
