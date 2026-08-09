@@ -1,0 +1,296 @@
+#!/usr/bin/env bash
+# audit-due — report git repositories that are due for a code audit.
+#
+# An audit is "due" when, since the last audit marker, either:
+#   * the total churn (insertions + deletions) reaches LOC_THRESHOLD, or
+#   * the time since the marker reaches CEILING_DAYS,
+# whichever fires first. A MIN_GAP_DAYS cool-down prevents re-auditing
+# too soon after a fresh audit.
+#
+# The marker is a git tag named "audit/<ISO-date>" (e.g. audit/2026-06-27).
+# If no audit/* tag exists, the script falls back to scanning commit
+# messages for audit/review keywords (100 Go Mistakes, SOLID, code-quality
+# audit, bug sweep, design review, etc.) so existing history can bootstrap
+# itself. Use `audit-due bootstrap` to stamp the detected commit with a
+# real audit/<date> tag so future runs are deterministic.
+#
+# The output is designed to be read by an agent (LLM). After the table it
+# prints an AGENT ACTIONS block telling the agent, per due repo, which
+# skills to run and where to record findings (agent-task-management skill,
+# within the repo to be audited).
+#
+# Usage:
+#   audit-due                  # scan ~/git, print due repos + agent actions
+#   audit-due <root>           # scan <root> instead of ~/git
+#   audit-due --all            # also print not-due repos
+#   audit-due --json           # machine-readable JSON output
+#   audit-due bootstrap [root] # tag detected audit commits with audit/<date>
+#
+# Environment:
+#   LOC_THRESHOLD      churn that triggers an audit      (default 2000)
+#   CEILING_DAYS       days after which an audit is due  (default 180)
+#   MIN_GAP_DAYS       days to wait before re-auditing   (default 14)
+#   AUDIT_DUE_KEYWORDS extra | separated keywords to match commit messages
+#
+# Exit status: 0 always. Prints a summary line on stderr.
+
+set -euo pipefail
+
+LOC_THRESHOLD="${LOC_THRESHOLD:-2000}"
+CEILING_DAYS="${CEILING_DAYS:-180}"
+MIN_GAP_DAYS="${MIN_GAP_DAYS:-14}"
+
+# Keywords used by the commit-message fallback. Pipe-separated for grep -E.
+KEYWORDS="${AUDIT_DUE_KEYWORDS:-100 [Gg]o [Mm]istakes|code quality audit|code-quality audit|SOLID|bug sweep|design review|architecture review|code audit|review fixes}"
+
+ROOT="$HOME/git"
+SHOW_ALL=0
+JSON=0
+ACTION="scan"
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --all) SHOW_ALL=1; shift ;;
+    --json) JSON=1; shift ;;
+    bootstrap) ACTION="bootstrap"; shift; [ $# -gt 0 ] && ROOT="$1" ;;
+    -h|--help)
+      sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'
+      exit 0 ;;
+    *) ROOT="$1"; shift ;;
+  esac
+done
+
+# Resolve the last audit marker commit for the repo in $PWD.
+# Prints "<sha> <iso-date>" or nothing if none found.
+last_audit_marker() {
+  local tag
+  tag=$(git describe --tags --match 'audit/*' --abbrev=0 HEAD 2>/dev/null || true)
+  if [ -n "$tag" ]; then
+    git log -1 --format='%H %ad' --date=short "$tag"
+    return
+  fi
+
+  # Fallback: newest commit whose message mentions an audit keyword.
+  local sha
+  sha=$(git log --format='%H %ad' --date=short -i -E --grep="$KEYWORDS" \
+        2>/dev/null | head -1 || true)
+  if [ -n "$sha" ]; then
+    echo "$sha"
+    return
+  fi
+}
+
+# Total churn (ins + del) between $1 and HEAD. Prints a number.
+churn_since() {
+  local stat ins del
+  stat=$(git diff --shortstat "$1" HEAD 2>/dev/null || true)
+  ins=$(echo "$stat" | grep -oE '[0-9]+ insertion' | awk '{print $1}'); ins=${ins:-0}
+  del=$(echo "$stat" | grep -oE '[0-9]+ deletion' | awk '{print $1}'); del=${del:-0}
+  echo $(( ins + del ))
+}
+
+# Days since an ISO date.
+days_since() {
+  local d="$1"
+  echo $(( ( $(date +%s) - $(date -d "$d" +%s) ) / 86400 ))
+}
+
+# Detect the dominant source language by file count (tracked files only).
+# Prints a single token: go | c | ruby | bash | python | other.
+dominant_lang() {
+  local go c rb sh py max lang
+  go=$(git ls-files '*.go' 2>/dev/null | wc -l)
+  c=$(git ls-files '*.c' '*.h' 2>/dev/null | wc -l)
+  rb=$(git ls-files '*.rb' 2>/dev/null | wc -l)
+  sh=$(git ls-files '*.sh' '*.bash' 2>/dev/null | wc -l)
+  py=$(git ls-files '*.py' 2>/dev/null | wc -l)
+
+  lang="other"; max=0
+  for pair in "go:$go" "c:$c" "ruby:$rb" "bash:$sh" "python:$py"; do
+    local n=${pair#*:}
+    [ "$n" -gt "$max" ] && { max=$n; lang=${pair%%:*}; }
+  done
+  [ "$max" -gt 0 ] && echo "$lang" || echo "other"
+}
+
+# Map a language token to the pi skill names an agent should run for the
+# audit. Comma-separated, ordered orchestrator-first.
+skills_for_lang() {
+  case "$1" in
+    go)    echo "auditing-code-quality,100-go-mistakes,go-best-practices,find-code-bugs,solid-principles,beyond-solid-principles" ;;
+    c)     echo "auditing-code-quality,c-best-practices,find-code-bugs,solid-principles,beyond-solid-principles" ;;
+    ruby)  echo "auditing-code-quality,find-code-bugs,solid-principles,beyond-solid-principles" ;;
+    bash)  echo "auditing-code-quality,bash-best-practices,find-code-bugs" ;;
+    python) echo "auditing-code-quality,find-code-bugs,solid-principles,beyond-solid-principles" ;;
+    *)     echo "auditing-code-quality,find-code-bugs,solid-principles,beyond-solid-principles" ;;
+  esac
+}
+
+# Stamp the detected audit commit with an audit/<date> tag.
+bootstrap_repo() {
+  local sha date tag
+  read -r sha date < <(last_audit_marker)
+  if [ -z "$sha" ]; then
+    echo "  $(basename "$PWD"): no audit marker found, skipping"
+    return
+  fi
+  tag="audit/$date"
+  if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+    echo "  $(basename "$PWD"): tag $tag already exists"
+    return
+  fi
+  git tag "$tag" "$sha"
+  echo "  $(basename "$PWD"): tagged $sha as $tag"
+}
+
+# Emit one pipe-delimited record for the repo in $PWD:
+#   name|marker|date|days|loc|commits|due|lang|skills|msg
+# (or "skip|<name>|no commits" for empty repos).
+scan_repo() {
+  local name sha date days loc commits marker msg due lang skills
+  name=$(basename "$PWD")
+
+  if [ -z "$(git rev-list -n1 HEAD 2>/dev/null)" ]; then
+    printf 'skip|%s|no commits/unborn HEAD\n' "$name"
+    return
+  fi
+
+  local line
+  line=$(last_audit_marker || true)
+  if [ -n "$line" ]; then
+    sha=${line%% *}; date=${line##* }
+    days=$(days_since "$date")
+    loc=$(churn_since "$sha")
+    commits=$(git rev-list --count "$sha..HEAD")
+    marker=$(git log -1 --format='%h' "$sha")
+    msg=$(git log -1 --format=%s --date=short "$sha" | tr '|' '/' | cut -c1-40)
+  else
+    sha=$(git rev-list --max-parents=0 HEAD 2>/dev/null | tail -1)
+    if [ -z "$sha" ]; then printf 'skip|%s|no commits\n' "$name"; return; fi
+    date=$(git log -1 --format=%ad --date=short "$sha")
+    days=$(days_since "$date")
+    loc=$(churn_since "$sha")
+    commits=$(git rev-list --count "$sha..HEAD")
+    marker="(none)"
+    msg="no audit marker - full history"
+  fi
+
+  due="no"
+  if [ "$days" -ge "$MIN_GAP_DAYS" ]; then
+    if [ "$loc" -ge "$LOC_THRESHOLD" ]; then due="LOC"; fi
+    if [ "$days" -ge "$CEILING_DAYS" ]; then due="${due:+$due+}TIME"; fi
+  fi
+
+  lang=$(dominant_lang)
+  skills=$(skills_for_lang "$lang")
+  printf '%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n' \
+    "$name" "$marker" "$date" "$days" "$loc" "$commits" "$due" "$lang" "$skills" "$msg"
+}
+
+print_table() {
+  local rec=$1
+  if [ "$JSON" -eq 1 ]; then
+    awk -F'|' '
+      function j(s){gsub(/\\/,"\\\\",s);gsub(/"/,"\\\"",s);return "\""s"\""}
+      function arr(s,   n,i,o,p){
+        n=split(s,p,","); o="[";
+        for(i=1;i<=n;i++){if(i>1)o=o","; o=o j(p[i])}
+        return o"]"
+      }
+      $1=="skip"{next}
+      {
+        printf "{\"repo\":%s,\"marker\":%s,\"date\":%s,\"days\":%s,\"loc\":%s,\"commits\":%s,\"due\":%s,\"lang\":%s,\"skills\":%s,\"msg\":%s}\n",
+          j($1),j($2),j($3),$4,$5,$6,j($7),j($8),arr($9),j($10)
+      }' <<<"$rec"
+    return
+  fi
+
+  printf '%-14s %-9s %-12s %5s %7s %6s %-9s %-6s %s\n' \
+    REPO MARKER DATE DAYS LOC COMMITS DUE LANG MSG
+  awk -F'|' '$1!="skip"' <<<"$rec" | while IFS='|' read -r n m d dy l c du lg sk ms; do
+    if [ "$du" != "no" ] || [ "$SHOW_ALL" -eq 1 ]; then
+      printf '%-14s %-9s %-12s %5s %7s %6s %-9s %-6s %s\n' \
+        "$n" "$m" "$d" "$dy" "$l" "$c" "$du" "$lg" "$ms"
+    fi
+  done
+}
+
+# Print explicit, agent-actionable instructions for each due repo.
+print_agent_actions() {
+  local rec=$1 any=0
+  while IFS='|' read -r n m d dy l c du lg sk ms; do
+    [ "$n" = "skip" ] && continue
+    if [ "$du" = "LOC" ] || [ "$du" = "TIME" ] || [ "$du" = "LOC+TIME" ]; then
+      any=1
+      echo
+      echo "### AUDIT DUE: $n  (lang: $lg, churn: $l LOC, $dy days since last marker)"
+      echo
+      echo "  Agent: work from within the repo to be audited."
+      echo "    cd ~/git/$n"
+      echo
+      echo "  1. AUDIT — invoke these pi skills (in order):"
+      echo "$sk" | tr ',' '\n' | sed 's/^/       - /'
+      echo
+      echo "     auditing-code-quality orchestrates the specialized skills;"
+      echo "     find-code-bugs hunts defects; solid-principles / beyond-solid-principles"
+      echo "     check design; the *-best-practices / 100-go-mistakes skill is"
+      echo "     language-specific."
+      echo
+      echo "  2. RECORD FINDINGS — for each confirmed finding, use the"
+      echo "     agent-task-management skill to create a task WITHIN ~/git/$n"
+      echo "     (not elsewhere) so findings are tracked next to the code:"
+      echo "       ask add '<finding summary>'   # run from ~/git/$n"
+      echo
+      echo "  3. CLOSE THE LOOP — after the audit completes, stamp the audit"
+      echo "     marker so the next audit-due run is deterministic:"
+      echo "       git -C ~/git/$n tag audit/\$(date +%F)"
+      echo "     or bootstrap the detected marker:"
+      echo "       audit-due bootstrap ~/git/$n"
+    fi
+  done <<<"$rec"
+
+  if [ "$any" -eq 1 ]; then
+    echo
+    echo "Skill reference: skills live in ~/.agents/skills/<name>/SKILL.md and are"
+    echo "invoked by name from the agent (e.g. 'use the find-code-bugs skill')."
+  else
+    echo "No repos currently due for audit."
+  fi
+}
+
+# ---- main -----------------------------------------------------------------
+
+if [ "$ACTION" = "bootstrap" ]; then
+  echo "Bootstrapping audit/* tags under $ROOT…"
+  for d in "$ROOT"/*/; do
+    [ -d "$d/.git" ] || continue
+    ( cd "$d"; bootstrap_repo )
+  done
+  exit 0
+fi
+
+records=""
+repo_count=0
+for d in "$ROOT"/*/; do
+  [ -d "$d/.git" ] || continue
+  repo_count=$(( repo_count + 1 ))
+  records+=$( ( cd "$d"; scan_repo ) )
+  records+=$'\n'
+done
+
+if [ "$JSON" -eq 1 ]; then
+  print_table "$records"
+  exit 0
+fi
+
+print_table "$records"
+echo
+echo "---- AGENT ACTIONS ----"
+print_agent_actions "$records"
+
+due_count=$(awk -F'|' '$1!="skip" && $7!="no" {c++} END{print c+0}' <<<"$records")
+{
+  echo
+  echo "threshold: LOC>=$LOC_THRESHOLD or days>=$CEILING_DAYS (min gap ${MIN_GAP_DAYS}d)"
+  echo "scanned $repo_count repos, $due_count due for audit"
+} >&2
