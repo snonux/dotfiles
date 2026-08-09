@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # audit-due — report git repositories that are due for a code audit.
 #
-# An audit is "due" when, since the last audit marker, either:
-#   * the total churn (insertions + deletions) reaches LOC_THRESHOLD, or
-#   * the time since the marker reaches CEILING_DAYS,
-# whichever fires first. A MIN_GAP_DAYS cool-down prevents re-auditing
-# too soon after a fresh audit.
+# A repo is "due" when the total churn (insertions + deletions) since the
+# last audit marker reaches LOC_THRESHOLD. That is the only signal: the
+# script checks nothing else (no time ceiling, no cool-down, no commit
+# count threshold).
 #
-# The marker is a git tag named "audit/<ISO-date>" (e.g. audit/2026-06-27).
-# If no audit/* tag exists, the script falls back to scanning commit
-# messages for audit/review keywords (100 Go Mistakes, SOLID, code-quality
-# audit, bug sweep, design review, etc.) so existing history can bootstrap
-# itself. Use `audit-due bootstrap` to stamp the detected commit with a
-# real audit/<date> tag so future runs are deterministic.
+# The last audit marker is a git tag named "audit/<ISO-date>" (e.g.
+# audit/2026-06-27). If no audit/* tag exists, the script falls back to the
+# newest commit whose message mentions an audit/review keyword (100 Go
+# Mistakes, SOLID, code-quality audit, bug sweep, design review, etc.) so
+# existing history can bootstrap itself. Use `audit-due bootstrap` to stamp
+# that detected commit with a real audit/<date> tag so future runs are
+# deterministic.
 #
 # The output is designed to be read by an agent (LLM). After the table it
 # prints an AGENT ACTIONS block telling the agent, per due repo, which
@@ -28,8 +28,6 @@
 #
 # Environment:
 #   LOC_THRESHOLD      churn that triggers an audit      (default 2000)
-#   CEILING_DAYS       days after which an audit is due  (default 180)
-#   MIN_GAP_DAYS       days to wait before re-auditing   (default 14)
 #   AUDIT_DUE_KEYWORDS extra | separated keywords to match commit messages
 #
 # Exit status: 0 always. Prints a summary line on stderr.
@@ -37,8 +35,6 @@
 set -euo pipefail
 
 LOC_THRESHOLD="${LOC_THRESHOLD:-2000}"
-CEILING_DAYS="${CEILING_DAYS:-180}"
-MIN_GAP_DAYS="${MIN_GAP_DAYS:-14}"
 
 # Keywords used by the commit-message fallback. Pipe-separated for grep -E.
 KEYWORDS="${AUDIT_DUE_KEYWORDS:-100 [Gg]o [Mm]istakes|code quality audit|code-quality audit|SOLID|bug sweep|design review|architecture review|code audit|review fixes}"
@@ -87,12 +83,6 @@ churn_since() {
   ins=$(echo "$stat" | grep -oE '[0-9]+ insertion' | awk '{print $1}'); ins=${ins:-0}
   del=$(echo "$stat" | grep -oE '[0-9]+ deletion' | awk '{print $1}'); del=${del:-0}
   echo $(( ins + del ))
-}
-
-# Days since an ISO date.
-days_since() {
-  local d="$1"
-  echo $(( ( $(date +%s) - $(date -d "$d" +%s) ) / 86400 ))
 }
 
 # Detect the dominant source language by file count (tracked files only).
@@ -144,10 +134,10 @@ bootstrap_repo() {
 }
 
 # Emit one pipe-delimited record for the repo in $PWD:
-#   name|marker|date|days|loc|commits|due|lang|skills|msg
+#   name|marker|date|loc|commits|due|lang|skills|msg
 # (or "skip|<name>|no commits" for empty repos).
 scan_repo() {
-  local name sha date days loc commits marker msg due lang skills
+  local name sha date loc commits marker msg due lang skills
   name=$(basename "$PWD")
 
   if [ -z "$(git rev-list -n1 HEAD 2>/dev/null)" ]; then
@@ -159,7 +149,6 @@ scan_repo() {
   line=$(last_audit_marker || true)
   if [ -n "$line" ]; then
     sha=${line%% *}; date=${line##* }
-    days=$(days_since "$date")
     loc=$(churn_since "$sha")
     commits=$(git rev-list --count "$sha..HEAD")
     marker=$(git log -1 --format='%h' "$sha")
@@ -168,23 +157,19 @@ scan_repo() {
     sha=$(git rev-list --max-parents=0 HEAD 2>/dev/null | tail -1)
     if [ -z "$sha" ]; then printf 'skip|%s|no commits\n' "$name"; return; fi
     date=$(git log -1 --format=%ad --date=short "$sha")
-    days=$(days_since "$date")
     loc=$(churn_since "$sha")
     commits=$(git rev-list --count "$sha..HEAD")
     marker="(none)"
     msg="no audit marker - full history"
   fi
 
-  due="no"
-  if [ "$days" -ge "$MIN_GAP_DAYS" ]; then
-    if [ "$loc" -ge "$LOC_THRESHOLD" ]; then due="LOC"; fi
-    if [ "$days" -ge "$CEILING_DAYS" ]; then due="${due:+$due+}TIME"; fi
-  fi
+  # Due iff churn since the last marker meets the threshold. Nothing else.
+  if [ "$loc" -ge "$LOC_THRESHOLD" ]; then due="due"; else due="no"; fi
 
   lang=$(dominant_lang)
   skills=$(skills_for_lang "$lang")
-  printf '%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n' \
-    "$name" "$marker" "$date" "$days" "$loc" "$commits" "$due" "$lang" "$skills" "$msg"
+  printf '%s|%s|%s|%s|%s|%s|%s|%s|%s\n' \
+    "$name" "$marker" "$date" "$loc" "$commits" "$due" "$lang" "$skills" "$msg"
 }
 
 print_table() {
@@ -199,18 +184,18 @@ print_table() {
       }
       $1=="skip"{next}
       {
-        printf "{\"repo\":%s,\"marker\":%s,\"date\":%s,\"days\":%s,\"loc\":%s,\"commits\":%s,\"due\":%s,\"lang\":%s,\"skills\":%s,\"msg\":%s}\n",
-          j($1),j($2),j($3),$4,$5,$6,j($7),j($8),arr($9),j($10)
+        printf "{\"repo\":%s,\"marker\":%s,\"date\":%s,\"loc\":%s,\"commits\":%s,\"due\":%s,\"lang\":%s,\"skills\":%s,\"msg\":%s}\n",
+          j($1),j($2),j($3),$4,$5,j($6),j($7),arr($8),j($9)
       }' <<<"$rec"
     return
   fi
 
-  printf '%-14s %-9s %-12s %5s %7s %6s %-9s %-6s %s\n' \
-    REPO MARKER DATE DAYS LOC COMMITS DUE LANG MSG
-  awk -F'|' '$1!="skip"' <<<"$rec" | while IFS='|' read -r n m d dy l c du lg sk ms; do
+  printf '%-14s %-9s %-12s %7s %7s %-5s %-9s %s\n' \
+    REPO MARKER DATE LOC COMMITS DUE LANG MSG
+  awk -F'|' '$1!="skip"' <<<"$rec" | while IFS='|' read -r n m d l c du lg sk ms; do
     if [ "$du" != "no" ] || [ "$SHOW_ALL" -eq 1 ]; then
-      printf '%-14s %-9s %-12s %5s %7s %6s %-9s %-6s %s\n' \
-        "$n" "$m" "$d" "$dy" "$l" "$c" "$du" "$lg" "$ms"
+      printf '%-14s %-9s %-12s %7s %7s %-5s %-9s %s\n' \
+        "$n" "$m" "$d" "$l" "$c" "$du" "$lg" "$ms"
     fi
   done
 }
@@ -218,12 +203,12 @@ print_table() {
 # Print explicit, agent-actionable instructions for each due repo.
 print_agent_actions() {
   local rec=$1 any=0
-  while IFS='|' read -r n m d dy l c du lg sk ms; do
+  while IFS='|' read -r n m d l c du lg sk ms; do
     [ "$n" = "skip" ] && continue
-    if [ "$du" = "LOC" ] || [ "$du" = "TIME" ] || [ "$du" = "LOC+TIME" ]; then
+    if [ "$du" = "due" ]; then
       any=1
       echo
-      echo "### AUDIT DUE: $n  (lang: $lg, churn: $l LOC, $dy days since last marker)"
+      echo "### AUDIT DUE: $n  (lang: $lg, churn: $l LOC since last marker $m)"
       echo
       echo "  Agent: work from within the repo to be audited."
       echo "    cd ~/git/$n"
@@ -288,9 +273,9 @@ echo
 echo "---- AGENT ACTIONS ----"
 print_agent_actions "$records"
 
-due_count=$(awk -F'|' '$1!="skip" && $7!="no" {c++} END{print c+0}' <<<"$records")
+due_count=$(awk -F'|' '$1!="skip" && $6=="due" {c++} END{print c+0}' <<<"$records")
 {
   echo
-  echo "threshold: LOC>=$LOC_THRESHOLD or days>=$CEILING_DAYS (min gap ${MIN_GAP_DAYS}d)"
+  echo "threshold: churn >= $LOC_THRESHOLD LOC since last audit marker"
   echo "scanned $repo_count repos, $due_count due for audit"
 } >&2
