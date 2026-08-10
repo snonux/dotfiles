@@ -43,10 +43,12 @@ doas true   # should succeed with no password prompt
 
 **Why real `doas`, not the Rocky pattern**: `pi2`–`pi3` only alias `doas` to
 `sudo` via `/etc/profile.d/doas.sh`, which doesn't expand in the
-non-interactive shell an SSH command runs in — so
-`~/git/dotfiles/scripts/wol-f3s`'s `shutdown-pis`/`shutdown-all` (which runs
-`ssh paul@pi "doas poweroff"`) is silently broken on the Rocky Pis today. A
-real `doas` binary is why it works on `pi0`/`pi1`.
+non-interactive shell an SSH command runs in — so any remote
+`ssh paul@pi "doas <cmd>"` silently resolves to nothing on the Rocky Pis. A
+real `doas` binary is why the same call works on `pi0`/`pi1`. `f3sctl` depends
+on this: its CGI runs as `_httpd` and reaches the f-hosts with an explicit
+`-i` identity, but operator commands on the Pis assume `doas` works
+non-interactively.
 
 **Gotcha**: commands run via `doas` get a minimal `PATH` that excludes
 `/usr/sbin` and `/usr/pkg/bin` — always use full paths (`doas
@@ -389,7 +391,8 @@ packet matching.
   every real page through the **public** domains (not just localhost) — root
   page, each vhost, and any bare directory paths (e.g. `/fotos/`). Restore
   the other node's webserver immediately after.
-- `wol-f3s shutdown-pis` (or a targeted `ssh paul@<host> "doas poweroff"`)
-  actually powers the Pi off — confirms `doas` works non-interactively, but
-  there's no WoL for Pis, so only do this when you can physically power it
-  back on.
+- `ssh paul@<host> "doas poweroff"` actually powers the Pi off — confirms
+  `doas` works non-interactively, but there's no WoL for Pis, so only do this
+  when you can physically power it back on. `f3sctl` deliberately offers no
+  route for this: pi0/pi1 host the power API, so powering them off would
+  remove the only way to power anything back on.

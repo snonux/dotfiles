@@ -123,10 +123,80 @@ powered-off host (Gogios `check_ping` every 5 min, and `f3sctl`'s own status
 probe, which pings and TCP-dials port 22 on every API request) would then keep
 waking the fleet.
 
-**Decisive test not yet run:** power one host off and send it *nothing* — no
-ping, no TCP, no API status call — for 15+ minutes. If it stays off, the wake
-is network-traffic-driven; if it still boots, it is an RTC alarm or an
-AC/ErP setting.
+**Partly answered on 2026-08-09: ICMP/TCP probing is NOT the trigger.** f2 was
+powered off by `f3sctl power f2 off` at 21:18Z and stayed off for **9h12m**,
+through many `f3sctl power status` calls — each of which pings it and TCP-dials
+port 22 — before being woken deliberately by WoL. So ordinary unicast traffic
+does not wake these boards, and neither Gogios nor f3sctl's own status probe is
+keeping the fleet awake. That removes the "wake on link / any pattern"
+hypothesis and leaves the RTC alarm, USB/HID wake, and AC/ErP settings.
+
+It also shows the wake is **not** universal across the fleet: f2 sat powered
+off for nine hours during the same night that f0, f1 and f3 each came back on
+their own. Whatever the trigger is, it did not reach f2 — so compare f2's BIOS
+against a host that does self-wake rather than assuming all four are identical.
+
+**2026-08-09, caught live during a full cluster shutdown — it is f0, and only
+f0.** In a single `f3sctl power off` run:
+
+| host | powered off | came back |
+|---|---|---|
+| f1 | 10:31 | stayed off |
+| f2 | 10:31 | stayed off |
+| f0 | 10:34:25 | **10:35:10 — 45 seconds later** |
+
+f1 and f2 sat powered off through the whole window. f0 came back on its own
+before the job had even finished confirming the power-down. Its
+`/var/log/apcupsd.events` now shows this a fifth time.
+
+**Not the UPS cutting power.** `apcupsd.conf` has `KILLDELAY 0` and
+`TIMEOUT 0`, so no killpower is issued, and the log holds no power-failure or
+on-battery event — the `exiting, signal 15` / `startup succeeded` pairs are
+just f0's own shutdown and boot being recorded. The events file is a boot log
+here, not evidence of UPS action.
+
+### Hypotheses tested and REJECTED (do not re-propose these)
+
+Recorded so the same ground is not covered twice:
+
+1. **Network/unicast wake** — rejected. f2 stayed powered off for 9h12m while
+   being pinged and TCP-dialled on port 22 by every `f3sctl power status` call.
+2. **UPS cutting and restoring power** — rejected. `apcupsd.conf` has
+   `KILLDELAY 0` / `TIMEOUT 0`, and there are no power-failure or on-battery
+   events. The `exiting, signal 15` / `startup succeeded` pairs in
+   `apcupsd.events` are just f0's own shutdowns and boots.
+3. **APC UPS USB cable asserting wake** — rejected by test. f0 was powered off
+   with `f3sctl power f0 off` **with the UPS still plugged in** and stayed off.
+4. **Shelly plug switching causing a mains transient** — rejected twice. The
+   fans and f0 are on **completely separate circuits with no interconnection**
+   (only the UPS touches f0, over USB), and empirically f0 stayed off through a
+   fans-off switch while already powered down.
+
+### What the evidence actually says
+
+f0 has only ever self-woken when it was powered off **as the last live host of
+a cluster-wide run**, with f1 and f2 already down:
+
+| run | f1/f2 at the time | f0 outcome |
+|---|---|---|
+| `power f0 off` (per-host) | **up** | stayed off |
+| `power off` (cluster-wide) ×5 | **already down** | woke 45 s – 10 min later |
+| fans switched off, f0 already down 35 min | down | stayed off |
+
+No mechanism is established. The pattern is real but unexplained, and it has
+survived four wrong theories — so treat further armchair hypotheses with
+suspicion and get the BIOS on screen instead.
+
+**Next step: read f0's BIOS via the JetKVM** (browser/WebRTC only — it cannot
+be driven with curl, and the password in `~/.jetkvm` is rejected over plain
+HTTP). Check `Wake system from S5` (RTC), `State After G3`, and USB wake, and
+**compare them against f1 or f2**, which do not do this. Leave Wake-on-LAN
+enabled — f3sctl depends on it.
+
+**Cheap confirmation before touching BIOS:** with the rack down, wake f0 alone
+and power it off alone while f1/f2 stay off. That reproduces "f0 powered off
+while the others are down" with no fan switching involved, and separates the
+pattern from the shutdown path entirely.
 
 **BIOS settings to check via the JetKVM** (two are on the LAN:
 `http://192.168.1.191/` and `http://192.168.1.198/`), in likely order:
@@ -147,6 +217,57 @@ AC/ErP setting.
 Until this is fixed, the fleet cannot be kept powered off, and `f3sctl power
 off` will keep reporting hosts as "did not complete shutdown" when they in fact
 shut down cleanly and came back.
+
+## 2b. A woken f-host takes ~14 min to reach sshd — `ntpd_sync_on_start` (fixed 2026-08-09)
+
+**Symptom.** After a WoL wake, the host answers ICMP within seconds but every
+TCP port stays closed for about fourteen minutes. It looks exactly like the
+single-user hang of section 2, and it is not: `sysctl kern.boottime` and
+`/var/log/messages` both show the kernel came up immediately. Only userland is
+late.
+
+Measured on f2, 2026-08-09: magic packet 09:32:25, `---<<BOOT>>---` 09:32:50,
+sshd accepting at 09:46 — 14 minutes of ICMP-but-no-services.
+
+**Cause.** `ntpd_sync_on_start="YES"` makes `rc.d/ntpd` run a *synchronous*
+`ntpd -g -q` and block until the clock is stepped. `/etc/ntp.conf` lists only
+the public pools:
+
+```
+pool 0.freebsd.pool.ntp.org iburst
+pool 2.freebsd.pool.ntp.org iburst
+```
+
+and at boot those were failing to resolve — f2 logged
+`ntpd: error resolving pool 0.freebsd.pool.ntp.org: Address family for hostname
+not supported (1)` eight minutes in. `rcorder` puts `ntpd` at ~147 and `sshd`
+at ~179, so every second ntpd waits is a second sshd does not exist.
+
+**Fix applied to f0, f1, f2, f3:**
+
+```sh
+doas sysrc ntpd_sync_on_start=NO
+```
+
+This does not stop the clock being corrected. ntpd still starts, and the
+default `ntpd_flags` include `-g`, which permits an arbitrarily large first
+step once a server does answer — it simply no longer holds up the boot.
+
+**No LAN NTP server is available as an alternative.** The gateway 192.168.1.1
+does not answer UDP/123, and neither do pi0–pi3. Only f0 and f1 serve NTP, and
+f-hosts cannot bootstrap time from each other because they all boot together.
+If a local source is ever wanted, enable `ntpd` as a server on pi0/pi1 first.
+
+**Two consequences worth knowing:**
+
+1. `f3sctl` withholds `power off` for a host until **SSH** answers, not merely
+   ping (see `clusterHostsUp` in `internal/httpapi/registry.go`). Before this
+   fix that meant a freshly woken host could not be shut down for ~14 minutes.
+2. The slow boot is what stranded the Gogios mute. `f3sctl`'s wake path waits
+   for r0/r1/r2 before un-muting, bounded by `UnmuteTimeout` (was 600s). Hosts
+   taking 14 min to reach sshd — plus guest boot on top — blew that budget, the
+   un-mute gave up, and `/tmp/f3s_taken_down` was left in place on both
+   gateways. See `f3s/references/` on Gogios blind spots.
 
 ### ROOT CAUSE (2026-08-08): shutting the storage MASTER down FIRST wedges f1
 
@@ -236,14 +357,20 @@ raising `rcshutdown_timeout` is the only effective mitigation on 1.7.3. (If a gu
 ever truly hangs and never ACPI-powers-off, even 300s won't help — but observed
 worst case is ~92s.)
 
-`wol-f3s` now avoids relying on that unbounded rc.d path: it sends the same two
-SIGTERM signals as vm-bhyve 1.7.3 (which requests guest ACPI shutdown), polls for
-up to 240 seconds, and only then SIGKILLs any remaining bhyve PID. It cannot call
-`vm stopall` here because that command itself waits indefinitely. The script
-refuses to power off if a VM still appears running. A forced stop is logged in the
-command output and warrants checking k3s/etcd health after the next boot; SIGKILL
-can corrupt an in-flight etcd WAL, so this is a last resort rather than the normal
-shutdown path.
+`f3sctl` avoids relying on that unbounded rc.d path (as `wol-f3s` did before it):
+its `agent poweroff` verb sends the same two SIGTERM signals as vm-bhyve 1.7.3
+(which requests guest ACPI shutdown), polls for up to 240 seconds, and only then
+SIGKILLs any remaining bhyve PID. It cannot call `vm stopall` here because that
+command itself waits indefinitely. It refuses to power off if a VM still appears
+running. A forced stop is logged and warrants checking k3s/etcd health after the
+next boot; SIGKILL can corrupt an in-flight etcd WAL, so this is a last resort
+rather than the normal shutdown path.
+
+The 240 s guest timeout must stay **below** `rcshutdown_timeout=300`, or the
+watchdog fires first and drops the host to single-user — powered on, no
+network, un-wakeable by WoL. That coupling is enforced in
+`f3sctl/internal/agent/poweroff.go` (`vmShutdownTimeout`) and documented in
+both places.
 
 **Retested 2026-08-02:** f2 initially exceeded the 240-second guest timeout. The
 Rocky guest had duplicate hard+soft mounts of `/data/nfs/k3svolumes`, caused by

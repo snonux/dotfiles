@@ -1,8 +1,13 @@
 # Shelly Plug (Rack Fans)
 
 A **Shelly Plug M Gen 3** powers the rack fans for the f3s rack. The f-hosts
-switch it **on at boot**; `wol-f3s` switches it **on when waking all hosts** and
-**off when shutting all hosts down**.
+switch it **on at boot** (rc.d `shellyfans`, `shellyfans_enable="YES"`);
+`f3sctl` switches it **on when waking all hosts** and **off when shutting all
+hosts down**.
+
+That boot-time service is also the safety net for a host that powers itself
+back on after the fans were switched off — it restores the fans without
+anyone intervening. See `console-jetkvm-shutdown.md` §2a.
 
 ## Device
 
@@ -89,34 +94,45 @@ Verify: `doas service shellyfans start` then `grep shellyfans /var/log/messages`
 **Deployment status:** f0, f2, f3 done. **f1 pending** (was offline / would not
 wake via WoL when this was set up — deploy when it is back online).
 
-## wol-f3s integration (earth + Pis)
+## f3sctl integration (earth + pi0/pi1)
 
-`wol-f3s` (dotfiles `scripts/wol-f3s`; deployed to `/home/paul/scripts/wol-f3s`
-on earth and `/usr/local/bin/wol-f3s` on pi0/pi1/pi2) controls the plug as part
-of bulk power actions. On `pi0`/`pi1` (NetBSD) this needs: pkgsrc `bash` and
-pkgsrc `wol` installed, the shebang changed from `#!/bin/bash` to
-`#!/usr/pkg/bin/bash` on the deployed copy (dotfiles' own copy for
-earth/Linux stays as-is), `~/.shelly_plug` present, and `/etc/hosts` entries
-for `f0`–`f3`/`pi2`–`pi3` (cross-Pi/host `.lan.buetow.org` resolution isn't
-reliable — same DNS gap noted elsewhere in this skill). SSH trust from
-`pi0`/`pi1` to each `fN` host is required for the shutdown path. Beelinks run a
-bounded guest-stop payload through `doas /bin/sh -s`; Pis run `doas poweroff`.
-The Beelinks currently permit passwordless `doas` for Paul's wheel membership.
-Note the host key must be accepted for both the hostname **and** the bare IP,
-since the script connects by IP. Single-host
-`wol-f3s <host>`/`shutdown-f3` does **not** touch the shelly plug — only the
-bulk `all`/`shutdown`/`shutdown-all` paths do.
+`f3sctl` (`~/git/f3sctl`) owns the plug during bulk power actions, and also
+exposes it on its own so the fans can be controlled without powering anything:
 
-- `wol-f3s` / `all` → `shelly_set true` **before** sending WoL packets (fans on).
-- `wol-f3s shutdown` / `shutdown-all` → `shelly_set false` **after** all selected
-  hosts/Pis accept shutdown (fans off last).
+```bash
+f3sctl fans status
+f3sctl fans on
+f3sctl fans off [--force]
+```
 
-The `shelly_set` helper reads the password from `~/.shelly_plug` and uses digest
-auth. Missing credentials or an unverifiable relay state fail the bulk action:
-wake-up is aborted, while a failed fan-off leaves the fans running. It uses a
-JSON-RPC POST and reads `Switch.GetStatus` back, rather than treating HTTP success
-as proof that an RPC request changed the relay. Partial actions (`shutdown-pis`,
-`shutdown-f3`, per-host wakes) leave the plug untouched.
+- `f3sctl power on` → plug **on before** sending WoL packets (fans on first).
+- `f3sctl power off` → plug **off after** every selected host has powered down
+  (fans off last).
+- Per-host actions (`f3sctl power f1 off`) leave the plug **untouched** — one
+  host going down does not mean the rack is idle.
+
+**The fans-off guard.** Switching the plug off while any f-host still answers
+ICMP is refused: `409` from the API, a refusal from the CLI, unless `--force` /
+`force=true`. The rack fans cool whatever is running, so cutting them under a
+live rack is a thermal risk rather than a preference. In the API this is
+expressed as a `force` **field** on the `fans-off` action, present only while a
+host is up — so a client renders a confirmation toggle from what it was given
+and never hard-codes the rule.
+
+Reads are verified, not assumed: every set is followed by a `Switch.GetStatus`
+read-back, because a digest-auth failure still returns a 200 with a body. If
+the plug cannot be read at all, `f3sctl` reports the fans as **unknown**, never
+as off — and withholds both fan actions, since there is no way to report
+truthfully whether they worked.
+
+Credentials come from `/var/db/f3sctl/shelly_plug` (the CGI, owned `_httpd`),
+`/keys/shelly_plug.secret` (f-hosts) or `~/.shelly_plug` (earth), first
+readable wins.
+
+The predecessor `wol-f3s` was removed from pi0–pi3 on 2026-08-09 (earth keeps a
+copy). It needed pkgsrc `bash`, pkgsrc `wol`, a patched shebang and `/etc/hosts`
+entries on each Pi; `f3sctl` is a static Go binary with none of those
+dependencies — WoL is sent natively as a UDP broadcast.
 
 ## Standalone control script
 

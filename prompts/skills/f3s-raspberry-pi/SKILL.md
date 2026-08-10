@@ -27,7 +27,15 @@ The four Raspberry Pi 3 nodes of the f3s homelab. The master host/IP inventory
 - No GRUB — boots via Pi's native bootloader (`/boot/cmdline.txt`)
 - Custom RPi kernel from the `rockyrpi` repo
 
-`pi0`/`pi1` (NetBSD) differ: user `paul` in `wheel`, privilege escalation via a **real `doas`** (pkgsrc `security/doas`, `permit nopass :wheel`) — not the `alias doas=sudo` shell alias `pi2`/`pi3` carry in `/etc/profile.d/doas.sh`, which doesn't expand in the non-interactive shell an SSH command runs in and so silently breaks `wol-f3s shutdown-pis`/`shutdown-all` for the Rocky Pis (`doas poweroff` resolves to nothing) — only the NetBSD nodes actually work with that script today. Config repo home for NetBSD-specific setup: `f3s/pi-netbsd/`. Service setup details: [NetBSD Pi Setup](references/bootstrap-netbsd-pi.md).
+`pi0`/`pi1` (NetBSD) differ: user `paul` in `wheel`, privilege escalation via a **real `doas`** (pkgsrc `security/doas`, `permit nopass :wheel`) — not the `alias doas=sudo` shell alias `pi2`/`pi3` carry in `/etc/profile.d/doas.sh`, which doesn't expand in the non-interactive shell an SSH command runs in, so `ssh paul@pi2 "doas poweroff"` silently resolves to nothing. Use `sudo` on the Rocky Pis when scripting. Config repo home for NetBSD-specific setup: `f3s/pi-netbsd/`. Service setup details: [NetBSD Pi Setup](references/bootstrap-netbsd-pi.md).
+
+**Powering the f-hosts from a Pi is now `f3sctl`, not `wol-f3s`.** `wol-f3s` was
+removed from pi0, pi1, pi2 and pi3 on 2026-08-09; only earth still has a copy.
+pi0/pi1 run `f3sctl` (NetBSD package, plus the CGI at `/cgi-bin/f3sctl`);
+pi2/pi3 have no power tooling at all and need none. Note that **`f3sctl` never
+powers a Raspberry Pi** — powering pi0/pi1 off would remove the only way to
+power anything back on — so shutting a Pi down is a deliberate manual
+`ssh <pi> "doas poweroff"` (NetBSD) / `sudo poweroff` (Rocky).
 
 Current role split:
 

@@ -19,13 +19,26 @@ Four **Beelink S12 Pro** mini-PCs with **Intel N100** CPUs. f0/f1/f2 each run a 
 
 ### Wake-on-LAN
 
-All three Beelinks support WoL (`WOL_MAGIC` on `re0`). The script `~/bin/wol-f3s` on the Fedora laptop (`earth`) controls power:
+All three Beelinks support WoL (`WOL_MAGIC` on `re0`). Power is controlled by
+**`f3sctl`** (`~/git/f3sctl`, installed on earth and on pi0/pi1):
 
 ```bash
-wol-f3s          # wake all three
-wol-f3s f0       # wake only f0
-wol-f3s shutdown # graceful SSH shutdown of all three
+f3sctl power status      # probe f0-f3 and the k3s nodes
+f3sctl power on          # fans on, wake f0/f1/f2, un-mute Gogios
+f3sctl power off         # ordered shutdown (f0 last), fans off, Gogios muted
+f3sctl power f0 on|off   # one host only; f0-f3 each addressable
 ```
+
+Shutdowns route through the HTTP API on pi0/pi1 by default, because the
+restricted SSH key that may power a host off is pinned to those two hosts with
+`from=` — so the same command works from a laptop off the LAN. Waking stays
+local, since a magic packet is an unprivileged broadcast and must still work
+when the API is unreachable.
+
+The predecessor `wol-f3s` (bash) was removed from pi0–pi3 on 2026-08-09; a
+copy remains on earth only. Its verbs are **not** accepted by `f3sctl` — old
+spellings print a signpost to the replacement rather than being aliased, since
+`all` meant "f0/f1/f2 but not f3" and was a standing trap.
 
 MAC addresses:
 
