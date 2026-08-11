@@ -9,6 +9,7 @@ f3s/r-nodes/nfs-mount-monitor/
   check-nfs-mount.sh          # repair script → /usr/local/bin/
   nfs-mount-monitor.service   # one-shot service → /etc/systemd/system/
   nfs-mount-monitor.timer     # 10-second timer  → /etc/systemd/system/
+  nfs-shutdown-marker.service # shutdown-guard producer → /etc/systemd/system/
 f3s/r-nodes/Rexfile           # Rex deploy task: nfs_mount_monitor
 ```
 
@@ -71,6 +72,21 @@ from fighting a coordinated shutdown — e.g. remounting NFS or burning the
 fail-count towards a reboot escalation while the storage side is already
 tearing down NFS/stunnel. Being under `/dev/shm` (tmpfs), the flag is cleared
 automatically on reboot, so it never needs manual cleanup.
+
+The flag is created by `nfs-shutdown-marker.service`, a small systemd unit
+deployed alongside the monitor (not by f3sctl — f3sctl never talks to r-nodes
+directly; per its own inventory doc the r-nodes "are never powered directly,
+they follow their bhyve host", so the guard has to be r-node-local). It is a
+`RemainAfterExit=yes` no-op service (`ExecStart=/usr/bin/true`) whose
+`ExecStop` touches the flag file. Because systemd stops units in the reverse
+of their start order, `Before=k3s.service` + `After=data-nfs-k3svolumes.mount`
+place that `ExecStop` exactly between "k3s and every pod on this node have
+stopped" and "the NFS mount starts unmounting" — both plain ordering-only
+relationships, the same style `k3s-nfs-ordering.conf` and
+`nfs-stunnel-ordering.conf` already use for the same mount. It fires on any
+shutdown/reboot of the VM, including the monitor's own escalation reboot,
+which is fine: silencing the monitor while the node is already going down is
+correct in every case, not just a coordinated rack power-off.
 
 Uses a lock file (`/var/run/nfs-mount-check.lock`) to prevent overlapping runs
 since the timer fires faster than the script's worst-case runtime. If the lock is
