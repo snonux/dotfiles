@@ -65,6 +65,13 @@ so Prometheus can alert on `nfs_mount_monitor_consecutive_failures` without pars
 journal logs (warning ≥3, critical ≥5 — see
 `f3s/prometheus/manifests/nfs-mount-monitor-alerts.yaml`).
 
+**Shutdown guard**: if `/dev/shm/shutdown_in_progress` exists, the script logs a
+message and exits immediately before running any probe. This stops the monitor
+from fighting a coordinated shutdown — e.g. remounting NFS or burning the
+fail-count towards a reboot escalation while the storage side is already
+tearing down NFS/stunnel. Being under `/dev/shm` (tmpfs), the flag is cleared
+automatically on reboot, so it never needs manual cleanup.
+
 Uses a lock file (`/var/run/nfs-mount-check.lock`) to prevent overlapping runs
 since the timer fires faster than the script's worst-case runtime. If the lock is
 older than **90 seconds** it was left by a run that was SIGKILLed before its EXIT
