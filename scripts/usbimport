@@ -53,13 +53,16 @@ Options:
 Modes:
   auto       Import from the single supported device currently connected.
   fujifilm   Copy JPEG, RAW, and video files from a Fuji/Fujifilm camera.
-  supernote  Copy the Supernote Nomad Note folder, then convert .note files to PDF.
+  supernote  Copy the Supernote Nomad Note folder (convert .note to PDF) and the
+             Document folder (KOReader books + .sdr sidecar data with reading
+             progress, highlights, and bookmarks).
 
 Default destinations:
   Fujifilm JPEG/video:   $FUJIFILM_DEST
   Fujifilm RAW:          $FUJIFILM_RAW_DEST
   GPX tracks:            $GPX_DIR
   Supernote files:       $SUPERNOTE_DEST
+  KOReader data:         $SUPERNOTE_DEST/KOReader
 
 Environment overrides:
   FUJIFILM_DEST=/path/to/dir
@@ -490,7 +493,7 @@ import_fujifilm() {
 
 import_supernote() {
   local dest=${1:-$SUPERNOTE_DEST}
-  local root note_root
+  local root note_root document_root koreader_dest
 
   root=$(find_supernote_root) || {
     error "No GVFS Supernote mount found under $GVFS_ROOT"
@@ -498,6 +501,8 @@ import_supernote() {
     return 1
   }
   note_root="$root/Note"
+  document_root="$root/Document"
+  koreader_dest="$dest/KOReader"
 
   if ! gio info "$note_root" >/dev/null 2>&1; then
     error "Supernote is mounted, but its Note folder was not found at: $note_root"
@@ -508,9 +513,21 @@ import_supernote() {
   log "Device: Supernote Nomad"
   log "Source: $note_root"
   log "Destination: $dest"
-  log "Importing only the Supernote Note folder."
+  log "Importing the Supernote Note folder."
   copy_supernote_files_from_dir "$note_root" "$dest"
   log "Supernote note files are copied locally."
+
+  if gio info "$document_root" >/dev/null 2>&1; then
+    mkdir -p "$koreader_dest"
+    log "Source: $document_root"
+    log "KOReader destination: $koreader_dest"
+    log "Importing the Supernote Document folder (KOReader books + .sdr sidecars)."
+    copy_supernote_files_from_dir "$document_root" "$koreader_dest"
+    log "KOReader books and reading-progress sidecar data are copied locally."
+  else
+    log "No Document folder found on the Supernote; skipping KOReader backup."
+  fi
+
   log "It is safe to unplug the Supernote now if you eject/unmount it safely."
   convert_supernote_notes_to_pdfs "$dest" "$dest"
   finish_import "$dest"
