@@ -1,6 +1,7 @@
 # foo.zone Gemtext Authoring Conventions
 
-Shared conventions for foo.zone blog content. Used by `compose-blog-post`,
+Shared conventions for foo.zone blog content. Used by `gemtexter`'s
+[compose-blog-post](../gemtexter/references/compose-blog-post.md) reference,
 `update-blog-post`, and `blog-writing-style`. Follow these for any `.gmi.tpl`
 (or standalone `.gmi`) authoring or editing.
 

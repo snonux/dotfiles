@@ -12,7 +12,7 @@ Rewrite blog content to sound authentically human by removing LLM-generated patt
 - Use when blog text sounds too formal, corporate, or LLM-generated
 - Use when asked to "de-llm" or "humanize" blog content
 - Use when reviewing writing style of foo.zone posts
-- Use after composing or updating blog posts (reference from `compose-blog-post` and `update-blog-post` skills)
+- Use after composing or updating blog posts (reference from `gemtexter`'s compose-blog-post reference and `update-blog-post` skill)
 - **DRAFT files**: Apply more thoroughly - they typically have more LLM patterns than published posts
 
 ## Reference Files
@@ -21,7 +21,7 @@ Detailed reference documentation is in the `references/` subfolder:
 
 - [Signs of AI Writing](references/signs-of-ai-writing.md) — the deep, general-purpose reference based on Wikipedia's "Signs of AI writing" page (WikiProject AI Cleanup). Voice calibration, personality/soul injection, the 29 numbered AI patterns (content, language, style, communication, filler/hedging) with before/after examples, the full worked example, and the standard process/output format. Use this when you need the exhaustive pattern catalog.
 - [Patterns & Rewrite Examples](references/patterns-and-examples.md) — the foo.zone-focused working set: the LLM tells to hunt for (opening structures, corporate/marketing language, hedging, over-explanation, formal transitions, passive constructions, third-person distance) and concrete before/after rewrite pairs.
-- [Gemtext Authoring Conventions](references/gemtext-conventions.md) — shared foo.zone gemtext rules (file rules, format constraints, post structure, TOC, links, images/diagrams, multi-part series). Used by this skill, `compose-blog-post`, and `update-blog-post`.
+- [Gemtext Authoring Conventions](references/gemtext-conventions.md) — shared foo.zone gemtext rules (file rules, format constraints, post structure, TOC, links, images/diagrams, multi-part series). Used by this skill, `gemtexter`'s compose-blog-post reference, and `update-blog-post`.
 
 ## Target Files
 
@@ -116,6 +116,6 @@ Do NOT change:
 
 ### 8. Related Skills
 
-When using `compose-blog-post` or `update-blog-post`, apply this writing style proactively to ensure new content sounds human from the start. Reference this skill when writing or editing any blog content.
+When using `gemtexter`'s compose-blog-post reference or `update-blog-post`, apply this writing style proactively to ensure new content sounds human from the start. Reference this skill when writing or editing any blog content.
 
 For the full Wikipedia-based pattern catalog (voice calibration, personality/soul, the 29 numbered AI patterns, and the complete worked example), see [references/signs-of-ai-writing.md](references/signs-of-ai-writing.md).

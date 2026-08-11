@@ -1,17 +1,20 @@
 ---
 name: gemtexter
-description: "Manage the Gemtexter-powered foo.zone site: generate output, publish content branches, troubleshoot publish issues, and verify changes on https://foo.zone. Use when working on gemtexter, foo.zone-content, or republishing the site."
+description: "Manage the Gemtexter-powered foo.zone site: generate output, publish content branches, troubleshoot publish issues, and verify changes on https://foo.zone. Also covers publishing book notes — sourcing highlights from Supernote/KOReader (or any location the user names), authoring note pages under gemtext/notes, and promoting them to the gemfeed. Use when working on gemtexter, foo.zone-content, republishing the site, or creating/publishing book notes."
 ---
 
 # Gemtexter
 
-Manage the `gemtexter` static site workflow for `foo.zone`.
+Manage the `gemtexter` static site workflow for `foo.zone`: generate, preview,
+publish, verify, and troubleshoot. Also the home for publishing book notes.
 
 ## When to Use
 
-- Use when the user wants to generate, publish, preview, or troubleshoot `foo.zone`.
-- Use when working in `~/git/gemtexter` or `~/git/foo.zone-content`.
-- Use when verifying whether published content is live on `https://foo.zone`.
+- Generate, publish, preview, or troubleshoot `foo.zone`.
+- Working in `~/git/gemtexter` or `~/git/foo.zone-content`.
+- Verifying whether published content is live on `https://foo.zone`.
+- Creating or publishing book notes (highlights from Supernote/KOReader or
+  another source the user points to).
 
 ## Key Paths
 
@@ -28,75 +31,27 @@ Manage the `gemtexter` static site workflow for `foo.zone`.
 4. If `gemtexter` output is too noisy for the terminal wrapper, redirect it to a log file in `/tmp/` and inspect with `tail`.
 5. If you use filtered generation for previewing, run a full `./gemtexter --generate` before publishing.
 
-## Common Commands
+## Reference Files
 
-### Full generate
+Detail lives in `references/`; load only the one that matches the task:
 
-```bash
-./gemtexter --generate
-```
+- [Commands](references/commands.md) — full/filtered generate, drafts, publish, low-noise logged runs, preview in Firefox.
+- [Verification](references/verification.md) — confirming a change is live on https://foo.zone with `curl` (not a browser fetch), `Last-Modified`, comparing against local generated files.
+- [Troubleshooting](references/troubleshooting.md) — what `--publish` does internally, stale-site debugging, config/lib/theme files to inspect.
+- [Book Notes](references/book-notes.md) — end-to-end publishing of book notes: sourcing highlights from Supernote/KOReader `.sdr` (with a Lua extractor) or any location the user names, authoring the standalone note page, recording the book in the reading list, and promoting a note to a gemfeed post. Cross-links `blog-writing-style` for gemtext format rules and the compose-blog-post reference for the gemfeed-post promotion step.
+- [Compose Blog Post](references/compose-blog-post.md) — authoring a new gemfeed post (title/date/TOC/links/closing), adding to the gemfeed index, and the include-line pattern for promoting a raw `notes/` note into a blogged "book notes" post without duplicating text. Formerly a standalone skill, now a sub-reference here.
 
-### Filtered generate for one area
-
-```bash
-./gemtexter --generate 'about|notes|gemfeed'
-```
-
-### Generate and preview drafts
-
-`--draft` only processes files with a `DRAFT-` prefix. For non-draft posts (date-prefixed files), use filtered generate instead.
+## Quick Reference
 
 ```bash
-# DRAFT-prefixed files only
-./gemtexter --draft
-
-# Date-prefixed posts: use filtered generate with a matching pattern
-./gemtexter --generate 'my-post-name'
+cd ~/git/gemtexter
+./gemtexter --generate                       # full generate
+./gemtexter --generate 'about|notes|gemfeed' # filtered generate for one area
+./gemtexter --publish                       # publish (also generates + git sync)
+./gemtexter --generate >/tmp/gemtexter-generate.log 2>&1; tail -40 /tmp/gemtexter-generate.log
 ```
 
-Then open the generated HTML in Firefox for preview:
-
-```bash
-firefox ~/git/foo.zone-content/html/gemfeed/my-post-name.html
-```
-
-### Publish everything
-
-```bash
-./gemtexter --publish
-```
-
-### Low-noise logged runs
-
-```bash
-./gemtexter --generate >/tmp/gemtexter-generate.log 2>&1
-./gemtexter --publish >/tmp/gemtexter-publish.log 2>&1
-tail -40 /tmp/gemtexter-generate.log
-tail -60 /tmp/gemtexter-publish.log
-```
-
-## Verification Workflow
-
-1. Identify the expected changed page URL.
-2. Fetch the page directly with `curl`, not just a browser-style fetch, because cached views can lag:
-
-```bash
-curl -fsSLI https://foo.zone/path/to/page.html
-curl -fsSL https://foo.zone/path/to/page.html | rg 'expected text'
-```
-
-3. Check `Last-Modified` and confirm the expected new content is present.
-4. If the site still looks stale, compare against the local generated file in `~/git/foo.zone-content/html/...` and inspect `/tmp/gemtexter-publish.log` for push failures.
-
-## Troubleshooting
-
-- `./gemtexter --publish` already runs generate, git add, and git sync.
-- If publish succeeded but the site is old, inspect the live page with `curl` before assuming publish failed.
-- If output branches look wrong, inspect `gemtexter.conf` and `lib/git.source.sh`.
-- For HTML theme issues, inspect `extras/html/themes/`.
-- For feed issues, inspect `lib/atomfeed.source.sh`.
-
-## Useful References
+## Useful Repo References
 
 - `~/git/gemtexter/README.md`
 - `~/git/gemtexter/gemtexter.conf`

@@ -78,7 +78,7 @@ let them choose the owner. Criteria for the recommendation:
   CGO `bpf.h`, build tags, `-short`) and links to the general reference.
 - **foo.zone gemtext conventions** → owned by
   `blog-writing-style/references/gemtext-conventions.md`.
-  `compose-blog-post` and `update-blog-post` link to it instead of restating
+  `gemtexter`'s compose-blog-post reference and `update-blog-post` link to it instead of restating
   the structure/TOC/links/images/format rules.
 - **f3s host table** → owned by `f3s/SKILL.md`.
   `rocky-vm-setup/references/overview.md` keeps only the rocky-VM-local view.
