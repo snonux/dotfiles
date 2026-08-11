@@ -7,7 +7,7 @@ classify, extract tracking codes/carriers) in a single pass. It is read-only
 ## Prerequisites (from the `protonbridge-imap` skill)
 
 The IMAP connection is **not** re-derived here. Load credentials and connect as
-shown in the [`protonbridge-imap` skill](../protonbridge-imap/SKILL.md): load
+shown in the [`protonbridge-imap` skill](../../protonbridge-imap/SKILL.md): load
 `~/.protonbridge` into the environment, then `imaplib.IMAP4` → `starttls`
 (self-signed cert, so `ssl.CERT_NONE`) → `login`, yielding a logged-in
 connection `M`. The `decode_header`-based subject decode pattern shown there is
