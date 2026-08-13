@@ -37,3 +37,7 @@ if test -x $ask_bin
 else
     echo No $ask_bin found
 end
+
+function cl
+    claude --dangerously-skip-permissions $argv
+end
