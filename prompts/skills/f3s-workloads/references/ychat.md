@@ -5,7 +5,7 @@ with a mandatory embedded-SQLite backend. It is deployed on the f3s k3s
 cluster as a GitOps-managed service.
 
 > **Deployed.** The live LAN URL **https://ychat.f3s.lan.buetow.org/** serves
-> image tag `67babb2` (the DB-backed build), with a persistent volume
+> image tag `711d9e4` (v0.9.4, Pico CSS web UI), with a persistent volume
 > (`ychat-data-pvc`, hostPath-backed NFS share) mounted at `/app/data`, so
 > registered accounts survive pod restarts. The no-DB build that previously
 > ran live has been retired.
@@ -42,18 +42,36 @@ podman push --tls-verify=false r0.lan.buetow.org:30001/ychat:$TAG
 podman push --tls-verify=false r0.lan.buetow.org:30001/ychat:latest
 ```
 
-When working off-LAN, `r0.lan.buetow.org` and the `r0` git remote resolve to
-the unreachable LAN address. Push through WireGuard instead:
+When working off-LAN, `r0.lan.buetow.org` resolves to the unreachable LAN
+address. Push the image through WireGuard instead:
 
 ```sh
 podman tag ychat:$TAG r0.wg0.wan.buetow.org:30001/ychat:$TAG
 podman tag ychat:latest r0.wg0.wan.buetow.org:30001/ychat:latest
 podman push --tls-verify=false r0.wg0.wan.buetow.org:30001/ychat:$TAG
 podman push --tls-verify=false r0.wg0.wan.buetow.org:30001/ychat:latest
+```
 
+**The `r0` git remote (`ssh://git@r0:30022/repos/conf.git`, in-cluster
+git-server) is deprecated as of 2026-08.** It's still present in `~/git/conf`
+but its backing NFS volume has been seen stuck read-only (git-server pod in
+`cicd`, PV `git-server-pv`), which breaks pushes with `unable to create
+temporary object directory` — see `f3s-storage` skill,
+`references/troubleshooting.md`, for that failure mode if it recurs. Push to
+`forgejo` instead, which is what ArgoCD's `ychat` Application now actually
+reads from (`spec.source.repoURL:
+http://forgejo.services.svc.cluster.local/snonux/conf.git`):
+
+```sh
 cd ~/git/conf
-GIT_SSH_COMMAND='ssh -o StrictHostKeyChecking=accept-new' \
-  git push ssh://git@r0.wg0.wan.buetow.org:30022/repos/conf.git master
+git push forgejo master
+```
+
+ArgoCD polls periodically; to sync immediately:
+
+```sh
+kubectl -n cicd annotate application ychat argocd.argoproj.io/refresh=hard --overwrite
+kubectl -n cicd get application ychat -o jsonpath='{.status.sync.revision}{" "}{.status.sync.status}{" "}{.status.health.status}{"\n"}'
 ```
 
 The registry hostname used in Kubernetes manifests remains
@@ -68,7 +86,8 @@ registry.lan.buetow.org:30001/ychat:<TAG>
 
 ## Deploy (GitOps)
 
-Config lives in the `conf` repo (mirrored on the in-cluster git-server):
+Config lives in the `conf` repo (ArgoCD reads it from the in-cluster forgejo,
+`http://forgejo.services.svc.cluster.local/snonux/conf.git`):
 
 - Helm chart: `f3s/ychat/helm-chart`
 - ArgoCD app: `f3s/argocd-apps/services/ychat.yaml`
