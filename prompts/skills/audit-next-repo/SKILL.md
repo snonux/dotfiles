@@ -173,6 +173,34 @@ ask add priority:M +codequality "Fix high cognitive complexity in parser.go"
   exact invocation contract (`ask` is a fixed-subcommand CLI, not
   natural-language).
 
+#### 6a. Create a final re-tag task that depends on every other task
+
+After all finding tasks (bugs + design) are created, add **one last** task
+that **depends on all of them** and whose only job is to move the audit
+marker to the post-fix `HEAD` once the fixes land. This makes the marker track
+the *end of the fix cycle*, not the end of the audit pass — so the next
+`audit-due` measures churn from after the fixes, and the agent working through
+`next task` re-tags the repo automatically as its final step. Use the
+`agent-task-management` `depends:<id>,<id>,...` modifier (inline at creation):
+
+```sh
+# Collect every task id created in step 6 (bugs + design), comma-separated.
+ALL_IDS="501,601,701,...,y01"   # all finding task alias ids
+FINAL=$(ask add +codequality depends:$ALL_IDS \
+  "After all audit fixes land, finalize the audit marker on the post-fix HEAD")
+ask annotate "$FINAL" \
+  "Once every audit task (<ids>) is done: move the audit/<date> marker from \
+the pre-/post-audit HEAD to the new post-fix HEAD and push it, so the next \
+audit-due measures churn from the END of this fix cycle. Commands: \
+git tag -d audit/<date>; git tag audit/<date>; git push origin --force \
+audit/<date>. See the audit-tagging skill for collision/protection fallbacks."
+```
+
+The annotation must name the exact `$START_TAG` (from step 4) and list the
+ids it depends on. The marker referenced is the **same** `audit/<date>` name
+stamped in step 4 and moved in step 7 — this final task simply moves it again
+(to the post-fix commit) once the fix work is complete.
+
 ### 7. Finalize the audit marker (end) — audit mode only
 
 When the audit and the finding-recording (steps 5–6) are done, **finalize the
@@ -203,6 +231,9 @@ Summarize for the user:
   `audit/2026-08-10 -> <short sha>`). State that the start marker was
   replaced by this end marker, so the next audit starts from here.
 - Counts: bugs found, design findings, tasks created (by severity).
+- The **final re-tag task**: its id, the ids it depends on, and that the
+  agent working through `next task` will move the `audit/<date>` marker to
+  the post-fix `HEAD` and push it as the last step.
 - Then offer the next batch (loop to step 1) or stop per the user.
 
 ## Bootstrapping repos without tags
@@ -222,6 +253,13 @@ after its first proper audit instead (step 4).
 - **One repo per audit pass.** Don't audit multiple repos in one session.
 - **Findings stay in the repo.** Create `ask` tasks inside the audited repo's
   working directory, never in a shared/parent location.
+- **Always create the final re-tag task (step 6a).** After every finding
+  task exists, add one `+codequality` task that `depends:` on **all** of them
+  and re-moves the `audit/<date>` marker to the post-fix `HEAD` (and pushes
+  it) once the fixes land. This couples the marker to the end of the fix
+  cycle, not the end of the audit pass, and lets the `next task` agent
+  finalize the audit automatically. It is in addition to step 7 (which marks
+  the audit itself); step 7 still runs immediately.
 - **Tagging lives in the audit-tagging skill.** Step 4 stamps a local-only
   start tag (safety net); step 7 moves it to the post-audit `HEAD` and pushes
   it remotely. Naming (`audit/<date>` + `-N` collision suffix), the exact
