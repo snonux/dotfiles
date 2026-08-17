@@ -465,6 +465,6 @@ abbr -a ts tasksamurai due.before:today+7d
 abbr tpt taskwarrior::project_tasks
 abbr tsp taskwarrior::project_tasks::tasksamurai
 abbr st 'supersync; tasksamurai due.before:today+7d'
-abbr atasks tasksamurai +agent
+abbr agentasks tasksamurai +agent
 
 taskwarrior::due_count

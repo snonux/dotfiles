@@ -8,6 +8,7 @@ function tmpdir
         mkdir -p $dir
     end
     cd $dir
+    git init
 end
 
 function tmpnew
