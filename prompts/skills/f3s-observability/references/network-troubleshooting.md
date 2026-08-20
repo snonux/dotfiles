@@ -182,30 +182,89 @@ doas awk '/relayd\[/ && /relay /{for(i=1;i<=NF;i++) if($i=="relay"){print $(i+1)
 
 Caveat: this counts **sessions, not bytes**, and `newsyslog` rotates the log.
 
-### Design sketch: generic byte accounting on the gateways
+### pf label accounting (deployed)
 
-Neither piece is deployed yet — `pfctl -sl` returns nothing (no labelled
-rules) and `node_exporter` runs with only `--web.listen-address` (no textfile
-collector, no `/var/node_exporter`).
+**Per-service byte/packet counters for every public port, in Prometheus.**
+This is the tool for the table above: pf sits underneath relayd, httpd and
+the tunnels, so it sees traffic Traefik structurally cannot.
 
-1. **Count with pf labels.** `pf.conf.tpl` is currently a bare `pass` policy.
-   Adding `match in ... label "svc_<name>"` rules per public port counts
-   packets/bytes **without changing the pass/block decision** — `match` rules
-   do not alter policy, so this is non-invasive. Then `pfctl -sl` emits
-   `label evaluations packets bytes ...` per service.
-2. **Export via node_exporter's textfile collector.** Add
-   `--collector.textfile.directory=/var/node_exporter` to
-   `node_exporter_flags` in `rc.conf.local`, and a cron job writing
-   `pfctl -sl` into a `.prom` file as counters. Prometheus already scrapes
-   both gateways (`192.168.2.110:9100`, `192.168.2.111:9100`, `os="openbsd"`),
-   so the series appear with no scrape-config change.
-3. **Inspect content** where volume alone is not enough: `pflog0` +
-   `tcpdump -n -i pflog0` for packet-level, or the relayd session log above
-   for who-talked-to-which-relay.
+Query it like any other metric (retention is Prometheus's usual **10 days**):
 
-**Deploy pf changes one gateway at a time and verify SSH still works before
-touching the second** — these are the public frontends, and a pf mistake
-locks you out of the box you are editing.
+```promql
+# current per-service throughput, bits/sec, per gateway
+sum by (instance, label) (rate(pf_label_bytes_in_total[5m])) * 8
+
+# which service moved the most data today
+topk(5, sum by (label) (increase(pf_label_bytes_in_total[24h])))
+```
+
+Series: `pf_label_bytes_in_total`, `pf_label_bytes_out_total`,
+`pf_label_packets_total`, `pf_label_states_total`, each labelled
+`label="svc_*"`. Instances are the two gateways, `192.168.2.110:9100`
+(blowfish) and `192.168.2.111:9100` (fishfinger). Expect blowfish to carry
+almost all HTTPS and fishfinger to look idle — whichever holds the DNS master
+IP takes the traffic, so a lopsided split is normal, not a fault.
+
+Current labels: `svc_https`, `svc_http`, `svc_gemini`, `svc_forgejo_web_alt`,
+`svc_forgejo_ssh`, `svc_dserver`, `svc_ssh_admin`, `svc_wireguard`.
+
+Straight off the gateway, no Prometheus needed:
+
+```sh
+doas pfctl -sl    # label evals packets bytes in-pkts in-bytes out-pkts out-bytes states
+```
+
+**What it does and does not tell you.** Counters are per *pf rule*, so
+`svc_https` is all of port 443 aggregated — Forgejo, Immich, foo.zone, the Pi
+sites, everything. It answers "how much, via which port", never "which
+website". For the HTTP share use the Traefik metrics (step 5); for the
+non-HTTP relays use the relayd session log above. The layers are
+complementary — keep both.
+
+#### How it is wired
+
+- `frontends/etc/pf.conf.tpl` — labelled rules at the **end** of the file
+- `frontends/scripts/pf-labels-exporter.sh` — renders `pfctl -sl` as
+  Prometheus counters, written atomically
+- `frontends/Rexfile` task `pf` — installs the script, `/var/node_exporter`,
+  a root crontab entry (every minute), and sets `node_exporter` flags
+
+Deploy with `rex -H <gateway>:2 pf`. Prometheus already scrapes both
+gateways, so nothing changes on the scrape side.
+
+**Adding a service**: append one labelled rule to `pf.conf.tpl` and re-run the
+task. No exporter or scrape-config change needed.
+
+#### Two things that are easy to get wrong
+
+- **Use `pass`, not `match`.** A labelled `match` rule creates no state, so
+  its byte counters stay at zero forever. The rules must also be **last** in
+  the file: pf is last-match-wins, so being last makes them the
+  state-creating rule for their ports. Policy is unaffected either way — the
+  bare `pass` earlier in the file already permits this traffic.
+- **No address family is specified**, so each rule covers IPv4 and IPv6
+  together. Deliberate: the two families behave differently on this
+  connection, and a v4-only fault is otherwise invisible.
+
+#### Safe deployment
+
+These are the public frontends and a pf mistake locks you out of the box you
+are editing. Validate, then deploy **one gateway at a time**, confirming SSH
+and a couple of sites in between:
+
+```sh
+doas pfctl -nf /tmp/pf.conf.test    # dry-run parse, does not load
+```
+
+Also confirm the egress interface name before trusting hardcoded rules
+(`vio0` on both gateways today):
+
+```sh
+netstat -rn -f inet | awk '$1=="default"{print $NF; exit}'
+```
+
+For packet-level inspection when volume alone is not enough:
+`tcpdump -n -i pflog0`.
 
 ## Worked Case: the Crawler That Moved (2026-08-19/20)
 
