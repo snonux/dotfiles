@@ -188,25 +188,79 @@ Caveat: this counts **sessions, not bytes**, and `newsyslog` rotates the log.
 This is the tool for the table above: pf sits underneath relayd, httpd and
 the tunnels, so it sees traffic Traefik structurally cannot.
 
-Query it like any other metric (retention is Prometheus's usual **10 days**):
+It measures at **two layers**, which is what makes services separable:
 
-```promql
-# current per-service throughput, bits/sec, per gateway
-sum by (instance, label) (rate(pf_label_bytes_in_total[5m])) * 8
+| Layer | Labels | What it answers |
+|---|---|---|
+| Front door (`in on vio0`) | `svc_*` | how much arrived on each public port |
+| Backend leg (`out on wg0`) | `dst_*` | which service it was actually for |
 
-# which service moved the most data today
-topk(5, sum by (label) (increase(pf_label_bytes_in_total[24h])))
-```
+The front door alone is not enough: every TLS service arrives on `:443`, so
+Immich, foo.zone, the Pi static sites and Jellyfin all land in `svc_https`
+together. They only separate once relayd picks a backend.
+
+**Labels**
+
+- Front door: `svc_https`, `svc_http`, `svc_gemini`, `svc_forgejo_web_alt`,
+  `svc_forgejo_ssh`, `svc_dserver`, `svc_ssh_admin`, `svc_wireguard`
+- Backend: `dst_traefik` (k3s ingress), `dst_pi_static` (**pi0/pi1**
+  bozohttpd), `dst_jellyfin`, `dst_anki`, `dst_garage`, `dst_registry`,
+  `dst_forgejo_ssh`
+- Mesh: `wg_mesh_in` — everything inbound from f-hosts, r-nodes, Pis and
+  roaming clients
 
 Series: `pf_label_bytes_in_total`, `pf_label_bytes_out_total`,
-`pf_label_packets_total`, `pf_label_states_total`, each labelled
-`label="svc_*"`. Instances are the two gateways, `192.168.2.110:9100`
-(blowfish) and `192.168.2.111:9100` (fishfinger). Expect blowfish to carry
-almost all HTTPS and fishfinger to look idle — whichever holds the DNS master
-IP takes the traffic, so a lopsided split is normal, not a fault.
+`pf_label_packets_total`, `pf_label_states_total`. Instances are the two
+gateways, `192.168.2.110:9100` (blowfish) and `192.168.2.111:9100`
+(fishfinger). Retention is Prometheus's usual **10 days**.
 
-Current labels: `svc_https`, `svc_http`, `svc_gemini`, `svc_forgejo_web_alt`,
-`svc_forgejo_ssh`, `svc_dserver`, `svc_ssh_admin`, `svc_wireguard`.
+Expect blowfish to carry almost all HTTPS while fishfinger looks idle —
+whichever gateway holds the DNS master IP takes the traffic, so a lopsided
+split is normal, not a fault. Sum across `instance` unless comparing them.
+
+### Example queries
+
+Prometheus has no ingress; reach it on the NodePort at
+`http://r0.lan.buetow.org:30090` (LAN only — off-LAN needs the WireGuard
+route or a port-forward).
+
+```promql
+# Per-service throughput right now, bits/sec, both gateways combined.
+# `in` is what clients sent us; swap to _out_ for what we served back --
+# on a 50 Mbit uplink the outbound figure is the one that hurts.
+sum by (label) (rate(pf_label_bytes_in_total[5m])) * 8
+sum by (label) (rate(pf_label_bytes_out_total[5m])) * 8
+
+# Which service served the most data over the last day.
+topk(5, sum by (label) (increase(pf_label_bytes_out_total[24h])))
+
+# Backend leg only: which service was the traffic really for?
+# This is the one that separates Jellyfin/anki/Pi-static from the :443 blob.
+sum by (label) (rate(pf_label_bytes_out_total{label=~"dst_.*"}[5m])) * 8
+
+# Traffic to the Raspberry Pi static sites specifically.
+sum(rate(pf_label_bytes_out_total{label="dst_pi_static"}[5m])) * 8
+
+# Split per gateway -- confirms which one is actually serving.
+sum by (instance, label) (rate(pf_label_bytes_in_total{label="svc_https"}[5m])) * 8
+
+# New connections/sec per service: distinguishes a crawler (many small
+# connections) from a big download (few connections, many bytes).
+sum by (label) (rate(pf_label_states_total[5m]))
+
+# Sanity check that accounting is alive on both gateways (expect 2).
+count by (instance) (pf_label_bytes_in_total)
+```
+
+Cross-checking against the other layers:
+
+```promql
+# HTTP share, per website (Traefik) -- pairs with dst_traefik above
+sum by (exported_service) (rate(traefik_service_requests_total[5m]))
+
+# Host-level totals, for comparison with the pf figures
+rate(node_network_transmit_bytes_total{device="wg0"}[5m]) * 8
+```
 
 Straight off the gateway, no Prometheus needed:
 
@@ -214,12 +268,24 @@ Straight off the gateway, no Prometheus needed:
 doas pfctl -sl    # label evals packets bytes in-pkts in-bytes out-pkts out-bytes states
 ```
 
+The packet and byte pairs **interleave**, so the column numbers are easy to
+get wrong and an off-by-one silently reports packet counts as bytes (this
+happened once already). Fields are `$1`=label, `$3`=packets, `$4`=bytes,
+`$6`=bytes-in, `$8`=bytes-out, `$9`=states. Sanity check any change with
+`$6 + $8 == $4`, and cross-check one exported value against `pfctl` output
+before believing a dashboard.
+
 **What it does and does not tell you.** Counters are per *pf rule*, so
-`svc_https` is all of port 443 aggregated — Forgejo, Immich, foo.zone, the Pi
-sites, everything. It answers "how much, via which port", never "which
-website". For the HTTP share use the Traefik metrics (step 5); for the
-non-HTTP relays use the relayd session log above. The layers are
-complementary — keep both.
+`svc_https` is all of port 443 aggregated. It answers "how much, via which
+port, to which backend" — never "which website". For per-site HTTP use the
+Traefik metrics (step 5); for the non-HTTP relays use the relayd session log
+above. The layers are complementary — keep both.
+
+**Known gap**: `svc_wireguard` counts only tunnels the *remote peer*
+initiated (UDP 56709 inbound on `vio0`); flows the gateway starts match the
+earlier unlabelled `pass` and are not attributed. The `dst_*` labels cover
+the same traffic one layer up, already decrypted and split by service, so
+this is rarely worth chasing.
 
 #### How it is wired
 
