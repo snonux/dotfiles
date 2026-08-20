@@ -1,6 +1,6 @@
 ---
 name: f3s-workloads
-description: Reference skill for the application workloads running on the f3s homelab, Immich (photos), Garage (S3), the Player service, yChat (legacy C++ chat), and goprecords/uptimed uploads. Covers image build/push, Helm charts, ArgoCD sync, NFS PV/PVC wiring, edge domain routing, and per-app troubleshooting. Use when deploying, updating, or debugging a specific homelab application. Part of the f3s homelab skill family (hub, [`f3s`](../f3s/SKILL.md)).
+description: Reference skill for the application workloads running on the f3s homelab, Immich (photos), Garage (S3), the Player service, yChat (legacy C++ chat), Forgejo (git forge), and goprecords/uptimed uploads. Covers image build/push, Helm charts, ArgoCD sync, NFS PV/PVC wiring, edge domain routing, and per-app troubleshooting. Use when deploying, updating, or debugging a specific homelab application. Part of the f3s homelab skill family (hub, [`f3s`](../f3s/SKILL.md)).
 ---
 
 # f3s Workloads
@@ -21,4 +21,5 @@ PV/PVC notes.
 - [Garage](references/garage.md) — Garage cluster, edge domain routing, S3 bucket/key workflow, troubleshooting
 - [Player](references/player.md) — `player.f3s.buetow.org`, image build/push workflow, Helm chart path, ArgoCD sync, NFS PV/PVC notes
 - [yChat](references/ychat.md) — `ychat.f3s.lan.buetow.org`, legacy C++ chat server, image build/push, Helm chart + ArgoCD; the single home for f3s yChat deployment details
+- [Forgejo](references/forgejo.md) — `code.f3s.buetow.org`, git forge (80+ repos, ArgoCD's own source), architecture, the crawler-traffic incident and relayd block/alt-port fix, hostname/ingress drift between repo and live cluster
 - [goprecords / uptimed uploads](references/goprecords-uptimed.md) — `https://goprecords.f3s.buetow.org`, `PUT /upload`, OpenBSD Rex daily vs FreeBSD/Pi manual hourly cron/systemd, upload client, geheim tokens

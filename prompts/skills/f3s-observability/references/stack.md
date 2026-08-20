@@ -148,6 +148,12 @@ chown 1000:1000 /data/nfs/k3svolumes/prometheus/data/prometheus-db
 {namespace="services"} | json | level="error"
 ```
 
+## Diagnosing Network / Traffic Problems
+
+Moved to its own reference — see
+[network-troubleshooting.md](network-troubleshooting.md): which host, which
+pod, which website, and whether the fault is even inside the house.
+
 ## NFS Storage Paths
 
 ```

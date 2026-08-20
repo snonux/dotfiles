@@ -35,6 +35,7 @@ Observability stack deployed into the `monitoring` namespace of the k3s cluster.
 
 - [Stack](references/stack.md) — install Prometheus / Alloy / Loki / Tempo, alerting → Gogios, Prometheus TSDB recovery, LogQL queries, NFS storage paths
 - [FreeBSD Monitoring](references/freebsd.md) — `node_exporter` on f-hosts, scrape config, memory & ZFS recording rules
+- [Network Troubleshooting](references/network-troubleshooting.md) — "something is eating the network": localise a fault to host / pod / website, local-vs-ISP discrimination, the `hostNetwork` cAdvisor trap, Traefik per-service metrics (`exported_service`), crawler + relayd block pattern, flaky-registry `imagePullPolicy` trap, IPv4-vs-IPv6 probing
 
 ## Monitoring Scope
 
