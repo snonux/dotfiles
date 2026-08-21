@@ -41,3 +41,20 @@ end
 function cl
     claude --dangerously-skip-permissions $argv
 end
+
+# Stamp an audit/<date> tag on the current repo's HEAD and push it to
+# origin — the end-marker step of the audit-tagging skill
+# (~/.claude/skills/audit-tagging), so `audit-due` measures the next
+# audit's churn from here rather than re-counting this one's fixes.
+# Appends -2, -3, ... on a same-day collision, matching the skill's own
+# naming rule.
+function audit-tag --description 'Tag the current repo audit/<date> and push it to origin'
+    set -l date_str (date +%F)
+    set -l tag audit/$date_str
+    set -l n 2
+    while git rev-parse -q --verify refs/tags/$tag >/dev/null
+        set tag audit/{$date_str}-{$n}
+        set n (math $n + 1)
+    end
+    git tag $tag; and git push origin $tag
+end
