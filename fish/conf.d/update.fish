@@ -18,8 +18,8 @@ function update::tools
     set -a pids $last_pid
 
     for prog in hexai hexai-lsp-server hexai-tmux-action hexai-mcp-server ask
-        echo "Installing/updating $prog from codeberg.org/snonux/hexai/cmd/$prog@latest"
-        go install codeberg.org/snonux/hexai/cmd/$prog@latest &
+        echo "Installing/updating $prog from github.com/snonux/hexai/cmd/$prog@latest"
+        go install github.com/snonux/hexai/cmd/$prog@latest &
         set -a pids $last_pid
     end
 
@@ -30,8 +30,8 @@ function update::tools
     end
 
     for prog in tasksamurai timesamurai gt loadbars foostore
-        echo "Installing/updating $prog from codeberg.org/snonux/$prog/cmd/$prog@latest"
-        go install codeberg.org/snonux/$prog/cmd/$prog@latest &
+        echo "Installing/updating $prog from github.com/snonux/$prog/cmd/$prog@latest"
+        go install github.com/snonux/$prog/cmd/$prog@latest &
         set -a pids $last_pid
     end
 
@@ -51,9 +51,12 @@ function update::tools
         # set -a pids $last_pid
 
         for prog in gitsyncer totalrecall goprecords gos snonux comicforge
-            echo "Installing/updating $prog from codeberg.org/snonux/$prog/cmd/$prog@latest"
-            go install codeberg.org/snonux/$prog/cmd/$prog@latest
+            echo "Installing/updating $prog from github.com/snonux/$prog/cmd/$prog@latest"
+            go install github.com/snonux/$prog/cmd/$prog@latest
         end
+
+        echo "Installing/updating restforge from github.com/snonux/restforge/cli/cmd/restforge@latest"
+        go install github.com/snonux/restforge/cli/cmd/restforge@latest
 
         # doas npm uninstall -g @qwen-code/qwen-code@latest
         # doas npm install -g @qwen-code/qwen-code@latest
