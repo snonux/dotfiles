@@ -1,0 +1,7 @@
+#!/usr/bin/bash
+
+set -x
+
+for dir in ~/Syncthing/Notes/ ~/Documents/; do 
+	rsync -av --delete $dir f0.wg0:tempbackup/$(basename $dir)
+done
