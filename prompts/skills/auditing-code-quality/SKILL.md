@@ -123,3 +123,36 @@ Do NOT do this (causes tag to land in description):
 ask add "+code-quality Fix foo"          # wrong: tag+desc quoted as one arg
 ask add "+code-quality -p M Fix foo"     # wrong: everything in one quoted arg
 ```
+
+### 5. Create the Audit-Closure Gate Task (mandatory)
+
+After **all** audit tasks (bug tasks from **find-code-bugs** + design/convention
+tasks from step 4) have been created, create one final **gate task** that depends
+on every one of them. This marks the audit as a closed cycle: it stays blocked
+until every audit-driven task is done, then it re-verifies the codebase and
+closes out the audit.
+
+Collect every audit task alias ID created during this run (both the `+bugfix`
+IDs and the `+code-quality` IDs). Then create the gate task with all of them as
+dependencies in a single `ask add`:
+
+```bash
+ask add +audit depends:<bug1>,<bug2>,...,<cq1>,<cq2>,... "Finalize <project> code-quality audit: verify all audit-driven fixes landed, re-run guardrails (build/vet/test -race/gofmt -l/linters), close out the audit cycle"
+```
+
+Tag it `+audit` (separate arg, never quoted with the description). Do **not** set
+a priority modifier — its urgency is derived from its dependencies, and the
+`depends:` list is what makes it a gate. Capture the printed alias ID and annotate
+it with the closure checklist so a fresh-context agent can finish the audit:
+
+- The list of every dependent task ID and what it covers.
+- The guardrail commands to re-run when this task becomes READY (the language's
+  build/test/lint/gofmt-equivalents; for Go: `go build ./...`, `go vet ./...`,
+  `go test -race ./...`, `gofmt -l .`, `errcheck ./...`).
+- Instruction to confirm `ask list` shows every dependent done, then mark this
+task done to close the audit.
+
+This gate task is the audit's end marker — without it, the audit has findings and
+tasks but no point at which the cycle is verified complete. If the repo had no
+git root (so no audit tasks were created at all), skip the gate task and note in
+the report that there is nothing to close out.

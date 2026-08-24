@@ -52,6 +52,7 @@ When beginning a new task, **use a fresh context** — spawn a sub-agent (if orc
 - User asks to **list**, **add**, **start**, **complete**, **annotate**, or **organize** tasks for the project.
 - Triggers: *tasks*, *todo*, *task list*, *pick next task*, *what's next*.
 - You may start work **in parallel** (e.g. multiple sub-agents on different tasks) as long as agents do not conflict with each other.
+- **Code-audit task batches:** when creating tasks that are the output of a code audit (`+bugfix` / `+code-quality` from `auditing-code-quality`, `find-code-bugs`, `solid-principles`, `beyond-solid-principles`, `go-best-practices`), also create one `+audit` **closure gate task** depending on all of them — see `references/1-create-task.md` → “Audit task batches”.
 
 ## When to load what
 

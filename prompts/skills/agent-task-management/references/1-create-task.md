@@ -57,6 +57,32 @@ id=$(ask add +<tag> depends:<dep-id1>,<dep-id2> "Description" | sed -n 's/^creat
 
 After adding (with or without dependency), run the same annotations using that alias ID directly.
 
+## Audit task batches — create a closure gate task
+
+When the tasks being created are the output of a **code audit** (tagged
+`+bugfix` from a bug sweep and/or `+code-quality` from a design/convention
+audit, e.g. produced by the `auditing-code-quality`, `find-code-bugs`,
+`solid-principles`, `beyond-solid-principles`, or `go-best-practices` skills),
+create one extra **closure gate task** after all the audit tasks exist:
+
+- Tag it `+audit` (never `+audit-something` with a hyphen; `+audit` is the tag).
+- Add **every** audit task ID as a dependency in one `ask add`:
+  ```bash
+  ask add +audit depends:<id1>,<id2>,...,<idN> "Finalize <project> code-quality audit: verify all audit-driven fixes landed, re-run guardrails (build/vet/test -race/gofmt -l/linters), close out the audit cycle"
+  ```
+- Do not set a priority modifier — the `depends:` list is what makes it a gate;
+  its readiness is driven by its dependents completing.
+- Annotate it with the dependent ID list and the guardrail commands to re-run
+  when it becomes READY (for Go: `go build ./...`, `go vet ./...`,
+  `go test -race ./...`, `gofmt -l .`, `errcheck ./...`; adapt to the language),
+  plus the instruction to confirm every dependent is done via `ask list` and
+  then mark the gate task done.
+
+This gate task is the audit's end marker: it stays blocked until every audit
+driven task is complete, then it re-verifies the codebase and closes the cycle.
+Skip it only when the audit produced no tasks (e.g. no git root, or no findings
+filed) — in that case there is nothing to gate.
+
 ## Conventions
 
 - **Keep tasks small:** each task should be a chunk that fits in the context window (description + refs + work to do). Split large efforts into multiple dependent tasks.
