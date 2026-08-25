@@ -17,6 +17,12 @@ specific repo — do not pre-emptively tag repos to hide them. A repo without a
 recent audit marker is genuinely due and should stay due until the user either
 audits it or explicitly defers it.
 
+**Excluded repos (never audit):** `conf_private`, `libbpfgo`, `ds-sim` are
+permanently excluded from auditing. Filter them out of the due list in step 2
+and never offer, audit, or defer-tag them — even if the user picks a slot they
+occupied. This list is user-maintained: add a repo here when the user says it
+should never be audited, and remove it if they retract the exclusion.
+
 ## When to Use
 
 - "Which repo should I audit next?", "audit next repo", "code audit due",
@@ -53,8 +59,10 @@ is due, stop and tell the user. Tuning (optional, via env):
 
 ### 2. Present the top 5 due repos with stats
 
-Run `audit-due --json` and rank due repos by **churn** (the `loc` field,
-descending). Present the **top 5** as a numbered table so the user can pick.
+Run `audit-due --json`, **drop the excluded repos** (see "Excluded repos
+(never audit)"), and rank the remaining due repos by **churn** (the `loc`
+field, descending). Present the **top 5** as a numbered table so the user can
+pick. Fill the freed slots with the next-highest-churn due repos.
 For each, show the stats that explain **why** it is due:
 
 - **#** (1–5)
@@ -250,6 +258,9 @@ after its first proper audit instead (step 4).
 
 - **Always show the top 5 and let the user pick.** Never auto-audit; never
   bulk-defer. One explicit selection per repo.
+- **Never audit excluded repos.** `conf_private`, `libbpfgo`, `ds-sim` are
+  filtered out of the due list and out of the top 5; they are never audited,
+  offered, or defer-tagged unless the user explicitly lifts the exclusion.
 - **One repo per audit pass.** Don't audit multiple repos in one session.
 - **Findings stay in the repo.** Create `ask` tasks inside the audited repo's
   working directory, never in a shared/parent location.

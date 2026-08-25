@@ -50,7 +50,7 @@ function update::tools
         # go install github.com/aandrew-me/tgpt/v2@latest &
         # set -a pids $last_pid
 
-        for prog in gitsyncer totalrecall goprecords gos snonux comicforge
+        for prog in gitsyncer totalrecall goprecords gos snonux comicforge syncmaster
             echo "Installing/updating $prog from github.com/snonux/$prog/cmd/$prog@latest"
             go install github.com/snonux/$prog/cmd/$prog@latest
         end

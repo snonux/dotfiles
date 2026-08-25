@@ -469,6 +469,22 @@ finish_import() {
   return 1
 }
 
+rollback_imported_images() {
+  local path removed=0
+
+  for path in "${IMPORTED_IMAGE_PATHS[@]}"; do
+    [[ -n ${path:-} && -e $path ]] || continue
+    rm -f -- "$path"
+    log "rollback: removed $(strip_home "$path")"
+    removed=$((removed + 1))
+  done
+
+  if ((removed > 0)); then
+    TOTAL_COPIED=$((TOTAL_COPIED - removed))
+    log "Rolled back $removed copied image(s); destination restored for re-import."
+  fi
+}
+
 import_fujifilm() {
   local dest=${1:-$FUJIFILM_DEST}
   local raw_dest=$FUJIFILM_RAW_DEST root
@@ -487,7 +503,13 @@ import_fujifilm() {
   log "GPX track directory: $GPX_DIR"
   log "Importing JPEG, RAW, and video files."
   copy_fujifilm_media_from_dir "$root" "$dest" "$raw_dest"
-  geotag_imported_images || true
+  if ! geotag_imported_images; then
+    error "Aborting Fujifilm import: GPS tagging was required but unavailable."
+    error "Pass --allow-missing-gps to import the images without GPS coordinates."
+    rollback_imported_images
+    finish_import "$dest (JPEG/video), $raw_dest (RAW)"
+    return 1
+  fi
   finish_import "$dest (JPEG/video), $raw_dest (RAW)"
 }
 
