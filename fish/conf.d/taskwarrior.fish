@@ -93,6 +93,45 @@ function taskwarrior::export::maybe
     end
 end
 
+# Routes +add tagged tasks into per-project note files under ~/Notes/random/,
+# e.g. project:podgore +add "some note" appends "* some note" to
+# ~/Notes/random/podgore.md, creating the file with a title header the first
+# time that project is seen. Mirrors export::maybe/export::wins but keyed by
+# project instead of a single fixed file, so it processes tasks one at a time
+# by uuid (like gos_queue) rather than as a batch export.
+function taskwarrior::export::add
+    set -l notes_dir ~/Notes/random
+    if not test -d $notes_dir
+        return
+    end
+
+    set -l uuids (task +add status:pending _uuids)
+    for uuid in $uuids
+        test -n "$uuid"; or continue
+        set -l json (task "$uuid" export)
+        set -l project (echo "$json" | jq -r '.[0].project // ""')
+        set -l description (echo "$json" | jq -r '.[0].description')
+
+        # A task without a project has no file to route to; leave it pending
+        # rather than silently discarding the note
+        if test -z "$project"
+            continue
+        end
+
+        set -l outfile "$notes_dir/$project.md"
+        if not test -f $outfile
+            # Match the "# Title (30)" header convention used by the other
+            # files in $notes_dir (the "(30)" is their random-quote review interval)
+            set -l title (string upper -- (string sub -l 1 -- $project))(string sub -s 2 -- $project)
+            echo "# $title (30)" >$outfile
+            echo '' >>$outfile
+        end
+        echo "* $description" >>$outfile
+
+        yes | task "$uuid" delete &>/dev/null
+    end
+end
+
 function taskwarrior::export::wins
     set -l winsfile ~/Notes/random/Wins.md
     if test -f $winsfile
@@ -160,6 +199,7 @@ function taskwarrior::export
     taskwarrior::export::bd
     taskwarrior::export::maybe
     taskwarrior::export::wins
+    taskwarrior::export::add
 end
 
 function taskwarrior::import
