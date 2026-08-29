@@ -35,10 +35,7 @@ function update::tools
         set -a pids $last_pid
     end
 
-    if test (uname) = Darwin
-        echo 'Updating cursor-agent on macOS'
-        cursor-agent update &
-    end
+    cursor-agent update &
     set -a pids $last_pid
 
     echo 'Updating claude'
