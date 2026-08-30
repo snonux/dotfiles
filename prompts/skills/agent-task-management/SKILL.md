@@ -15,7 +15,7 @@ description: "Manage agent tasks scoped to the current git project using the `as
 
 The only valid form is `ask <subcommand> [args]`. The subcommands are:
 
-`list`, `ready`, `add`, `info`, `start`, `stop`, `done`, `annotate`, `modify`, `tag`, `priority`, `dep`, `delete`, `urgency`.
+`list`, `all`, `ready`, `completed`, `add`, `info`, `start`, `stop`, `done`, `annotate`, `denotate`, `modify`, `edit`, `tag`, `priority`, `dep`, `delete`, `urgency`, `projects`, `watch`, `fish`, `help`.
 
 Anything not expressible as one of these subcommands is unsupported — do not improvise.
 
@@ -23,12 +23,16 @@ Valid examples:
 
 - `ask list`
 - `ask ready`
+- `ask completed since:7.days`   # completed over the last 7 days
+- `ask all +agent sort:priority-`
 - `ask add +cli "Add feature X"`  # prints `created task <alias-id>`
 - `ask add +cli depends:0,1 "Add feature X"`
 - `ask info <id>`
 - `ask start <id>`
 - `ask annotate <id> "progress note"`
 - `ask done <id>`
+
+List filters (for list/all/ready/completed): `limit:<n>`, `sort:<key>` (e.g. `sort:priority-`), `+<tag>`, `started`, `since:<value>` (values: `today`, `this.week`, `this.month`, `N.hours`, `N.days`, `N.weeks`, `N.months`), and raw taskwarrior date-attribute filters (`end:today`, `end.after:2026-08-22`, …). `since:` is resolved to an absolute `end.after:` boundary by ask, because taskwarrior 2.x relative date values in filters are unreliable.
 
 Invalid (will not work):
 

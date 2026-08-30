@@ -16,6 +16,22 @@ By tag (keep `+agent`, same order):
 ask list +<tag> sort:priority-,urgency-
 ```
 
+## Time-range queries (completed tasks)
+
+`ask completed` supports `since:` for "completed over the last …" queries, plus raw taskwarrior date-attribute filters:
+
+```bash
+ask completed since:today
+ask completed since:24.hours
+ask completed since:7.days
+ask completed since:this.week
+ask completed since:2.months
+ask completed end:today            # raw taskwarrior pass-through
+ask completed end.after:2026-08-22 # absolute boundary
+```
+
+Do not rely on raw taskwarrior relative date values (e.g. `end:7.days`, `end:7.days.ago`) — they are unreliable in taskwarrior 2.x filters. Use `since:` instead.
+
 ## Picking what to work on (next task)
 
 **Order by priority first, then by urgency.** When choosing among tasks, always consider priority first (e.g. H then M then L), then urgency as a tiebreaker.
