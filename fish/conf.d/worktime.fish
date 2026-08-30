@@ -8,8 +8,80 @@ function worktime
     ruby $WORKTIME_DIR/worktime.rb $argv
 end
 
+# We run both trackers side by side for a while: worktime.rb stays the source
+# of truth while timesamurai records the same events into its own JSONL store
+# (~/git/worktime/timesamuraidb), so the two can be compared before cutting
+# over. timesamurai accepts worktime.rb's own flags, so mirroring is a literal
+# echo of the arguments.
+#
+# This must never break the Ruby path, so a missing binary is skipped and a
+# failure only warns. Set WORKTIME_MIRROR=0 to switch mirroring off.
+#
+# It deliberately never runs `timesamurai work export`: that rewrites
+# db.<host>.json from the JSONL store and would clobber whatever worktime.rb
+# has written since -- exactly what parallel tracking must not do. The two
+# stores stay independent until the trial ends.
+function worktime::mirror
+    if test "$WORKTIME_MIRROR" = 0
+        return 0
+    end
+    if not type -q timesamurai
+        return 0
+    end
+    if not timesamurai work $argv >/dev/null 2>&1
+        echo "worktime: timesamurai mirror failed for '$argv' (worktime.rb unaffected)" >&2
+    end
+    return 0
+end
+
+# Compare the two reports. During parallel running the useful signal is not a
+# second 4600-line dump but whether the trackers still agree; a divergence is
+# the thing worth acting on.
+function worktime::report::compare
+    if test "$WORKTIME_MIRROR" = 0
+        return 0
+    end
+    if not type -q timesamurai
+        return 0
+    end
+
+    set -l ruby_out (mktemp)
+    set -l ts_out (mktemp)
+    worktime --report >$ruby_out 2>/dev/null
+    timesamurai work report >$ts_out 2>/dev/null
+
+    if cmp -s $ruby_out $ts_out
+        echo "timesamurai: agrees with worktime.rb"
+    else
+        echo "timesamurai: REPORTS DIVERGE -- run wtdiff to see how" >&2
+    end
+
+    rm -f $ruby_out $ts_out
+    return 0
+end
+
+# Show exactly how the two reports differ (worktime.rb on the left).
+function worktime::report::diff
+    if not type -q timesamurai
+        echo "timesamurai is not installed" >&2
+        return 1
+    end
+
+    set -l ruby_out (mktemp)
+    set -l ts_out (mktemp)
+    worktime --report >$ruby_out 2>/dev/null
+    timesamurai work report >$ts_out 2>/dev/null
+
+    diff -u $ruby_out $ts_out; or true
+    rm -f $ruby_out $ts_out
+    return 0
+end
+
 function worktime::sync
     cd $WORKTIME_DIR
+    # `git commit -a` only stages tracked files, so the JSONL store's per-host
+    # files would never be committed on the host that first creates them.
+    find . -name '*.jsonl' -exec git add {} \;
     git commit -a -m sync
     git pull
     git push
@@ -79,6 +151,7 @@ function worktime::report
         else
             worktime --report
         end
+        worktime::report::compare
         worktime::wisdom_reminder
     end
 end
@@ -95,13 +168,21 @@ function worktime::add
 
     if test -z "$descr"
         worktime --add $seconds --epoch $epoch --what $what
+        worktime::mirror --add $seconds --epoch $epoch --what $what
     else
         worktime --add $seconds --epoch $epoch --what $what --descr "$descr"
+        worktime::mirror --add $seconds --epoch $epoch --what $what --descr "$descr"
     end
 
     worktime::report
 end
 
+# BROKEN, and left broken on purpose: `--log` is ambiguous between --login and
+# --logout, so worktime.rb rejects it and this function has never recorded
+# anything. $seconds is read but never passed, which suggests it was meant to
+# be a copy of worktime::add. Guessing at the intent would silently start
+# writing time entries, so it is flagged here for a human to decide instead.
+# Nothing is mirrored into timesamurai until it does something.
 function worktime::log
     set -l seconds $argv[1]
     set -l what $argv[2]
@@ -122,6 +203,7 @@ function worktime::login
     end
     touch ~/.wtloggedin
     worktime --login --what $what
+    worktime::mirror --login --what $what
     worktime::wisdom_reminder
 end
 
@@ -137,6 +219,7 @@ function worktime::logout
     end
 
     worktime --logout --what $what
+    worktime::mirror --logout --what $what
     worktime::report
 end
 
@@ -152,6 +235,11 @@ function worktime::status
     else
         echo "You are not logged in"
     end
+
+    if type -q timesamurai
+        echo -n "timesamurai: "
+        timesamurai work status 2>/dev/null; or echo "unavailable"
+    end
 end
 
 abbr -a cdworktime "cd $WORKTIME_DIR"
@@ -165,6 +253,8 @@ abbr -a wtlogout 'worktime::logout'
 abbr -a wtstatus 'worktime::status'
 abbr -a wtsync 'worktime::sync'
 abbr -a wtf 'worktime --report'
+abbr -a wtdiff 'worktime::report::diff'
+abbr -a wtts 'timesamurai work'
 abbr -a wl 'task add +work'
 abbr -a ql 'task add +personal'
 abbr -a pl 'task add +personal'
