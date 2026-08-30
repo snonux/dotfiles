@@ -100,5 +100,5 @@ PV is always reachable.
 5. Create a migration pod pinned to the target node that mounts both the NFS hostPath
    (source) and the new PVC (target); copy data with `cp -av /src/. /dst/`.
 6. Delete migration pod, apply updated deployment (with `nodeSelector`), scale back up.
-7. Re-enable ArgoCD auto-sync and push manifests to git; push to in-cluster git-server
-   (`git push r0 master`) so ArgoCD picks up the new storageClass spec.
+7. Re-enable ArgoCD auto-sync and push manifests to git; push to in-cluster Forgejo
+   (`git push forgejo master`) so ArgoCD picks up the new storageClass spec.

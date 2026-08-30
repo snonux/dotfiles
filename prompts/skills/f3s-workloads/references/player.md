@@ -12,17 +12,17 @@ Player is deployed on the f3s k3s cluster as a GitOps-managed service.
 - Extra instance URL: `https://xplayer.f3s.buetow.org`
 - LAN URL: `https://player.f3s.lan.buetow.org`
 
-ArgoCD reads the chart from the in-cluster git-server repo:
+ArgoCD reads the chart from the in-cluster Forgejo repo:
 
 ```sh
-http://git-server.cicd.svc.cluster.local/conf.git
+http://forgejo.services.svc.cluster.local/snonux/conf.git
 path: f3s/player/helm-chart
 ```
 
 The secondary `xplayer` instance is managed by a separate ArgoCD app:
 
 ```sh
-http://git-server.cicd.svc.cluster.local/conf.git
+http://forgejo.services.svc.cluster.local/snonux/conf.git
 path: f3s/xplayer/helm-chart
 ```
 
@@ -30,7 +30,7 @@ Keep `~/git/conf` pushed to both remotes after chart updates:
 
 ```sh
 git push master master
-git push r0 master
+git push forgejo master
 ```
 
 ## Build and push a new image
