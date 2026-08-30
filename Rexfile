@@ -253,6 +253,24 @@ task 'home_fish', sub {
     }
 };
 
+desc 'Install fish completions (~/.config/fish/completions)';
+task 'home_fish_completions', sub {
+
+    # Unlike conf.d, ~/.config/fish/completions is NOT symlinked into this
+    # repo: fisher drops plugin completions there too (do.fish, fisher.fish,
+    # fzf_configure_bindings.fish), so replacing the directory with a symlink
+    # would take those out. Copy per file instead and leave the rest alone.
+    #
+    # A static file here is the cheap option: fish lazy-loads a completion
+    # only when its command is first completed, whereas sourcing
+    # `timesamurai completion fish` from conf.d would run the binary in every
+    # new shell.
+    #
+    # These files are generated output. Regenerate after a CLI change with:
+    #   timesamurai completion fish > $DOT/fish/completions/timesamurai.fish
+    ensure "$DOT/fish/completions/*" => "$HOME/.config/fish/completions/";
+};
+
 desc 'Install gitsyncer configuration';
 task 'home_gitsyncer', sub {
     my $dest_dir = "$HOME/.config/gitsyncer";
