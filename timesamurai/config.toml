@@ -1,0 +1,5 @@
+# Timesamurai Configuration File
+
+[storage]
+# Directory where the worktime JSONL store and legacy db.*.json files live.
+store_dir = "~/git/worktime/timesamuraidb"

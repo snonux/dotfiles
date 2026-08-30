@@ -175,6 +175,11 @@ task 'home_hexai', sub {
     }
 };
 
+desc 'Install ~/.config/timesamurai';
+task 'home_timesamurai', sub {
+    ensure "$DOT/timesamurai/*" => "$HOME/.config/timesamurai/";
+};
+
 desc 'Install ~/.config/lazygit';
 task 'home_lazygit', sub { ensure "$DOT/lazygit/*" => "$HOME/.config/lazygit/" };
 
