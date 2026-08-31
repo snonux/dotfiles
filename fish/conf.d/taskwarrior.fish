@@ -1,4 +1,5 @@
 set -g TASKWARRIOR_MAX_PENDING_RANDOM_TASKS 42
+set -gx TASKWARRIOR_DUE_STAMP_FILE ~/.taskwarrior_due.last
 
 function taskwarrior::due_count
     set -l due_count (task status:pending due.before:now count)
@@ -6,6 +7,27 @@ function taskwarrior::due_count
     if test $due_count -gt 0
         echo "There are $due_count tasks due!"
     end
+end
+
+# Shell-startup wrapper around taskwarrior::due_count. Invoking `task` costs
+# ~88ms, which was ~70% of the total fish startup time when it ran in every
+# single shell. The stamp file holds the calendar day of the last run, so the
+# reminder shows up once in the first terminal of the day and every shell
+# opened afterwards starts instantly.
+function taskwarrior::due_count::daily
+    set -l today (date +%Y-%m-%d)
+
+    if test -f $TASKWARRIOR_DUE_STAMP_FILE
+        and test (cat $TASKWARRIOR_DUE_STAMP_FILE) = $today
+        return
+    end
+
+    # Stamp before counting, so days without any due task also stay quiet
+    # instead of re-running `task` in every shell.
+    echo $today >$TASKWARRIOR_DUE_STAMP_FILE.tmp
+    mv $TASKWARRIOR_DUE_STAMP_FILE.tmp $TASKWARRIOR_DUE_STAMP_FILE
+
+    taskwarrior::due_count
 end
 
 function taskwarrior::project_tasks
@@ -508,4 +530,4 @@ abbr st 'supersync; tasksamurai due.before:today+7d'
 abbr agenttasks tasksamurai +agent
 abbr agentasks tasksamurai +agent
 
-taskwarrior::due_count
+taskwarrior::due_count::daily
