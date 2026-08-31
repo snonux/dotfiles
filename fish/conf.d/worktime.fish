@@ -4,77 +4,163 @@ if test (uname) = Darwin -a ! -f ~/.wtloggedin
     echo "Warn: Not logged in, run wtlogin"
 end
 
-function worktime
+# timesamurai is now the system of record for time tracking. worktime.rb
+# (the old Ruby tracker) is kept only for manual access via the `old`-suffixed
+# commands below (wtloginold, wtlogoutold, etc.) -- it is no longer wired into
+# the day-to-day wtlogin/wtlogout/wtadd/wtreport/wtstatus/wtedit commands and
+# nothing mirrors between the two stores anymore.
+function worktime::old
     ruby $WORKTIME_DIR/worktime.rb $argv
 end
 
-# We run both trackers side by side for a while: worktime.rb stays the source
-# of truth while timesamurai records the same events into its own JSONL store
-# (~/git/worktime/timesamuraidb), so the two can be compared before cutting
-# over. timesamurai accepts worktime.rb's own flags, so mirroring is a literal
-# echo of the arguments.
-#
-# This must never break the Ruby path, so a missing binary is skipped and a
-# failure only warns. Set WORKTIME_MIRROR=0 to switch mirroring off.
-#
-# It deliberately never runs `timesamurai work export`: that rewrites
-# db.<host>.json from the JSONL store and would clobber whatever worktime.rb
-# has written since -- exactly what parallel tracking must not do. The two
-# stores stay independent until the trial ends.
-function worktime::mirror
-    if test "$WORKTIME_MIRROR" = 0
-        return 0
-    end
-    if not type -q timesamurai
-        return 0
-    end
-    if not timesamurai work $argv >/dev/null 2>&1
-        echo "worktime: timesamurai mirror failed for '$argv' (worktime.rb unaffected)" >&2
-    end
-    return 0
-end
+function worktime::old::add
+    set -l seconds $argv[1]
+    set -l what $argv[2]
+    set -l descr $argv[3]
+    set -l epoch (date +%s)
 
-# Compare the two reports. During parallel running the useful signal is not a
-# second 4600-line dump but whether the trackers still agree; a divergence is
-# the thing worth acting on.
-function worktime::report::compare
-    if test "$WORKTIME_MIRROR" = 0
-        return 0
-    end
-    if not type -q timesamurai
-        return 0
+    if test -z "$what"
+        set what work
     end
 
-    set -l ruby_out (mktemp)
-    set -l ts_out (mktemp)
-    worktime --report >$ruby_out 2>/dev/null
-    timesamurai work report >$ts_out 2>/dev/null
-
-    if cmp -s $ruby_out $ts_out
-        echo "timesamurai: agrees with worktime.rb"
+    if test -z "$descr"
+        worktime::old --add $seconds --epoch $epoch --what $what
     else
-        echo "timesamurai: REPORTS DIVERGE -- run wtdiff to see how" >&2
+        worktime::old --add $seconds --epoch $epoch --what $what --descr "$descr"
     end
 
-    rm -f $ruby_out $ts_out
-    return 0
+    worktime::old::report
 end
 
-# Show exactly how the two reports differ (worktime.rb on the left).
-function worktime::report::diff
-    if not type -q timesamurai
-        echo "timesamurai is not installed" >&2
-        return 1
+# BROKEN, and left broken on purpose: `--log` is ambiguous between --login and
+# --logout, so worktime.rb rejects it and this function has never recorded
+# anything. $seconds is read but never passed, which suggests it was meant to
+# be a copy of worktime::old::add. Guessing at the intent would silently start
+# writing time entries, so it is flagged here for a human to decide instead.
+function worktime::old::log
+    set -l seconds $argv[1]
+    set -l what $argv[2]
+    set -l epoch (date +%s)
+
+    if test -z "$what"
+        set what work
     end
 
-    set -l ruby_out (mktemp)
-    set -l ts_out (mktemp)
-    worktime --report >$ruby_out 2>/dev/null
-    timesamurai work report >$ts_out 2>/dev/null
+    worktime::old --log --epoch $epoch --what $what
+    worktime::old::report
+end
 
-    diff -u $ruby_out $ts_out; or true
-    rm -f $ruby_out $ts_out
-    return 0
+function worktime::old::login
+    set -l what $argv[1]
+    if test -z "$what"
+        set what work
+    end
+    touch ~/.wtloggedin
+    worktime::old --login --what $what
+    worktime::wisdom_reminder
+end
+
+function worktime::old::logout
+    set -l what $argv[1]
+
+    if test -z "$what"
+        set what work
+    end
+
+    if test -f ~/.wtloggedin
+        rm ~/.wtloggedin
+    end
+
+    worktime::old --logout --what $what
+    worktime::old::report
+end
+
+function worktime::old::report
+    if test -f ~/.wtloggedin
+        if test -f ~/.wtmaster
+            worktime::old --report | tee $WORKTIME_DIR/report.txt
+        else
+            worktime::old --report
+        end
+        worktime::wisdom_reminder
+    end
+end
+
+function worktime::old::status
+    worktime::old::report
+
+    if test -f ~/.wtloggedin
+        echo "You are logged in"
+        set -l num_worklog (ls $WORKTIME_DIR | grep wl- | wc -l)
+        if test $num_worklog -gt 0
+            echo "$num_worklog entries in the worklog in $WORKTIME_DIR/wl-*"
+        end
+    else
+        echo "You are not logged in"
+    end
+end
+
+function worktime::add
+    set -l seconds $argv[1]
+    set -l what $argv[2]
+    set -l descr $argv[3]
+
+    if test -z "$what"
+        set what work
+    end
+
+    if test -z "$descr"
+        timesamurai work add "$seconds"s $what
+    else
+        timesamurai work add "$seconds"s $what --descr "$descr"
+    end
+
+    worktime::report
+end
+
+function worktime::login
+    set -l what $argv[1]
+    if test -z "$what"
+        set what work
+    end
+    touch ~/.wtloggedin
+    timesamurai work start $what
+    worktime::wisdom_reminder
+end
+
+function worktime::logout
+    set -l what $argv[1]
+
+    if test -z "$what"
+        set what work
+    end
+
+    if test -f ~/.wtloggedin
+        rm ~/.wtloggedin
+    end
+
+    timesamurai work stop $what
+    worktime::report
+end
+
+function worktime::edit
+    timesamurai work edit $argv
+end
+
+function worktime::report
+    if test -f ~/.wtloggedin
+        if test -f ~/.wtmaster
+            timesamurai work report $argv | tee $WORKTIME_DIR/report.txt
+        else
+            timesamurai work report $argv
+        end
+        worktime::wisdom_reminder
+    end
+end
+
+function worktime::status
+    worktime::report
+    timesamurai work status
 end
 
 function worktime::sync
@@ -144,117 +230,30 @@ function worktime::wisdom_reminder
     end
 end
 
-function worktime::report
-    if test -f ~/.wtloggedin
-        if test -f ~/.wtmaster
-            worktime --report | tee $WORKTIME_DIR/report.txt
-        else
-            worktime --report
-        end
-        worktime::report::compare
-        worktime::wisdom_reminder
-    end
-end
-
-function worktime::add
-    set -l seconds $argv[1]
-    set -l what $argv[2]
-    set -l descr $argv[3]
-    set -l epoch (date +%s)
-
-    if test -z "$what"
-        set what work
-    end
-
-    if test -z "$descr"
-        worktime --add $seconds --epoch $epoch --what $what
-        worktime::mirror --add $seconds --epoch $epoch --what $what
-    else
-        worktime --add $seconds --epoch $epoch --what $what --descr "$descr"
-        worktime::mirror --add $seconds --epoch $epoch --what $what --descr "$descr"
-    end
-
-    worktime::report
-end
-
-# BROKEN, and left broken on purpose: `--log` is ambiguous between --login and
-# --logout, so worktime.rb rejects it and this function has never recorded
-# anything. $seconds is read but never passed, which suggests it was meant to
-# be a copy of worktime::add. Guessing at the intent would silently start
-# writing time entries, so it is flagged here for a human to decide instead.
-# Nothing is mirrored into timesamurai until it does something.
-function worktime::log
-    set -l seconds $argv[1]
-    set -l what $argv[2]
-    set -l epoch (date +%s)
-
-    if test -z "$what"
-        set what work
-    end
-
-    worktime --log --epoch $epoch --what $what
-    worktime::report
-end
-
-function worktime::login
-    set -l what $argv[1]
-    if test -z "$what"
-        set what work
-    end
-    touch ~/.wtloggedin
-    worktime --login --what $what
-    worktime::mirror --login --what $what
-    worktime::wisdom_reminder
-end
-
-function worktime::logout
-    set -l what $argv[1]
-
-    if test -z "$what"
-        set what work
-    end
-
-    if test -f ~/.wtloggedin
-        rm ~/.wtloggedin
-    end
-
-    worktime --logout --what $what
-    worktime::mirror --logout --what $what
-    worktime::report
-end
-
-function worktime::status
-    worktime::report
-
-    if test -f ~/.wtloggedin
-        echo "You are logged in"
-        set -l num_worklog (ls $WORKTIME_DIR | grep wl- | wc -l)
-        if test $num_worklog -gt 0
-            echo "$num_worklog entries in the worklog in $WORKTIME_DIR/wl-*"
-        end
-    else
-        echo "You are not logged in"
-    end
-
-    if type -q timesamurai
-        echo -n "timesamurai: "
-        timesamurai work status 2>/dev/null; or echo "unavailable"
-    end
-end
-
 abbr -a cdworktime "cd $WORKTIME_DIR"
-abbr -a wt worktime
-abbr -a wtedit 'worktime --edit'
-abbr -a wtreport 'worktime --report'
+
+# New system (timesamurai) -- these are the ones to use day to day.
+abbr -a wt 'timesamurai work'
+abbr -a wtedit 'worktime::edit'
+abbr -a wtreport 'worktime::report'
 abbr -a wtadd 'worktime::add'
-abbr -a wtlog 'worktime::log'
 abbr -a wtlogin 'worktime::login'
 abbr -a wtlogout 'worktime::logout'
 abbr -a wtstatus 'worktime::status'
 abbr -a wtsync 'worktime::sync'
-abbr -a wtf 'worktime --report'
-abbr -a wtdiff 'worktime::report::diff'
-abbr -a wtts 'timesamurai work'
+abbr -a wtf 'timesamurai work report'
+
+# Old system (worktime.rb) -- kept around for manual/legacy access only.
+abbr -a wtold 'worktime::old'
+abbr -a wteditold 'worktime::old --edit'
+abbr -a wtreportold 'worktime::old::report'
+abbr -a wtaddold 'worktime::old::add'
+abbr -a wtlogold 'worktime::old::log'
+abbr -a wtloginold 'worktime::old::login'
+abbr -a wtlogoutold 'worktime::old::logout'
+abbr -a wtstatusold 'worktime::old::status'
+abbr -a wtfold 'worktime::old --report'
+
 abbr -a wl 'task add +work'
 abbr -a ql 'task add +personal'
 abbr -a pl 'task add +personal'
