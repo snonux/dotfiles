@@ -7,18 +7,6 @@ function rocky --description 'SSH to rocky and attach to the AI agent tmux sessi
     ssh $ssh_common paul@rocky $remote_cmd; or ssh $ssh_common paul@rocky.wg0 $remote_cmd
 end
 
-function kimi
-    ollama launch opencode --model kimi-k2.6:cloud -y -- run $argv
-end
-
-function glm
-    ollama launch opencode --model glm-5.1:cloud -y -- run $argv
-end
-
-function qwen
-    ollama launch opencode --model qwen3.5:cloud -y -- run $argv
-end
-
 function skills
     ls ~/Notes/Prompts/skills
 end
@@ -30,10 +18,6 @@ end
 abbr -a suggest hexai
 abbr -a explain 'hexai explain'
 abbr -a research 'hexai research'
-
-# pi coding agent — local Ollama Gemma4 26B
-abbr -a pi-local 'pi --model gemma4:26b-a4b-it-qat-32k-ctx --no-tools'
-abbr -a pi-local-tools 'pi --model gemma4:26b-a4b-it-qat-32k-ctx'
 
 if test -f ~/git/hypr/hypr.fish
     source ~/git/hypr/hypr.fish
