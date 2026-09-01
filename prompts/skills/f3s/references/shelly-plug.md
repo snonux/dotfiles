@@ -106,18 +106,21 @@ f3sctl fans off [--force]
 ```
 
 - `f3sctl power on` → plug **on before** sending WoL packets (fans on first).
-- `f3sctl power off` → plug **off after** every selected host has powered down
-  (fans off last).
+- `f3sctl power off` → plug **off after** f0/f1/f2 have powered down (fans off
+  last).
 - Per-host actions (`f3sctl power f1 off`) leave the plug **untouched** — one
   host going down does not mean the rack is idle.
 
-**The fans-off guard.** Switching the plug off while any f-host still answers
-ICMP is refused: `409` from the API, a refusal from the CLI, unless `--force` /
-`force=true`. The rack fans cool whatever is running, so cutting them under a
-live rack is a thermal risk rather than a preference. In the API this is
-expressed as a `force` **field** on the `fans-off` action, present only while a
-host is up — so a client renders a confirmation toggle from what it was given
-and never hard-codes the rule.
+**The fans-off guard is scoped to f0/f1/f2 only.** Switching the plug off
+while any of f0, f1 or f2 still answers ICMP is refused: `409` from the API, a
+refusal from the CLI, unless `--force` / `force=true`. f3 is deliberately
+excluded from this check — it is racked separately and this plug does not cool
+it, so f3's power state has no bearing on whether cutting the fans is safe. A
+bare `f3sctl power off` (which never touches f3) therefore switches the fans
+off as soon as f0/f1/f2 go quiet, even while f3 keeps running. In the API this
+is expressed as a `force` **field** on the `fans-off` action, present only
+while an f0/f1/f2 host is up — so a client renders a confirmation toggle from
+what it was given and never hard-codes the rule.
 
 Reads are verified, not assumed: every set is followed by a `Switch.GetStatus`
 read-back, because a digest-auth failure still returns a 200 with a body. If
