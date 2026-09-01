@@ -14,6 +14,7 @@
 | zoxide | 0.9.8 | `dnf install -y zoxide` (EPEL) |
 | fzf | 0.58.0 | `dnf install -y fzf` (EPEL) |
 | fzf fish plugin | — | **fisher install PatrickF1/fzf.fish** |
+| lazygit | 0.47.2 | `dnf copr enable -y atim/lazygit && dnf install -y lazygit` (not in EPEL) |
 | ask, hexai*, gt, gitsyncer, etc. | — | `go install codeberg.org/snonux/...` (see update::tools) |
 
 ## Building taskwarrior from source
