@@ -1,3 +1,12 @@
+# Remote AI agent on the rocky VM — tmux session name matches continue-reminder skill.
+set -gx ROCKY_AI_TMUX_SESSION ior
+
+function rocky --description 'SSH to rocky and attach to the AI agent tmux session'
+    set -l remote_cmd "tmux attach-session -d -t $ROCKY_AI_TMUX_SESSION || exec tmux new-session -s $ROCKY_AI_TMUX_SESSION"
+    set -l ssh_common -A -t -o ConnectTimeout=5
+    ssh $ssh_common paul@rocky $remote_cmd; or ssh $ssh_common paul@rocky.wg0 $remote_cmd
+end
+
 function kimi
     ollama launch opencode --model kimi-k2.6:cloud -y -- run $argv
 end
