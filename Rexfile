@@ -125,14 +125,14 @@ task 'pkg_fedora', sub {
       ctags
       fzf
       golang
-      golang-x-tools-gopls
+      gopls
       gpaste
       gron
       htop
       java-latest-openjdk-devel
       lynx
       make
-      nodejs
+      nodejs22
       perl-File-Slurp
       procs
       rakudo
@@ -140,7 +140,7 @@ task 'pkg_fedora', sub {
       ripgrep
       ruby
       strace
-      task2
+      task
       tig
       tmux
       dialect
@@ -157,6 +157,7 @@ task 'pkg_fedora', sub {
         Rex::Logger::info("Installing package $pkg");
         pkg $pkg, ensure => 'installed';
     }
+
 };
 
 desc 'Install ~/.config/helix';
