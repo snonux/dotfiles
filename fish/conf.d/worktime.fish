@@ -69,6 +69,9 @@ end
 
 function worktime::sync
     cd $WORKTIME_DIR
+    if test -f ~/.tasksync_enable
+        tasksync
+    end
     # `git commit -a` only stages tracked files, so the JSONL store's per-host
     # files would never be committed on the host that first creates them.
     find . -name '*.jsonl' -exec git add {} \;
