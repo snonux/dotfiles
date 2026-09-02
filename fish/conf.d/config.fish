@@ -3,7 +3,7 @@ fish_vi_key_bindings
 fzf --fish | source
 
 # Add paths to PATH
-set -U fish_user_paths ~/bin ~/scripts ~/go/bin ~/.cargo/bin $fish_user_paths
+set -U fish_user_paths ~/bin ~/scripts ~/go/bin ~/.cargo/bin ~/.local/bin $fish_user_paths
 
 if command -q -v doas >/dev/null
     abbr -a s doas

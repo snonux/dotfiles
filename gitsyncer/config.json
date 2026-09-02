@@ -13,8 +13,7 @@
       "forgejo_api_base": "https://code.f3s.buetow.org/api/v1",
       "forgejo_owner": "snonux",
       "forgejo_owner_type": "organization",
-      "backupLocation": true,
-      "forcePush": true
+      "optional": true
     },
     {
       "host": "paul@f1.lan:/srv/data/enc/git",
