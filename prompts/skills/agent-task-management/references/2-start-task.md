@@ -1,15 +1,16 @@
 # Start task
 
-Use with `00-context.md`. Project name and global rules apply (including one task in progress per project unless the user says otherwise). 
+Use with `00-context.md`. Project name and global rules apply, including one task in progress per project.
 
 ## Start each new task with a fresh context
 
 Work on each new task **must begin with a fresh context** — a new sub-agent with no prior conversation history. That way the task is executed with clear focus and no carry-over from other work.
 
-**If you are orchestrating via `/work-on-tasks`:** check how many actionable tasks are open (`ask ready`).
+**If you are orchestrating via `/work-on-tasks`:** run `ask list start.any:` before checking `ask ready`.
 
-- **2 or more open tasks → spawn a sub-agent** (or multiple sub-agents if they can work in parallel) for the implementation. Pass the full task description, all annotations, and the project root path to the sub-agent. Do not implement tasks in the orchestrator's own context.
-- **Only 1 open task → implement directly** in the orchestrator's own context. Do **not** spawn a sub-agent; the fresh-context overhead is not worth it for a single task.
+- **A task is already started → resume it directly** in the orchestrator's own context and do not select another task. Follow the stalled-task recovery guidance below before editing. Do **not** spawn a sub-agent.
+- **No task is started and 2 or more tasks are ready → spawn one sub-agent** for the selected task's implementation. Instruct it to run `ask info <id>` first so it loads the full description and annotations, and tell it not to spawn nested sub-agents. Do not implement tasks in the orchestrator's own context. `/work-on-tasks` keeps one task in progress for the project and the orchestrator owns subsequent review launches.
+- **No task is started and only 1 task is ready → implement directly** in the orchestrator's own context. Do **not** spawn a sub-agent; the fresh-context overhead is not worth it for a single task.
 
 **If you are starting a single task manually:** begin in a new session or compact first so the context is clean before you start working.
 
@@ -50,6 +51,12 @@ reverting a stalled worker's broken edits (see `6-recover-stalled-task.md`).
 ## Finding a task
 
 ```bash
+ask list start.any:
+```
+
+Resume the started task when present. Only when none is started, run:
+
+```bash
 ask ready | head
 ```
 
@@ -76,5 +83,5 @@ Before resuming, check for and clean up that situation: see
 - **Stay within task scope.** Never edit vendored/third-party deps (`vendor/`, `node_modules/`), generated files, or upstream code the task did not name. If the task seems to require a vendored/upstream change, flag it as a blocker (annotate + report) instead of patching the dep — see "Stay within task scope".
 - When picking up an already-started task, check for a stalled-worker situation (dirty worktree, broken build) before assuming a clean state — see `6-recover-stalled-task.md`.
 - Run `ask start <id>` when you start working on the task, not only when listing or completing.
-- Do not start a second task for the same project while one is already started and not done, unless the user explicitly asks.
+- Do not start a second task for the same project while one is already started and not done.
 - When a task is selected via the review/overview step, use the alias ID from the list or task details for subsequent `start` operations.

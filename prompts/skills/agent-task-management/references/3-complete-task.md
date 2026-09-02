@@ -82,10 +82,12 @@ out-of-scope and leave it alone rather than risk committing the user's work.
 
 **Once the completion criteria above are met:**
 
-1. **Self-review** (see above). Then spawn a **sub-agent** with **fresh context** (no prior conversation).
+1. **Self-review** (see above). The orchestrator then spawns a **sub-agent** with **fresh context** (no prior conversation). If the current worker is itself a task implementation sub-agent, it returns to the orchestrator after self-review instead of spawning the reviewer.
 2. The sub-agent's role is an **expert critical reviewer**. Its **only goal** is to find bugs and design flaws in the subject under review. It must be thorough, skeptical, and uncompromising. The sub-agent reviews the diff, code, or deliverables (including test coverage and test quality — see "What the review sub-agent must check") and **reports back** to the main agent with every bug, design flaw, missed edge case, suspicious pattern, or test-quality issue it found. Praise and suggestions for enhancement should only be included when they directly illuminate an underlying flaw or risk.
-3. Main agent **addresses all review comments** from the sub-agent — no exceptions. Fix or respond to every point.
-4. If code changed after review comments were addressed: **Self-review again** (see above), then **spawn another sub-agent** (fresh context again) to **review the updated code** (including test coverage and test quality) and confirm the fixes. If this follow-up review finds further issues and additional code changes are made, repeat this step until the review is satisfied.
+   - The orchestrator owns this review launch and all concurrency accounting. Task implementation and review sub-agents must not spawn nested sub-agents.
+   - Keep at most 3 sub-agents running concurrently across implementation and review work. If all 3 slots are occupied, wait for one to finish before launching the reviewer.
+3. Main agent **resolves all review comments** from the sub-agent — no exceptions. Fix every valid issue; a response without a code change is acceptable only when it demonstrates that the finding is not an issue.
+4. If the review reported any findings: **Self-review again** (see above), then the orchestrator **spawns another sub-agent** (fresh context again) to **review the updated code and responses** (including test coverage and test quality) and confirm the resolutions. Repeat this step after every review that reports findings, whether or not addressing them changed code, until a fresh review reports no remaining issues.
 5. **Commit all changes to git** (e.g. `git add` and `git commit` with a message that references the task). Do not mark the task complete with uncommitted changes. Stage **only the in-scope files by explicit path** — never `git add -A`/`git add .` when the worktree had pre-existing unrelated changes (see "Commit only in-scope files" above).
 6. Only then:
 
@@ -95,15 +97,15 @@ ask done <id>
 
 Use the alias ID from the selection step or current task details when marking the task complete.
 
-7. **Automatically progress to the next task in the list.** After marking the task done, if there are more agent-managed tasks in the project (e.g. `ask list` shows pending/ready tasks), start the next one: load `00-context.md` and `2-start-task.md`, pick the next task from the list (respecting dependencies and "one task in progress" rule), and begin work on it. Do not stop after completing a task when a next task is available — continue to the next task in the list.
+7. **Automatically progress to the next task in the list.** After marking the task done, load `00-context.md` and `2-start-task.md`, then run `ask list start.any:`. Resume a started task directly if present. Only when none is started, use `ask ready` to pick the next task (respecting dependencies and the "one task in progress" rule). Do not stop when another task is available.
 
 ## Conventions
 
 - When creating or changing tests, add negative tests (invalid input, errors, failure paths) wherever plausible; the review sub-agent will check for this.
-- A task is not done until: best practices met, code compiles, all tests pass, negative tests included where plausible, and all first-round review comments are addressed (including coverage and test-quality checks), **and all changes are committed to git**. If code changed after review comments, a second sub-agent review must confirm the updated code.
+- A task is not done until: best practices met, code compiles, all tests pass, negative tests included where plausible, all review comments are resolved (including coverage and test-quality checks), a fresh review reports no remaining issues, **and all changes are committed to git**.
 - Before every sub-agent review handoff, do the self-review: "Did it all make sense? Is there a better way?" Fix anything that comes up, then hand off.
 - **On completion, commit all changes to git** before running `ask done <id>`; do not leave uncommitted work when marking a task complete.
 - **Commit only in-scope files.** Check `git status` first, stage in-scope files by explicit path, never `git add -A`/`git add .` over a pre-existing dirty worktree, and never commit the user's unrelated changes. Record the in-scope/out-of-scope split in an annotation (see "Commit only in-scope files").
-- Complete with `ask done <id>` only after completion criteria, self-review(s), first review, addressing all comments, and git commit are satisfied. Add a follow-up sub-agent review only when code changed after review comments.
+- Complete with `ask done <id>` only after completion criteria, self-review(s), all review comments are resolved, a fresh review reports no remaining issues, and the git commit is complete. Run a follow-up sub-agent review after any review that reports findings, even when resolving them required no code change.
 - When completing a task, note which tasks were unblocked (dependents that became ready), if any.
-- **After completing a task, automatically progress to the next task in the list** (when all tests and required sub-agent review(s) pass and the task is done). Start the next ready task from `ask ready`; do not stop unless no next task is available or the user asks to stop.
+- **After completing a task, automatically progress to the next task in the list** (when all tests and required sub-agent review(s) pass and the task is done). Check `ask list start.any:` first and resume a started task directly; only then select from `ask ready`. Do not stop unless no next task is available or the user asks to stop.

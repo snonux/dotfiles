@@ -11,8 +11,9 @@ Find the highest-priority agent task to work on next, switch to the right projec
 
 1. **Try current project first.**
    - Load the `agent-task-management` skill.
-   - Run `ask ready` (or `ask list`) in the current git repository.
-   - If there is an available task here, pick the next one and proceed with the standard `agent-task-management` lifecycle (create context → start → annotate → complete). **Stop — do not look across other projects.**
+   - Run `ask list start.any:` in the current git repository first. If exactly one task is started, resume it and do not select another task. If multiple tasks are started, report their IDs and stop so the invalid state can be reconciled explicitly.
+   - Only when no task is started, run `ask ready` to find the next actionable task.
+   - If there is a started or ready task here, proceed with the standard `agent-task-management` lifecycle (create context → start when needed → annotate → complete). **Stop — do not look across other projects.**
 
 2. **Fall back to all agent tasks across projects.**
    - If the current project has no available agent task, run:
@@ -38,12 +39,13 @@ Find the highest-priority agent task to work on next, switch to the right projec
 
 4. **Continue with `agent-task-management` from there.**
    - Load `agent-task-management` (and its `references/00-context.md` + the appropriate action file) inside the new project directory.
+   - Repeat `ask list start.any:` in the target project. Resume it before considering a ready task when exactly one exists; report the IDs and stop when multiple tasks are started.
    - Use the alias ID of the chosen task with `ask info <id>`, `ask start <id>`, etc.
    - Follow the full task lifecycle defined by `agent-task-management`: start → annotate → completion criteria → sub-agent review until clean → commit → `ask done <id>`.
 
 ## Rules
 
 - **Always use `~/go/bin/ask` (or just `ask`) for agent tasks.** Do not use raw underlying commands to mutate agent-managed tasks.
-- **One started task per project.** If `ask list` in the current project already shows a started task, resume that one instead of picking a new one (unless the user says otherwise).
+- **One started task per project.** Resume the task when exactly one is started. If multiple tasks are started, report their IDs and stop so the invalid state can be reconciled explicitly.
 - **Do not switch projects silently.** When step 2 triggers a project switch, tell the user which project and task you are moving to before starting work.
-- **Fresh context per task.** Per `agent-task-management`, prefer a new session/sub-agent over carrying context from a previous task.
+- **Direct mode for one or resumed task.** Resume an existing task directly. When no task is started and exactly one task is ready, also work directly. Use a fresh sub-agent only when multiple tasks are ready, following `agent-task-management`.

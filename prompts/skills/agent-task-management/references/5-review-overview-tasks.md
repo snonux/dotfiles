@@ -42,7 +42,7 @@ Do not rely on raw taskwarrior relative date values (e.g. `end:7.days`, `end:7.d
 ask list start.any: sort:priority-,urgency-
 ```
 
-- If any tasks are already started, **use one of those** (pick by priority, then urgency) — do not start a second task unless the user explicitly asks.
+- If exactly one task is started, **resume it** — do not start a second task. If multiple tasks are started, report their IDs and stop so the invalid state can be reconciled explicitly.
 - Only if no tasks are in progress, show the next actionable (READY) task, ordered by priority then urgency:
 
 ```bash
@@ -76,6 +76,6 @@ ask ready
 
 ## Conventions
 
-- When picking the next task: first list already-started (`start.any:`); if any exist, continue one of those; only if none, pick from `+READY`. **Always order by priority first, then urgency** (e.g. `sort:priority-,urgency-`).
+- When picking the next task: first list already-started (`start.any:`); resume it when exactly one exists, stop and report an invalid state when multiple exist, and only if none are started pick from `+READY`. **Always order by priority first, then urgency** (e.g. `sort:priority-,urgency-`).
 - Among ready or started tasks, choose by priority (H then M then L), then by urgency.
 - When returning a chosen task to the user or another agent, include its alias ID and description.

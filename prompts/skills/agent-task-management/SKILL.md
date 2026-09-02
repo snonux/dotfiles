@@ -1,6 +1,6 @@
 ---
 name: agent-task-management
-description: "Manage agent tasks scoped to the current git project using the `ask` CLI. Use when asked to list, add, start, complete, annotate, or organize tasks for the project. Prefer compaction over starting a new context when beginning a new task. May start work in parallel (e.g. multiple sub-agents on different tasks) as long as agents do not conflict with each other. Triggers on: tasks, todo, task list, pick next task, what's next."
+description: "Manage agent tasks scoped to the current git project using the `ask` CLI. Use when asked to list, add, start, complete, annotate, or organize tasks for the project. Prefer compaction over starting a new context when beginning a new task. May start work in parallel with up to 3 non-conflicting sub-agents. Triggers on: tasks, todo, task list, pick next task, what's next."
 ---
 
 # Agent Task Management
@@ -49,13 +49,14 @@ Tasks are scoped to the current git repository via the `ask` CLI. **Load only th
 
 When beginning a new task, **use a fresh context** — spawn a sub-agent (if orchestrating via `/work-on-tasks`) or start a new session. Do not carry implementation context from one task to the next; accumulated context causes drift (e.g. hallucinated paths) in long-running models. Compaction is a fallback only when spawning a sub-agent or new session is not possible.
 
-**Exception — single task:** When orchestrating via `/work-on-tasks` and the number of actionable (`ask ready`) tasks is **exactly 1**, do **not** spawn a sub-agent. Implement the task directly in the orchestrator's own context instead. The fresh-context overhead is not justified for a single task. See the `/work-on-tasks` command for the full threshold rule.
+**Exception — single or resumed task:** When orchestrating via `/work-on-tasks`, check for a started task before querying `ask ready`. Resume an existing started task directly in the orchestrator's context. When no task is started and `ask ready` contains **exactly 1** task, also implement it directly. Do **not** spawn a sub-agent in either case; the fresh-context overhead is not justified. See the `/work-on-tasks` command for the full threshold rule.
 
 ## When to Use
 
 - User asks to **list**, **add**, **start**, **complete**, **annotate**, or **organize** tasks for the project.
 - Triggers: *tasks*, *todo*, *task list*, *pick next task*, *what's next*.
-- You may start work **in parallel** (e.g. multiple sub-agents on different tasks) as long as agents do not conflict with each other.
+- You may start work **in parallel** across different projects when tasks do not conflict. Keep only one task in progress per project.
+- **Never run more than 3 sub-agents at once.** The orchestrator owns all implementation and review slots, and must wait for a running sub-agent to finish before starting another when all 3 slots are occupied. Task sub-agents must not spawn other sub-agents; they return to the orchestrator when implementation or review is complete.
 - **Code-audit task batches:** when creating tasks that are the output of a code audit (`+bugfix` / `+code-quality` from `auditing-code-quality`, `find-code-bugs`, `solid-principles`, `beyond-solid-principles`, `go-best-practices`), also create one `+audit` **closure gate task** depending on all of them — see `references/1-create-task.md` → “Audit task batches”.
 
 ## When to load what
@@ -73,6 +74,6 @@ Always load `references/00-context.md` first (project name resolution and global
 
 ## Task lifecycle (overview)
 
-1. Create task → 2. Start task → 3. Annotate as you go → 4. **Completion criteria** (best practices, compilable, all tests pass, negative tests where plausible) → 5. Sub-agent review (fresh context) → 6. Main agent addresses all review comments → 7. **Repeat sub-agent review + fixes until no issues are found** → 8. **Commit all changes to git** → 9. Complete task → 10. **Automatically progress to the next task in the list** (when all tests and required sub-agent review(s) pass).
+1. Create task → 2. Start task → 3. Annotate as you go → 4. **Completion criteria** (best practices, compilable, all tests pass, negative tests where plausible) → 5. Orchestrator launches a sub-agent review (fresh context) → 6. Main agent addresses all review comments → 7. **Repeat orchestrator-owned sub-agent review + fixes until no issues are found** → 8. **Commit all changes to git** → 9. Complete task → 10. **Automatically progress to the next task in the list** (when all tests and required sub-agent review(s) pass).
 
 A task is not done until criteria are met, all review comments are addressed, **and the sub-agent review cycle has completed with no remaining issues**, and all changes are committed to git. After completing a task, start the next task in the list (if any). Details are in `references/3-complete-task.md`.
