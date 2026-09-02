@@ -1,0 +1,47 @@
+# Taskwarrior 3.x (Fedora's stock `task` package).
+#
+# Migrated from 2.6.2 on 2026-09-01. The 2.x flat files (pending.data,
+# completed.data, undo.data, backlog.data) still sit in data.location but are
+# FROZEN and no longer the source of truth -- 3.x reads only
+# taskchampion.sqlite3 and ignores them entirely.
+
+# Deliberately kept inside the Syncthing tree (~/.task ->
+# ~/syncthing/Documents/Taskwarrior) so Syncthing replicates
+# taskchampion.sqlite3 as well.
+data.location=$HOME/.task
+
+news.version=3.4.2
+
+alias.rand=execute /home/paul/bin/task.rand
+
+# --- UDAs and custom reports carried over from 2.6.2 (verified identical on 3.x)
+uda.track.type=duration
+uda.track.label=Track
+uda.track.default=0h
+
+report.track_summary.columns=id,description,track
+report.track_summary.labels=ID,Description,Duration
+
+uda.reviewed.type=date
+uda.reviewed.label=Reviewed
+report._reviewed.description=Tasksh review report.  Adjust the filter to your needs.
+report._reviewed.columns=uuid
+report._reviewed.sort=reviewed+,modified+
+report._reviewed.filter=( reviewed.none: or reviewed.before:now-6days ) and ( +PENDING or +WAITING )
+
+# --- Sync to the homelab Garage S3 cluster
+#
+# Values come from the environment; taskrc expands $VARS, so no secret is
+# stored here. They live in ~/.config/garage/taskwarrior-sync.env (mode 0600).
+#
+# NOTE the endpoint is NOT configured here: the stock Fedora package has no
+# sync.aws.endpoint_url key (it landed upstream after v3.5.0). The AWS SDK's
+# own AWS_ENDPOINT_URL_S3 supplies it instead, and must be set per-invocation
+# rather than exported globally, because ~/.aws holds a live default profile
+# that a global setting would silently redirect at Garage. See
+# f3s/docs/taskwarrior-s3-sync.md in the conf repo.
+sync.encryption_secret=$TASK_SYNC_SECRET
+sync.aws.region=$GARAGE_REGION
+sync.aws.bucket=$GARAGE_BUCKET
+sync.aws.access_key_id=$GARAGE_ACCESS_KEY_ID
+sync.aws.secret_access_key=$GARAGE_SECRET_ACCESS_KEY

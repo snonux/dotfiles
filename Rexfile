@@ -500,6 +500,29 @@ task 'home_systemd_user', sub {
     run 'systemctl --user enable home-backup.timer';
 };
 
+desc 'Install ~/.taskrc (Taskwarrior 3.x, Linux only)';
+task 'home_taskwarrior', sub {
+
+    # Linux only, on purpose. This is a Taskwarrior 3.x configuration: it
+    # expects taskchampion.sqlite3 and it points at the homelab Garage S3
+    # bucket. The macOS work laptop deliberately stays on Taskwarrior 2.6.2
+    # with plain local file storage and no sync backend, so handing it this
+    # file would break it -- 3.x cannot read 2.x data and 2.6.2 does not
+    # understand the sync.aws.* keys.
+    #
+    # No secret lives in the file: taskrc expands environment variables, so it
+    # refers to $GARAGE_* and $TASK_SYNC_SECRET, which come from
+    # ~/.config/garage/taskwarrior-sync.env (mode 0600, not in any repo).
+    # Syncing itself is done by the tasksync function in
+    # fish/conf.d/tasksync.fish.
+    if ( $^O ne 'linux' ) {
+        Rex::Logger::info('Skipping ~/.taskrc: 3.x config is for Linux hosts only');
+        return;
+    }
+
+    ensure "$DOT/taskwarrior/taskrc" => "$HOME/.taskrc";
+};
+
 desc 'Install all my ~ files';
 task 'home', sub {
     require Rex::TaskList;
