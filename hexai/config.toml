@@ -16,7 +16,7 @@ slashcommand_dir = "~/.cursor/commands"
 name = "ollama"
 
 [ollama]
-model       = "minimax-m2.1:cloud"
+model       = "minimax-m3:cloud"
 base_url    = "https://ollama.com"
 temperature = 0.2
 
