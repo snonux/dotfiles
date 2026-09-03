@@ -7,6 +7,8 @@ function rocky --description 'SSH to rocky and attach to the AI agent tmux sessi
     ssh $ssh_common paul@rocky $remote_cmd; or ssh $ssh_common paul@rocky.wg0 $remote_cmd
 end
 
+abbr R rocky
+
 function skills
     ls ~/Notes/Prompts/skills
 end
