@@ -1,13 +1,36 @@
 # Git Remotes on Rocky
 
-All repos available on the local git server have `r0`, `r1`, `r2` remotes replacing any codeberg ones:
+Forgejo is the git forge (`code.f3s.buetow.org`). Remotes look like:
 
 ```
-url = ssh://git@r0:30022/repos/REPO.git
-url = ssh://git@r1:30022/repos/REPO.git
-url = ssh://git@r2:30022/repos/REPO.git
+ssh://git@code.f3s.buetow.org:2022/snonux/REPO.git
 ```
 
-Repos pushed: conf, dotfiles, gemtexter, gitsyncer, goprecords, gt, hexai, hypr, ior, photoalbum, rcm, snonux, tasksamurai, wireguardmeshgenerator
+Server-side account and org write access: see
+[`f3s-workloads` Forgejo — rocky push access](../../f3s-workloads/references/forgejo.md#rocky-push-access).
 
-The public keys of both `root` and `paul` on rocky are in the k3s `git-server-authorized-keys` secret (namespace `cicd`).
+## Forgejo SSH key (paul@rocky)
+
+Passphrase-less key dedicated to Forgejo (do not reuse the host login key):
+
+```sh
+ssh-keygen -t ed25519 -N '' \
+  -f ~/.ssh/id_ed25519_forgejo \
+  -C 'paul@rocky forgejo'
+```
+
+Pin it for the forge host in `~/.ssh/config` so git never offers the wrong key:
+
+```
+Host code.f3s.buetow.org
+  IdentityFile ~/.ssh/id_ed25519_forgejo
+  IdentitiesOnly yes
+```
+
+Publish the pubkey to the Forgejo user `rocky` (API or web UI) — steps in the
+Forgejo reference above. Verify:
+
+```sh
+ssh -T -p 2022 git@code.f3s.buetow.org
+# Hi there, rocky! You've successfully authenticated with the key named paul@rocky forgejo, ...
+```

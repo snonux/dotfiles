@@ -90,3 +90,30 @@ checkout will look clean while the live ArgoCD-synced revision has already
 moved. Compare `kubectl -n cicd get application forgejo -o
 jsonpath='{.status.sync.revision}'` against `git log` on **each** remote
 before assuming the repo and cluster agree.
+
+## rocky push access
+
+The plain `rocky` VM pushes to `snonux/*` over git+ssh as Forgejo user **`rocky`**
+(not `paul`). Client key + `~/.ssh/config`: see
+[`f3s-rocky-vm-setup` git remotes](../../f3s-rocky-vm-setup/references/git-remotes.md).
+
+Server side (one-time):
+
+```sh
+# Create non-admin user (password printed once; SSH is the normal auth path)
+kubectl -n services exec deploy/forgejo -- \
+  forgejo admin user create \
+  --username rocky \
+  --email rocky@f3s.lan.buetow.org \
+  --fullname 'rocky VM' \
+  --random-password \
+  --must-change-password=false
+
+# Add ~/.ssh/id_ed25519_forgejo.pub from paul@rocky to user rocky
+# (web UI: Settings → SSH / GPG Keys, or POST /api/v1/user/keys with a rocky token)
+
+# Org write on all snonux repos: team Writers (includes_all_repositories, permission write)
+# Create via API as admin, then PUT /api/v1/teams/<id>/members/rocky
+```
+
+LAN API base: `https://code.f3s.lan.buetow.org/api/v1`.

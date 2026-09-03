@@ -7,14 +7,16 @@ this reference covers the setup detail (SSH keys, tooling, privileges, replicati
 
 | Key | Path | Purpose |
 |-----|------|---------|
-| Root VM key | `/root/.ssh/id_ed25519` | Git server SSH auth |
-| Paul VM key | `/home/paul/.ssh/id_ed25519` | Git server SSH auth, local remotes |
+| Root VM key | `/root/.ssh/id_ed25519` | Host/admin SSH |
+| Paul VM key | `/home/paul/.ssh/id_ed25519` | Host/admin SSH |
+| Forgejo key | `/home/paul/.ssh/id_ed25519_forgejo` | Passphrase-less git+ssh to Forgejo as user `rocky` |
 
-The public keys are added to the k3s `git-server-authorized-keys` secret (namespace `cicd`) so both `root` and `paul` can push/pull via `git@r{N}:30022`.
+Forgejo push setup (client key + `~/.ssh/config`) is in [git-remotes.md](git-remotes.md). Server-side user/team lives in [`f3s-workloads` Forgejo](../../f3s-workloads/references/forgejo.md#rocky-push-access).
 
 ```sh
-# Regenerate if needed
+# Regenerate host keys if needed
 ssh-keygen -t ed25519 -N '' -f /root/.ssh/id_ed25519 -C 'root@rocky.f3s.lan.buetow.org'
+ssh-keygen -t ed25519 -N '' -f /home/paul/.ssh/id_ed25519 -C 'paul@rocky'
 ```
 
 ## /etc/hosts

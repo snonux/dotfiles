@@ -1,6 +1,6 @@
 ---
 name: f3s-rocky-vm-setup
-description: Reference for the plain Rocky Linux 9 bhyve VM (host `rocky`, 192.168.1.123) running on f3. Covers SSH keys, local git server remotes, tooling (tmux, fish, amp, claude-code, pi, taskwarrior, Rex), zrepl replication, and restricted user privileges. Use when working on or replicating the rocky VM configuration. Part of the f3s homelab skill family (hub, [`f3s`](../f3s/SKILL.md)).
+description: Reference for the plain Rocky Linux 9 bhyve VM (host `rocky`, 192.168.1.123) running on f3. Covers SSH keys (incl. Forgejo passphrase-less key), Forgejo git remotes, tooling (tmux, fish, amp, claude-code, pi, taskwarrior, Rex), zrepl replication, and restricted user privileges. Use when working on or replicating the rocky VM configuration. Part of the f3s homelab skill family (hub, [`f3s`](../f3s/SKILL.md)).
 ---
 
 # Rocky VM Setup Reference
@@ -19,10 +19,10 @@ Parent infrastructure: see the [`f3s`](../f3s/SKILL.md) skill (f3 host, zrepl, b
 
 Detailed reference documentation is in the `references/` subfolder — load the one that matches the task:
 
-- [Overview](references/overview.md) — VM role, SSH keys, `/etc/hosts` LAN aliases for all f3s hosts
+- [Overview](references/overview.md) — VM role, SSH keys (incl. Forgejo key), `/etc/hosts` LAN aliases for all f3s hosts
 - [Installed Tools](references/tools.md) — tool/version/install table, building taskwarrior 2.6.2 from source, first-run fish + fisher + Go tooling setup, tmux 3.2a compatibility note
 - [Nested tmux](references/tmux.md) — `C-g` prefix on rocky vs `C-b` on earth, red/orange color scheme, source ordering, 256-color and truecolor (`COLORTERM`) passthrough
-- [Git Remotes](references/git-remotes.md) — `r0`/`r1`/`r2` remotes replacing codeberg, `git@r{N}:30022`, repos pushed, authorized-keys secret
+- [Git Remotes](references/git-remotes.md) — Forgejo remotes (`code.f3s.buetow.org:2022`), passphrase-less `id_ed25519_forgejo` + SSH `Host` pin; server-side user in [`f3s-workloads` Forgejo](../f3s-workloads/references/forgejo.md#rocky-push-access)
 - [User and Privileges](references/privileges.md) — `root` full access; `paul` removed from `wheel`, NOPASSWD only for `update-coding-agents`, sudoers config
 - [Scripts](references/scripts.md) — `/home/paul/scripts/update-coding-agents` (updates claude-code + pi)
 - [Rex Usage](references/rex.md) — `rex pkg_rocky` (root) / `rex home` (paul), Rocky-specific `home_tmux_rocky` task
@@ -33,7 +33,7 @@ Detailed reference documentation is in the `references/` subfolder — load the 
 
 - Host: `rocky` / `192.168.1.123` (LAN), `192.168.2.123` (WireGuard)
 - Parent: f3 (see `f3s` skill)
-- Git remotes: `ssh://git@r0:30022/repos/REPO.git` (and r1, r2)
+- Git remotes: `ssh://git@code.f3s.buetow.org:2022/snonux/REPO.git` (key: `id_ed25519_forgejo`)
 - tmux prefix: `C-g` (rocky inner) over `C-b` (earth outer)
 - paul sudo: only `/home/paul/scripts/update-coding-agents`
 - Replication: zrepl f3 → f2, every 10 min
