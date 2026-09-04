@@ -515,7 +515,10 @@ function taskwarrior::invoke
     taskwarrior::unscheduled
     taskwarrior::quicklogger
     taskwarrior::gos_queue
+    # Rename tr tag to track
     yes | task +tr -track modify +track -tr
+    # All tasks with auto tag also have agent tag
+    yes | task +auto -agent modify +agent
 end
 
 abbr -a ta task

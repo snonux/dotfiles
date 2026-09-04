@@ -26,7 +26,7 @@
 ./skills/find-code-bugs
 ./skills/go-best-practices
 ./skills/increment-version-and-push
-./skills/next-task
+./skills/next-auto-task
 ./skills/persona
 ./skills/purge-file-from-git
 ./skills/run-command
