@@ -148,4 +148,5 @@ abbr -a cdquickedit "cd $QUICKEDIT_DIR"
 abbr -a cdnotes 'cd ~/Notes'
 abbr -a cdfish 'cd ~/.config/fish/conf.d'
 abbr -a cddocuments 'cd ~/Documents'
+abbr -a cddownloads 'cd ~/Downloads'
 abbr may 'hx ~/Notes/random/Maybe.md'
