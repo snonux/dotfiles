@@ -202,3 +202,52 @@ chain disappears. `rsync` (temp-file-then-rename, `--remove-source-files` only a
 a verified copy) is worth using as **interruption insurance** on a flaky WiFi link —
 it can't leave a bad file under the real name if the link dies mid-transfer — but it
 is not a substitute for the `timeo` fix and `cp`/`mv` do not "cause corruption."
+
+### earth's mount fails entirely: client cert expired
+
+**Symptom (2026-09-05)**: `mount -t nfs4 127.0.0.1:/earthdata ...` fails outright
+(not slow — the local stunnel tunnel on `127.0.0.1:2323` never comes up).
+`journalctl -u stunnel` on earth shows:
+
+```
+SSL_read: ... error:0A000415:SSL routines::ssl/tls alert certificate expired: SSL alert number 45
+```
+
+**Root cause**: earth's client cert (`/etc/stunnel/earth-stunnel.pem`) had only
+**1-year validity** (`Jul 5 2025` → `Jul 5 2026`), unlike the CA, server, and
+r0/r1/r2 client certs which were all correctly issued with `-days 3650` (valid to
+2035). `r0`/`r1`/`r2` were unaffected — only earth's cert was the outlier (leftover
+`earth-cert-old.pem`/`earth-new.csr` files in
+`/usr/local/etc/stunnel/ca/` on f0 suggest it was hand-regenerated once with the
+wrong `-days` value). The CARP-VIP stunnel server (`verify=2, requireCert=yes`)
+rejects any client cert past its `notAfter`, so the local tunnel never establishes
+and the NFS mount fails before it even gets to the WiFi/`timeo` concerns above.
+
+**Fix — reissue earth's client cert from the CA on f0** (10-year validity, matching
+r0/r1/r2):
+
+```sh
+# On f0 (as root, e.g. via `doas sh -c '...'`)
+cd /tmp
+openssl genrsa -out earth-key-new.pem 4096
+openssl req -new -key earth-key-new.pem -out earth-new.csr \
+  -subj "/C=US/ST=State/L=City/O=F3S Storage/CN=earth.lan.buetow.org"
+openssl x509 -req -days 3650 -in earth-new.csr \
+  -CA /usr/local/etc/stunnel/ca/ca-cert.pem \
+  -CAkey /usr/local/etc/stunnel/ca/ca-key.pem \
+  -CAcreateserial -out earth-cert-new.pem
+cat earth-cert-new.pem earth-key-new.pem > earth-stunnel-new.pem
+# Archive the canonical copy in the CA dir (mirrors r0/r1/r2 layout)
+cp earth-cert-new.pem /usr/local/etc/stunnel/ca/earth-cert.pem
+cp earth-key-new.pem /usr/local/etc/stunnel/ca/earth-key.pem
+cat /usr/local/etc/stunnel/ca/earth-cert.pem /usr/local/etc/stunnel/ca/earth-key.pem \
+  > /usr/local/etc/stunnel/ca/earth-stunnel.pem
+```
+
+Then on earth: copy `earth-stunnel-new.pem` to `/etc/stunnel/earth-stunnel.pem`
+(root-only readable), `sudo systemctl restart stunnel`, then
+`sudo mount /data/nfs/earthdata`.
+
+**Preventive check**: since the CA and server certs run to 2035, verify any client
+cert's expiry before assuming a mount failure is WiFi/`timeo`-related:
+`openssl x509 -in /etc/stunnel/earth-stunnel.pem -noout -dates`.

@@ -265,7 +265,7 @@ end
 #   --project NAME assign a project
 #   --tag TAG      add a tag; repeat for multiple tags
 function _taskwarrior::add_task
-    argparse 'due=' 'project=' 'tag=+' -- $argv
+    argparse 'due=' 'project=' 'tag=+' 'annotate=' -- $argv
     or return 1
 
     # Remaining positional arguments form the description (required)
@@ -283,7 +283,17 @@ function _taskwarrior::add_task
     # Print the full command before executing it for transparency;
     # description is escaped so the output is unambiguous even with quotes or special chars
     echo "task add $cmd_args "(string escape -- $description)
-    task add $cmd_args $description
+    set -l created (task add $cmd_args $description)
+    echo $created
+
+    # Optional annotation (e.g. source notes path for +random quotes)
+    if test -n "$_flag_annotate"
+        set -l id (string match -r --groups-only 'Created task (\d+)' -- $created)
+        if test -n "$id"
+            echo "task $id annotate "(string escape -- $_flag_annotate)
+            task $id annotate $_flag_annotate
+        end
+    end
 end
 
 # Scans all known notes directories for quick-log files (ql-*) and parses each
@@ -407,8 +417,10 @@ function _taskwarrior::fill_random_slot
         return
     end
 
-    # Tag the chosen entry with both +random and the source file tag
-    set -l add_args --tag random --tag $file_tag
+    # Tag the chosen entry with both +random and the source file tag;
+    # annotate with @path so the source notes file is recoverable later
+    set -l note_path (string replace -r "^$HOME" '~' -- $file)
+    set -l add_args --tag random --tag $file_tag --annotate "@$note_path"
     test -n "$parsed[1]"; and set -a add_args --project $parsed[1]
     test (builtin random 1 10) -eq 1; and set -a add_args --tag work
     _taskwarrior::add_task $add_args $parsed[2]
