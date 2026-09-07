@@ -529,6 +529,8 @@ function taskwarrior::invoke
     taskwarrior::gos_queue
     # Rename tr tag to track
     yes | task +tr -track modify +track -tr
+    # Add track tag to tr project
+    yes | task -track proj:tr modify +track
     # All tasks with auto tag also have agent tag
     yes | task +auto -agent modify +agent
 end
