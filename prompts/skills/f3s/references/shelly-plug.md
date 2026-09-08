@@ -157,14 +157,23 @@ copy). `f3sctl` is a static Go binary; WoL is sent natively as a UDP broadcast.
 
 ## shelly2 — f-host AC
 
-Hard-cuts / restores mains to the f-hosts (f0–f3). Same auth and RPC as
-shelly1; control manually for now:
+Hard-cuts / restores mains to the f-hosts (f0–f3) and their JetKVM switches.
+Same auth and RPC as shelly1. Wired into `f3sctl` as an **independent** switch
+— never flipped by `power on` / `power off` / boot:
+
+```bash
+f3sctl ac status
+f3sctl ac on
+f3sctl ac off [--force]
+```
+
+API: `GET /ac`, `POST /ac/on`, `POST /ac/off` (actions `ac-on` / `ac-off`).
+`ac off` refuses while any of f0–f3 may still answer ICMP (f3 included),
+unless `--force` / `force=true`. Cutting AC without a prior graceful shutdown
+risks ZFS / bhyve damage; treat a forced cut as last-resort or post-shutdown.
+
+Standalone script still works for ad-hoc use:
 
 ```sh
 ~/git/conf/playground/shelly-plug.sh shelly2 status|on|off|toggle|info
 ```
-
-**Not wired into `f3sctl` yet** — `f3sctl power` still wakes via WoL and only
-drives shelly1 (fans). Cutting shelly2 without a prior graceful shutdown risks
-ZFS / bhyve damage; treat it as a last-resort or post-shutdown AC kill until
-automation exists.
