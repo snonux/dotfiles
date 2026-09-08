@@ -105,8 +105,9 @@ Ruled out:
 
 - **Not the UPS / AC.** `apcaccess` shows `STATUS: ONLINE`, `NUMXFERS: 0`,
   `TONBATT: 0` — the UPS never transferred. No power event happened.
-- **Not the Shelly plug.** It drives only the rack fans; f0 was observed up
-  while the plug read `output:false`.
+- **Not shelly1 (rack fans).** f0 was observed up while shelly1 read
+  `output:false`. (shelly2 is f-host AC — see `shelly-plug.md` — and was not
+  in the picture for this investigation.)
 - **Not the OS arming a wake.** Every wake sysctl is 0 on a running host:
   `dev.re.0.wake`, `dev.xhci.0.wake`, `dev.pci.1.wake`, `dev.hdac.0.wake`.
   Whatever does this is below the OS, in firmware.
@@ -167,7 +168,7 @@ Recorded so the same ground is not covered twice:
    `apcupsd.events` are just f0's own shutdowns and boots.
 3. **APC UPS USB cable asserting wake** — rejected by test. f0 was powered off
    with `f3sctl power f0 off` **with the UPS still plugged in** and stayed off.
-4. **Shelly plug switching causing a mains transient** — rejected twice. The
+4. **shelly1 (fans) switching causing a mains transient** — rejected twice. The
    fans and f0 are on **completely separate circuits with no interconnection**
    (only the UPS touches f0, over USB), and empirically f0 stayed off through a
    fans-off switch while already powered down.

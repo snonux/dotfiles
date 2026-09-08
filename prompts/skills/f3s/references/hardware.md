@@ -55,6 +55,8 @@ BIOS requirements for WoL: enable "Wake on LAN", disable "ERP Support", enable "
 
 | Host | LAN IP | Hostname |
 |------|--------|----------|
+| shelly1 | 192.168.1.28 | shelly1.lan (rack fans — see [shelly-plug.md](shelly-plug.md)) |
+| shelly2 | 192.168.1.29 | shelly2.lan (f-host AC — see [shelly-plug.md](shelly-plug.md)) |
 | f0 | 192.168.1.130 | f0.lan.buetow.org |
 | f1 | 192.168.1.131 | f1.lan.buetow.org |
 | f2 | 192.168.1.132 | f2.lan.buetow.org |

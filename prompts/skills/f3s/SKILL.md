@@ -29,7 +29,7 @@ subfolder:
 - [Bootstrap Rocky bhyve VM](references/bootstrap-rocky-bhyve.md) — Runbook for creating a new plain Rocky Linux bhyve guest with unattended kickstart
 - [WireGuard Mesh](references/wireguard.md) — Mesh topology, IP assignments, peer configs (the canonical WireGuard reference for the whole homelab)
 - [Remote Access](references/remote-access.md) — reaching f-hosts, r-VMs, rocky, and Pis from outside the LAN via fishfinger/blowfish ProxyJump; user/key requirements per host type; f3 WireGuard caveat
-- [Shelly Plug (Rack Fans)](references/shelly-plug.md) — **Shelly Plug M Gen 3** at **`192.168.1.28`** powering the rack fans; digest auth (`admin`), secret on **`/keys/shelly_plug.secret`** (f-hosts) / **`~/.shelly_plug`** (earth/Pis); boot-time auto-on rc.d service (**`f3s/freebsd-hosts/shelly-fans/`**), `f3sctl fans` / power-sequence integration with a thermal guard, HTTP RPC API
+- [Shelly Plugs](references/shelly-plug.md) — two **Plug M Gen 3**: **shelly1** (`192.168.1.28`) rack fans (boot rc.d + `f3sctl fans` / power-sequence thermal guard); **shelly2** (`192.168.1.29`) f-host AC (manual RPC for now, not in `f3sctl` yet); shared digest auth (`admin`) and secret **`/keys/shelly_plug.secret`** / **`~/.shelly_plug`**
 
 ## Quick Reference: Host IPs
 
