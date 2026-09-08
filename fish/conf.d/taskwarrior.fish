@@ -296,6 +296,43 @@ function _taskwarrior::add_task
     end
 end
 
+# Drain ql-*.md notes from the Garage quicklog bucket into ~/Notes/Quicklog,
+# then delete the remote objects. Credentials come from
+# ~/.config/garage/quicklog.env (sh syntax — same pattern as tasksync.fish).
+# Env is applied only for this command; never export AWS_ENDPOINT_URL_S3.
+function taskwarrior::quicklog_drain --description 'Drain Garage quicklog bucket into ~/Notes/Quicklog'
+    set -l creds "$HOME/.config/garage/quicklog.env"
+    set -l dest "$HOME/Notes/Quicklog"
+    set -l repo "$HOME/git/quicklog"
+
+    if not test -r $creds
+        echo "taskwarrior::quicklog_drain: missing $creds" >&2
+        return 1
+    end
+
+    if not test -d $repo
+        echo "taskwarrior::quicklog_drain: missing Quicklog repo $repo" >&2
+        return 1
+    end
+
+    mkdir -p $dest
+
+    set -l env_kv (sh -c ". $creds; printenv GARAGE_ENDPOINT GARAGE_REGION GARAGE_BUCKET GARAGE_ACCESS_KEY_ID GARAGE_SECRET_ACCESS_KEY")
+
+    if test (count $env_kv) -lt 5
+        echo "taskwarrior::quicklog_drain: could not read all values from $creds" >&2
+        return 1
+    end
+
+    env -C $repo \
+        GARAGE_ENDPOINT=$env_kv[1] \
+        GARAGE_REGION=$env_kv[2] \
+        GARAGE_BUCKET=$env_kv[3] \
+        GARAGE_ACCESS_KEY_ID=$env_kv[4] \
+        GARAGE_SECRET_ACCESS_KEY=$env_kv[5] \
+        dart run bin/quicklog_drain.dart --dest $dest $argv
+end
+
 # Scans all known notes directories for quick-log files (ql-*) and parses each
 # line into its constituent task fields. Each line follows the format:
 #   [NUMBER] TAG[,TAG,...] description
@@ -525,6 +562,7 @@ function taskwarrior::invoke
     taskwarrior::cleanup
     taskwarrior::random_quote
     taskwarrior::unscheduled
+    taskwarrior::quicklog_drain
     taskwarrior::quicklogger
     taskwarrior::gos_queue
     # Rename tr tag to track
