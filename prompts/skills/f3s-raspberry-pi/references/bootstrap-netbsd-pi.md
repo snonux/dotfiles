@@ -161,6 +161,15 @@ Enable with `bozohttpd=YES` in `/etc/rc.conf`.
 executes anything under that directory for URLs beginning `/cgi-bin/`. It is
 what serves `f3sctl` (the power API) on pi0/pi1.
 
+**Do not leave backup copies of `/etc/rc.d/bozohttpd` in `/etc/rc.d/`.**
+`rcorder` runs every executable there that `PROVIDE`s a service. Leftovers
+named `bozohttpd.pre-cgi` / `bozohttpd.bak` (same `PROVIDE: bozohttpd`, same
+`rcvar`, no `-c`) sort *before* the real script and start httpd without CGI.
+A later `/etc/rc.d/bozohttpd start` then sees the pidfile and is a no-op — so
+`/cgi-bin/f3sctl` 404s until someone restarts the real script. Observed
+2026-09-08 after a dual-Pi reboot: both nodes came up on the pre-cgi argv.
+Keep backups under `/root/rc.d-bak/` (or anywhere outside `/etc/rc.d/`).
+
 **The `-c` flag must come before the trailing `/var/www/html`.** bozohttpd's
 usage is `httpd [options] slashdir [myname]`, and **`-V` takes no argument** —
 it is a bare flag meaning "fall back to slashdir". So the last `/var/www/html`
