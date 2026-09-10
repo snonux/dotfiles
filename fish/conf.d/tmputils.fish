@@ -1,14 +1,22 @@
 set -gx TMPUTILS_DIR ~/data/tmp
 set -gx TMPUTILS_TMPFILE ~/.tmpfile
 
-function tmpdir
+function tmpdir::make
     set -l name $argv[1]
     set -l dir "$TMPUTILS_DIR/$name"
     if not test -d $dir
         mkdir -p $dir
+        cd $dir
+        git init
+        cd -
     end
+end
+
+function tmpdir
+    set -l name $argv[1]
+    set -l dir "$TMPUTILS_DIR/$name"
+    tmpdir::make $name
     cd $dir
-    git init
 end
 
 function tmpnew
@@ -142,6 +150,8 @@ function tmputils::clean
         end
     end
 end
+
+tmpdir::make adhoc
 
 abbr -a cdtmp "cd $TMPUTILS_DIR"
 abbr -a tmpn tmpnew
