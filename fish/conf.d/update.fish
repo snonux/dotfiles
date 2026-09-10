@@ -67,7 +67,7 @@ function update::tools
         doas npm install -g @google/gemini-cli
 
         echo "Installing/updating @sourcegraph/amp globally"
-        doas /usr/local/bin/amp update
+        doas npm install -g @ampcode/cli
 
         echo "Installing/updating opencode-ai globally via npm"
         # doas npm uninstall -g opencode-ai

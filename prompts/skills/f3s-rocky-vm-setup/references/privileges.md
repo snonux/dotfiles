@@ -4,8 +4,8 @@
 
 **`paul`**
 - **Removed from `wheel`** group. No general `sudo` access.
-- May run the privileged commands in `update::tools` without a password: four
-  exact global npm installs and `/usr/local/bin/amp update`.
+- May run the privileged commands in `update::tools` without a password: five
+  exact global npm installs, including `@ampcode/cli`.
 - Home: `/home/paul`
 - Git repos: `~/git/` (cloned via local `r0`/`r1`/`r2` remotes)
 
@@ -17,7 +17,7 @@ for these commands only:
 ```
 /usr/bin/npm install -g @openai/codex
 /usr/bin/npm install -g @google/gemini-cli
-/usr/local/bin/amp update
+/usr/bin/npm install -g @ampcode/cli
 /usr/bin/npm install -g opencode-ai
 /usr/bin/npm install -g @earendil-works/pi-coding-agent
 ```
