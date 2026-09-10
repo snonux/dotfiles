@@ -23,5 +23,12 @@ for these commands only:
 ```
 
 `/usr/bin/doas` is a compatibility wrapper around `sudo`, so `update::tools`
-uses the same policy. No other sudo privileges are granted. The `wheel-nopasswd`
-file was removed and paul was removed from the `wheel` group.
+uses the same policy. The `wheel-nopasswd` file was removed and paul was removed
+from the `wheel` group.
+
+`/etc/sudoers.d/ior` separately allows selected IOR build and integration-test
+commands. Its entries are not part of the updater policy. They need remediation:
+the IOR executables are below Paul's writable home directory, so the current
+`SETENV: NOPASSWD` rules can provide arbitrary root execution; one referenced
+test executable is also absent. Do not describe Paul's sudo access as fully
+restricted until those entries have been replaced with a safe design.
