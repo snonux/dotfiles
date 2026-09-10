@@ -4,8 +4,8 @@
 
 **`paul`**
 - **Removed from `wheel`** group. No general `sudo` access.
-- May run the privileged commands in `update::tools` without a password: the
-  five exact global npm installs and `/usr/local/bin/amp update`.
+- May run the privileged commands in `update::tools` without a password: four
+  exact global npm installs and `/usr/local/bin/amp update`.
 - Home: `/home/paul`
 - Git repos: `~/git/` (cloned via local `r0`/`r1`/`r2` remotes)
 
