@@ -15,9 +15,8 @@ internal/tasks/    # Home and Pkg methods (SyncDir / InstallFile / …)
 
 ```bash
 cd ~/git/dotfiles/gonf
-mage deps     # go mod download
-mage build    # compile ./gonf
-mage install  # build and copy to $GOPATH/bin
+mage deps    # go mod download
+mage build   # compile ./gonf
 # or just: mage
 ```
 

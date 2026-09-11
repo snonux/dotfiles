@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 )
 
 const binName = "gonf"
@@ -33,22 +32,4 @@ func Deps() error {
 func Build() error {
 	fmt.Println("building...")
 	return run("go", "build", "-o", binName, "./cmd/gonf")
-}
-
-// Install builds and installs the binary to $GOPATH/bin (or ~/go/bin).
-func Install() error {
-	fmt.Println("installing...")
-	if err := Build(); err != nil {
-		return err
-	}
-	gopath := os.Getenv("GOPATH")
-	if gopath == "" {
-		gopath = filepath.Join(os.Getenv("HOME"), "go")
-	}
-	dest := filepath.Join(gopath, "bin", binName)
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-		return err
-	}
-	fmt.Println("→", dest)
-	return run("cp", "-f", binName, dest)
 }
