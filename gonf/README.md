@@ -15,7 +15,9 @@ internal/tasks/    # Home and Pkg methods (SyncDir / InstallFile / …)
 
 ```bash
 cd ~/git/dotfiles/gonf
-go build -o gonf ./cmd/gonf
+mage deps    # go mod download
+mage build   # compile ./gonf
+# or just: mage
 ```
 
 If `go mod tidy` cannot see a freshly tagged `github.com/snonux/gonf` release yet:
