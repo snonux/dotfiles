@@ -2,11 +2,10 @@ package tasks
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 
 	"codeberg.org/snonux/dotfiles/gonf/internal/paths"
-	. "github.com/snonux/gonf/api"
+	"github.com/snonux/gonf/api"
 	. "github.com/snonux/gonf/api/options"
 )
 
@@ -14,57 +13,33 @@ type Home struct{}
 
 func (Home) DescHelix() string { return "Install ~/.config/helix" }
 func (Home) Helix() {
-	Dir(paths.Home+"/.config/helix",
-		WithSourceGlob(paths.Dot+"/helix/*"),
-		WithMode(0o700),
-		WithFileMode(0o640),
-	)
+	api.SyncDir(api.Home(".config/helix"), paths.Dot+"/helix/*")
 }
 
 func (Home) DescGhostty() string { return "Install ~/.config/ghostty" }
 func (Home) Ghostty() {
-	Dir(paths.Home+"/.config/ghostty",
-		WithSourceGlob(paths.Dot+"/ghostty/*"),
-		WithMode(0o700),
-		WithFileMode(0o640),
-	)
+	api.SyncDir(api.Home(".config/ghostty"), paths.Dot+"/ghostty/*")
 }
 
 func (Home) DescHexai() string { return "Install ~/.config/hexai (Linux)" }
-func (Home) WhenHexai(f Facts) bool { return f.GOOS == "linux" }
+func (Home) WhenHexai(f api.Facts) bool { return f.GOOS == "linux" }
 func (Home) Hexai() {
-	Dir(paths.Home+"/.config/hexai",
-		WithSourceGlob(paths.Dot+"/hexai/*"),
-		WithMode(0o700),
-		WithFileMode(0o640),
-	)
+	api.SyncDir(api.Home(".config/hexai"), paths.Dot+"/hexai/*")
 }
 
 func (Home) DescTimesamurai() string { return "Install ~/.config/timesamurai" }
 func (Home) Timesamurai() {
-	Dir(paths.Home+"/.config/timesamurai",
-		WithSourceGlob(paths.Dot+"/timesamurai/*"),
-		WithMode(0o700),
-		WithFileMode(0o640),
-	)
+	api.SyncDir(api.Home(".config/timesamurai"), paths.Dot+"/timesamurai/*")
 }
 
 func (Home) DescLazygit() string { return "Install ~/.config/lazygit" }
 func (Home) Lazygit() {
-	Dir(paths.Home+"/.config/lazygit",
-		WithSourceGlob(paths.Dot+"/lazygit/*"),
-		WithMode(0o700),
-		WithFileMode(0o640),
-	)
+	api.SyncDir(api.Home(".config/lazygit"), paths.Dot+"/lazygit/*")
 }
 
 func (Home) DescOpencode() string { return "Install ~/.config/opencode" }
 func (Home) Opencode() {
-	Dir(paths.Home+"/.config/opencode",
-		WithSourceGlob(paths.Dot+"/opencode/*"),
-		WithMode(0o700),
-		WithFileMode(0o640),
-	)
+	api.SyncDir(api.Home(".config/opencode"), paths.Dot+"/opencode/*")
 }
 
 func (Home) DescAgents() string { return "Install agent command/skill symlinks" }
@@ -75,132 +50,89 @@ func (Home) Agents() {
 		return
 	}
 
-	for _, tool := range Elems(".cursor", ".claude", ".agents", ".opencode", ".pi", ".amp") {
-		toolDir := paths.Home + "/" + tool
-		ensureAgentToolDir(toolDir)
-		Link(toolDir+"/commands", WithSymlink(commands))
-		Link(toolDir+"/skills", WithSymlink(skills))
+	for _, tool := range api.Elems(".cursor", ".claude", ".agents", ".opencode", ".pi", ".amp") {
+		toolDir := api.Home(tool)
+		api.EnsureDir(toolDir, WithMode(0o750))
+		api.Link(toolDir+"/commands", WithSymlink(commands))
+		api.Link(toolDir+"/skills", WithSymlink(skills))
 	}
 
-	codex := paths.Home + "/.codex"
-	ensureAgentToolDir(codex)
-	Link(codex+"/prompts", WithSymlink(commands))
-}
-
-// ensureAgentToolDir registers a Dir resource only when path is missing.
-// Existing directories and symlinks-to-directories (e.g. ~/.pi -> ~/git/hypr/pi)
-// are left alone so Link children can still be applied.
-func ensureAgentToolDir(path string) {
-	info, err := os.Stat(path)
-	if err == nil && info.IsDir() {
-		return
-	}
-	Dir(path, WithMode(0o750))
+	codex := api.Home(".codex")
+	api.EnsureDir(codex, WithMode(0o750))
+	api.Link(codex+"/prompts", WithSymlink(commands))
 }
 
 func (Home) DescPrompts() string { return "Legacy alias for home_agents" }
 func (Home) Prompts() {
-	_ = Run("home_agents")
+	_ = api.Run("home_agents")
 }
 
 func (Home) DescScripts() string { return "Install ~/scripts" }
 func (Home) Scripts() {
-	Dir(paths.Home+"/scripts",
-		WithSourceGlob(paths.Dot+"/scripts/*"),
-		WithMode(0o700),
-		WithFileMode(0o750),
-		WithPrune,
-	)
+	api.SyncDir(api.Home("scripts"), paths.Dot+"/scripts/*", WithFileMode(0o750), WithPrune)
 }
 
 func (Home) DescSsh() string { return "Install ~/.ssh/config" }
 func (Home) Ssh() {
-	File(paths.Home+"/.ssh/config",
-		WithSource(paths.Dot+"/ssh/config"),
-		WithMode(0o600),
-	)
+	api.InstallFile(api.Home(".ssh/config"), paths.Dot+"/ssh/config", WithMode(0o600))
 }
 
 func (Home) DescBash() string { return "Install bash configuration" }
 func (Home) Bash() {
-	File(paths.Home+"/.bash_profile",
-		WithSource(paths.Dot+"/bash/bash_profile"),
-		WithMode(0o640),
-	)
-	File(paths.Home+"/.bashrc",
-		WithSource(paths.Dot+"/bash/bashrc"),
-		WithMode(0o640),
-	)
+	api.InstallFile(api.Home(".bash_profile"), paths.Dot+"/bash/bash_profile")
+	api.InstallFile(api.Home(".bashrc"), paths.Dot+"/bash/bashrc")
 }
 
 func (Home) DescFish() string { return "Install fish conf.d symlink" }
 func (Home) Fish() {
-	Link(paths.Home+"/.config/fish/conf.d",
-		WithSymlink(paths.Dot+"/fish/conf.d"),
-	)
+	api.Link(api.Home(".config/fish/conf.d"), WithSymlink(paths.Dot+"/fish/conf.d"))
 }
 
 func (Home) DescFishCompletions() string { return "Install fish completions" }
 func (Home) FishCompletions() {
-	Dir(paths.Home+"/.config/fish/completions",
-		WithSourceGlob(paths.Dot+"/fish/completions/*"),
-		WithMode(0o700),
-		WithFileMode(0o640),
-	)
+	api.SyncDir(api.Home(".config/fish/completions"), paths.Dot+"/fish/completions/*")
 }
 
 func (Home) DescGitsyncer() string { return "Install gitsyncer config symlink" }
 func (Home) Gitsyncer() {
-	Link(paths.Home+"/.config/gitsyncer",
-		WithSymlink(paths.Dot+"/gitsyncer"),
-	)
+	api.Link(api.Home(".config/gitsyncer"), WithSymlink(paths.Dot+"/gitsyncer"))
 }
 
 func (Home) DescVale() string { return "Install ~/.vale.ini" }
 func (Home) Vale() {
-	File(paths.Home+"/.vale.ini",
-		WithSource(paths.Dot+"/vale.ini"),
-		WithMode(0o640),
-	)
+	api.InstallFile(api.Home(".vale.ini"), paths.Dot+"/vale.ini")
 }
 
 func (Home) DescTmux() string { return "Install ~/.config/tmux" }
 func (Home) Tmux() {
-	Dir(paths.Home+"/.config/tmux",
-		WithSourceGlob(paths.Dot+"/tmux/*"),
-		WithMode(0o700),
-		WithFileMode(0o640),
-	)
+	api.SyncDir(api.Home(".config/tmux"), paths.Dot+"/tmux/*")
 }
 
 func (Home) DescTmuxRocky() string { return "Append rocky tmux overrides when on rocky" }
-func (Home) WhenTmuxRocky(f Facts) bool {
-	return f.GOOS == "linux" && strings.Contains(strings.ToLower(f.Hostname), "rocky")
+func (Home) WhenTmuxRocky(f api.Facts) bool {
+	return api.And(
+		func(f api.Facts) bool { return f.GOOS == "linux" },
+		func(f api.Facts) bool {
+			return strings.Contains(strings.ToLower(f.Hostname), "rocky")
+		},
+	)(f)
 }
 func (Home) TmuxRocky() {
 	line := "source-file ~/.config/tmux/tmux.rocky.conf"
-	File(paths.Home+"/.config/tmux/tmux.local.conf", WithoutLine(line))
-	File(paths.Home+"/.config/tmux/tmux.conf", WithLine(line))
+	api.File(api.Home(".config/tmux/tmux.local.conf"), WithoutLine(line))
+	api.File(api.Home(".config/tmux/tmux.conf"), WithLine(line))
 }
 
 func (Home) DescSway() string { return "Install sway and waybar config" }
 func (Home) Sway() {
-	Dir(paths.Home+"/.config/sway/config.d",
-		WithSourceGlob(paths.Dot+"/sway/config.d/*"),
-		WithMode(0o700),
-		WithFileMode(0o640),
-	)
-	Dir(paths.Home+"/.config/waybar",
-		WithSourceGlob(paths.Dot+"/waybar/*"),
-		WithMode(0o700),
-		WithFileMode(0o640),
-	)
+	api.SyncDir(api.Home(".config/sway/config.d"), paths.Dot+"/sway/config.d/*")
+	api.SyncDir(api.Home(".config/waybar"), paths.Dot+"/waybar/*")
 }
 
 func (Home) DescGitconfig() string { return "Set global git config (Linux)" }
-func (Home) WhenGitconfig(f Facts) bool { return f.GOOS == "linux" }
+func (Home) WhenGitconfig(f api.Facts) bool { return f.GOOS == "linux" }
 func (Home) Gitconfig() {
-	EachKV(Elems(
+	api.GitGlobal(
 		"user.email", "paul@buetow.org",
 		"user.name", "Paul Buetow",
 		"init.defaultbranch", "main",
@@ -214,20 +146,12 @@ func (Home) Gitconfig() {
 		"diff.tool", "difftastic",
 		"difftool.prompt", "false",
 		"difftool.difftastic.cmd", "difft $LOCAL $REMOTE",
-	), func(key, val string) {
-		Command("git", Elems("config", "--global", key, val),
-			Unless("git", Elems("config", "--global", "--get", key), ExpectStdout(val)),
-			WithName("git."+key),
-		)
-	})
+	)
 }
 
 func (Home) DescSignature() string { return "Install ~/.signature" }
 func (Home) Signature() {
-	File(paths.Home+"/.signature",
-		WithSource(paths.Dot+"/signature"),
-		WithMode(0o640),
-	)
+	api.InstallFile(api.Home(".signature"), paths.Dot+"/signature")
 }
 
 func (Home) DescCalendar() string { return "Install ~/.calendar from private repo" }
@@ -235,77 +159,54 @@ func (Home) Calendar() {
 	if _, err := os.Stat(paths.DotPrivate); err != nil {
 		return
 	}
-	Dir(paths.Home+"/.calendar",
-		WithSourceGlob(paths.DotPrivate+"/calendar/*"),
-		WithMode(0o700),
-		WithFileMode(0o640),
-	)
+	api.SyncDir(api.Home(".calendar"), paths.DotPrivate+"/calendar/*")
 }
 
 func (Home) DescPipewire() string { return "Install pipewire high-res config" }
 func (Home) Pipewire() {
-	Dir(paths.Home+"/.config/pipewire", WithMode(0o750))
-	File(paths.Home+"/.config/pipewire/pipewire.conf",
-		WithSource(paths.Dot+"/pipewire/pipewire.conf"),
-		WithMode(0o600),
-	)
+	api.Dir(api.Home(".config/pipewire"), WithMode(0o750))
+	api.InstallFile(api.Home(".config/pipewire/pipewire.conf"), paths.Dot+"/pipewire/pipewire.conf", WithMode(0o600))
 }
 
 func (Home) DescQuickedit() string { return "Manage ~/QuickEdit symlinks" }
-func (Home) WhenQuickedit(f Facts) bool {
+func (Home) WhenQuickedit(f api.Facts) bool {
 	return f.GOOS == "linux" || f.GOOS == "freebsd"
 }
 func (Home) Quickedit() {
-	Dir(paths.Home+"/QuickEdit", WithMode(0o700))
-
-	EachKV(Elems(
-		"data", paths.Home+"/data/",
-		"Documents", paths.Home+"/Documents//",
-		"dotfiles", paths.Home+"/git/dotfiles/",
-		"foo.zone-gemtext", paths.Home+"/git/foo.zone-content/gemtext//",
-		"Notes", paths.Home+"/Notes/",
-		"public-snippets", paths.Home+"/git/conf/snippets//",
-		"worktime", paths.Home+"/git/worktime/",
-	), func(name, target string) {
-		linkPath := paths.Home + "/QuickEdit/" + name
-		if _, err := os.Stat(filepath.Clean(target)); err != nil {
-			// Target missing: drop a stale QuickEdit link rather than fail apply.
-			NoLink(linkPath)
-			return
-		}
-		Link(linkPath, WithSymlink(target))
-	})
+	api.EnsureDir(api.Home("QuickEdit"), WithMode(0o700))
+	api.SymlinkMap(api.Home("QuickEdit"),
+		"data", api.Home("data"),
+		"Documents", api.Home("Documents"),
+		"dotfiles", api.Home("git/dotfiles"),
+		"foo.zone-gemtext", api.Home("git/foo.zone-content/gemtext"),
+		"Notes", api.Home("Notes"),
+		"public-snippets", api.Home("git/conf/snippets"),
+		"worktime", api.Home("git/worktime"),
+	)
 }
 
 func (Home) DescSystemdUser() string { return "Install and enable systemd user units" }
 func (Home) SystemdUser() {
-	units := Dir(paths.Home+"/.config/systemd/user",
-		WithSourceGlob(paths.Dot+"/systemd-user/*"),
-		WithMode(0o700),
-		WithFileMode(0o640),
-	)
+	units := api.SyncDir(api.Home(".config/systemd/user"), paths.Dot+"/systemd-user/*")
 
-	Command("systemctl", Elems("--user", "daemon-reload"),
+	api.Command("systemctl", api.Elems("--user", "daemon-reload"),
 		DependsOn(units),
 		WithName("systemctl.daemon-reload"),
 	)
-	Command("systemctl", Elems("--user", "enable", "random-wallpaper.timer"),
-		Unless("systemctl", Elems("--user", "is-enabled", "random-wallpaper.timer")),
+	api.Command("systemctl", api.Elems("--user", "enable", "random-wallpaper.timer"),
+		Unless("systemctl", api.Elems("--user", "is-enabled", "random-wallpaper.timer")),
 		DependsOn(units),
 		WithName("systemctl.enable.random-wallpaper"),
 	)
-	Command("systemctl", Elems("--user", "enable", "home-backup.timer"),
-		Unless("systemctl", Elems("--user", "is-enabled", "home-backup.timer")),
+	api.Command("systemctl", api.Elems("--user", "enable", "home-backup.timer"),
+		Unless("systemctl", api.Elems("--user", "is-enabled", "home-backup.timer")),
 		DependsOn(units),
 		WithName("systemctl.enable.home-backup"),
 	)
 }
 
 func (Home) DescTaskwarrior() string { return "Install ~/.taskrc (Taskwarrior 3.x)" }
-func (Home) WhenTaskwarrior(f Facts) bool { return f.GOOS == "linux" }
+func (Home) WhenTaskwarrior(f api.Facts) bool { return f.GOOS == "linux" }
 func (Home) Taskwarrior() {
-	File(paths.Home+"/.taskrc",
-		WithSource(paths.Dot+"/taskwarrior/taskrc"),
-		WithMode(0o640),
-	)
+	api.InstallFile(api.Home(".taskrc"), paths.Dot+"/taskwarrior/taskrc")
 }

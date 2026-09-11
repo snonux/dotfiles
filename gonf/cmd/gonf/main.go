@@ -10,8 +10,6 @@ import (
 func main() {
 	RegisterMethods(tasks.Home{}, WithPrefix("home_"))
 	RegisterMethods(tasks.Pkg{}, WithPrefix("pkg_"), WithGroupWhen(ProfileIs("fedora")))
-	Task("home", "Install all home_* configuration", func() {
-		_ = Run(Matching("^home_")...)
-	})
+	Aggregate("home", "Install all home_* configuration", "^home_")
 	os.Exit(CLI())
 }

@@ -8,7 +8,7 @@ Replaces the top-level `Rexfile` for this host (`earth`).
 ```text
 cmd/gonf/main.go   # RegisterMethods + aggregate home; api.CLI()
 internal/paths/    # HOME / Dot / DotPrivate roots
-internal/tasks/    # Home and Pkg task methods
+internal/tasks/    # Home and Pkg methods (SyncDir / InstallFile / …)
 ```
 
 ## Build
