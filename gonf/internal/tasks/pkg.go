@@ -9,7 +9,7 @@ type Pkg struct{}
 func (Pkg) DescFedora() string { return "Install Fedora packages" }
 
 func (Pkg) Fedora() {
-	Package(Elems(
+	Package(List(
 		"opendoas",
 		"fd-find",
 		"nodejs-bash-language-server",

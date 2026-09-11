@@ -50,7 +50,7 @@ func (HomeTasks) Agents() {
 		return
 	}
 
-	for _, tool := range Elems(".cursor", ".claude", ".agents", ".opencode", ".pi", ".amp") {
+	for _, tool := range List(".cursor", ".claude", ".agents", ".opencode", ".pi", ".amp") {
 		toolDir := Home(tool)
 		EnsureDir(toolDir, WithMode(0o750))
 		Link(toolDir+"/commands", WithSymlink(commands))
@@ -189,17 +189,17 @@ func (HomeTasks) DescSystemdUser() string { return "Install and enable systemd u
 func (HomeTasks) SystemdUser() {
 	units := SyncDir(Home(".config/systemd/user"), paths.Dot+"/systemd-user/*")
 
-	Command("systemctl", Elems("--user", "daemon-reload"),
+	Command("systemctl", List("--user", "daemon-reload"),
 		DependsOn(units),
 		WithName("systemctl.daemon-reload"),
 	)
-	Command("systemctl", Elems("--user", "enable", "random-wallpaper.timer"),
-		Unless("systemctl", Elems("--user", "is-enabled", "random-wallpaper.timer")),
+	Command("systemctl", List("--user", "enable", "random-wallpaper.timer"),
+		Unless("systemctl", List("--user", "is-enabled", "random-wallpaper.timer")),
 		DependsOn(units),
 		WithName("systemctl.enable.random-wallpaper"),
 	)
-	Command("systemctl", Elems("--user", "enable", "home-backup.timer"),
-		Unless("systemctl", Elems("--user", "is-enabled", "home-backup.timer")),
+	Command("systemctl", List("--user", "enable", "home-backup.timer"),
+		Unless("systemctl", List("--user", "is-enabled", "home-backup.timer")),
 		DependsOn(units),
 		WithName("systemctl.enable.home-backup"),
 	)
