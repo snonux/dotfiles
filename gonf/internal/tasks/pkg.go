@@ -1,7 +1,7 @@
 package tasks
 
 import (
-	"github.com/snonux/gonf/api"
+	. "github.com/snonux/gonf/api"
 )
 
 type Pkg struct{}
@@ -9,7 +9,7 @@ type Pkg struct{}
 func (Pkg) DescFedora() string { return "Install Fedora packages" }
 
 func (Pkg) Fedora() {
-	api.Package(api.Elems(
+	Package(Elems(
 		"opendoas",
 		"fd-find",
 		"nodejs-bash-language-server",
