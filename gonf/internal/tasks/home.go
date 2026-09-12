@@ -188,21 +188,9 @@ func (HomeTasks) Quickedit() {
 func (HomeTasks) DescSystemdUser() string { return "Install and enable systemd user units" }
 func (HomeTasks) SystemdUser() {
 	units := SyncDir(Home(".config/systemd/user"), paths.Dot+"/systemd-user/*")
-
-	Command("systemctl", List("--user", "daemon-reload"),
-		DependsOn(units),
-		WithName("systemctl.daemon-reload"),
-	)
-	Command("systemctl", List("--user", "enable", "random-wallpaper.timer"),
-		Unless("systemctl", List("--user", "is-enabled", "random-wallpaper.timer")),
-		DependsOn(units),
-		WithName("systemctl.enable.random-wallpaper"),
-	)
-	Command("systemctl", List("--user", "enable", "home-backup.timer"),
-		Unless("systemctl", List("--user", "is-enabled", "home-backup.timer")),
-		DependsOn(units),
-		WithName("systemctl.enable.home-backup"),
-	)
+	reload := DaemonReload(WithUser, DependsOn(units), IfChanged)
+	Timer("random-wallpaper", WithUser, DependsOn(reload))
+	Timer("home-backup", WithUser, DependsOn(reload))
 }
 
 func (HomeTasks) DescTaskwarrior() string { return "Install ~/.taskrc (Taskwarrior 3.x)" }
