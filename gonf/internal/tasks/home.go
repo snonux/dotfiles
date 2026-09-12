@@ -77,10 +77,10 @@ func (HomeTasks) Ssh() {
 	InstallFile(Home(".ssh/config"), paths.Dot+"/ssh/config", WithMode(0o600))
 }
 
-func (HomeTasks) DescBash() string { return "Install bash configuration" }
+func (HomeTasks) DescBash() string { return "Install bash configuration symlinks" }
 func (HomeTasks) Bash() {
-	InstallFile(Home(".bash_profile"), paths.Dot+"/bash/bash_profile")
-	InstallFile(Home(".bashrc"), paths.Dot+"/bash/bashrc")
+	Link(Home(".bash_profile"), WithSymlink(paths.Dot+"/bash/bash_profile"))
+	Link(Home(".bashrc"), WithSymlink(paths.Dot+"/bash/bashrc"))
 }
 
 func (HomeTasks) DescFish() string { return "Install fish conf.d symlink" }
@@ -98,9 +98,9 @@ func (HomeTasks) Gitsyncer() {
 	Link(Home(".config/gitsyncer"), WithSymlink(paths.Dot+"/gitsyncer"))
 }
 
-func (HomeTasks) DescVale() string { return "Install ~/.vale.ini" }
+func (HomeTasks) DescVale() string { return "Install ~/.vale.ini symlink" }
 func (HomeTasks) Vale() {
-	InstallFile(Home(".vale.ini"), paths.Dot+"/vale.ini")
+	Link(Home(".vale.ini"), WithSymlink(paths.Dot+"/vale.ini"))
 }
 
 func (HomeTasks) DescTmux() string { return "Install ~/.config/tmux" }
