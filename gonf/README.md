@@ -36,4 +36,10 @@ GOPROXY=direct GOSUMDB=off go mod tidy
 ./gonf home                     # all home_* tasks
 ./gonf pkg_fedora
 ./gonf home_helix home_tmux
+
+# Remote (needs gonf ≥0.4.0 on the target PATH): stream plan over ssh, no local plan files
+./gonf push -n user@host home_bash
+./gonf push -- -p 2222 user@host home_helix home_tmux
 ```
+
+On the target, `gonf` must resolve in non-interactive SSH sessions (e.g. install to a directory on the default PATH, or ensure `~/go/bin` is exported for `ssh host cmd`).
