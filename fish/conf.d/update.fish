@@ -23,13 +23,7 @@ function update::tools
         set -a pids $last_pid
     end
 
-    if test -f ~/go/bin/ask
-        if test -f ~/go/bin/do
-            rm ~/go/bin/do
-        end
-    end
-
-    for prog in tasksamurai timesamurai gt loadbars foostore
+    for prog in tasksamurai timesamurai gt loadbars foostore gonf
         echo "Installing/updating $prog from github.com/snonux/$prog/cmd/$prog@latest"
         go install github.com/snonux/$prog/cmd/$prog@latest &
         set -a pids $last_pid
