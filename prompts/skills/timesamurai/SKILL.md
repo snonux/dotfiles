@@ -1,6 +1,6 @@
 ---
 name: timesamurai
-description: Use the timesamurai CLI to track work time — start/stop work sessions, add/subtract hours, day off, time reports, and find/modify/delete/undo log entries. Use when asked to log work time, clock in/out, add hours, record a lunch or day off, show a time report/balance, or fix an entry in the worktime log. Triggers: work time, time tracking, log hours, clock in, clock out, day off, time report, worktime.
+description: "Use the timesamurai CLI to track work time — start/stop work sessions, add/subtract hours, day off, time reports, and find/modify/delete/undo log entries. Use when asked to log work time, clock in/out, add hours, record a lunch or day off, show a time report/balance, or fix an entry in the worktime log. Triggers: work time, time tracking, log hours, clock in, clock out, day off, time report, worktime."
 ---
 
 # timesamurai
