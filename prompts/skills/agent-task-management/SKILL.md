@@ -41,7 +41,10 @@ Invalid (will not work):
 - `ask show task 298`              ← no `show` subcommand; use `ask info <id>`
 - any other natural-language phrasing passed to `ask`
 
-Tasks are scoped to the current git repository via the `ask` CLI. **Load only the files you need** for the current action so the whole skill does not need to be in context.
+Tasks are scoped to the current git project via the `ask` CLI. The project name is the
+repo basename plus any subdirectory under the git root (`.`-separated; see
+`references/00-context.md`). **Load only the files you need** for the current action so the
+whole skill does not need to be in context.
 
 **Alias IDs are the selectors to use for task work.** `ask add` prints `created task <alias-id>`, and subsequent task commands in this workflow should keep using that alias ID throughout the workflow.
 

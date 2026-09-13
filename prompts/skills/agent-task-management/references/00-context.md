@@ -10,6 +10,27 @@ Load this with any of the action files (1–5) when working with tasks. It defin
 
 ## Project name
 
+`ask` derives the Taskwarrior project from the **git repository basename** plus the
+**working directory relative to the repo root**, joining path segments with `.`:
+
+| Working directory | Project |
+|---|---|
+| `~/git/dotfiles` | `dotfiles` |
+| `~/git/dotfiles/prompts` | `dotfiles.prompts` |
+| `~/git/dotfiles/prompts/nested` | `dotfiles.prompts.nested` |
+
+- **`ask add`** stamps that exact project name.
+- **Read commands** (`list`, `ready`, `info`, …) include the current project **and its
+  descendants** (e.g. from `dotfiles`, you also see `dotfiles.prompts`), without matching
+  unrelated siblings such as `dotfiles-other`.
+- Override with `ask proj:<name> …` (hierarchical names like `dotfiles.prompts` are allowed).
+- Directory names that contain `.` are ambiguous in this hierarchy; prefer names without dots
+  when you rely on sub-project scoping.
+- Existing flat tasks (repo basename only) remain valid at the repo root.
+- **One started task** is enforced within the **current ask scope** (cwd-derived project
+  plus descendants). From the repo root that includes sub-project tasks; from a
+  subdirectory it does not include parent or sibling projects.
+
 ## Rules that apply to all task commands
 
 - **Always use `ask <subcommand>` for all task operations.** The task CLI is installed at `~/go/bin/ask` and provides exactly these subcommands: `list`, `all`, `ready`, `completed`, `add`, `info`, `start`, `stop`, `done`, `annotate`, `denotate`, `modify`, `edit`, `tag`, `priority`, `dep`, `delete`, `urgency`, `projects`, `watch`, `fish`, `help`. It is not a natural-language interface and does not understand skill names; anything outside this subcommand list is wrong.

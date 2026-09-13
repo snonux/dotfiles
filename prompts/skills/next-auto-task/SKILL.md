@@ -1,6 +1,6 @@
 ---
 name: next-auto-task
-description: "Pick up and work on the next agent task tagged +auto. First tries the current git project via the `agent-task-management` skill; if no +auto task is available there, runs `ask projects +auto` to find projects with pending +auto agent tasks, then switches into the matching project under `~/git/` and continues with `agent-task-management`. Triggers on: next auto task, next-auto-task, auto task, work next auto, pick up next auto task."
+description: "Pick up and work on the next agent task tagged +auto. First tries the current git project via the `agent-task-management` skill; if no +auto task is available there, runs `ask projects +auto` to find projects with pending +auto agent tasks, then switches into the matching git repo under `~/git/` (and into a subdirectory when the project name is hierarchical, e.g. `dotfiles.prompts` → `~/git/dotfiles/prompts`) and continues with `agent-task-management`. Triggers on: next auto task, next-auto-task, auto task, work next auto, pick up next auto task."
 ---
 
 # Next Auto Task
@@ -25,19 +25,24 @@ Find the highest-priority agent task tagged `+auto` to work on next, switch to t
      ```
 
      This lists projects with at least one pending, not-yet-started agent task tagged `+auto`.
-   - Read each project name from the output (one per line).
-   - Prefer the first project whose directory exists under `~/git/`; otherwise pick the first project listed.
+   - Read each project name from the output (one per line). Names may be hierarchical
+     (`repo` or `repo.subdir…`) — see `agent-task-management` / `references/00-context.md`.
+   - Prefer the first project whose mapped directory exists under `~/git/` (step 3); otherwise pick the first project listed.
 
-3. **Switch to the target project's git repository.**
-   - The project directory is always `~/git/<project>` — a flat layout, no nesting. Check that path first:
+3. **Switch to the target project's directory.**
+   - Map the Taskwarrior project name to a filesystem path:
+     - Split on `.`: first segment is the git repo name; remaining segments are a subdirectory path.
+     - Examples: `hexai` → `~/git/hexai`; `dotfiles.prompts` → `~/git/dotfiles/prompts`; `dotfiles.prompts.skills` → `~/git/dotfiles/prompts/skills`.
+     - Use the deepest existing directory on that path (fall back toward the repo root if a segment is missing on disk).
+   - Check that the resolved path is inside a git repo:
 
      ```sh
-     test -d ~/git/<project>/.git && echo exists
+     test -d <resolved>/.git || git -C <resolved> rev-parse --show-toplevel
      ```
 
-     If that directory does not exist, retry with a case-insensitive match or simple suffix/prefix differences (e.g. project `ior` → directory `ior-go`) before asking the user.
+     If the top-level `~/git/<repo>` directory does not exist, retry with a case-insensitive match or simple suffix/prefix differences (e.g. project `ior` → directory `ior-go`) before asking the user.
    - If nothing plausible is found, stop and ask the user which repo to use.
-   - Use the `cwd` parameter of subsequent tool calls to operate inside that repository. Do **not** chain `cd` with `&&` in tool calls — pass `cwd` instead.
+   - Use the `cwd` parameter of subsequent tool calls to operate inside that directory (prefer the subdirectory when the project is hierarchical, so new tasks stay under the same project name). Do **not** chain `cd` with `&&` in tool calls — pass `cwd` instead.
 
 4. **Continue with `agent-task-management` from there.**
    - Load `agent-task-management` (and its `references/00-context.md` + the appropriate action file) inside the new project directory.
