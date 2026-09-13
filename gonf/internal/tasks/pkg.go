@@ -48,5 +48,6 @@ func (Pkg) Fedora() {
 		"sway",
 		"waybar",
 		"zathura",
+		"flameshot",
 	))
 }

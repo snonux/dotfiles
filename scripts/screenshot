@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Capture screen via flameshot (GNOME Wayland-friendly CLI).
+set -euo pipefail
+
+screenshot::usage() {
+    cat >&2 <<'EOF'
+Usage: screenshot [full|screen|gui] [output-path]
+
+  full    all monitors (default)
+  screen  monitor containing the cursor
+  gui     interactive region / window pick
+
+Default output: ~/Pictures/Screenshot-YYYYMMDD-HHMMSS.png
+EOF
+}
+
+screenshot::main() {
+    local mode=full
+    local out
+    local -a cmd
+
+    case "${1:-}" in
+        -h|--help) screenshot::usage; return 0 ;;
+        full|screen|gui)
+            mode=$1
+            shift
+            ;;
+        '') ;;
+        -*)
+            screenshot::usage
+            return 2
+            ;;
+        *)
+            # Treat first arg as output path with default mode.
+            ;;
+    esac
+
+    out=${1:-$HOME/Pictures/Screenshot-$(date +%Y%m%d-%H%M%S).png}
+    mkdir -p "$(dirname "$out")"
+
+    case "$mode" in
+        full)   cmd=(flameshot full -p "$out") ;;
+        screen) cmd=(flameshot screen -p "$out") ;;
+        gui)    cmd=(flameshot gui -p "$out") ;;
+    esac
+
+    "${cmd[@]}"
+    printf '%s\n' "$out"
+}
+
+screenshot::main "$@"
