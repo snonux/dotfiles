@@ -3,7 +3,7 @@ set -gx DOTFILES_DIR ~/git/dotfiles
 function dotfiles::update
     set -l prev_pwd (pwd)
     cd $DOTFILES_DIR
-    rex home
+    ./gonf.sh home
     cd "$prev_pwd"
 end
 
@@ -19,7 +19,7 @@ function dotfiles::update::git
         git commit -a
         git push
     end
-    rex home
+    ./gonf.sh home
     cd "$prev_pwd"
 end
 
@@ -35,9 +35,9 @@ function dotfiles::fuzzy::edit
     cd "$prev_pwd"
 end
 
-function dotfiles::rexify
+function dotfiles::gonfify
     cd $DOTFILES_DIR
-    rex home
+    ./gonf.sh home
     cd -
 end
 
@@ -48,7 +48,7 @@ end
 abbr -a .u 'dotfiles::update'
 abbr -a .ug 'dotfiles::update::git'
 abbr -a .e 'dotfiles::fuzzy::edit'
-abbr -a .rex 'dotfiles::rexify'
+abbr -a .gonf 'dotfiles::gonfify'
 abbr -a .re 'dotfiles::random::edit'
 abbr -a cdconf "cd $HOME/git/conf"
 abbr -a cdotfiles "cd $HOME/git/dotfiles"
