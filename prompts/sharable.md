@@ -7,6 +7,7 @@
 ./commands/delete-context.md
 ./commands/delete-skill.md
 ./commands/load-context.md
+./commands/load-skill.md
 ./commands/update-command.md
 ./commands/update-context.md
 ./commands/update-skill.md
@@ -22,8 +23,8 @@
 ./skills/beyond-solid-principles
 ./skills/c-best-practices
 ./skills/commit-skills
-./skills/compose-blog-post
 ./skills/find-code-bugs
+./skills/gemtexter
 ./skills/go-best-practices
 ./skills/increment-version-and-push
 ./skills/next-auto-task
