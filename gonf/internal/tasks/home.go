@@ -50,12 +50,18 @@ func (HomeTasks) Agents() {
 		return
 	}
 
-	for _, tool := range List(".cursor", ".claude", ".agents", ".opencode", ".pi", ".amp") {
+	for _, tool := range List(".cursor", ".claude", ".agents", ".opencode", ".amp") {
 		toolDir := Home(tool)
 		EnsureDir(toolDir, WithMode(0o750))
 		Link(toolDir+"/commands", WithSymlink(commands))
 		Link(toolDir+"/skills", WithSymlink(skills))
 	}
+
+	// ~/.pi is often a symlink to an app data dir; EnsureDir rejects that.
+	WhenPathExists(Home(".pi"), func() {
+		Link(Home(".pi/commands"), WithSymlink(commands))
+		Link(Home(".pi/skills"), WithSymlink(skills))
+	})
 
 	codex := Home(".codex")
 	EnsureDir(codex, WithMode(0o750))
