@@ -17,6 +17,7 @@
 ./commands/create-skill.md
 ./commands/work-on-tasks.md
 ./commands/load-skill.md
+./skills/timesamurai
 ./skills/100-go-mistakes
 ./skills/agent-task-management
 ./skills/auditing-code-quality
