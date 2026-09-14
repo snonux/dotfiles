@@ -16,6 +16,7 @@
 ./commands/create-tasks.md
 ./commands/create-skill.md
 ./commands/work-on-tasks.md
+./commands/load-skill.md
 ./skills/100-go-mistakes
 ./skills/agent-task-management
 ./skills/auditing-code-quality
@@ -33,3 +34,5 @@
 ./skills/run-command
 ./skills/skill-maintenance
 ./skills/solid-principles
+
+
