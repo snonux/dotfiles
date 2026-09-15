@@ -60,7 +60,7 @@ When beginning a new task, **use a fresh context** — spawn a sub-agent (if orc
 - Triggers: *tasks*, *todo*, *task list*, *pick next task*, *what's next*.
 - You may start work **in parallel** across different projects when tasks do not conflict. Keep only one task in progress per project.
 - **Never run more than 3 sub-agents at once.** The orchestrator owns all implementation and review slots, and must wait for a running sub-agent to finish before starting another when all 3 slots are occupied. Task sub-agents must not spawn other sub-agents; they return to the orchestrator when implementation or review is complete.
-- **Code-audit task batches:** when creating tasks that are the output of a code audit (`+bugfix` / `+code-quality` from `auditing-code-quality`, `find-code-bugs`, `solid-principles`, `beyond-solid-principles`, `go-best-practices`), also create one `+audit` **closure gate task** depending on all of them — see `references/1-create-task.md` → “Audit task batches”.
+- **Code-audit task batches:** when creating tasks that are the output of a code audit (`+bugfix` / `+codequality` from `find-code-bugs`, `solid-principles`, `beyond-solid-principles`, `go-best-practices`, or a non-ACQ design pass), also create one `+audit` **closure gate task** depending on all of them, then one last `+audit` **tagging task** depending on the gate — see `references/1-create-task.md` → “Audit task batches”. **Exception:** when **auditing-code-quality** is driving the run, do **not** create gate/tagging from this skill — ACQ workflow §5–6 are the sole owners.
 
 ## When to load what
 

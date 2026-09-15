@@ -57,18 +57,27 @@ id=$(ask add +<tag> depends:<dep-id1>,<dep-id2> "Description" | sed -n 's/^creat
 
 After adding (with or without dependency), run the same annotations using that alias ID directly.
 
-## Audit task batches — create a closure gate task
+## Audit task batches — create a closure gate, then a tagging task
+
+**Only the top-level audit orchestrator** creates these close-out tasks —
+never a sub-skill or sub-agent that is only filing findings (e.g.
+**find-code-bugs** mid-sweep). Filing `+bugfix` / `+codequality` tasks alone
+does **not** trigger this section.
 
 When the tasks being created are the output of a **code audit** (tagged
-`+bugfix` from a bug sweep and/or `+code-quality` from a design/convention
-audit, e.g. produced by the `auditing-code-quality`, `find-code-bugs`,
-`solid-principles`, `beyond-solid-principles`, or `go-best-practices` skills),
-create one extra **closure gate task** after all the audit tasks exist:
+`+bugfix` from a bug sweep and/or `+codequality` from a design/convention
+audit, e.g. produced by `find-code-bugs`, `solid-principles`,
+`beyond-solid-principles`, or `go-best-practices` — **not** when
+**auditing-code-quality** is already driving; that skill owns gate+tag),
+**and** you are the top-level orchestrator closing the batch, create two
+extra `+audit` tasks after all the audit finding tasks exist:
+
+### 1. Closure gate (verification)
 
 - Tag it `+audit` (never `+audit-something` with a hyphen; `+audit` is the tag).
-- Add **every** audit task ID as a dependency in one `ask add`:
+- Add **every** audit finding task ID as a dependency in one `ask add`:
   ```bash
-  ask add +audit depends:<id1>,<id2>,...,<idN> "Finalize <project> code-quality audit: verify all audit-driven fixes landed, re-run guardrails (build/vet/test -race/gofmt -l/linters), close out the audit cycle"
+  ask add +audit depends:<id1>,<id2>,...,<idN> "Finalize <project> code-quality audit: verify all audit-driven fixes landed, re-run guardrails (build/vet/test -race/gofmt -l/linters), close out verification"
   ```
 - Do not set a priority modifier — the `depends:` list is what makes it a gate;
   its readiness is driven by its dependents completing.
@@ -76,12 +85,37 @@ create one extra **closure gate task** after all the audit tasks exist:
   when it becomes READY (for Go: `go build ./...`, `go vet ./...`,
   `go test -race ./...`, `gofmt -l .`, `errcheck ./...`; adapt to the language),
   plus the instruction to confirm every dependent is done via `ask list` and
-  then mark the gate task done.
+  then mark the gate done. Note that a separate tagging task still owns the
+  `audit/<date>` git marker afterward.
 
-This gate task is the audit's end marker: it stays blocked until every audit
-driven task is complete, then it re-verifies the codebase and closes the cycle.
-Skip it only when the audit produced no tasks (e.g. no git root, or no findings
-filed) — in that case there is nothing to gate.
+This gate is the **verification** close-out only — not the git/`audit-due`
+end marker.
+
+### 2. Tagging task (mandatory last; depends on the gate)
+
+- After the gate exists, create one last `+audit` task that `depends:` only on
+  the gate's alias ID:
+  ```bash
+  ask add +audit depends:<gate-id> "Tag <project> that the code-quality audit is done: follow the audit-tagging skill to move the audit/<date> marker to the post-fix HEAD and push the end marker"
+  ```
+- Annotate it with the exact `$START_TAG` name (including any `-N` suffix) and
+  instructions to load **audit-tagging** for the end-marker + push steps —
+  do not paste `git tag` / `git push` commands here. See
+  **auditing-code-quality** workflow §6 for the full annotation checklist.
+
+Skip **both** the gate and the tagging task when the audit produced no finding
+tasks (e.g. no git root, or no findings filed) — in that case there is nothing
+to gate. Do not create a gate with an empty `depends:` list.
+
+**When `auditing-code-quality` is driving the run, do not create gate or
+tagging tasks from this section** — that skill's workflow §5–6 are the sole
+owners (avoids a second gate/tag pair, or a gate missing `+bugfix` deps).
+Use this section only for non-ACQ audit entry points (e.g. a standalone
+**find-code-bugs** / design-audit pass that still wants a batch close-out).
+
+For ATM-only batches: if no `$START_TAG` is in context yet, run
+**audit-tagging** **Start tag** at tagging-task create time, store the exact
+name in the annotation, then End/push when READY.
 
 ## Conventions
 

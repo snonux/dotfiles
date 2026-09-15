@@ -1,14 +1,25 @@
 ---
 name: audit-tagging
-description: "Stamp and move the audit/<date> git tag markers that drive audit-due scheduling. Use when asked to tag for a code audit, set the audit start marker, finalize the audit end marker, move an audit tag, defer a repo from auditing, or bootstrap an audit baseline. Defines the start-tag (local safety net) -> end-tag (moved to post-audit HEAD, pushed remotely) workflow so the next audit-due run measures churn from the END of this audit, not from before it. Used by the audit-next-repo skill. Triggers on: audit tag, audit marker, tag for audit, finalize audit tag, move audit tag, defer audit, bootstrap audit marker."
+description: "Stamp and move the audit/<date> git tag markers that drive audit-due scheduling. Use when asked to tag for a code audit, set the audit start marker, finalize the audit end marker, move an audit tag, defer a repo from auditing, or bootstrap an audit baseline. Defines the start-tag (local safety net) -> end-tag (moved to post-fix HEAD, pushed remotely) workflow so the next audit-due run measures churn from the END of the fix cycle, not from before the audit. Callers: audit-next-repo (start tag when picking a repo); auditing-code-quality (start tag when caller did not pass $START_TAG; end+push via final +audit task after the gate, or immediate end+push on zero-findings); ATM-only audit batches (start if needed, then end+push on the tagging task). Triggers on: audit tag, audit marker, tag for audit, finalize audit tag, move audit tag, defer audit, bootstrap audit marker."
 ---
 
 # Audit Tagging
 
 This skill owns the **`audit/<date>` git tag markers** that `~/scripts/audit-due`
 reads to decide which repos are due for a code audit. It is the single
-canonical home for the tagging rules; the `audit-next-repo` skill references
-it instead of duplicating the details.
+canonical home for the tagging rules; callers reference it instead of
+duplicating the details.
+
+Typical callers:
+
+- **audit-next-repo** — stamps the local start tag when a repo is selected.
+- **auditing-code-quality** — stamps start when the caller did not pass
+  `$START_TAG`; creates a final `+audit` tagging task after the closure gate
+  for End+push once fixes land; on **zero findings**, End+push immediately
+  (no gate/tagging tasks).
+- **agent-task-management** (non-ACQ audit batches only) — may stamp Start
+  at tagging-task create time if no `$START_TAG` exists, then End+push when
+  that task is READY.
 
 ## The marker
 
@@ -25,16 +36,30 @@ START_TAG="audit/$(date +%F)"     # e.g. audit/2026-08-11
 - If `audit/<date>` for that day already exists, append `-2`, `-3`, …:
   `audit/2026-08-11-2`.
 - Reuse the **exact same name** for the start and end tag of one audit (the
-  end tag just moves that name to the post-audit commit). One canonical name
+  end tag just moves that name to the post-fix commit). One canonical name
   per audit — never leave both a start and an end tag.
 - Use the date the audit **starts** on (or the date the user asks for), even
-  if the audit finishes the next day.
+  if the audit finishes the next day. Callers that create a delayed tagging
+  task **must** store the exact `$START_TAG` string in the task annotation —
+  never recompute `audit/$(date +%F)` when the end step runs later.
 
 ## Workflow: start tag (safety net) -> end tag (real marker)
 
-The whole point is: the next audit must measure churn from the **end** of this
-audit, not from before it. Otherwise the refactors/fixes this audit just
-produced get re-counted as new debt on the next run.
+The whole point is: the next audit must measure churn from the **end of the
+fix cycle**, not from before the audit. Otherwise the refactors/fixes this
+audit just produced get re-counted as new debt on the next run.
+
+Canonical timing:
+
+1. **Start tag** — before audit work (local safety net only). Stamped by
+   **audit-next-repo**, by **auditing-code-quality** when no `$START_TAG` was
+   passed in, or by an ATM-only tagging-task create path.
+2. **End tag + push** — after finding tasks are done **and** the audit
+   closure gate has re-verified (post-fix `HEAD`), via **auditing-code-quality**
+   workflow §6 (or the ATM-only tagging task). Exceptions: **zero findings**
+   → ACQ End+push immediately on `$START_TAG` (no gate); defer mode → single
+   stamp, no start/end pair. Do not push an earlier "post-audit" end marker
+   that would race the delayed tagging task.
 
 ### 1. Start tag — BEFORE any audit work
 
@@ -51,25 +76,27 @@ git tag "$START_TAG"
 ```
 
 - Do **not** push the start tag. It is local only — it will be moved to the
-  post-audit `HEAD` in step 2 and the **end** tag is the one to push.
-- This start tag is **not** the final audit marker. It only survives if the
-  run loses context before step 2.
+  post-fix `HEAD` in step 2 and the **end** tag is the one to push.
+- This start tag is **not** the final audit marker. It only survives as the
+  baseline if the run loses context before step 2.
 
-### 2. End tag — AFTER the audit + finding-recording are done
+### 2. End tag — AFTER fixes + gate verification
 
-Replace the start marker with an end marker on the post-audit `HEAD`:
-delete the start tag and recreate the same name at the current `HEAD`. Now
-exactly one `audit/<date>` marker survives, and it marks the **end** of the
-audit, so the next `audit-due` measures churn from here.
+Replace the start marker with an end marker on the **post-fix** `HEAD`
+(after audit finding tasks and the `+audit` closure gate are done): delete
+the start tag and recreate the same name at the current `HEAD`. Now exactly
+one `audit/<date>` marker survives, and it marks the **end of the fix
+cycle**, so the next `audit-due` measures churn from here.
 
-**Remind yourself to do this step.** It is easy to forget because the audit
-already feels finished once findings are filed, but skipping it leaves the
-start tag in place — which is only the loss-of-context safety net — and the
-next audit re-counts the very LOC this audit changed. Always: end marker on,
-start marker off.
+**Remind yourself to do this step.** It is easy to forget because filing
+findings already feels finished, but skipping it leaves the start tag in
+place — which is only the loss-of-context safety net — and the next audit
+re-counts the very LOC this audit changed. Always: end marker on, start
+marker off.
 
 ```sh
-# Move the tag from the pre-audit commit to the post-audit HEAD.
+# Move the tag from the pre-audit commit to the post-fix HEAD.
+# Use the exact $START_TAG from the start of this audit (annotation), not a new date.
 git tag -d "$START_TAG"
 git tag "$START_TAG"          # same name, now points at the current HEAD
 ```
@@ -134,9 +161,10 @@ repos the user hasn't asked about.
 ## Rules
 
 - **Start tag = local safety net; end tag = the real marker.** Never leave
-  both; never leave only the start tag if the audit actually finished.
+  both; never leave only the start tag if the audit fix cycle actually
+  finished (gate + tagging task done).
 - **Move, don't add.** The end step deletes the start tag and recreates the
-  same name at the post-audit `HEAD` — one canonical name per audit.
+  same name at the post-fix `HEAD` — one canonical name per audit.
 - **Push the end marker, not the start.** `git push origin --force
   "$START_TAG"`; start tag stays local.
 - **Defer mode tags once, at decision time** — no start/end pair.

@@ -1,6 +1,6 @@
 ---
 name: audit-next-repo
-description: "Show the top 5 git repos due for a code audit (ranked by LOC churn since the last audit/<date> marker, with stats explaining why each is due) and let the user pick one to audit. On selection, stamp the start audit/<date> tag (audit-tagging skill, local safety net), run a full code-quality audit (auditing-code-quality skill), record findings as tasks via agent-task-management within the audited repo, then move the tag to the post-audit HEAD and push it (audit-tagging skill) — so the next audit-due run measures churn from the end of this audit, not from before it (otherwise the refactors/fixes the audit just produced would be re-counted as new debt). The user can also defer a repo (tag it to skip this cycle) or stop. Uses ~/scripts/audit-due. Triggers on: audit next repo, next code audit, which repo to audit, code audit due, run audit-due."
+description: "Show the top 5 git repos due for a code audit (ranked by LOC churn since the last audit/<date> marker, with stats explaining why each is due) and let the user pick one to audit. On selection, stamp the start audit/<date> tag (audit-tagging skill, local safety net), run a full code-quality audit (auditing-code-quality skill — which creates finding tasks, a +audit closure gate, and a final +audit tagging task that moves/pushes the end marker after fixes), record findings as tasks via agent-task-management within the audited repo. Do not stamp or push an immediate post-audit end marker here — auditing-code-quality owns that delayed end tag so the next audit-due run measures churn from the end of the fix cycle. The user can also defer a repo (tag it to skip this cycle) or stop. Uses ~/scripts/audit-due. Triggers on: audit next repo, next code audit, which repo to audit, code audit due, run audit-due."
 ---
 
 # Audit Next Repo
@@ -102,8 +102,9 @@ Ask the user which repo to audit, by number or name, e.g.:
 Wait for the user's answer. Branch:
 
 - **a number or name** (audit) → that repo goes to step 4 (switch in + **tag
-  at the START**), then step 5 (run the audit), step 6 (record findings),
-  step 7 (finalize the marker: end tag, drop the start tag), step 8 (report).
+  at the START**), then step 5 (run the audit end-to-end via
+  **auditing-code-quality**, including finding tasks, gate, and delayed
+  tagging task), step 6 (confirm tasks were recorded), step 7 (report).
   After reporting, you may loop back to step 1 to offer the next batch —
   but only if the user wants to continue.
 - **`defer <#>`** (skip one) → tag that repo's current HEAD with
@@ -128,14 +129,16 @@ absolute path as the `cwd` of subsequent tool calls (do not chain `cd` with
 **audit-tagging** skill and follow its "Start tag" step: stamp `audit/<date>`
 on the repo's current `HEAD` and keep the name in `$START_TAG`. The start
 tag is a **local-only safety net** — it survives a context loss so the next
-`audit-due` still sees a fresh baseline — and is **not** the final marker. It
-is moved to the post-audit `HEAD` in step 7. The audit-tagging skill owns the
-exact naming (incl. the `-N` collision suffix) and push rules; do not
-re-derive them here.
+`audit-due` still sees a fresh baseline — and is **not** the final marker.
+The **auditing-code-quality** workflow §6 tagging task (after the closure
+gate) moves and pushes that same name to the post-fix `HEAD`. Pass
+`$START_TAG` into that skill's run (annotate the tagging task with the exact
+string). The audit-tagging skill owns naming (incl. `-N` collision suffix)
+and push rules; do not re-derive them here.
 
 ```sh
 START_TAG="audit/$(date +%F)"   # audit-tagging skill: append -2,-3 on collision
-git tag "$START_TAG"              # local only — do not push (step 7 pushes the end tag)
+git tag "$START_TAG"              # local only — do not push (ACQ §6 pushes the end tag)
 ```
 
 **Defer mode** (user said `defer <#>`): per the audit-tagging skill's
@@ -145,103 +148,53 @@ audit work. Only defer a repo the user explicitly named; never bulk-defer.
 ### 5. Run the audit
 
 Load the **auditing-code-quality** skill and follow its workflow end-to-end on
-the repo. It orchestrates the specialized sub-skills; the `audit-due` output
-already tells you which language-specific skills apply (e.g. for Go:
-`100-go-mistakes` + `go-best-practices`; for C: `c-best-practices`; for Bash:
-`bash-best-practices`). Prefer sub-agents so each audit pass has a fresh
-context, as `auditing-code-quality` directs.
+the repo (including task creation, the `+audit` closure gate, and the final
+`+audit` tagging task that depends on the gate). It orchestrates the
+specialized sub-skills; the `audit-due` output already tells you which
+language-specific skills apply (e.g. for Go: `100-go-mistakes` +
+`go-best-practices`; for C: `c-best-practices`; for Bash: `bash-best-practices`).
+Prefer sub-agents so each audit pass has a fresh context, as
+`auditing-code-quality` directs.
+
+Because step 4 already stamped `$START_TAG`, **auditing-code-quality** must
+**not** stamp a second start tag — reuse the existing name and put the exact
+`$START_TAG` string in the tagging-task annotation.
 
 For a large repo, **scope the audit** rather than auditing the whole codebase
 in one pass: focus on the highest-churn files since the last audit marker
 (e.g. `git diff --name-only <marker> HEAD`, then the top files by net-new
 LOC). State the scope you chose.
 
-### 6. Record findings as tasks WITHIN the repo
+### 6. Confirm findings were recorded WITHIN the repo
 
-For every confirmed finding, use the **agent-task-management** skill to create
-an `ask` task **inside the audited repo** (not elsewhere), so findings live
-next to the code. Follow `auditing-code-quality`'s exact task format.
+**auditing-code-quality** already creates `ask` tasks inside the audited repo.
+Confirm they landed here (not elsewhere). Follow its exact task format.
 
 **Tag-name caveat:** the `ask` CLI rejects hyphens in tags — `+code-quality`
 silently lands in the description instead of as a tag. Use **`+codequality`**
 (no hyphen). `+bugfix` works as-is.
 
-```sh
-ask add +bugfix "Fix: <short title> — <one-line impact>"
-ask add priority:H +codequality "Refactor UserService to fix SRP violation"
-ask add priority:M +codequality "Fix high cognitive complexity in parser.go"
-```
+Do **not** create a separate re-tag task here — **auditing-code-quality**
+workflow §6 owns the single post-gate tagging task. Do **not** move or push
+the audit marker immediately after filing findings; leave the local start tag
+until that tagging task runs.
 
-- **Bugs/defects** from the `find-code-bugs` pass: one `ask` task per confirmed
-  bug, tagged `+bugfix`, then `ask annotate <id> "<file>:<line> — …"`.
-- **Design/convention findings** (SOLID, beyond-SOLID, language best
-  practices): one `ask` task per HIGH/MEDIUM finding, tagged `+codequality`
-  as a separate argument (never quoted into the description).
-- Keep each `ask` argument separate — see `agent-task-management` for the
-  exact invocation contract (`ask` is a fixed-subcommand CLI, not
-  natural-language).
-
-#### 6a. Create a final re-tag task that depends on every other task
-
-After all finding tasks (bugs + design) are created, add **one last** task
-that **depends on all of them** and whose only job is to move the audit
-marker to the post-fix `HEAD` once the fixes land. This makes the marker track
-the *end of the fix cycle*, not the end of the audit pass — so the next
-`audit-due` measures churn from after the fixes, and the agent working through
-`next task` re-tags the repo automatically as its final step. Use the
-`agent-task-management` `depends:<id>,<id>,...` modifier (inline at creation):
-
-```sh
-# Collect every task id created in step 6 (bugs + design), comma-separated.
-ALL_IDS="501,601,701,...,y01"   # all finding task alias ids
-FINAL=$(ask add +codequality depends:$ALL_IDS \
-  "After all audit fixes land, finalize the audit marker on the post-fix HEAD")
-ask annotate "$FINAL" \
-  "Once every audit task (<ids>) is done: move the audit/<date> marker from \
-the pre-/post-audit HEAD to the new post-fix HEAD and push it, so the next \
-audit-due measures churn from the END of this fix cycle. Commands: \
-git tag -d audit/<date>; git tag audit/<date>; git push origin --force \
-audit/<date>. See the audit-tagging skill for collision/protection fallbacks."
-```
-
-The annotation must name the exact `$START_TAG` (from step 4) and list the
-ids it depends on. The marker referenced is the **same** `audit/<date>` name
-stamped in step 4 and moved in step 7 — this final task simply moves it again
-(to the post-fix commit) once the fix work is complete.
-
-### 7. Finalize the audit marker (end) — audit mode only
-
-When the audit and the finding-recording (steps 5–6) are done, **finalize the
-marker**: replace the start tag with an end tag on the post-audit `HEAD`, then
-push the end marker remotely. Load the **audit-tagging** skill and follow its
-"End tag" and "Push the end marker remotely" steps — it owns the exact
-`git tag -d` / `git tag` (same `$START_TAG`) / `git push origin --force`
-incantations and the protected-tag fallback.
-
-**Remind yourself to do this step.** It is easy to forget because the audit
-already feels finished after step 6, but skipping it leaves the start marker
-in place — which is only the loss-of-context safety net — and the next audit
-will re-count the very LOC this audit changed. Always: end marker on, start
-marker off.
-
-```sh
-# audit-tagging skill: move the tag to the post-audit HEAD, then push.
-git tag -d "$START_TAG"
-git tag "$START_TAG"
-git push origin --force "$START_TAG"
-```
-
-### 8. Report (audit mode only)
+### 7. Report (audit mode only)
 
 Summarize for the user:
 - Which repo was audited (or deferred) and its pre-audit churn.
-- The final marker: name and the post-audit commit it now points at (e.g.
-  `audit/2026-08-10 -> <short sha>`). State that the start marker was
-  replaced by this end marker, so the next audit starts from here.
+- Marker status:
+  - If finding tasks were created: the local start marker name (`$START_TAG`)
+    and that the **end** marker will be moved/pushed by the final `+audit`
+    tagging task after the closure gate (post-fix `HEAD`).
+  - If **zero** finding tasks (gate/tagging skipped): that
+    **auditing-code-quality** already finalized `$START_TAG` as the end
+    marker (move + push) so the clean audit still has a shared baseline —
+    do not claim a tagging task exists.
 - Counts: bugs found, design findings, tasks created (by severity).
-- The **final re-tag task**: its id, the ids it depends on, and that the
-  agent working through `next task` will move the `audit/<date>` marker to
-  the post-fix `HEAD` and push it as the last step.
+- When they exist: the **gate** and **tagging** task ids from
+  **auditing-code-quality**, and that `next-auto-task` / `next task` will
+  re-verify then stamp the marker.
 - Then offer the next batch (loop to step 1) or stop per the user.
 
 ## Bootstrapping repos without tags
@@ -252,7 +205,8 @@ See the **audit-tagging** skill's "Bootstrapping a repo with no marker"
 section for the exact commands (`audit-due bootstrap` or manual
 `git tag audit/<date> <commit>`). Do not bootstrap repos the user hasn't asked
 about; for a repo with no meaningful audit history, tag the current HEAD
-after its first proper audit instead (step 4).
+after its first proper audit instead (step 4 start tag; end marker via
+**auditing-code-quality** workflow §6 after fixes).
 
 ## Rules
 
@@ -264,26 +218,25 @@ after its first proper audit instead (step 4).
 - **One repo per audit pass.** Don't audit multiple repos in one session.
 - **Findings stay in the repo.** Create `ask` tasks inside the audited repo's
   working directory, never in a shared/parent location.
-- **Always create the final re-tag task (step 6a).** After every finding
-  task exists, add one `+codequality` task that `depends:` on **all** of them
-  and re-moves the `audit/<date>` marker to the post-fix `HEAD` (and pushes
-  it) once the fixes land. This couples the marker to the end of the fix
-  cycle, not the end of the audit pass, and lets the `next task` agent
-  finalize the audit automatically. It is in addition to step 7 (which marks
-  the audit itself); step 7 still runs immediately.
+- **Do not create a parallel re-tag task or immediate end tag.** Step 4
+  stamps a local start tag only. **auditing-code-quality** owns the gate and
+  the single post-gate `+audit` tagging task that moves/pushes
+  `audit/<date>` to the post-fix `HEAD`. Never race that with a step-6a-style
+  task or an immediate post-audit `git tag`/`git push`.
 - **Tagging lives in the audit-tagging skill.** Step 4 stamps a local-only
-  start tag (safety net); step 7 moves it to the post-audit `HEAD` and pushes
+  start tag (safety net); ACQ §6 moves it to the post-fix `HEAD` and pushes
   it remotely. Naming (`audit/<date>` + `-N` collision suffix), the exact
   `git tag -d` / `git tag` / `git push origin --force` incantations, the
   protected-tag fallback, defer-mode tagging, and bootstrapping a repo with
   no marker are all defined there — load **audit-tagging** rather than
   re-deriving them. Never leave both start and end tags; never leave only
-  the start tag if the audit finished.
+  the start tag if the fix cycle finished.
 - **Use `+codequality`, not `+code-quality`.** `ask` rejects hyphenated tags.
 - **Use the script, don't reimplement it.** LOC math and marker detection
   live in `~/scripts/audit-due`; this skill only orchestrates around it.
   Tagging mechanics live in the **audit-tagging** skill.
-- **Push the end marker remotely; the start tag stays local.** See the
-  audit-tagging skill for the push command and the protected-tag fallback.
-  The user can opt out of pushing; defer-mode tags may be pushed too if the
-  user wants the skip recorded remotely.
+- **End-marker push is not this skill's job.** ACQ workflow §6 (or ACQ's
+  zero-findings finalize path) follows **audit-tagging** to push the end
+  marker; this skill never pushes except optional defer-mode tags when the
+  user wants the skip recorded remotely. The start tag stays local until
+  that end step.
