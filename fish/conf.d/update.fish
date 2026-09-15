@@ -18,12 +18,20 @@ function update::tools
     set -a pids $last_pid
 
     for prog in hexai hexai-lsp-server hexai-tmux-action hexai-mcp-server ask
+        if not test -x /home/paul/go/bin/$prog
+            echo "Skipping $prog (no binary in /home/paul/go/bin)"
+            continue
+        end
         echo "Installing/updating $prog from github.com/snonux/hexai/cmd/$prog@latest"
         go install github.com/snonux/hexai/cmd/$prog@latest &
         set -a pids $last_pid
     end
 
     for prog in tasksamurai timesamurai gt loadbars foostore gonf
+        if not test -x /home/paul/go/bin/$prog
+            echo "Skipping $prog (no binary in /home/paul/go/bin)"
+            continue
+        end
         echo "Installing/updating $prog from github.com/snonux/$prog/cmd/$prog@latest"
         go install github.com/snonux/$prog/cmd/$prog@latest &
         set -a pids $last_pid
@@ -42,12 +50,20 @@ function update::tools
         # set -a pids $last_pid
 
         for prog in gitsyncer totalrecall goprecords gos snonux comicforge syncmaster
+            if not test -x /home/paul/go/bin/$prog
+                echo "Skipping $prog (no binary in /home/paul/go/bin)"
+                continue
+            end
             echo "Installing/updating $prog from github.com/snonux/$prog/cmd/$prog@latest"
             go install github.com/snonux/$prog/cmd/$prog@latest
         end
 
-        echo "Installing/updating restforge from github.com/snonux/restforge/cli/cmd/restforge@latest"
-        go install github.com/snonux/restforge/cli/cmd/restforge@latest
+        if test -x /home/paul/go/bin/restforge
+            echo "Installing/updating restforge from github.com/snonux/restforge/cli/cmd/restforge@latest"
+            go install github.com/snonux/restforge/cli/cmd/restforge@latest
+        else
+            echo "Skipping restforge (no binary in /home/paul/go/bin)"
+        end
 
         # doas npm uninstall -g @qwen-code/qwen-code@latest
         # doas npm install -g @qwen-code/qwen-code@latest
