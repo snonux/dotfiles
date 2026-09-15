@@ -26,6 +26,20 @@ for these commands only:
 uses the same policy. The `wheel-nopasswd` file was removed and paul was removed
 from the `wheel` group.
 
+`/etc/sudoers.d/drop-caches` allows paul to run the dtail benchmark cache-drop
+helper without a password:
+
+```
+paul ALL=(root) NOPASSWD: /usr/local/sbin/drop-caches
+```
+
+The script is installed root-owned at `/usr/local/sbin/drop-caches` (copy of
+`~/git/dtail/benchmarks/drop_caches.sh`: `sync; echo 3 > /proc/sys/vm/drop_caches`).
+The sudoers rule deliberately does not point at the paul-writable repo copy —
+that would allow arbitrary root execution via script edits. The dtail Makefile
+`drop-caches` target prefers the installed path and falls back to
+`sudo ./benchmarks/drop_caches.sh` on hosts without it.
+
 `/etc/sudoers.d/ior` separately allows selected IOR build and integration-test
 commands. Its entries are not part of the updater policy. They need remediation:
 the IOR executables are below Paul's writable home directory, so the current
