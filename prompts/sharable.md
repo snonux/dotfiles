@@ -26,7 +26,6 @@
 ./skills/c-best-practices
 ./skills/commit-skills
 ./skills/find-code-bugs
-./skills/gemtexter
 ./skills/go-best-practices
 ./skills/increment-version-and-push
 ./skills/next-auto-task
