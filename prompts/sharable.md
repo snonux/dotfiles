@@ -30,7 +30,6 @@
 ./skills/go-best-practices
 ./skills/increment-version-and-push
 ./skills/next-auto-task
-./skills/persona
 ./skills/purge-file-from-git
 ./skills/run-command
 ./skills/skill-maintenance
