@@ -4,7 +4,7 @@ import (
 	"os"
 	"strings"
 
-	"codeberg.org/snonux/dotfiles/gonf/internal/paths"
+	"codeberg.org/snonux/dotfiles/gonf/paths"
 	. "github.com/snonux/gonf/api"
 	. "github.com/snonux/gonf/api/options"
 )

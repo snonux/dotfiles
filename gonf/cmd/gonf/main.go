@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"codeberg.org/snonux/dotfiles/gonf/internal/tasks"
+	"codeberg.org/snonux/dotfiles/gonf/tasks"
 	. "github.com/snonux/gonf/api"
 	"github.com/snonux/gonf/cli"
 )
