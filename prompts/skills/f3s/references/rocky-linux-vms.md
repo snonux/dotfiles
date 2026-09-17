@@ -194,6 +194,7 @@ network0_mac="<unique>"
 - Does not auto-start on f3 by default anymore. f3's current default autostart VM is the plain Rocky VM `rocky`; see [f3-rocky-vm.md](f3-rocky-vm.md).
 - `zroot/bhyve/freebsd` encrypted with `f3.lan.buetow.org:bhyve.key`
 - Replicated to f2 via zrepl (`f3_to_f2_freebsd` job, every 10 min → `zroot/sink/f3/zroot/bhyve/freebsd`)
+- For backup restore drills, clone to `backuprestoretest` on f3 (same guest IP — keep source stopped): see [backup-restore-test.md](backup-restore-test.md)
 
 ### Migration procedure (zfs send)
 

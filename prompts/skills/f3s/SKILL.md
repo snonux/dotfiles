@@ -27,6 +27,7 @@ subfolder:
 - [Rocky Linux VMs](references/rocky-linux-vms.md) — Bhyve, vm-bhyve, VM config, NVMe disk fix; FreeBSD VM on f3 (migrated from f0)
 - [f3 Rocky VM](references/f3-rocky-vm.md) — Plain Rocky Linux 9 VM on f3 (`rocky`, `192.168.1.123`), autostart policy, root SSH
 - [Bootstrap Rocky bhyve VM](references/bootstrap-rocky-bhyve.md) — Runbook for creating a new plain Rocky Linux bhyve guest with unattended kickstart
+- [Backup Restore Test](references/backup-restore-test.md) — f3 clone of `freebsd` → `backuprestoretest` (same IP; `backup` pool on `nda1`+`nda2` → `/backup`)
 - [WireGuard Mesh](references/wireguard.md) — Mesh topology, IP assignments, peer configs (the canonical WireGuard reference for the whole homelab)
 - [Remote Access](references/remote-access.md) — reaching f-hosts, r-VMs, rocky, and Pis from outside the LAN via fishfinger/blowfish ProxyJump; user/key requirements per host type; f3 WireGuard caveat
 - [Shelly Plugs](references/shelly-plug.md) — two **Plug M Gen 3**: **shelly1** (`192.168.1.28`) rack fans (boot rc.d + `f3sctl fans` / power-sequence thermal guard); **shelly2** (`192.168.1.29`) f-host AC (`f3sctl ac` / `/ac` API, independent of power on/off); shared digest auth (`admin`) and secret **`/keys/shelly_plug.secret`** / **`~/.shelly_plug`**
