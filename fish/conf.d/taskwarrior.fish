@@ -237,13 +237,15 @@ function taskwarrior::import
 end
 
 # Fast UUID batch from taskchampion.sqlite3 (avoids TW3 loading the whole set).
-# Usage: _taskwarrior::old_uuids STATUS DATE_FIELD LIMIT [TAG]
-# STATUS: completed|deleted  DATE_FIELD: end|modified  TAG: optional exact tag name
+# Usage: _taskwarrior::old_uuids STATUS DATE_FIELD LIMIT DAYS [TAG]
+# STATUS: completed|deleted  DATE_FIELD: end|modified
 function _taskwarrior::old_uuids
     set -l tw_status $argv[1]
     set -l field $argv[2]
     set -l batch $argv[3]
-    set -l tag $argv[4]
+    set -l days $argv[4]
+    set -l tag $argv[5]
+    test -n "$days"; or set days 180
 
     set -l data_dir $HOME/.task
     test -n "$TASKDATA"; and set data_dir $TASKDATA
@@ -259,9 +261,36 @@ function _taskwarrior::old_uuids
         SELECT uuid FROM tasks
         WHERE json_extract(data, '\$.status') = '$tw_status'
           AND CAST(json_extract(data, '\$.$field') AS INTEGER)
-              < CAST(strftime('%s', 'now', '-30 days') AS INTEGER)
+              < CAST(strftime('%s', 'now', '-$days days') AS INTEGER)
           $tag_sql
         LIMIT $batch;
+    "
+end
+
+# Count matching old tasks. Usage: _taskwarrior::old_count STATUS DATE_FIELD DAYS [TAG]
+function _taskwarrior::old_count
+    set -l tw_status $argv[1]
+    set -l field $argv[2]
+    set -l days $argv[3]
+    set -l tag $argv[4]
+    test -n "$days"; or set days 180
+
+    set -l data_dir $HOME/.task
+    test -n "$TASKDATA"; and set data_dir $TASKDATA
+    set -l db $data_dir/taskchampion.sqlite3
+    test -f $db; or return 1
+
+    set -l tag_sql ''
+    if test -n "$tag"
+        set tag_sql "AND (',' || COALESCE(json_extract(data, '\$.tags'), '') || ',' LIKE '%,$tag,%')"
+    end
+
+    sqlite3 $db "
+        SELECT COUNT(*) FROM tasks
+        WHERE json_extract(data, '\$.status') = '$tw_status'
+          AND CAST(json_extract(data, '\$.$field') AS INTEGER)
+              < CAST(strftime('%s', 'now', '-$days days') AS INTEGER)
+          $tag_sql;
     "
 end
 
@@ -280,95 +309,38 @@ function _taskwarrior::archive_uuids
     sqlite3 $db "SELECT json_group_array(json(data)) FROM tasks WHERE uuid IN ('$in_list');" >$outfile
 end
 
-# Run delete/purge in small chunks and print N/total progress.
-# Usage: _taskwarrior::mutate_progress ACTION LABEL UUID…
-function _taskwarrior::mutate_progress
-    set -l action $argv[1]
-    set -l label $argv[2]
-    set -l uuids $argv[3..-1]
-    set -l total (count $uuids)
-    set -l chunk_size 25
-    set -l done 0
-
-    while test $done -lt $total
-        set -l start (math $done + 1)
-        set -l stop (math "min($done + $chunk_size, $total)")
-        set -l chunk $uuids[$start..$stop]
-        # gc=0 avoids TW3 rewriting the working set on every chunk
-        yes | task rc.gc=0 rc.verbose:nothing $chunk $action &>/dev/null
-        set done $stop
-        printf 'taskwarrior::cleanup: %s %s %d/%d\r' $action $label $done $total
-    end
-    echo
-end
-
+# Called from taskwarrior::invoke (hence supersync): delete completed and purge
+# deleted older than 180 days in one shot. Agent completed are archived first.
 function taskwarrior::cleanup
-    set -l cutoff today-30days
-    # TW3 loads the whole matched set into RAM on delete/purge; cap each
-    # invocation so repeated cleanups drain the backlog without OOMing.
-    # UUID selection + agent archive go through sqlite; only mutates hit TW.
-    set -l batch 1000
+    set -l days 180
     set -l data_dir $HOME/.task
     test -n "$TASKDATA"; and set data_dir $TASKDATA
     set -l agent_history_dir $data_dir/AgentsHistory
 
-    echo "taskwarrior::cleanup: batch size $batch (completed end.before:$cutoff / deleted modified.before:$cutoff)"
-
-    # Drain +agent completed first (archive, then delete), else other completed.
-    # One delete batch per invocation.
-    echo "taskwarrior::cleanup: looking for old +agent completed…"
-    set -l to_delete (_taskwarrior::old_uuids completed end $batch agent)
-    set -l delete_kind agent
-    if test (count $to_delete) -gt 0
+    set -l agent (_taskwarrior::old_uuids completed end 100000 $days agent)
+    if test (count $agent) -gt 0
         test -d $agent_history_dir; or mkdir -p $agent_history_dir
         set -l agent_export "$agent_history_dir/tw-agent-export-"(date +%Y%m%d-%H%M%S)".json"
-        echo "taskwarrior::cleanup: archiving "(count $to_delete)" +agent tasks → $agent_export"
-        _taskwarrior::archive_uuids $agent_export $to_delete
-        echo "taskwarrior::cleanup: archive done"
-    else
-        echo "taskwarrior::cleanup: no old +agent completed; looking for other old completed…"
-        set to_delete (_taskwarrior::old_uuids completed end $batch)
-        set delete_kind completed
-    end
-    if test (count $to_delete) -gt 0
-        _taskwarrior::mutate_progress delete $delete_kind $to_delete
-        echo "taskwarrior::cleanup: delete done"
-    else
-        echo "taskwarrior::cleanup: nothing to delete"
+        echo "taskwarrior::cleanup: archiving "(count $agent)" +agent → $agent_export"
+        _taskwarrior::archive_uuids $agent_export $agent
     end
 
-    echo "taskwarrior::cleanup: looking for old deleted to purge…"
-    set -l to_purge (_taskwarrior::old_uuids deleted modified $batch)
-    if test (count $to_purge) -gt 0
-        _taskwarrior::mutate_progress purge deleted $to_purge
-        echo "taskwarrior::cleanup: purge done"
+    set -l n (_taskwarrior::old_count completed end $days)
+    if test $n -gt 0
+        echo "taskwarrior::cleanup: deleting $n completed ≥{$days}d"
+        yes | task rc.gc=0 rc.verbose:nothing status:completed end.before:today-"$days"days delete
     else
-        echo "taskwarrior::cleanup: nothing to purge"
+        echo "taskwarrior::cleanup: no completed ≥{$days}d"
+    end
+
+    set -l n (_taskwarrior::old_count deleted modified $days)
+    if test $n -gt 0
+        echo "taskwarrior::cleanup: purging $n deleted ≥{$days}d"
+        yes | task rc.gc=0 rc.verbose:nothing status:deleted modified.before:today-"$days"days purge
+    else
+        echo "taskwarrior::cleanup: no deleted ≥{$days}d"
     end
 end
-
-# One-shot cleanup: delete/purge *all* completed/deleted older than 30 days in a
-# single TW invocation. Kept for reference only — on a large TW3 DB this can
-# allocate tens of GB and OOM. Prefer taskwarrior::cleanup (batched) above.
-#
-# function taskwarrior::cleanup_all
-#     set -l cutoff today-30days
-#     set -l data_dir $HOME/.task
-#     test -n "$TASKDATA"; and set data_dir $TASKDATA
-#     set -l agent_history_dir $data_dir/AgentsHistory
-#
-#     if test (task +agent status:completed end.before:$cutoff count) -gt 0
-#         test -d $agent_history_dir; or mkdir -p $agent_history_dir
-#         task +agent status:completed end.before:$cutoff export >"$agent_history_dir/tw-agent-export-"(date +%Y%m%d-%H%M%S)".json"
-#     end
-#
-#     if test (task status:completed end.before:$cutoff count) -gt 0
-#         yes | task status:completed end.before:$cutoff delete
-#     end
-#     if test (task status:deleted modified.before:$cutoff count) -gt 0
-#         yes | task status:deleted modified.before:$cutoff purge
-#     end
-# end
 
 function taskwarrior::unscheduled
     # _ids can emit a trailing empty line; skip empty values to avoid a no-filter modify
