@@ -671,7 +671,7 @@ abbr -a log 'task add +log'
 abbr -a tdue 'tasksamurai status:pending due.before:now'
 abbr -a track 'taskwarrior::add::track'
 abbr -a ti 'taskwarrior::invoke; tasksamurai due.before:today+7d'
-abbr -a ts tasksamurai due.before:today+7d
+abbr -a ts tasksamurai
 abbr tpt taskwarrior::project_tasks
 abbr tsp taskwarrior::project_tasks::tasksamurai
 abbr st 'supersync; tasksamurai due.before:today+7d'
