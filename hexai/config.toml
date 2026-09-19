@@ -15,6 +15,14 @@ slashcommand_dir = "~/.cursor/commands"
 [provider]
 name = "ollama"
 
+# OpenRouter fallback used when Ollama Cloud is unavailable or out of quota.
+# The API key is read from HEXAI_OPENROUTER_API_KEY (falling back to
+# OPENROUTER_API_KEY).
+[providers.openrouter-qwen38-27b]
+type     = "openrouter"
+base_url = "https://openrouter.ai/api/v1"
+model    = "qwen/qwen3.8-27b"
+
 [ollama]
 model       = "minimax-m3:cloud"
 base_url    = "https://ollama.com"
@@ -25,3 +33,24 @@ temperature = 0.2
 provider    = "ollama"
 model       = "qwen3-coder:480b-cloud"
 temperature = 0.0
+fallback_provider = "openrouter-qwen38-27b"
+fallback_model    = "qwen/qwen3.8-27b"
+
+# Use the same fallback for CLI asks, in-editor chat, and code actions.
+[[models.cli]]
+provider         = "ollama"
+model            = "minimax-m3:cloud"
+fallback_provider = "openrouter-qwen38-27b"
+fallback_model    = "qwen/qwen3.8-27b"
+
+[[models.chat]]
+provider         = "ollama"
+model            = "minimax-m3:cloud"
+fallback_provider = "openrouter-qwen38-27b"
+fallback_model    = "qwen/qwen3.8-27b"
+
+[[models.code_action]]
+provider         = "ollama"
+model            = "minimax-m3:cloud"
+fallback_provider = "openrouter-qwen38-27b"
+fallback_model    = "qwen/qwen3.8-27b"
