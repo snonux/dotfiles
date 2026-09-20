@@ -4,7 +4,13 @@ Ephemeral FreeBSD bhyve guest on **f3** used to practice backup restore. It is a
 clone of the existing `freebsd` development VM, kept on the same LAN IP while
 the source stays stopped.
 
-## Current State (prepared 2026-09-17)
+## Current State (torn down 2026-09-20)
+
+The `backuprestoretest` clone is **gone**. On f3, `vm list` should show only
+`freebsd` (Stopped, `AUTO No`) and `rocky` (Stopped, `AUTO Yes`). Recreate with
+the steps below when needed.
+
+When the guest exists, it looks like this:
 
 | Field | Value |
 |-------|-------|
@@ -16,7 +22,7 @@ the source stays stopped.
 | Autostart | `No` (not in `vm_list`; `rocky` remains f3's default autostart) |
 | Restore pool | `backup` — stripe of `nda1`+`nda2` (~398G), mountpoint **`/backup`** |
 
-### Disks / pools
+### Disks / pools (while the clone exists)
 
 | Host file | Guest | Size | Role |
 |-----------|-------|------|------|
@@ -115,14 +121,28 @@ df -h /backup
 
 ## Teardown (when the test is done)
 
+On f3 (`ssh -p 22 paul@f3.lan.buetow.org`), login shell is tcsh — wrap pipelines
+in `sh -c '…'` if needed:
+
 ```sh
 doas vm stop backuprestoretest
+# if still Running after a few seconds (ACPI can hang while locked):
+doas vm poweroff -f backuprestoretest
+
 doas vm destroy -f backuprestoretest
-# optional: start the original again
-# doas vm start freebsd
+doas vm list   # backuprestoretest gone; leave freebsd Stopped
 ```
 
-Do not destroy `freebsd` itself; only the clone.
+Notes:
+
+- `vm stop` sends ACPI; wait until STATE is Stopped before `destroy`. If the
+  guest stays Running / locked, use `vm poweroff -f` (not `vm stop -f` — that
+  flag is not for `stop`).
+- `vm destroy -f` removes the guest dataset under `zroot/bhyve/backuprestoretest`
+  (conf + `disk0.img` / `disk1.img` / `disk2.img`). No guest-side
+  `zpool destroy backup` is needed.
+- Do **not** destroy `freebsd` itself; only the clone.
+- Do **not** start `freebsd` after teardown unless you explicitly want it.
 
 ## Related
 
