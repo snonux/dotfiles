@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# Drain Quicklog notes from Garage into ~/Notes/Quicklog.
+#
+# The Garage credentials remain in ~/.config/garage/quicklog.env. They are
+# loaded only for the Dart drain process and are never printed or exported to
+# the surrounding login environment.
+
+set -euo pipefail
+
+declare -r PROGRAM=${0##*/}
+declare -r CREDS="$HOME/.config/garage/quicklog.env"
+declare -r DEST="$HOME/Notes/Quicklog"
+declare -r REPO="$HOME/git/quicklog"
+declare -r DART="$HOME/flutter/bin/dart"
+declare -ra REQUIRED_VARS=(
+  GARAGE_ENDPOINT
+  GARAGE_REGION
+  GARAGE_BUCKET
+  GARAGE_ACCESS_KEY_ID
+  GARAGE_SECRET_ACCESS_KEY
+)
+
+error() {
+  printf '%s: %s\n' "$PROGRAM" "$*" >&2
+}
+
+load_credentials() {
+  if [[ ! -r "$CREDS" ]]; then
+    error "missing $CREDS"
+    return 1
+  fi
+
+  # The private file is POSIX-shell syntax, including defaults and exports.
+  # shellcheck disable=SC1090
+  source "$CREDS"
+}
+
+check_prerequisites() {
+  if [[ ! -d "$REPO" ]]; then
+    error "missing Quicklog repo $REPO"
+    return 1
+  fi
+  if [[ ! -x "$DART" ]]; then
+    error "missing Dart SDK executable $DART"
+    return 1
+  fi
+
+  local name
+  for name in "${REQUIRED_VARS[@]}"; do
+    if [[ -z "${!name:-}" ]]; then
+      error "could not read all values from $CREDS"
+      return 1
+    fi
+  done
+}
+
+main() {
+  load_credentials
+  check_prerequisites
+
+  # Clear the inherited environment before starting Dart. This confines the
+  # Garage credentials to the one process which needs them, and avoids
+  # accidentally applying ambient AWS settings to the Garage request.
+  cd "$REPO"
+  exec env -i \
+    HOME="$HOME" \
+    PATH="/usr/local/bin:/usr/bin:/bin" \
+    GARAGE_ENDPOINT="$GARAGE_ENDPOINT" \
+    GARAGE_REGION="$GARAGE_REGION" \
+    GARAGE_BUCKET="$GARAGE_BUCKET" \
+    GARAGE_ACCESS_KEY_ID="$GARAGE_ACCESS_KEY_ID" \
+    GARAGE_SECRET_ACCESS_KEY="$GARAGE_SECRET_ACCESS_KEY" \
+    "$DART" run bin/quicklog_drain.dart --dest "$DEST" "$@"
+}
+
+main "$@"

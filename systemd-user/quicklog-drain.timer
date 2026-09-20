@@ -1,0 +1,10 @@
+[Unit]
+Description=Drain Quicklog notes from Garage S3 once per hour
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=5m
+
+[Install]
+WantedBy=timers.target

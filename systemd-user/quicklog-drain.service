@@ -1,0 +1,8 @@
+[Unit]
+Description=Drain Quicklog notes from Garage S3
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/scripts/quicklog-drain

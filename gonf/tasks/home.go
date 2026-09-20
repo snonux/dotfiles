@@ -21,7 +21,7 @@ func (HomeTasks) Ghostty() {
 	SyncDir(Home(".config/ghostty"), paths.Dot+"/ghostty/*")
 }
 
-func (HomeTasks) DescHexai() string { return "Install ~/.config/hexai (Linux)" }
+func (HomeTasks) DescHexai() string      { return "Install ~/.config/hexai (Linux)" }
 func (HomeTasks) WhenHexai(f Facts) bool { return f.GOOS == "linux" }
 func (HomeTasks) Hexai() {
 	SyncDir(Home(".config/hexai"), paths.Dot+"/hexai/*")
@@ -135,7 +135,7 @@ func (HomeTasks) Sway() {
 	SyncDir(Home(".config/waybar"), paths.Dot+"/waybar/*")
 }
 
-func (HomeTasks) DescGitconfig() string { return "Set global git config (Linux)" }
+func (HomeTasks) DescGitconfig() string      { return "Set global git config (Linux)" }
 func (HomeTasks) WhenGitconfig(f Facts) bool { return f.GOOS == "linux" }
 func (HomeTasks) Gitconfig() {
 	GitGlobal(
@@ -194,12 +194,14 @@ func (HomeTasks) Quickedit() {
 func (HomeTasks) DescSystemdUser() string { return "Install and enable systemd user units" }
 func (HomeTasks) SystemdUser() {
 	units := SyncDir(Home(".config/systemd/user"), paths.Dot+"/systemd-user/*")
+	quicklogDrain := InstallFile(Home("scripts/quicklog-drain"), paths.Dot+"/scripts/quicklog-drain", WithMode(0o750))
 	reload := DaemonReload(WithUser, DependsOn(units), IfChanged)
 	Timer("random-wallpaper", WithUser, DependsOn(reload))
 	Timer("home-backup", WithUser, DependsOn(reload))
+	Timer("quicklog-drain", WithUser, DependsOn(reload, quicklogDrain))
 }
 
-func (HomeTasks) DescTaskwarrior() string { return "Install ~/.taskrc (Taskwarrior 3.x)" }
+func (HomeTasks) DescTaskwarrior() string      { return "Install ~/.taskrc (Taskwarrior 3.x)" }
 func (HomeTasks) WhenTaskwarrior(f Facts) bool { return f.GOOS == "linux" }
 func (HomeTasks) Taskwarrior() {
 	InstallFile(Home(".taskrc"), paths.Dot+"/taskwarrior/taskrc")
