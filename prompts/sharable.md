@@ -16,6 +16,7 @@
 ./commands/create-tasks.md
 ./commands/create-skill.md
 ./commands/work-on-tasks.md
+./commands/tiny-work-on-tasks.md
 ./commands/load-skill.md
 ./skills/audit-tagging
 ./skills/audit-next-repo
@@ -35,5 +36,4 @@
 ./skills/run-command
 ./skills/skill-maintenance
 ./skills/solid-principles
-
 
