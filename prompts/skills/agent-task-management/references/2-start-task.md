@@ -1,6 +1,7 @@
 # Start task
 
-Use with `00-context.md`. Project name and global rules apply, including one task in progress per project.
+Use with `00-cli.md` and `00-project-scope.md`, including one task in progress
+per project.
 
 ## Start each new task with a fresh context
 

@@ -1,6 +1,6 @@
 # Recover a stalled or interrupted worker
 
-Use with `00-context.md`. Project name and global rules apply.
+Use with `00-cli.md`, `00-project-scope.md`, and `verification-honesty.md`.
 
 A prior worker (sub-agent or session) may have stalled or been interrupted
 **mid-edit**, leaving the worktree with broken, uncommitted, partial changes. A

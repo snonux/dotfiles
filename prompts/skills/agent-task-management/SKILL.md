@@ -1,82 +1,26 @@
 ---
 name: agent-task-management
-description: "Manage agent tasks scoped to the current git project using the `ask` CLI. Use when asked to list, add, start, complete, annotate, or organize tasks for the project. Prefer compaction over starting a new context when beginning a new task. May start work in parallel with up to 3 non-conflicting sub-agents. Triggers on: tasks, todo, task list, pick next task, what's next."
+description: "Manage agent tasks scoped to the current git project using the `ask` CLI. Use when asked to list, add, start, complete, annotate, or organize tasks for the project. Triggers on: tasks, todo, task list, pick next task, what's next."
 ---
 
 # Agent Task Management
 
-> **STOP — `ask` is a CLI with FIXED subcommands, NOT a natural-language interface.**
-> It does not understand free text, sentences, or skill names. `agent-task-management`
-> is the name of *this Claude skill* — it is **never** an `ask` subcommand. Do **not** run
-> `ask agent-task-management …`, `ask <free text>`, or anything not in the invocation
-> contract below.
+Use `ask` only through its fixed subcommands. Before executing any task command,
+read [the CLI contract](references/00-cli.md). Then read the shared project
+scope reference and only the action reference needed for the request.
 
-## Invocation contract
+| Action | Read |
+|---|---|
+| Any project-scoped task action | [00-project-scope.md](references/00-project-scope.md) |
+| Create a task | [1-create-task.md](references/1-create-task.md) |
+| Create audit finding tasks as the top-level non-ACQ orchestrator | [1a-audit-task-batches.md](references/1a-audit-task-batches.md), after `1-create-task.md` |
+| Start a task | [2-start-task.md](references/2-start-task.md) |
+| Recover a stalled or interrupted task | [6-recover-stalled-task.md](references/6-recover-stalled-task.md) and [verification-honesty.md](references/verification-honesty.md) |
+| Complete a task | [3-complete-task.md](references/3-complete-task.md) and [verification-honesty.md](references/verification-honesty.md) |
+| Annotate or update a task | [4-annotate-update-task.md](references/4-annotate-update-task.md) |
+| Review or overview tasks | [5-review-overview-tasks.md](references/5-review-overview-tasks.md) |
+| Orchestrate several tasks or `/work-on-tasks` | [7-orchestrating-task-batches.md](references/7-orchestrating-task-batches.md) plus the selected action references |
 
-The only valid form is `ask <subcommand> [args]`. The subcommands are:
-
-`list`, `all`, `ready`, `completed`, `add`, `info`, `start`, `stop`, `done`, `annotate`, `denotate`, `modify`, `edit`, `tag`, `priority`, `dep`, `delete`, `urgency`, `projects`, `watch`, `fish`, `help`.
-
-Anything not expressible as one of these subcommands is unsupported — do not improvise.
-
-Valid examples:
-
-- `ask list`
-- `ask ready`
-- `ask completed since:7.days`   # completed over the last 7 days
-- `ask all +agent sort:priority-`
-- `ask add +cli "Add feature X"`  # prints `created task <alias-id>`
-- `ask add +cli depends:0,1 "Add feature X"`
-- `ask info <id>`
-- `ask start <id>`
-- `ask annotate <id> "progress note"`
-- `ask done <id>`
-
-List filters (for list/all/ready/completed): `limit:<n>`, `sort:<key>` (e.g. `sort:priority-`), `+<tag>`, `started`, `since:<value>` (values: `today`, `this.week`, `this.month`, `N.hours`, `N.days`, `N.weeks`, `N.months`), and raw taskwarrior date-attribute filters (`end:today`, `end.after:2026-08-22`, …). `since:` is resolved to an absolute `end.after:` boundary by ask, because taskwarrior 2.x relative date values in filters are unreliable.
-
-Invalid (will not work):
-
-- `ask agent-task-management ...`  ← skill name, not a subcommand
-- `ask list tasks`                 ← `list` takes no natural-language object
-- `ask show task 298`              ← no `show` subcommand; use `ask info <id>`
-- any other natural-language phrasing passed to `ask`
-
-Tasks are scoped to the current git project via the `ask` CLI. The project name is the
-repo basename plus any subdirectory under the git root (`.`-separated; see
-`references/00-context.md`). **Load only the files you need** for the current action so the
-whole skill does not need to be in context.
-
-**Alias IDs are the selectors to use for task work.** `ask add` prints `created task <alias-id>`, and subsequent task commands in this workflow should keep using that alias ID throughout the workflow.
-
-## Context and compaction
-
-When beginning a new task, **use a fresh context** — spawn a sub-agent (if orchestrating via `/work-on-tasks`) or start a new session. Do not carry implementation context from one task to the next; accumulated context causes drift (e.g. hallucinated paths) in long-running models. Compaction is a fallback only when spawning a sub-agent or new session is not possible.
-
-**Exception — single or resumed task:** When orchestrating via `/work-on-tasks`, check for a started task before querying `ask ready`. Resume an existing started task directly in the orchestrator's context. When no task is started and `ask ready` contains **exactly 1** task, also implement it directly. Do **not** spawn a sub-agent in either case; the fresh-context overhead is not justified. See the `/work-on-tasks` command for the full threshold rule.
-
-## When to Use
-
-- User asks to **list**, **add**, **start**, **complete**, **annotate**, or **organize** tasks for the project.
-- Triggers: *tasks*, *todo*, *task list*, *pick next task*, *what's next*.
-- You may start work **in parallel** across different projects when tasks do not conflict. Keep only one task in progress per project.
-- **Never run more than 3 sub-agents at once.** The orchestrator owns all implementation and review slots, and must wait for a running sub-agent to finish before starting another when all 3 slots are occupied. Task sub-agents must not spawn other sub-agents; they return to the orchestrator when implementation or review is complete.
-- **Code-audit task batches:** when creating tasks that are the output of a code audit (`+bugfix` / `+codequality` from `find-code-bugs`, `solid-principles`, `beyond-solid-principles`, `go-best-practices`, or a non-ACQ design pass), also create one `+audit` **closure gate task** depending on all of them, then one last `+audit` **tagging task** depending on the gate — see `references/1-create-task.md` → “Audit task batches”. **Exception:** when **auditing-code-quality** is driving the run, do **not** create gate/tagging from this skill — ACQ workflow §5–6 are the sole owners.
-
-## When to load what
-
-| Action | Load |
-|--------|------|
-| **Create task** | `references/00-context.md` + `references/1-create-task.md` (include refs to all context required) |
-| **Start task** | `references/00-context.md` + `references/2-start-task.md` (start with fresh context; use task refs; **stay within task scope** — never patch vendored/upstream deps, flag as a blocker) |
-| **Recover a stalled/interrupted task** | `references/00-context.md` + `references/6-recover-stalled-task.md` (detect partial edits, revert cleanly, resume) + `references/verification-honesty.md` |
-| **Complete task** | `references/00-context.md` + `references/3-complete-task.md` + `references/verification-honesty.md` (preflight, smallest verifying subset, annotate blockers, never over-claim) |
-| **Annotate / update task** | `references/00-context.md` + `references/4-annotate-update-task.md` |
-| **Review / overview tasks** | `references/00-context.md` + `references/5-review-overview-tasks.md` |
-
-Always load `references/00-context.md` first (project name resolution and global rules); then load the one action file that matches what you are doing.
-
-## Task lifecycle (overview)
-
-1. Create task → 2. Start task → 3. Annotate as you go → 4. **Completion criteria** (best practices, compilable, all tests pass, negative tests where plausible) → 5. Orchestrator launches a sub-agent review (fresh context) → 6. Main agent addresses all review comments → 7. **Repeat orchestrator-owned sub-agent review + fixes until no issues are found** → 8. **Commit all changes to git** → 9. Complete task → 10. **Automatically progress to the next task in the list** (when all tests and required sub-agent review(s) pass).
-
-A task is not done until criteria are met, all review comments are addressed, **and the sub-agent review cycle has completed with no remaining issues**, and all changes are committed to git. After completing a task, start the next task in the list (if any). Details are in `references/3-complete-task.md`.
+Read only the references that the requested action requires. Task descriptions
+and annotations must contain the context a fresh worker needs; read them in full
+before implementing a task.

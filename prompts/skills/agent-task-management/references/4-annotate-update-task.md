@@ -1,6 +1,6 @@
 # Annotate / update task
 
-Use with `00-context.md`. Project name and global rules apply.
+Use with `00-cli.md` and `00-project-scope.md`.
 
 ## Reading task context
 

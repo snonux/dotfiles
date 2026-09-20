@@ -26,7 +26,8 @@ Find the highest-priority agent task tagged `+auto` to work on next, switch to t
 
      This lists projects with at least one pending, not-yet-started agent task tagged `+auto`.
    - Read each project name from the output (one per line). Names may be hierarchical
-     (`repo` or `repo.subdir…`) — see `agent-task-management` / `references/00-context.md`.
+     (`repo` or `repo.subdir…`) — see `agent-task-management` /
+     `references/00-project-scope.md`.
    - Prefer the first project whose mapped directory exists under `~/git/` (step 3); otherwise pick the first project listed.
 
 3. **Switch to the target project's directory.**
@@ -45,7 +46,9 @@ Find the highest-priority agent task tagged `+auto` to work on next, switch to t
    - Use the `cwd` parameter of subsequent tool calls to operate inside that directory (prefer the subdirectory when the project is hierarchical, so new tasks stay under the same project name). Do **not** chain `cd` with `&&` in tool calls — pass `cwd` instead.
 
 4. **Continue with `agent-task-management` from there.**
-   - Load `agent-task-management` (and its `references/00-context.md` + the appropriate action file) inside the new project directory.
+   - Load `agent-task-management`, its `references/00-cli.md`,
+     `references/00-project-scope.md`, and the appropriate action file inside
+     the new project directory.
    - Repeat `ask list start.any: +auto` in the target project. Resume it before considering a ready task when exactly one exists; report the IDs and stop when multiple `+auto` tasks are started.
    - Only when none is started, use `ask ready +auto`.
    - Use the alias ID of the chosen task with `ask info <id>`, `ask start <id>`, etc.

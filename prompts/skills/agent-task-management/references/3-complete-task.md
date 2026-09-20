@@ -1,6 +1,6 @@
 # Complete task
 
-Use with `00-context.md`. Project name and global rules apply.
+Use with `00-cli.md`, `00-project-scope.md`, and `verification-honesty.md`.
 
 ## Completion criteria (required before "done")
 
@@ -97,7 +97,7 @@ ask done <id>
 
 Use the alias ID from the selection step or current task details when marking the task complete.
 
-7. **Automatically progress to the next task in the list.** After marking the task done, load `00-context.md` and `2-start-task.md`, then run `ask list start.any:`. Resume a started task directly if present. Only when none is started, use `ask ready` to pick the next task (respecting dependencies and the "one task in progress" rule). Do not stop when another task is available.
+7. **Automatically progress to the next task in the list.** After marking the task done, load `00-cli.md`, `00-project-scope.md`, and `2-start-task.md`, then run `ask list start.any:`. Resume a started task directly if present. Only when none is started, use `ask ready` to pick the next task (respecting dependencies and the "one task in progress" rule). Do not stop when another task is available.
 
 ## Conventions
 

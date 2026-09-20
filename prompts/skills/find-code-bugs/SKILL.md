@@ -13,7 +13,7 @@ description: "Systematically hunts defects in code (logic, concurrency, errors, 
 ## Prerequisites
 
 - **Git project**: `ask` tasks are scoped to the current repository. If there is no git root, report that and skip task creation (still list findings in the reply).
-- **Task creation**: For each distinct bug, follow **agent-task-management** — load `~/Notes/Prompts/skills/agent-task-management/references/00-context.md` then `references/1-create-task.md` before running `ask`, or obey the condensed rules below.
+- **Task creation**: For each distinct bug, follow **agent-task-management** — load [the CLI contract](../agent-task-management/references/00-cli.md), [the project-scope rules](../agent-task-management/references/00-project-scope.md), then [the task-creation rules](../agent-task-management/references/1-create-task.md) before running `ask`, or obey the condensed rules below. For a standalone/top-level bug sweep that creates finding tasks, load [the audit-batch closure rules](../agent-task-management/references/1a-audit-task-batches.md) after all finding tasks have been created. Do not use those closure rules when `auditing-code-quality` is driving the run; that skill owns its closure gate and tagging task.
 
 ## Instructions
 
@@ -48,11 +48,20 @@ For **each** distinct confirmed bug:
 
 2. **Capture the printed alias ID** from `created task <id>`.
 
-3. **Annotate** with everything needed for a **fresh-context** fixer: file paths, line/symbol references, repro steps or failing test name, expected vs actual. Follow the annotation template in `agent-task-management/references/1-create-task.md` (agent workflow reminder + language best-practices skills).
+3. **Annotate** with everything needed for a **fresh-context** fixer: file paths, line/symbol references, repro steps or failing test name, expected vs actual. Follow the annotation template in [the task-creation rules](../agent-task-management/references/1-create-task.md) (agent workflow reminder + language best-practices skills).
 
 4. If bugs **depend** on each other, create tasks with `depends:<id>,...` on `ask add` as documented there.
 
 Do **not** batch multiple unrelated bugs into one task.
+
+### 3a. Close a standalone/top-level bug-sweep batch (mandatory)
+
+If this is a standalone or top-level `find-code-bugs` run and it created one or
+more finding tasks, load and follow [the audit-batch closure rules](../agent-task-management/references/1a-audit-task-batches.md) **after all finding tasks exist**. Those rules require a `+audit` closure gate that depends on every finding task, followed by a `+audit` tagging task that depends on the gate.
+
+Do not create those two tasks when no findings were filed. Do not apply this
+step when `auditing-code-quality` is driving the run: ACQ owns the closure gate
+and tagging task.
 
 ### 4. Report back
 
@@ -76,4 +85,4 @@ Run `ask add` twice; annotate each with its own file/line context.
 
 ## Related skills
 
-- **agent-task-management** (`~/Notes/Prompts/skills/agent-task-management/SKILL.md`): authoritative `ask` rules, tags, dependencies, annotations.
+- [**agent-task-management**](../agent-task-management/SKILL.md): authoritative `ask` rules, tags, dependencies, annotations, and audit-batch closure.
