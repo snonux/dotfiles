@@ -20,7 +20,7 @@ Rewrite blog content to sound authentically human by removing LLM-generated patt
 Detailed reference documentation is in the `references/` subfolder:
 
 - [Signs of AI Writing](references/signs-of-ai-writing.md) — the deep, general-purpose reference based on Wikipedia's "Signs of AI writing" page (WikiProject AI Cleanup). Voice calibration, personality/soul injection, the 29 numbered AI patterns (content, language, style, communication, filler/hedging) with before/after examples, the full worked example, and the standard process/output format. Use this when you need the exhaustive pattern catalog.
-- [Patterns & Rewrite Examples](references/patterns-and-examples.md) — the foo.zone-focused working set: the LLM tells to hunt for (opening structures, corporate/marketing language, hedging, over-explanation, formal transitions, passive constructions, third-person distance) and concrete before/after rewrite pairs.
+- [Patterns & Rewrite Examples](references/patterns-and-examples.md) — the foo.zone-focused working set: the LLM tells to hunt for (opening structures, corporate/marketing language, hedging, over-explanation, formal transitions, passive constructions, third-person distance), the extra tells from the 2026 retrospective audit (series-opener puffery, fake-casual register, em-dash/"actually" density, label-colon bullets, Markdown leftovers, report skeletons, agent-report prose, explainer paragraphs under links, release-note justification tails, leaked-artifact and cross-reference errors), and concrete before/after rewrite pairs.
 - [Gemtext Authoring Conventions](references/gemtext-conventions.md) — shared foo.zone gemtext rules (file rules, format constraints, post structure, TOC, links, images/diagrams, multi-part series). Used by this skill, `gemtexter`'s compose-blog-post reference, and `update-blog-post`.
 
 ## Target Files
@@ -29,6 +29,8 @@ Detailed reference documentation is in the `references/` subfolder:
 - All `*.gmi` files that don't have a corresponding `.gmi.tpl` file
 - Never modify `.gmi` files that have a `.gmi.tpl` counterpart (those are generated)
 - **Note**: Standalone `.gmi` files are often older posts outside the target window and usually don't need changes
+- `DRAFT-*` files are in scope too (both `DRAFT-*.gmi.tpl` and a standalone `DRAFT-*.gmi`). The 2026 audit found them to be the worst offenders: report skeletons, no first person, fabricated details. Review them first and most thoroughly.
+- The generated `html/` and `md/` copies of a post are never edited; they refresh on the next Gemtexter run
 
 ## Instructions
 
@@ -114,7 +116,25 @@ Do NOT change:
 5. Show a diff before writing
 6. Write the updated file
 
-### 8. Related Skills
+### 8. Check for Leftover Errors, Not Just Style
+
+LLM-assisted edits leave mistakes that a pure style pass misses. While rewriting, also check:
+- Sign-off email addresses and names against what the other posts use (never leave an invented address)
+- Leaked tooling text such as "(line 215)", "From notes: ...", `&lt;nil&gt;`, or a stray `*`
+- Part-number cross-references in series posts ("Part 5" vs "Part 6")
+- Lines corrupted by a bad paste (a word split by many spaces)
+- Sections that contradict each other after several edit rounds. Don't guess which one is right; ask the author.
+
+### 9. Retrospective Audits of All Posts
+
+When asked to audit the whole blog for AI-sounding text:
+1. Build the file list: all `*.gmi.tpl`, plus standalone `*.gmi` without a `.tpl` sibling (skip `gemfeed/index.gmi`, it is generated). About 120 files / 230k words in 2026.
+2. Split it into date-ordered batches of about 27k words each and run one reviewer per batch in parallel. Each reviewer reads the reference files and three known-human posts first, reads every file completely, and writes proposals (line, severity, exact original text, why, proposed text) to a scratchpad file instead of editing.
+3. Treat posts before Dec 2022 as human by definition. Only flag later insertions there; `git log -p` shows them. The oldest ~35 posts came back clean in 2026.
+4. Expect the heaviest findings in the SRE series (2023-2026), the f3s series, "Random Weird Things" list posts, release notes, and DRAFT files.
+5. Apply proposals per batch (one worker per proposals file), edit the `.gmi.tpl` sources only, and leave committing to the user unless they say otherwise. The user reviews the diff by hand.
+
+### 10. Related Skills
 
 When using `gemtexter`'s compose-blog-post reference or `update-blog-post`, apply this writing style proactively to ensure new content sounds human from the start. Reference this skill when writing or editing any blog content.
 
