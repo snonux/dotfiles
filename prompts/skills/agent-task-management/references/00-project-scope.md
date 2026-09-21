@@ -15,7 +15,11 @@ scope. Directory names containing dots are ambiguous in this hierarchy; avoid
 them when relying on sub-project scoping. Existing flat tasks remain valid at
 the repository root.
 
-Only one task may be in progress within the current `ask` scope. From the
-repository root this includes sub-project tasks; from a subdirectory it does
-not include parent or sibling projects. If more than one task is unexpectedly
-started, report the conflicting IDs and stop instead of selecting another.
+Several tasks may be in progress (started) at the same time within the current
+`ask` scope, one per parallel worker; there is no fixed limit unless the user
+states one. From the repository root the scope includes sub-project tasks; from
+a subdirectory it does not include parent or sibling projects. Started tasks are
+always resumed before new ones are selected, and tasks that conflict (same
+files or area, dependency relationship) must not run in parallel. See
+[7-orchestrating-task-batches.md](7-orchestrating-task-batches.md) for the
+parallelism policy and the memory guard.

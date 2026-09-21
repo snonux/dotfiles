@@ -1,7 +1,8 @@
 # Start task
 
-Use with `00-cli.md` and `00-project-scope.md`, including one task in progress
-per project.
+Use with `00-cli.md` and `00-project-scope.md`. Several tasks may be started at
+once (one per parallel worker); the parallelism policy and memory guard live in
+[7-orchestrating-task-batches.md](7-orchestrating-task-batches.md).
 
 ## Start each new task with a fresh context
 
@@ -9,9 +10,10 @@ Work on each new task **must begin with a fresh context** — a new sub-agent wi
 
 **If you are orchestrating via `/work-on-tasks`:** run `ask list start.any:` before checking `ask ready`.
 
-- **A task is already started → resume it directly** in the orchestrator's own context and do not select another task. Follow the stalled-task recovery guidance below before editing. Do **not** spawn a sub-agent.
-- **No task is started and 2 or more tasks are ready → spawn one sub-agent** for the selected task's implementation. Instruct it to run `ask info <id>` first so it loads the full description and annotations, and tell it not to spawn nested sub-agents. Do not implement tasks in the orchestrator's own context. `/work-on-tasks` keeps one task in progress for the project and the orchestrator owns subsequent review launches.
-- **No task is started and only 1 task is ready → implement directly** in the orchestrator's own context. Do **not** spawn a sub-agent; the fresh-context overhead is not worth it for a single task.
+- **Resume all already-started tasks first**, before selecting anything from `ask ready`. Follow the stalled-task recovery guidance below before editing each one.
+  - **Exactly one task to work on in total** (one started, none ready, or none started and one ready) → handle it directly in the orchestrator's own context. Do **not** spawn a sub-agent; the fresh-context overhead is not worth it for a single task.
+  - **2 or more tasks to work on** (started and/or ready) → spawn one sub-agent per task, in parallel, subject to the memory guard and the conflict rules in [7-orchestrating-task-batches.md](7-orchestrating-task-batches.md). Instruct each to run `ask info <id>` first so it loads the full description and annotations, and tell it not to spawn nested sub-agents. Do not implement these tasks in the orchestrator's own context. The orchestrator owns all review launches.
+  - An explicit user limit (for example "sequentially" or "at most 2 agents") overrides the parallel default; then work through the tasks within that limit.
 
 **If you are starting a single task manually:** begin in a new session or compact first so the context is clean before you start working.
 
@@ -55,11 +57,13 @@ reverting a stalled worker's broken edits (see `6-recover-stalled-task.md`).
 ask list start.any:
 ```
 
-Resume the started task when present. Only when none is started, run:
+Resume all started tasks first. Then, for the free worker slots (if any), run:
 
 ```bash
 ask ready | head
 ```
+
+and skip ready tasks that conflict with a started or running one.
 
 ## Mark task as started
 
@@ -84,5 +88,5 @@ Before resuming, check for and clean up that situation: see
 - **Stay within task scope.** Never edit vendored/third-party deps (`vendor/`, `node_modules/`), generated files, or upstream code the task did not name. If the task seems to require a vendored/upstream change, flag it as a blocker (annotate + report) instead of patching the dep — see "Stay within task scope".
 - When picking up an already-started task, check for a stalled-worker situation (dirty worktree, broken build) before assuming a clean state — see `6-recover-stalled-task.md`.
 - Run `ask start <id>` when you start working on the task, not only when listing or completing.
-- Do not start a second task for the same project while one is already started and not done.
+- Do not start a new task while an already-started task in scope is still unresumed; resume the started ones first. Starting several tasks in parallel is fine when they do not conflict and the memory guard allows it.
 - When a task is selected via the review/overview step, use the alias ID from the list or task details for subsequent `start` operations.

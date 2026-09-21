@@ -12,6 +12,14 @@ This applies whenever you pick up a task that was already `start`ed but not
 `done` (see `2-start-task.md`). Always check for a stalled-worker situation
 before assuming the worktree is clean.
 
+With parallel workers, several tasks are started at once and share one
+worktree, so dirty files may belong to a **live** sibling worker rather than a
+stalled one. Only treat a started task as stalled when no live worker owns it
+(for example at session start, or after its worker returned or failed). Never
+revert or stash files that a running worker owns; classify each dirty path
+against the annotations of the task you are recovering, and leave the rest
+alone (see [7-orchestrating-task-batches.md](7-orchestrating-task-batches.md)).
+
 ## 1. Detect a partial / interrupted edit
 
 Signs the previous worker did not finish cleanly:

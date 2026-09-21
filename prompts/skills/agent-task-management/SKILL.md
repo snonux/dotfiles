@@ -19,7 +19,7 @@ scope reference and only the action reference needed for the request.
 | Complete a task | [3-complete-task.md](references/3-complete-task.md) and [verification-honesty.md](references/verification-honesty.md) |
 | Annotate or update a task | [4-annotate-update-task.md](references/4-annotate-update-task.md) |
 | Review or overview tasks | [5-review-overview-tasks.md](references/5-review-overview-tasks.md) |
-| Orchestrate several tasks or `/work-on-tasks` | [7-orchestrating-task-batches.md](references/7-orchestrating-task-batches.md) plus the selected action references |
+| Orchestrate several tasks, run tasks in parallel, or `/work-on-tasks` (parallelism policy and memory guard) | [7-orchestrating-task-batches.md](references/7-orchestrating-task-batches.md) plus the selected action references |
 
 Read only the references that the requested action requires. Task descriptions
 and annotations must contain the context a fresh worker needs; read them in full
