@@ -4,7 +4,10 @@ import (
 	. "github.com/snonux/gonf/api"
 )
 
-type Pkg struct{}
+// Pkg contains tasks that mutate the system package database.
+type Pkg struct {
+	RequiresRoot
+}
 
 func (Pkg) DescFedora() string { return "Install Fedora packages" }
 

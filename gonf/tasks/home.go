@@ -2,13 +2,13 @@ package tasks
 
 import (
 	"os"
-	"strings"
 
 	"codeberg.org/snonux/dotfiles/gonf/paths"
 	. "github.com/snonux/gonf/api"
 	. "github.com/snonux/gonf/api/options"
 )
 
+// HomeTasks contains tasks that manage unprivileged resources under $HOME.
 type HomeTasks struct{}
 
 func (HomeTasks) DescHelix() string { return "Install ~/.config/helix" }
@@ -22,7 +22,7 @@ func (HomeTasks) Ghostty() {
 }
 
 func (HomeTasks) DescHexai() string      { return "Install ~/.config/hexai (Linux)" }
-func (HomeTasks) WhenHexai(f Facts) bool { return f.GOOS == "linux" }
+func (HomeTasks) OptsHexai() TaskOptions { return TaskOptions{WhenLinux()} }
 func (HomeTasks) Hexai() {
 	SyncDir(Home(".config/hexai"), paths.Dot+"/hexai/*")
 }
@@ -115,13 +115,8 @@ func (HomeTasks) Tmux() {
 }
 
 func (HomeTasks) DescTmuxRocky() string { return "Append rocky tmux overrides when on rocky" }
-func (HomeTasks) WhenTmuxRocky(f Facts) bool {
-	return And(
-		func(f Facts) bool { return f.GOOS == "linux" },
-		func(f Facts) bool {
-			return strings.Contains(strings.ToLower(f.Hostname), "rocky")
-		},
-	)(f)
+func (HomeTasks) OptsTmuxRocky() TaskOptions {
+	return TaskOptions{WhenLinux(), WhenHostnameContains("rocky")}
 }
 func (HomeTasks) TmuxRocky() {
 	line := "source-file ~/.config/tmux/tmux.rocky.conf"
@@ -136,7 +131,7 @@ func (HomeTasks) Sway() {
 }
 
 func (HomeTasks) DescGitconfig() string      { return "Set global git config (Linux)" }
-func (HomeTasks) WhenGitconfig(f Facts) bool { return f.GOOS == "linux" }
+func (HomeTasks) OptsGitconfig() TaskOptions { return TaskOptions{WhenLinux()} }
 func (HomeTasks) Gitconfig() {
 	GitGlobal(
 		"user.email", "paul@buetow.org",
@@ -175,8 +170,8 @@ func (HomeTasks) Pipewire() {
 }
 
 func (HomeTasks) DescQuickedit() string { return "Manage ~/QuickEdit symlinks" }
-func (HomeTasks) WhenQuickedit(f Facts) bool {
-	return f.GOOS == "linux" || f.GOOS == "freebsd"
+func (HomeTasks) OptsQuickedit() TaskOptions {
+	return TaskOptions{WhenProfile("fedora", "rocky", "freebsd")}
 }
 func (HomeTasks) Quickedit() {
 	EnsureDir(Home("QuickEdit"), WithMode(0o700))
@@ -191,7 +186,8 @@ func (HomeTasks) Quickedit() {
 	)
 }
 
-func (HomeTasks) DescSystemdUser() string { return "Install and enable systemd user units" }
+func (HomeTasks) DescSystemdUser() string      { return "Install and enable systemd user units" }
+func (HomeTasks) OptsSystemdUser() TaskOptions { return TaskOptions{WhenLinux()} }
 func (HomeTasks) SystemdUser() {
 	units := SyncDir(Home(".config/systemd/user"), paths.Dot+"/systemd-user/*")
 	quicklogDrain := InstallFile(Home("scripts/quicklog-drain"), paths.Dot+"/scripts/quicklog-drain", WithMode(0o750))
@@ -202,7 +198,7 @@ func (HomeTasks) SystemdUser() {
 }
 
 func (HomeTasks) DescTaskwarrior() string      { return "Install ~/.taskrc (Taskwarrior 3.x)" }
-func (HomeTasks) WhenTaskwarrior(f Facts) bool { return f.GOOS == "linux" }
+func (HomeTasks) OptsTaskwarrior() TaskOptions { return TaskOptions{WhenLinux()} }
 func (HomeTasks) Taskwarrior() {
 	InstallFile(Home(".taskrc"), paths.Dot+"/taskwarrior/taskrc")
 }

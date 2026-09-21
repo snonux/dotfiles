@@ -43,3 +43,10 @@ GOPROXY=direct GOSUMDB=off go mod tidy
 ```
 
 On the target, `gonf` must resolve in non-interactive SSH sessions (e.g. install to a directory on the default PATH, or ensure `~/go/bin` is exported for `ssh host cmd`).
+
+`pkg_fedora` is selected on the destination by the Fedora profile and runs its
+package operations through the configured privileged apply path. `home_*`
+tasks remain unprivileged; platform-specific tasks carry serializable
+destination guards (Linux GOOS for systemd user units; fedora, rocky or
+freebsd profile for QuickEdit — on FreeBSD pass `-profile=freebsd`, because
+profile detection relies on `/etc/os-release`).
