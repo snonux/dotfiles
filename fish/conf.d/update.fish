@@ -45,43 +45,20 @@ function update::tools
     set -a pids $last_pid
 
     if test (uname) = Linux
-        # echo "Installing/updating tgpt"
-        # go install github.com/aandrew-me/tgpt/v2@latest &
-        # set -a pids $last_pid
-
-        for prog in gitsyncer totalrecall goprecords gos snonux comicforge syncmaster
-            if not test -x /home/paul/go/bin/$prog
-                echo "Skipping $prog (no binary in /home/paul/go/bin)"
-                continue
-            end
-            echo "Installing/updating $prog from github.com/snonux/$prog/cmd/$prog@latest"
-            go install github.com/snonux/$prog/cmd/$prog@latest
-        end
-
-        if test -x /home/paul/go/bin/restforge
-            echo "Installing/updating restforge from github.com/snonux/restforge/cli/cmd/restforge@latest"
-            go install github.com/snonux/restforge/cli/cmd/restforge@latest
-        else
-            echo "Skipping restforge (no binary in /home/paul/go/bin)"
-        end
-
-        # doas npm uninstall -g @qwen-code/qwen-code@latest
-        # doas npm install -g @qwen-code/qwen-code@latest
-
         echo "Installing/updating @openai/codex globally via npm"
         # doas npm uninstall -g @openai/codex
         doas npm install -g @openai/codex
 
-        echo "Installing/updating @google/gemini-cli globally via npm"
-        # doas npm uninstall -g @google/gemini-cli
-        doas npm install -g @google/gemini-cli
+        # echo "Installing/updating @google/gemini-cli globally via npm"
+        # # doas npm uninstall -g @google/gemini-cli
+        # doas npm install -g @google/gemini-cli
 
         echo "Installing/updating @sourcegraph/amp globally"
         doas npm install -g @ampcode/cli
 
-        echo "Installing/updating opencode-ai globally via npm"
-        # doas npm uninstall -g opencode-ai
-        doas npm install -g opencode-ai
+        # echo "Installing/updating opencode-ai globally via npm"
+        # # doas npm uninstall -g opencode-ai
+        # doas npm install -g opencode-ai
 
         echo "installing/updating pi-coding-agent globally via npm"
         doas npm install -g @earendil-works/pi-coding-agent
