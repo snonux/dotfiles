@@ -158,13 +158,14 @@ func (HomeTasks) Signature() {
 
 func (HomeTasks) DescCalendar() string { return "Install ~/.calendar from private repo" }
 
-// Calendar syncs ~/.calendar from the optional conf_private checkout on the
-// controller; without the checkout the task is skipped.
+// Calendar syncs ~/.calendar from the calendar directory of the optional
+// conf_private checkout on the controller; without it the task is skipped.
 func (HomeTasks) Calendar() {
-	if !optionalControllerSource("home_calendar", paths.DotPrivate) {
+	calendar := paths.DotPrivate + "/calendar"
+	if !optionalControllerSource("home_calendar", calendar) {
 		return
 	}
-	SyncDir(Home(".calendar"), paths.DotPrivate+"/calendar/*")
+	SyncDir(Home(".calendar"), calendar+"/*")
 }
 
 func (HomeTasks) DescPipewire() string { return "Install pipewire high-res config" }
@@ -223,19 +224,21 @@ func (HomeTasks) Taskwarrior() {
 }
 
 // optionalControllerSource reports whether the optional controller-side
-// source path exists. Only a missing path (os.ErrNotExist) means "skip the
-// task": any other error, such as a permission or I/O error, would silently
-// drop managed files, so it fails the run naming the task and path. This is
-// a controller check; destination-side existence stays a WhenPathExists
-// guard (see Agents' ~/.pi).
-func optionalControllerSource(task, path string) bool {
-	_, err := os.Stat(path)
+// source directory dir exists, by reading it: a directory that exists but
+// cannot be listed (itself or a parent unreadable) would otherwise match no
+// files and silently yield an empty sync. Only a missing path
+// (os.ErrNotExist) means "skip the task"; any other error, such as a
+// permission or I/O error or dir not being a directory, fails the run naming
+// the task and path. This is a controller check; destination-side existence
+// stays a WhenPathExists guard (see Agents' ~/.pi).
+func optionalControllerSource(task, dir string) bool {
+	_, err := os.ReadDir(dir)
 	switch {
 	case err == nil:
 		return true
 	case errors.Is(err, os.ErrNotExist):
 		return false
 	default:
-		panic(fmt.Errorf("%s: cannot check optional controller source %s: %w", task, path, err))
+		panic(fmt.Errorf("%s: cannot read optional controller source %s: %w", task, dir, err))
 	}
 }
