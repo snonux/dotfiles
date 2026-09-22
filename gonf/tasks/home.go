@@ -191,10 +191,22 @@ func (HomeTasks) OptsSystemdUser() TaskOptions { return TaskOptions{WhenLinux()}
 func (HomeTasks) SystemdUser() {
 	units := SyncDir(Home(".config/systemd/user"), paths.Dot+"/systemd-user/*")
 	quicklogDrain := InstallFile(Home("scripts/quicklog-drain"), paths.Dot+"/scripts/quicklog-drain", WithMode(0o750))
-	reload := DaemonReload(WithUser, DependsOn(units), IfChanged)
-	Timer("random-wallpaper", WithUser, DependsOn(reload))
-	Timer("home-backup", WithUser, DependsOn(reload))
-	Timer("quicklog-drain", WithUser, DependsOn(reload, quicklogDrain))
+	SystemdUnits(
+		WithUserBus(),
+		FanIn(units, quicklogDrain),
+		ActivateTimers(List("home-backup", "quicklog-drain")),
+	)
+	// The wallpaper timer is simple enough to generate instead of syncing
+	// raw unit files; SystemdTimer writes the same unit bytes, reloads, and
+	// converges enablement itself.
+	SystemdTimer("random-wallpaper",
+		WithUser,
+		WithCommand("%h/scripts/random-wallpaper.sh"),
+		WithOnCalendar("hourly"),
+		WithPersistent,
+		WithDescription("Set random GNOME wallpaper once per hour"),
+		WithServiceDescription("Set random GNOME wallpaper from image directory"),
+	)
 }
 
 func (HomeTasks) DescTaskwarrior() string      { return "Install ~/.taskrc (Taskwarrior 3.x)" }
