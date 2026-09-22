@@ -68,11 +68,6 @@ func (HomeTasks) Agents() {
 	Link(codex+"/prompts", WithSymlink(commands))
 }
 
-func (HomeTasks) DescPrompts() string { return "Legacy alias for home_agents" }
-func (HomeTasks) Prompts() {
-	_ = Run("home_agents")
-}
-
 func (HomeTasks) DescScripts() string { return "Install ~/scripts" }
 func (HomeTasks) Scripts() {
 	SyncDir(Home("scripts"), paths.Dot+"/scripts/*", WithFileMode(0o750), WithPrune)

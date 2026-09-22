@@ -10,6 +10,10 @@ import (
 
 func main() {
 	RegisterMethods(tasks.HomeTasks{}, WithPrefix("home_"))
+	// home_prompts is the legacy public name of home_agents. As an Alias it
+	// records home_agents' ops directly and the "home" aggregate records them
+	// once, instead of a second time through a Run-only wrapper task.
+	Alias("home_prompts", "Legacy alias for home_agents", "home_agents")
 	RegisterMethods(tasks.Pkg{}, WithPrefix("pkg_"), WithGroupWhen(WhenProfile("fedora")))
 	Aggregate("home", "Install all home_* configuration", "^home_")
 	os.Exit(cli.CLI())
