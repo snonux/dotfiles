@@ -50,3 +50,10 @@ tasks remain unprivileged; platform-specific tasks carry serializable
 destination guards (Linux GOOS for systemd user units; fedora, rocky or
 freebsd profile for QuickEdit — on FreeBSD pass `-profile=freebsd`, because
 profile detection relies on `/etc/os-release`).
+
+`home_systemd_user` composes its user units through the core `SystemdUnits`
+helper (one change-gated daemon-reload, timers converge after it) and
+`SystemdTimer` generates the simple wallpaper timer instead of syncing raw
+unit files; the generated units keep the exact bytes of the former raw files
+and normalize their mode to 0644. The remaining raw units under
+`systemd-user/` keep their exact contents.
