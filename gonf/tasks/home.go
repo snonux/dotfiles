@@ -186,10 +186,13 @@ func (HomeTasks) OptsSystemdUser() TaskOptions { return TaskOptions{WhenLinux()}
 func (HomeTasks) SystemdUser() {
 	units := SyncDir(Home(".config/systemd/user"), paths.Dot+"/systemd-user/*")
 	quicklogDrain := InstallFile(Home("scripts/quicklog-drain"), paths.Dot+"/scripts/quicklog-drain", WithMode(0o750))
+	// Only the unit files fan into the reload; the quicklog-drain script is
+	// an ordering dependency of its timer, so editing it does not reload.
 	SystemdUnits(
 		WithUserBus(),
-		FanIn(units, quicklogDrain),
-		ActivateTimers(List("home-backup", "quicklog-drain")),
+		FanIn(units),
+		ActivateTimer("home-backup"),
+		ActivateTimer("quicklog-drain", DependsOn(quicklogDrain)),
 	)
 	// The wallpaper timer is simple enough to generate instead of syncing
 	// raw unit files; SystemdTimer writes the same unit bytes, reloads, and
