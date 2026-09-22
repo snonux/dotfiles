@@ -55,6 +55,9 @@ func (HomeTasks) Agents() {
 	if !optionalControllerSource("home_agents", commands) {
 		return
 	}
+	if !optionalControllerSource("home_agents", skills) {
+		return
+	}
 
 	for _, tool := range List(".cursor", ".claude", ".agents", ".opencode", ".amp") {
 		toolDir := Home(tool)
