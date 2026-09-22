@@ -28,6 +28,13 @@ GOPROXY=direct GOSUMDB=off go mod tidy
 
 ## Usage
 
+From anywhere, `~/git/dotfiles/gonf.sh <args>` runs the recipes with
+`go run` from this module (arguments are passed through verbatim, and
+relative paths such as `plan -o out` are relative to this `gonf`
+directory). It exports `GONF_DOTFILES_ROOT` as the checkout it lives in,
+so a second worktree installs its own files; without the wrapper the
+source root defaults to `~/git/dotfiles`. A built binary works the same:
+
 ```bash
 ./gonf -version
 ./gonf -list
@@ -43,6 +50,18 @@ GOPROXY=direct GOSUMDB=off go mod tidy
 ```
 
 On the target, `gonf` must resolve in non-interactive SSH sessions (e.g. install to a directory on the default PATH, or ensure `~/go/bin` is exported for `ssh host cmd`).
+
+## Controller inputs
+
+The recipes read their sources on the controller when a plan is recorded:
+this checkout, plus two optional ones. `home_agents` links the agent tools
+to `~/Notes/Prompts` and `home_calendar` syncs from
+`~/git/conf_private/dotfiles`; each task is skipped when its checkout is
+missing, and fails naming the path when it exists but cannot be read.
+`home_prompts` is a legacy alias of `home_agents`.
+
+`pkg_fedora` still installs the `Rex` package, because conf's legacy
+Rexfiles are not retired yet; drop it together with them.
 
 `pkg_fedora` is selected on the destination by the Fedora profile and runs its
 package operations through the configured privileged apply path. `home_*`
