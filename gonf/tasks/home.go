@@ -1,6 +1,8 @@
 package tasks
 
 import (
+	"errors"
+	"fmt"
 	"os"
 
 	"codeberg.org/snonux/dotfiles/gonf/paths"
@@ -43,10 +45,14 @@ func (HomeTasks) Opencode() {
 }
 
 func (HomeTasks) DescAgents() string { return "Install agent command/skill symlinks" }
+
+// Agents links every agent tool's commands/skills to the controller's
+// Notes/Prompts checkout. That checkout is optional (a controller without
+// it skips the task), but an unreadable one fails the run.
 func (HomeTasks) Agents() {
 	commands := paths.NotesPrompts + "/commands"
 	skills := paths.NotesPrompts + "/skills"
-	if _, err := os.Stat(commands); err != nil {
+	if !optionalControllerSource("home_agents", commands) {
 		return
 	}
 
@@ -151,8 +157,11 @@ func (HomeTasks) Signature() {
 }
 
 func (HomeTasks) DescCalendar() string { return "Install ~/.calendar from private repo" }
+
+// Calendar syncs ~/.calendar from the optional conf_private checkout on the
+// controller; without the checkout the task is skipped.
 func (HomeTasks) Calendar() {
-	if _, err := os.Stat(paths.DotPrivate); err != nil {
+	if !optionalControllerSource("home_calendar", paths.DotPrivate) {
 		return
 	}
 	SyncDir(Home(".calendar"), paths.DotPrivate+"/calendar/*")
@@ -211,4 +220,22 @@ func (HomeTasks) DescTaskwarrior() string      { return "Install ~/.taskrc (Task
 func (HomeTasks) OptsTaskwarrior() TaskOptions { return TaskOptions{WhenLinux()} }
 func (HomeTasks) Taskwarrior() {
 	InstallFile(Home(".taskrc"), paths.Dot+"/taskwarrior/taskrc")
+}
+
+// optionalControllerSource reports whether the optional controller-side
+// source path exists. Only a missing path (os.ErrNotExist) means "skip the
+// task": any other error, such as a permission or I/O error, would silently
+// drop managed files, so it fails the run naming the task and path. This is
+// a controller check; destination-side existence stays a WhenPathExists
+// guard (see Agents' ~/.pi).
+func optionalControllerSource(task, path string) bool {
+	_, err := os.Stat(path)
+	switch {
+	case err == nil:
+		return true
+	case errors.Is(err, os.ErrNotExist):
+		return false
+	default:
+		panic(fmt.Errorf("%s: cannot check optional controller source %s: %w", task, path, err))
+	}
 }
