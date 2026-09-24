@@ -1,4 +1,4 @@
-theme = "seoul256-light-soft"
+theme = "starlight"
 
 [editor]
 bufferline = "always"
