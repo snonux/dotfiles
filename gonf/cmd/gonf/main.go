@@ -14,6 +14,13 @@ func main() {
 	// records home_agents' ops directly and the "home" aggregate records them
 	// once, instead of a second time through a Run-only wrapper task.
 	Alias("home_prompts", "Legacy alias for home_agents", "home_agents")
+	// home_tmux_rocky used to append the rocky overrides to tmux.conf after
+	// home_tmux synced it, so the two tasks rewrote the same file on every
+	// apply. tmux.conf now sources tmux.rocky.conf itself when the hostname
+	// contains "rocky", so the old name only needs to run home_tmux. As an
+	// Alias it is active wherever home_tmux is (earth included, which a
+	// controller-side hostname guard used to hide from -list and "home").
+	Alias("home_tmux_rocky", "Legacy alias for home_tmux (rocky overrides load from tmux.conf)", "home_tmux")
 	RegisterMethods(tasks.Pkg{}, WithPrefix("pkg_"), WithGroupWhen(WhenProfile("fedora")))
 	Aggregate("home", "Install all home_* configuration", "^home_")
 	os.Exit(cli.CLI())

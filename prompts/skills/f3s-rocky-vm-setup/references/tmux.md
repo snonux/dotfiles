@@ -20,7 +20,7 @@ Earth (outer tmux) uses the default **C-b** prefix. Rocky (inner tmux) uses **C-
 
 ## Config
 
-Rocky config is in `~/.config/tmux/tmux.rocky.conf` and sourced from `tmux.local.conf`:
+Rocky config is in `~/.config/tmux/tmux.rocky.conf`, sourced at the end of `tmux.conf` (see below):
 
 ```sh
 # ~/.config/tmux/tmux.rocky.conf
@@ -45,10 +45,13 @@ set -g window-status-current-format ' #I*#[bg=brightred,fg=white] #W '
 
 ## Important: source ordering
 
-The rocky config must be sourced **at the end of** `~/.config/tmux/tmux.conf` so its color overrides win over the shared config. The dotfiles gonf task `home_tmux_rocky` (run by `~/git/dotfiles/gonf.sh home`) handles this by:
+The rocky config must be sourced **at the end of** `~/.config/tmux/tmux.conf` so its color overrides win over the shared config. The dotfiles `tmux.conf` (synced by `home_tmux`) ends with a hostname conditional, so the same file works on every host:
 
-1. Cleaning any stale reference from `tmux.local.conf`
-2. Appending `source-file ~/.config/tmux/tmux.rocky.conf` to the **end** of `tmux.conf`
+```tmux
+%if "#{m:*rocky*,#{host}}"
+source-file ~/.config/tmux/tmux.rocky.conf
+%endif
+```
 
 ## Terminal / color support
 

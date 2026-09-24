@@ -25,7 +25,7 @@ Detailed reference documentation is in the `references/` subfolder — load the 
 - [Git Remotes](references/git-remotes.md) — Forgejo remotes (`code.f3s.buetow.org:2022`), passphrase-less `id_ed25519_forgejo` + SSH `Host` pin; server-side user in [`f3s-workloads` Forgejo](../f3s-workloads/references/forgejo.md#rocky-push-access)
 - [User and Privileges](references/privileges.md) — `root` access, Paul's targeted updater and IOR sudo rules, sudoers config
 - [Scripts](references/scripts.md) — the `update::tools` Fish updater and its privileged commands
-- [Dotfiles deployment (gonf)](references/gonf.md) — `~/git/dotfiles/gonf.sh home` (paul), Rocky-specific `home_tmux_rocky` task; no gonf equivalent for the retired Rex `pkg_rocky` (install packages with `dnf` as root)
+- [Dotfiles deployment (gonf)](references/gonf.md) — `~/git/dotfiles/gonf.sh home` (paul), rocky tmux overrides loaded by `tmux.conf` itself (`home_tmux_rocky` is a legacy alias of `home_tmux`); no gonf equivalent for the retired Rex `pkg_rocky` (install packages with `dnf` as root)
 - [ZFS Snapshot / Replication](references/zrepl.md) — `zroot/bhyve/rocky` via zrepl on f3 → f2, retention; full config in `f3s` skill
 - [Notes](references/notes.md) — `claude` wrapper must be a symlink not a shell script (fork bomb), Node.js 22 module, `amp` non-TTY panic
 
