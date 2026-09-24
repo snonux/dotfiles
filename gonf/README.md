@@ -44,7 +44,8 @@ source root defaults to `~/git/dotfiles`. A built binary works the same:
 ./gonf pkg_fedora
 ./gonf home_helix home_tmux
 
-# Remote (needs gonf ≥0.4.0 on the target PATH): stream plan over ssh, no local plan files
+# Remote: stream plan over ssh, no local plan files (push installs or updates
+# gonf on the target first when it is missing or too old)
 ./gonf push -n user@host home_bash
 ./gonf push -- -p 2222 user@host home_helix home_tmux
 ```
@@ -59,6 +60,13 @@ to `~/Notes/Prompts` and `home_calendar` syncs from
 `~/git/conf_private/dotfiles`; each task is skipped when its checkout is
 missing, and fails naming the path when it exists but cannot be read.
 `home_prompts` is a legacy alias of `home_agents`.
+
+`home_tmux_rocky` is a legacy alias of `home_tmux`: the synced `tmux.conf`
+ends with a `%if "#{m:*rocky*,#{host}}"` block that sources
+`tmux.rocky.conf`, so tmux itself loads the rocky overrides (prefix `C-g`,
+red/orange theme) on a host whose name contains `rocky`, and the same file
+converges on every host. The former rocky-only task appended that line after
+`home_tmux` synced the file, so the two rewrote it on every apply.
 
 `pkg_fedora` uninstalls the `Rex` package: every Rexfile it ran (this
 repo's and conf's) has been ported to gonf and retired.
