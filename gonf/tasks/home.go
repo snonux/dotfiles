@@ -118,16 +118,6 @@ func (HomeTasks) Tmux() {
 	SyncDir(Home(".config/tmux"), paths.Dot+"/tmux/*")
 }
 
-func (HomeTasks) DescTmuxRocky() string { return "Append rocky tmux overrides when on rocky" }
-func (HomeTasks) OptsTmuxRocky() TaskOptions {
-	return TaskOptions{WhenLinux(), WhenHostnameContains("rocky")}
-}
-func (HomeTasks) TmuxRocky() {
-	line := "source-file ~/.config/tmux/tmux.rocky.conf"
-	File(Home(".config/tmux/tmux.local.conf"), WithoutLine(line))
-	File(Home(".config/tmux/tmux.conf"), WithLine(line))
-}
-
 func (HomeTasks) DescSway() string { return "Install sway and waybar config" }
 func (HomeTasks) Sway() {
 	SyncDir(Home(".config/sway/config.d"), paths.Dot+"/sway/config.d/*")

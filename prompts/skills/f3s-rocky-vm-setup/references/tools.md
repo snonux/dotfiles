@@ -67,4 +67,4 @@ done
 
 ## tmux 3.2a compatibility note
 
-Historical: the dotfiles `tmux.conf` used to include `set -g extended-keys-format csi-u` (tmux 3.3+), which the retired Rex task `home_tmux_rocky` stripped on rocky. The current `tmux.conf` no longer sets `extended-keys-format` (only `extended-keys on`, supported by 3.2a), and the gonf `home_tmux_rocky` task does not strip anything. If a 3.3+-only option comes back, remove or comment it out on rocky.
+Historical: the dotfiles `tmux.conf` used to include `set -g extended-keys-format csi-u` (tmux 3.3+), which the retired Rex task `home_tmux_rocky` stripped on rocky. The current `tmux.conf` no longer sets `extended-keys-format` (only `extended-keys on`, supported by 3.2a), and gonf does not strip anything (`home_tmux_rocky` is now a legacy alias of `home_tmux`). If a 3.3+-only option comes back, remove or comment it out on rocky.
