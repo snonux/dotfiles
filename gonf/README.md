@@ -1,6 +1,6 @@
 # gonf recipes
 
-gonf module for this repo. Pinned: `github.com/snonux/gonf v0.19.0` (`go.mod`). Task list: [../README.md](../README.md#tasks).
+gonf module for this repo. Pinned: `github.com/snonux/gonf v0.20.0` (`go.mod`). Task list: [../README.md](../README.md#tasks).
 
 ## Layout
 
