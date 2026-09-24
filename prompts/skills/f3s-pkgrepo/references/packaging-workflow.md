@@ -123,7 +123,3 @@ it also converges the `_gogios` account, `gogios.json`, plugins and crontab.
 The gonf tasks cover the OpenBSD frontends only: there is no gonf task that
 installs gogios on the FreeBSD hosts f0–f3 (install it by hand with `pkg`
 there if ever needed).
-
-(Historical: Rex's `rex gogios_install` / `rex gogios` from
-`~/git/conf/frontends` did this until Rex was retired on 2026-09-24; its
-FreeBSD branch was dead code, since the frontends group was OpenBSD-only.)

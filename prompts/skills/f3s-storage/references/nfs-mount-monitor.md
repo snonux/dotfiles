@@ -21,9 +21,7 @@ gonf/rnodes/maintenance.go    # gonf deploy task: rnodes_nfs_mount_monitor
 ./gonf.sh cluster rocky-k3s rnodes_nfs_mount_monitor
 ```
 
-(Historical: before Rex was retired on 2026-09-24 this was
-`rex -f f3s/r-nodes/Rexfile nfs_mount_monitor`.) Single-node pushes and the
-deploy pattern: [r-node-deploy.md](../../f3s-k3s/references/r-node-deploy.md).
+Single-node pushes and the deploy pattern: [r-node-deploy.md](../../f3s-k3s/references/r-node-deploy.md).
 
 ## What it does
 

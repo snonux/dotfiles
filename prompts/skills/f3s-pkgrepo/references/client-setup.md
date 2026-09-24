@@ -43,7 +43,7 @@ REPO
 
 ## OpenBSD (blowfish, fishfinger)
 
-Custom repo is configured via `PKG_PATH` in `/root/.profile`, deployed by the gonf task `frontends_pkg_repo` (formerly Rex `pkgrepo_setup`). The gonf package tasks (`frontends_gogios`, `frontends_d_tail`) pass the same `PKG_PATH` themselves, so they do not depend on the profile.
+Custom repo is configured via `PKG_PATH` in `/root/.profile`, deployed by the gonf task `frontends_pkg_repo`. The gonf package tasks (`frontends_gogios`, `frontends_d_tail`) pass the same `PKG_PATH` themselves, so they do not depend on the profile.
 Official OpenBSD packages still install normally via `/etc/installurl`.
 
 ```sh

@@ -6,11 +6,6 @@ in the conf repo's `gonf/` module. The canonical, fully-worked example is the
 **`rnodes_nfs_mount_monitor`** task. Treat it as the template for *any* r-node
 rollout; you do not need to re-derive the flow each time.
 
-(Historical: until 2026-09-24 this was the Rex task `nfs_mount_monitor` in
-`f3s/r-nodes/Rexfile`, run as `rex -f f3s/r-nodes/Rexfile nfs_mount_monitor`.
-Rex is retired and that Rexfile is deleted (conf task v42); the gonf port
-keeps the same behaviour.)
-
 ## Hosts: r0/r1/r2 vs f0/f1/f2
 
 The r-nodes are Rocky Linux 9 bhyve guests, one per FreeBSD host:

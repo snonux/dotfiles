@@ -10,7 +10,6 @@
 | claude-code | 2.1.169 | `npm install -g @anthropic-ai/claude-code` |
 | pi coding agent | 0.79.0 | `npm install -g @earendil-works/pi-coding-agent` |
 | taskwarrior | 2.6.2 | **Built from source** (see below) |
-| Rex | 1.16.1 | Historical: `cpanm Rex` (requires expat-devel, perl-LWP-Protocol-https); Rex is retired since 2026-09-24 and no longer needed — dotfiles deploy with gonf ([gonf.md](gonf.md)) |
 | zoxide | 0.9.8 | `dnf install -y zoxide` (EPEL) |
 | fzf | 0.58.0 | `dnf install -y fzf` (EPEL) |
 | fzf fish plugin | — | **fisher install PatrickF1/fzf.fish** |
@@ -67,4 +66,4 @@ done
 
 ## tmux 3.2a compatibility note
 
-Historical: the dotfiles `tmux.conf` used to include `set -g extended-keys-format csi-u` (tmux 3.3+), which the retired Rex task `home_tmux_rocky` stripped on rocky. The current `tmux.conf` no longer sets `extended-keys-format` (only `extended-keys on`, supported by 3.2a), and gonf does not strip anything (`home_tmux_rocky` is now a legacy alias of `home_tmux`). If a 3.3+-only option comes back, remove or comment it out on rocky.
+The dotfiles `tmux.conf` only sets `extended-keys on`, which rocky's tmux 3.2a supports. It must not use tmux 3.3+-only options such as `extended-keys-format`: gonf syncs the same file to every host and strips nothing.
