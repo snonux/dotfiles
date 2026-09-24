@@ -97,8 +97,7 @@ cd ~/git/conf
 ./gonf.sh cluster frontends frontends_d_tail   # install/update from custom repo + _dserver user + daily hooks + dtail.json + service
 ```
 
-`frontends_d_tail` replaces both retired Rex tasks (`rex dtail_install` and
-`rex dtail`): gonf has no separate install-only task, and the full task is
+There is no separate install-only task: `frontends_d_tail` is
 idempotent, so after a package build a rerun normally changes only the package.
 
 ### FreeBSD (manual, f0–f3)

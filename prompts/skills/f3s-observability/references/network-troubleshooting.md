@@ -295,8 +295,7 @@ this is rarely worth chasing.
 - conf gonf task `frontends_pf` (`gonf/frontends/web.go`) — validates
   `pf.conf` with `pfctl -n` before replacing it and reloads PF on change;
   installs the script, `/var/node_exporter`, a root crontab entry (every
-  minute), and sets `node_exporter` flags (formerly the Rex task `pf` in the
-  retired `frontends/Rexfile`)
+  minute), and sets `node_exporter` flags
 
 Deploy from `~/git/conf` with `./gonf.sh cluster frontends frontends_pf` (both
 gateways), or for one gateway

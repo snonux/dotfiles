@@ -34,12 +34,11 @@ Garage S3 runs as a 3-node cluster on FreeBSD hosts `f0`, `f1`, and `f2`.
   - Configuration only: the package, `garage` group, `/var/db/garage` and the
     cluster layout are provisioning steps outside gonf. Garage restarts only
     when the rendered config changed.
-  - (Historical: this used to be the Rex `f3s/garage/Rexfile` with per-node
-    `garage.f{0,1,2}.toml` files; both are gone since the Rex retirement.)
-- Shared RPC secret is read from:
-  - `gonf/secrets/garage/rpc_secret` (intentionally gitignored;
-    `just -f f3s/garage/Justfile init-secrets` creates it, copying the
-    Rex-era `f3s/garage/secrets/rpc_secret` once if present)
+- Shared RPC secret is read from the foostore/KeePass vault entry
+  `Infra/garage-rpc` (Password field), falling back to
+  `gonf/secrets/garage/rpc_secret` (intentionally gitignored;
+  `just -f f3s/garage/Justfile init-secrets` creates it) only when the vault
+  has no such entry; see conf `gonf/secrets/README.md`.
 
 ## Edge Domain and Frontend Routing
 
@@ -163,16 +162,7 @@ This resolved the external edge path instability.
   block with `Port 22`, which must stay **above** the `Host *.buetow.org`
   catch-all (`Port 2`, correct for the OpenBSD frontends) because ssh applies
   the first matching block.
-- Historical (Rex era, no longer applies): `garage_deploy` scoped its login
-  with `auth for => 'garage_nodes'` rather than a bare `user 'paul'`, and that
-  had to stay scoped. The top-level `conf/Rexfile`
-  required **every** sub-Rexfile and `user()` was a *global* setting, so the file
-  loaded last won: `f3s/r-nodes/Rexfile` set `user 'root'` and was required
-  after the garage one. With a global setting the deploy silently attempted to
-  log in as `root`, which these hosts refuse, and failed on all three nodes with
-  a misleading "Couldn't authenticate" error. The same trap applied to `port()`
-  and `sudo()`. gonf avoids the trap: SSH user, port and privilege are
-  per host in `gonf/cluster/cluster.go`.
+- SSH user, port and privilege are set per host in `gonf/cluster/cluster.go`.
 - Garage 2.2 `node connect` expects `nodeid@host:port` format (not only `host:port`).
 - Ensure `/var/db/garage/meta` and `/var/db/garage/data` ownership allows Garage process access (`garage:garage`).
 - `garage.toml` is installed as `root:garage` mode `640` so service user can read it.

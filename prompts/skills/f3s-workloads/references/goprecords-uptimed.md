@@ -50,9 +50,8 @@ From **`~/git/conf`**:
 ./gonf.sh cluster frontends frontends
 ```
 
-(Historical: until the Rex retirement on 2026-09-24 this was `rex goprecords_upload`
-/ `rex commons` from `~/git/conf/frontends`, installing `goprecords-upload.sh`;
-`frontends_goprecords` removes that old script and its `daily.local` line.)
+`frontends_goprecords` also removes the old `goprecords-upload.sh` and its
+`daily.local` line.
 
 See **`frontends/README.md`** (section **goprecords upload**).
 
