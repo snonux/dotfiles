@@ -26,7 +26,7 @@ make dtail-rocky     # Rocky Linux: x86_64 + aarch64 RPMs + repodata
 OpenBSD notes:
 - Packages before 2026-07-10 used relative `CacheDir: "cache"` / `HostKeyFile: "cache/ssh_host_key"` — that only worked because rc.d starts the daemon via `su -l _dserver` (CWD = `/var/run/dserver`, the `_dserver` home dir); a manual start from any other directory broke public key lookup — the same bug class dtail commit `fec2f9d` fixed on the server side (making absolute `CacheDir` paths resolve independently of dserver's CWD)
 - OpenBSD's `/etc/rc` wipes `/var/run/*` at boot, so the SSH host key now lives in persistent `/var/db/dserver/ssh_host_key` (mirrors NetBSD). The rc.d `rc_pre` recreates `/var/run/dserver/cache` and `/var/db/dserver` and re-runs `dserver-update-key-cache.sh` on every start; the daily cron entry keeps it fresh afterwards
-- When upgrading a host from a pre-2026-07-10 package, follow this order — neither `pkg_add` nor Rex restarts a running daemon, and once the host reboots `/etc/rc` has already wiped the old host key, making migration impossible:
+- When upgrading a host from a pre-2026-07-10 package, follow this order — neither `pkg_add` nor the gonf task `frontends_d_tail` restarts a running daemon after a package upgrade (the task restarts dserver only when its managed `/etc/dserver/dtail.json` changes), and once the host reboots `/etc/rc` has already wiped the old host key, making migration impossible:
   1. Migrate the host key FIRST to preserve the host identity: `doas install -d -o _dserver -m 0700 /var/db/dserver && doas cp -p /var/run/dserver/cache/ssh_host_key /var/db/dserver/` — otherwise dserver generates a new host key and clients without `--trustAllHosts` must re-accept it
   2. Reinstall the package (same-version: `pkg_add -u` is a no-op — `doas pkg_delete dtail` then `doas env PKG_PATH=... pkg_add dtail`)
   3. `doas rcctl restart dserver` — without this the running daemon keeps the old relative-path config until reboot
@@ -90,13 +90,16 @@ Rocky notes:
 
 ## Install / Update
 
-### OpenBSD (via Rex)
+### OpenBSD (via gonf)
 
 ```sh
-cd ~/git/conf/frontends
-rex dtail_install   # install or update from custom repo
-rex dtail           # full setup: install + _dserver user + daily cron + service start
+cd ~/git/conf
+./gonf.sh cluster frontends frontends_d_tail   # install/update from custom repo + _dserver user + daily hooks + dtail.json + service
 ```
+
+`frontends_d_tail` replaces both retired Rex tasks (`rex dtail_install` and
+`rex dtail`): gonf has no separate install-only task, and the full task is
+idempotent, so after a package build a rerun normally changes only the package.
 
 ### FreeBSD (manual, f0–f3)
 

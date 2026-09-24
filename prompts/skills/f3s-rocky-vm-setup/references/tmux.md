@@ -45,7 +45,7 @@ set -g window-status-current-format ' #I*#[bg=brightred,fg=white] #W '
 
 ## Important: source ordering
 
-The rocky config must be sourced **at the end of** `~/.config/tmux/tmux.conf` so its color overrides win over the shared config. The `home_tmux_rocky` Rex task handles this by:
+The rocky config must be sourced **at the end of** `~/.config/tmux/tmux.conf` so its color overrides win over the shared config. The dotfiles gonf task `home_tmux_rocky` (run by `~/git/dotfiles/gonf.sh home`) handles this by:
 
 1. Cleaning any stale reference from `tmux.local.conf`
 2. Appending `source-file ~/.config/tmux/tmux.rocky.conf` to the **end** of `tmux.conf`

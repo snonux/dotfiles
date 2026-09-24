@@ -1,6 +1,6 @@
 ---
 name: gogios
-description: Deploy the Gogios project using the established package-repo and rex workflow. Use when the user asks to build, deploy, install, or update Gogios, or mentions gogios deployment steps.
+description: Deploy the Gogios project using the established package-repo and gonf workflow. Use when the user asks to build, deploy, install, or update Gogios, or mentions gogios deployment steps.
 ---
 
 # Gogios
@@ -10,7 +10,7 @@ description: Deploy the Gogios project using the established package-repo and re
 Use this skill when working on Gogios deployment tasks, especially when the request involves:
 - Building and publishing a Gogios package for OpenBSD
 - Deploying Gogios to an OpenBSD target
-- Running the frontend install workflow via `rex`
+- Running the frontend install workflow via gonf (`~/git/conf/gonf.sh`)
 - Repeating the standard "build then install" deployment sequence
 
 ## Instructions
@@ -21,17 +21,18 @@ Follow this workflow in order:
    - Run: `cd ~/git/conf/packages && make pkg-openbsd NAME=gogios SRC=/home/paul/git/gogios`
    - This cross-compiles from `internal/version.go`'s `Version`, packages, signs with signify, and uploads to the custom package repo (`pkgrepo.f3s.buetow.org`).
 
-2. Move to the frontend repo directory:
-   - Change directory to: `~/git/conf/frontends`
+2. Move to the conf repo root:
+   - Change directory to: `~/git/conf`
 
-3. Run the Gogios install task:
-   - Run: `rex gogios_install`
-   - This runs `pkg_add -u gogios` (or `pkg_add gogios` if not yet installed) on each OpenBSD frontend.
+3. Run the Gogios gonf task on both OpenBSD frontends (cluster `frontends`: blowfish, fishfinger):
+   - Run: `./gonf.sh cluster frontends frontends_gogios`
+   - Preview first with `./gonf.sh cluster -n frontends frontends_gogios` if unsure.
+   - `frontends_gogios` declares `Package("gogios", ..., IsLatest)` with the custom repo `PKG_PATH`, so it installs gogios when absent and runs `pkg_add -u gogios` otherwise. Unlike the retired Rex `gogios_install` (install only), it is the full Gogios setup: the `_gogios` account, runtime/status directories, `gogios.json`, the `check_shuriken_age` plugin (needs the `~/git/shuriken.sh` checkout on the controller) and the `_gogios` crontab. It converges idempotently, so after a package build a rerun normally changes only the package.
 
 ## Notes
 
 - Keep this sequence ordered: build/publish first, install second.
 - If any command fails, stop and report the failing command with the error output before retrying.
-- `pkg_add -u` only recognizes a new version as an update candidate if its `@comment pkgpath=... ftp=no` annotation matches the installed package's. The packaging script (`~/git/conf/packages/scripts/pkg-openbsd.sh`) passes `pkg_create -D FULLPKGPATH=local/<name>` to emit this correctly as of 2026-08-13 (gogios 1.4.5+). If `rex gogios_install` ever reports the old version after a build, the currently-installed package predates that fix and needs one explicit forced install to pick up the annotation (after that, `pkg_add -u` upgrades normally again):
+- `pkg_add -u` only recognizes a new version as an update candidate if its `@comment pkgpath=... ftp=no` annotation matches the installed package's. The packaging script (`~/git/conf/packages/scripts/pkg-openbsd.sh`) passes `pkg_create -D FULLPKGPATH=local/<name>` to emit this correctly as of 2026-08-13 (gogios 1.4.5+). If `frontends_gogios` ever leaves the old version installed after a build, the currently-installed package predates that fix and needs one explicit forced install to pick up the annotation (after that, `pkg_add -u` upgrades normally again):
   `ssh <host> 'export PKG_PATH="https://pkgrepo.f3s.buetow.org/openbsd/7.8/packages/amd64/"; doas pkg_delete gogios && doas pkg_add gogios-<version>'`
-- Build/deploy for FreeBSD (if ever needed) uses the equivalent `make pkg-freebsd NAME=gogios SRC=/home/paul/git/gogios`, or `make pkg ...` for both OSes.
+- Building for FreeBSD (if ever needed) uses the equivalent `make pkg-freebsd NAME=gogios SRC=/home/paul/git/gogios`, or `make pkg ...` for both OSes. There is no gonf task that installs Gogios on FreeBSD hosts (`frontends_gogios` covers the OpenBSD frontends only), so a FreeBSD install is a manual `doas pkg install gogios`.

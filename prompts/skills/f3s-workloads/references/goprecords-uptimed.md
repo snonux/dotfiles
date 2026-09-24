@@ -33,22 +33,26 @@ Install **`curl`** and **`uptimed`** on every client that uploads.
 
 | Class | Hosts | Automation | Notes |
 |--------|--------|------------|--------|
-| OpenBSD frontends | **fishfinger**, **blowfish** | **Rex** **`goprecords_upload`** in **`~/git/conf/frontends`**; **`/etc/daily.local`** runs **`/usr/local/bin/goprecords-upload.sh`** once per **day** | Tokens in **geheim** **`secrets/etc/goprecords/<host>.token`**; template **`scripts/goprecords-upload.sh.tpl`** |
+| OpenBSD frontends | **fishfinger**, **blowfish** | **gonf** task **`frontends_goprecords`** in **`~/git/conf/gonf`** (run via **`~/git/conf/gonf.sh`**); **`/etc/daily.local`** runs **`GOPRECORDS_HOST=<host> /usr/local/bin/goprecords-upload-client.sh`** once per **day** | Tokens are controller secrets **`gonf/secrets/frontends/etc/goprecords/<host>.token`** (optional: a host without one gets no uploader); script **`frontends/scripts/goprecords-upload-client.sh`** |
 | FreeBSD (Beelinks) | **f0**–**f3** (LAN **`192.168.1.130`–`133`**) | Manual **hourly** **root** **`cron`** calling **`goprecords-upload-client.sh`** with **`GOPRECORDS_HOST=f0`** … **`f3`** | **`/var/db/uptimed/records`**; SSH: **`fN.lan.buetow.org`** or **`192.168.1.(130+N)`** for **fN**, **`-p 22`** |
 | Raspberry Pi (Rocky) | **pi2**–**pi3** | Manual **hourly** **systemd** **timer** (see README) | **`/var/spool/uptimed/records`**; uptimed waits for chronyd via a systemd override (see below); SSH: **`piN.lan.buetow.org`**, **`-p 22`** |
 | Raspberry Pi (NetBSD) | **pi0**–**pi1** | Manual **hourly** **root** **`cron`** (no systemd) calling **`goprecords-upload-client.sh`** with **`GOPRECORDS_HOST=pi0`**/**`pi1`** | **`/var/spool/uptimed/records`**; `ntpdate=YES` and uptimed requires the `ntpdate` rc.d milestone; see [NetBSD Pi setup](../../f3s-raspberry-pi/references/bootstrap-netbsd-pi.md#uptimed-built-from-source--no-prebuilt-package); SSH: **`piN.lan.buetow.org`**, **`-p 22`** |
 | Fedora laptop | **earth** | **user** **systemd** **`oneshot` + hourly timer** `goprecords-upload-earth.{service,timer}` | Service sets **`Environment=GOPRECORDS_HOST=earth`** and runs **`~/.local/bin/goprecords-upload-earth.sh`**; token **`~/.config/goprecords-upload-earth/token`** |
 | Mac (uptimed) → published by earth | **mega-m3-pro** (raw host `MBDVXJ4XKH9C`) | Mac drops records into the **worktime** git repo; **earth** pushes them via a **second `ExecStart`** in `goprecords-upload-earth.service` | See [Mac / mega-m3-pro via earth](#mac--mega-m3-pro-via-earth) below |
 
-## OpenBSD frontends (Rex)
+## OpenBSD frontends (gonf)
 
-From **`~/git/conf/frontends`**:
+From **`~/git/conf`**:
 
 ```bash
-rex goprecords_upload
-# or full commons
-rex commons
+./gonf.sh cluster frontends frontends_goprecords
+# or the full frontend setup aggregate
+./gonf.sh cluster frontends frontends
 ```
+
+(Historical: until the Rex retirement on 2026-09-24 this was `rex goprecords_upload`
+/ `rex commons` from `~/git/conf/frontends`, installing `goprecords-upload.sh`;
+`frontends_goprecords` removes that old script and its `daily.local` line.)
 
 See **`frontends/README.md`** (section **goprecords upload**).
 
@@ -127,4 +131,4 @@ Re-issuing **replaces** any previous `mega-m3-pro` token (the Mac used to upload
 ## Related conf repo paths
 
 - Kubernetes Helm: **`conf/f3s/goprecords/`** (image, PVC, ingress **`goprecords.f3s.buetow.org`**)
-- OpenBSD Rex: **`conf/frontends/`** (**`Rexfile`**, **`scripts/goprecords-upload.sh.tpl`**)
+- OpenBSD gonf: **`conf/gonf/frontends/maintenance.go`** (`Goprecords`, task **`frontends_goprecords`**), script **`conf/frontends/scripts/goprecords-upload-client.sh`**

@@ -43,7 +43,7 @@ REPO
 
 ## OpenBSD (blowfish, fishfinger)
 
-Custom repo is configured via `PKG_PATH` in `/root/.profile`, deployed by `rex pkgrepo_setup`.
+Custom repo is configured via `PKG_PATH` in `/root/.profile`, deployed by the gonf task `frontends_pkg_repo` (formerly Rex `pkgrepo_setup`). The gonf package tasks (`frontends_gogios`, `frontends_d_tail`) pass the same `PKG_PATH` themselves, so they do not depend on the profile.
 Official OpenBSD packages still install normally via `/etc/installurl`.
 
 ```sh
@@ -68,9 +68,10 @@ Two things needed:
    ssh rex@<newhost> "doas cp /tmp/custom-pkg.pub /etc/signify/custom-pkg.pub"
    ```
 
-2. **PKG_PATH** — run the Rex task from `~/git/conf/frontends`:
+2. **PKG_PATH** — run the gonf task from `~/git/conf` (the new host must
+   first be added to the `frontends` cluster in `gonf/cluster/cluster.go`):
    ```sh
-   rex pkgrepo_setup   # adds PKG_PATH to /root/.profile on all frontends
+   ./gonf.sh cluster frontends frontends_pkg_repo   # adds PKG_PATH to /root/.profile on all frontends
    ```
 
 Update `PKG_PATH` whenever the OpenBSD version changes (currently 7.8).

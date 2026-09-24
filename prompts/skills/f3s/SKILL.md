@@ -61,7 +61,7 @@ the one that matches the task; this hub stays the canonical home for the host/IP
 table, physical hosts, WireGuard mesh, and off-LAN access that they all link back to.
 
 - [`f3s-storage`](../f3s-storage/SKILL.md) — ZFS (`zdata`), zrepl, CARP VIP, NFS over stunnel, nfs-mount-monitor, USB keys, backups, storage troubleshooting
-- [`f3s-k3s`](../f3s-k3s/SKILL.md) — k3s cluster install, off-LAN access, ingress, ArgoCD, etcd recovery, r-node Rex rollout
+- [`f3s-k3s`](../f3s-k3s/SKILL.md) — k3s cluster install, off-LAN access, ingress, ArgoCD, etcd recovery, r-node gonf rollout
 - [`f3s-observability`](../f3s-observability/SKILL.md) — Prometheus/Alloy/Loki/Tempo + alerting, FreeBSD node_exporter
 - [`f3s-raspberry-pi`](../f3s-raspberry-pi/SKILL.md) — pi0/pi1 NetBSD static `f3s.buetow.org`/`snonux.foo` site (bozohttpd), pi2/pi3 Pi-hole + LAN wildcard DNS
 - [`f3s-workloads`](../f3s-workloads/SKILL.md) — hosted apps: Immich, Garage, Player, yChat, goprecords/uptimed

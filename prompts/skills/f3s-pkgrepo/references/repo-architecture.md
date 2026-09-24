@@ -8,7 +8,7 @@ Custom FreeBSD, OpenBSD, NetBSD, and Rocky Linux package repository served from 
 - URL: `https://pkgrepo.f3s.buetow.org`
 - Path prefixes: `/freebsd/`, `/openbsd/`, `/netbsd/`, `/rockylinux/`
 - TLS terminated by OpenBSD relayd on the internet gateways (not in the pod)
-- DNS, ACME certs, httpd fallback, and relayd routing auto-generated from `@f3s_hosts` in `frontends/Rexfile`
+- DNS, ACME certs, httpd fallback, and relayd routing auto-generated from the `f3sHosts` list in conf `gonf/frontends/data.go` (deployed with the `frontends_*` gonf tasks)
 - HTTP always redirected to HTTPS by the OpenBSD gateways — client URLs must use `https://`
 
 ## PV Directory Structure
@@ -43,8 +43,8 @@ Custom FreeBSD, OpenBSD, NetBSD, and Rocky Linux package repository served from 
 | `f3s/pkgrepo/helm-chart/` | Helm chart (nginx deployment, service, ingress, PV, configmap) |
 | `f3s/argocd-apps/infra/pkgrepo.yaml` | ArgoCD Application manifest |
 | `f3s/pkgrepo/test-artifacts/build-test-packages.sh` | Builds hello-test packages for FreeBSD/OpenBSD |
-| `frontends/Rexfile` (`@f3s_hosts`) | DNS + routing entry for `pkgrepo.f3s.buetow.org` |
-| `frontends/Rexfile` (`pkgrepo_setup`) | Adds `PKG_PATH` to root's `.profile` on OpenBSD frontends |
+| `gonf/frontends/data.go` (`f3sHosts`) | DNS + routing entry for `pkgrepo.f3s.buetow.org` |
+| `gonf/frontends/monitoring.go` (task `frontends_pkg_repo`) | Adds `PKG_PATH` to root's `.profile` on OpenBSD frontends |
 | `packages/Makefile` | Cross-compiles, packages, and uploads for all OSes |
 | `packages/scripts/pkg-freebsd.sh` | Runs on f0 via SSH: `pkg create` + `pkg repo` + copy to PV |
 | `packages/scripts/pkg-openbsd.sh` | Runs on fishfinger via SSH: `pkg_create` + signify signing |
