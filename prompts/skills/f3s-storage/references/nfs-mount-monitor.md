@@ -10,15 +10,20 @@ f3s/r-nodes/nfs-mount-monitor/
   nfs-mount-monitor.service   # one-shot service → /etc/systemd/system/
   nfs-mount-monitor.timer     # 10-second timer  → /etc/systemd/system/
   nfs-shutdown-marker.service # shutdown-guard producer → /etc/systemd/system/
-f3s/r-nodes/Rexfile           # Rex deploy task: nfs_mount_monitor
+gonf/rnodes/maintenance.go    # gonf deploy task: rnodes_nfs_mount_monitor
 ```
 
 ## Deploy
 
 ```sh
-# From repo root — pushes to all three r-nodes and reloads systemd if anything changed
-rex -f f3s/r-nodes/Rexfile nfs_mount_monitor
+# From the conf repo — pushes to all three r-nodes (cluster rocky-k3s) and
+# reloads systemd / restarts the timer only if anything changed
+./gonf.sh cluster rocky-k3s rnodes_nfs_mount_monitor
 ```
+
+(Historical: before Rex was retired on 2026-09-24 this was
+`rex -f f3s/r-nodes/Rexfile nfs_mount_monitor`.) Single-node pushes and the
+deploy pattern: [r-node-deploy.md](../../f3s-k3s/references/r-node-deploy.md).
 
 ## What it does
 

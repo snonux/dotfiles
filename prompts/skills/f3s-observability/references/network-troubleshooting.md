@@ -292,14 +292,19 @@ this is rarely worth chasing.
 - `frontends/etc/pf.conf.tpl` — labelled rules at the **end** of the file
 - `frontends/scripts/pf-labels-exporter.sh` — renders `pfctl -sl` as
   Prometheus counters, written atomically
-- `frontends/Rexfile` task `pf` — installs the script, `/var/node_exporter`,
-  a root crontab entry (every minute), and sets `node_exporter` flags
+- conf gonf task `frontends_pf` (`gonf/frontends/web.go`) — validates
+  `pf.conf` with `pfctl -n` before replacing it and reloads PF on change;
+  installs the script, `/var/node_exporter`, a root crontab entry (every
+  minute), and sets `node_exporter` flags (formerly the Rex task `pf` in the
+  retired `frontends/Rexfile`)
 
-Deploy with `rex -H <gateway>:2 pf`. Prometheus already scrapes both
-gateways, so nothing changes on the scrape side.
+Deploy from `~/git/conf` with `./gonf.sh cluster frontends frontends_pf` (both
+gateways), or for one gateway
+`./gonf.sh push -privilege=doas -- -p 2 rex@<gateway>.buetow.org frontends_pf`.
+Prometheus already scrapes both gateways, so nothing changes on the scrape side.
 
-**Adding a service**: append one labelled rule to `pf.conf.tpl` and re-run the
-task. No exporter or scrape-config change needed.
+**Adding a service**: append one labelled rule to `pf.conf.tpl` and re-run
+`frontends_pf`. No exporter or scrape-config change needed.
 
 #### Two things that are easy to get wrong
 

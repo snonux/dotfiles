@@ -22,4 +22,4 @@ PV/PVC notes.
 - [Player](references/player.md) — `player.f3s.buetow.org`, image build/push workflow, Helm chart path, ArgoCD sync, NFS PV/PVC notes
 - [yChat](references/ychat.md) — `ychat.f3s.lan.buetow.org`, legacy C++ chat server, image build/push, Helm chart + ArgoCD; the single home for f3s yChat deployment details
 - [Forgejo](references/forgejo.md) — `code.f3s.buetow.org`, git forge (80+ repos, ArgoCD's own source), architecture, crawler/relayd alt-port, hostname drift, `rocky` user + snonux Writers push access (client key in [`f3s-rocky-vm-setup` git remotes](../f3s-rocky-vm-setup/references/git-remotes.md))
-- [goprecords / uptimed uploads](references/goprecords-uptimed.md) — `https://goprecords.f3s.buetow.org`, `PUT /upload`, OpenBSD Rex daily vs FreeBSD/Pi manual hourly cron/systemd, upload client, geheim tokens
+- [goprecords / uptimed uploads](references/goprecords-uptimed.md) — `https://goprecords.f3s.buetow.org`, `PUT /upload`, OpenBSD gonf `frontends_goprecords` daily vs FreeBSD/Pi manual hourly cron/systemd, upload client, geheim tokens

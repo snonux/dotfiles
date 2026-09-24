@@ -1,6 +1,6 @@
 ---
 name: f3s-rocky-vm-setup
-description: Reference for the plain Rocky Linux 9 bhyve VM (host `rocky`, 192.168.1.123) running on f3. Covers SSH keys (incl. Forgejo passphrase-less key), Forgejo git remotes, tooling (tmux, fish, amp, claude-code, pi, taskwarrior, Rex), zrepl replication, and restricted user privileges. Use when working on or replicating the rocky VM configuration. Part of the f3s homelab skill family (hub, [`f3s`](../f3s/SKILL.md)).
+description: Reference for the plain Rocky Linux 9 bhyve VM (host `rocky`, 192.168.1.123) running on f3. Covers SSH keys (incl. Forgejo passphrase-less key), Forgejo git remotes, tooling (tmux, fish, amp, claude-code, pi, taskwarrior, gonf dotfiles deploy), zrepl replication, and restricted user privileges. Use when working on or replicating the rocky VM configuration. Part of the f3s homelab skill family (hub, [`f3s`](../f3s/SKILL.md)).
 ---
 
 # Rocky VM Setup Reference
@@ -13,7 +13,7 @@ Parent infrastructure: see the [`f3s`](../f3s/SKILL.md) skill (f3 host, zrepl, b
 
 - Working on or replicating the `rocky` VM configuration
 - SSH keys, git remotes, installed tooling, tmux/fish first-run setup
-- User privileges and sudoers, Rex deployment, zrepl replication
+- User privileges and sudoers, gonf dotfiles deployment, zrepl replication
 
 ## Reference Files
 
@@ -25,7 +25,7 @@ Detailed reference documentation is in the `references/` subfolder — load the 
 - [Git Remotes](references/git-remotes.md) — Forgejo remotes (`code.f3s.buetow.org:2022`), passphrase-less `id_ed25519_forgejo` + SSH `Host` pin; server-side user in [`f3s-workloads` Forgejo](../f3s-workloads/references/forgejo.md#rocky-push-access)
 - [User and Privileges](references/privileges.md) — `root` access, Paul's targeted updater and IOR sudo rules, sudoers config
 - [Scripts](references/scripts.md) — the `update::tools` Fish updater and its privileged commands
-- [Rex Usage](references/rex.md) — `rex pkg_rocky` (root) / `rex home` (paul), Rocky-specific `home_tmux_rocky` task
+- [Dotfiles deployment (gonf)](references/gonf.md) — `~/git/dotfiles/gonf.sh home` (paul), Rocky-specific `home_tmux_rocky` task; no gonf equivalent for the retired Rex `pkg_rocky` (install packages with `dnf` as root)
 - [ZFS Snapshot / Replication](references/zrepl.md) — `zroot/bhyve/rocky` via zrepl on f3 → f2, retention; full config in `f3s` skill
 - [Notes](references/notes.md) — `claude` wrapper must be a symlink not a shell script (fork bomb), Node.js 22 module, `amp` non-TTY panic
 

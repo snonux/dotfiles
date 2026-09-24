@@ -109,12 +109,21 @@ ssh -p 22 f0.lan.buetow.org "doas cp /tmp/package-name-1.0.tgz /tmp/pkg_summary.
 NetBSD package versions must not contain dashes (the last dash separates the
 package name from the version), so DTail's `4.3.2-ng` becomes `4.3.2ng`.
 
-## Install/Update on Frontends via Rex
+## Install/Update on Frontends via gonf
 
 ```sh
-cd ~/git/conf/frontends
-rex gogios_install   # installs or updates gogios on blowfish + fishfinger (OpenBSD) and f0-f3 (FreeBSD)
-rex gogios           # full setup: gogios_install + config + cron
+cd ~/git/conf
+./gonf.sh cluster frontends frontends_gogios   # install/update + full setup on blowfish + fishfinger (OpenBSD)
+./gonf.sh cluster frontends frontends_d_tail   # same for DTail (package, _dserver, daily hooks, dserver)
 ```
 
-The `gogios_install` Rex task auto-detects the OS and uses `pkg install` (FreeBSD) or `pkg_add` (OpenBSD).
+`frontends_gogios` declares the package with `IsLatest` and the custom repo
+`PKG_PATH`, so it installs gogios when absent and runs `pkg_add -u` otherwise;
+it also converges the `_gogios` account, `gogios.json`, plugins and crontab.
+The gonf tasks cover the OpenBSD frontends only: there is no gonf task that
+installs gogios on the FreeBSD hosts f0–f3 (install it by hand with `pkg`
+there if ever needed).
+
+(Historical: Rex's `rex gogios_install` / `rex gogios` from
+`~/git/conf/frontends` did this until Rex was retired on 2026-09-24; its
+FreeBSD branch was dead code, since the frontends group was OpenBSD-only.)

@@ -1,6 +1,6 @@
 # User and Privileges
 
-**`root`** — full root, used for package installs and Rex tasks.
+**`root`** — full root, used for package installs (it also ran the Rex tasks until Rex was retired on 2026-09-24).
 
 **`paul`**
 - **Removed from `wheel`** group. No general `sudo` access.

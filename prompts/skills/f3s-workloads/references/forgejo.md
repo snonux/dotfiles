@@ -78,8 +78,10 @@ since blowfish and fishfinger are deployed and restarted independently.
 
 ## Hostname/Ingress Drift
 
-The public hostname is managed in three places that must agree: `@f3s_hosts`
-in `frontends/Rexfile` (DNS + ACME cert + relayd routing), the ingress
+The public hostname is managed in three places that must agree: `f3sHosts`
+in conf `gonf/frontends/data.go` (DNS + ACME cert + relayd routing, deployed
+with the `frontends_*` gonf tasks; formerly `@f3s_hosts` in the retired
+`frontends/Rexfile`), the ingress
 `host:` in `f3s/forgejo/helm-chart/templates/ingress.yaml`, and
 `FORGEJO__server__DOMAIN`/`ROOT_URL`/`SSH_DOMAIN` in `deployment.yaml`. These
 can drift from the live cluster state if someone pushes directly to the

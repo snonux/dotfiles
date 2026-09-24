@@ -24,21 +24,29 @@ Garage S3 runs as a 3-node cluster on FreeBSD hosts `f0`, `f1`, and `f2`.
   - `zroot/garage/data` mounted at `/var/db/garage/data`
 - Service enabled:
   - `garage_enable=YES` in `/etc/rc.conf`
-- Config deployed by repo automation in `f3s/garage/`:
-  - `f3s/garage/Rexfile`
-  - `f3s/garage/Justfile`
-  - `f3s/garage/etc/garage.f0.toml`
-  - `f3s/garage/etc/garage.f1.toml`
-  - `f3s/garage/etc/garage.f2.toml`
+- Config deployed by the gonf task `garage_config` (cluster `garage` = f0–f2,
+  `paul@…:22` + doas, parallel 1):
+  - `gonf/garage/garage.go` (the recipe)
+  - `f3s/garage/etc/garage.toml.tmpl` (one template for all three nodes;
+    per-node `rpc_public_addr` comes from the inventory)
+  - `f3s/garage/Justfile` (`just -f f3s/garage/Justfile deploy` runs
+    `./gonf.sh cluster garage garage_config`)
+  - Configuration only: the package, `garage` group, `/var/db/garage` and the
+    cluster layout are provisioning steps outside gonf. Garage restarts only
+    when the rendered config changed.
+  - (Historical: this used to be the Rex `f3s/garage/Rexfile` with per-node
+    `garage.f{0,1,2}.toml` files; both are gone since the Rex retirement.)
 - Shared RPC secret is read from:
-  - `f3s/garage/secrets/rpc_secret` (intentionally gitignored)
+  - `gonf/secrets/garage/rpc_secret` (intentionally gitignored;
+    `just -f f3s/garage/Justfile init-secrets` creates it, copying the
+    Rex-era `f3s/garage/secrets/rpc_secret` once if present)
 
 ## Edge Domain and Frontend Routing
 
 - Public hostname: `garage.f3s.buetow.org`
 - Frontend wiring exists:
-  - Domain included in `frontends/Rexfile` f3s host list
-  - `relayd` backend table and host match added in `frontends/etc/relayd.conf.tpl`
+  - Domain included in the `f3sHosts` list in conf `gonf/frontends/data.go`
+  - `relayd` upstream `garage` selected in `gonf/frontends/data.go` and rendered by `gonf/frontends/assets/relayd.conf.tmpl`
   - TLS certificate for `garage.f3s.buetow.org` is issued and served
 - Current routing health:
   - DNS resolves on public edge hosts (`A` + `AAAA`)
@@ -51,7 +59,7 @@ Garage serves S3 two ways, and clients do not always choose consciously:
 
 - **Path-style** — `https://endpoint/<bucket>/<key>`. Always works.
 - **Virtual-hosted style** — `https://<bucket>.<endpoint>/<key>`. Works only
-  because `root_domain = ".garage.f3s.buetow.org"` is set in `garage.fN.toml`,
+  because `root_domain = ".garage.f3s.buetow.org"` is set in `garage.toml.tmpl`,
   which lets Garage map the Host header back to a bucket.
 
 The AWS SDKs derive the hostname as `<bucket>.<endpoint-host>` by default, and
@@ -80,15 +88,14 @@ Needed whenever a client uses virtual-hosted addressing. Bucket hostnames are
 ordinary f3s hosts, one level deeper, so they reuse the existing machinery
 rather than a special case.
 
-In `conf:frontends/Rexfile`:
+In conf `gonf/frontends/data.go`:
 
-```perl
-our @garage_buckets = qw/taskwarrior/;
-our @garage_hosts   = map { "$_.garage.f3s.buetow.org" } @garage_buckets;
-push @f3s_hosts, @garage_hosts;
+```go
+var garageBuckets = []string{"taskwarrior", "quicklog"}
 ```
 
-Because they land in `@f3s_hosts` (and from there in `@acme_hosts`), one entry
+Each bucket becomes `<bucket>.garage.f3s.buetow.org` and is appended to the
+f3s host list (and from there to the ACME certificate list), so one entry
 generates all of:
 
 - A/AAAA records for the host plus `www.` and `standby.` variants, each marked
@@ -99,18 +106,19 @@ generates all of:
 - httpd port-80 blocks for the ACME challenge
 
 Only the routing differs, and it is matched by suffix in
-`frontends/etc/relayd.conf.tpl` so new buckets need no edit there:
+`gonf/frontends/data.go` so new buckets need no routing edit:
 
-```perl
-} elsif ($host eq 'garage.f3s.buetow.org'
-      or $host =~ /\.garage\.f3s\.buetow\.org$/) {
+```go
+if name == "garage.f3s.buetow.org" || strings.HasSuffix(name, ".garage.f3s.buetow.org") {
+        site.RelaydUpstream = "garage"
 ```
 
-Then: `cd conf/frontends && rex nsd httpd acme acme_invoke relayd`.
+Then, from the conf repo:
+`./gonf.sh cluster frontends frontends_nsd frontends_httpd frontends_acme frontends_acme_invoke frontends_relayd`.
 
 **Order matters.** `acme.sh` skips a host that is not yet in `/etc/httpd.conf`
-(and installs a foo.zone placeholder certificate instead), so `httpd` must run
-**before** `acme_invoke`. A placeholder shows up as a cert whose subject is
+(and installs a foo.zone placeholder certificate instead), so `frontends_httpd`
+must run **before** `frontends_acme_invoke` (keep the task order above). A placeholder shows up as a cert whose subject is
 `CN=foo.zone` on the new name.
 
 **There is no wildcard option.** `acme-client` implements only the `http-01`
@@ -155,18 +163,20 @@ This resolved the external edge path instability.
   block with `Port 22`, which must stay **above** the `Host *.buetow.org`
   catch-all (`Port 2`, correct for the OpenBSD frontends) because ssh applies
   the first matching block.
-- `garage_deploy` scopes its login with `auth for => 'garage_nodes'` rather than
-  a bare `user 'paul'`, and that must stay scoped. The top-level `conf/Rexfile`
-  requires **every** sub-Rexfile and `user()` is a *global* setting, so the file
-  loaded last wins: `f3s/r-nodes/Rexfile` sets `user 'root'` and is required
+- Historical (Rex era, no longer applies): `garage_deploy` scoped its login
+  with `auth for => 'garage_nodes'` rather than a bare `user 'paul'`, and that
+  had to stay scoped. The top-level `conf/Rexfile`
+  required **every** sub-Rexfile and `user()` was a *global* setting, so the file
+  loaded last won: `f3s/r-nodes/Rexfile` set `user 'root'` and was required
   after the garage one. With a global setting the deploy silently attempted to
   log in as `root`, which these hosts refuse, and failed on all three nodes with
-  a misleading "Couldn't authenticate" error. The same trap applies to `port()`
-  and `sudo()`.
+  a misleading "Couldn't authenticate" error. The same trap applied to `port()`
+  and `sudo()`. gonf avoids the trap: SSH user, port and privilege are
+  per host in `gonf/cluster/cluster.go`.
 - Garage 2.2 `node connect` expects `nodeid@host:port` format (not only `host:port`).
 - Ensure `/var/db/garage/meta` and `/var/db/garage/data` ownership allows Garage process access (`garage:garage`).
 - `garage.toml` is installed as `root:garage` mode `640` so service user can read it.
-- `f3s/garage/secrets/rpc_secret` must exist locally before deploy; keep it out of git.
+- `gonf/secrets/garage/rpc_secret` must exist locally before deploy; keep it out of git.
 
 ## Recovery Checklist (Public Endpoint Issues)
 
@@ -189,10 +199,10 @@ When `https://garage.f3s.buetow.org` is broken, use this order:
 6. Run authenticated S3 external test:
    - execute the authenticated PUT/LIST command from this document
 7. If listeners are wrong or config drifted:
-   - fix TOML in `f3s/garage/etc/garage.fN.toml`
+   - fix the template `f3s/garage/etc/garage.toml.tmpl` (or the per-host inventory value in `gonf/cluster/cluster.go`)
    - redeploy: `just -f f3s/garage/Justfile deploy`
 8. If relay changes were made:
-   - redeploy frontends from `frontends/` (`rex nsd httpd relayd`) and rerun ACME flow if keypair errors appear.
+   - redeploy the frontends from the conf repo (`./gonf.sh cluster frontends frontends_nsd frontends_httpd frontends_relayd`) and rerun the ACME flow (`frontends_acme frontends_acme_invoke`, then `frontends_relayd`) if keypair errors appear.
 
 ## Useful Commands
 
@@ -283,7 +293,7 @@ not recoverable at all**.
 | Value | How to get it back |
 |---|---|
 | `GARAGE_ENDPOINT` | `https://garage.f3s.buetow.org` |
-| `GARAGE_REGION` | `garage` (the `s3_region` in `garage.fN.toml`) |
+| `GARAGE_REGION` | `garage` (the `s3_region` in `garage.toml.tmpl`) |
 | `GARAGE_BUCKET` | `doas garage bucket list` |
 | `GARAGE_ACCESS_KEY_ID` | `doas garage key list` |
 | `GARAGE_SECRET_ACCESS_KEY` | `doas garage key info <alias> --show-secret` |
