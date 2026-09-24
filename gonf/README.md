@@ -1,7 +1,7 @@
 # gonf (dotfiles)
 
 Fedora laptop configuration managed with [gonf](https://github.com/snonux/gonf).
-Replaces the top-level `Rexfile` for this host (`earth`).
+Replaces the former top-level `Rexfile` (since retired) for this host (`earth`).
 
 ## Layout
 
@@ -60,8 +60,8 @@ to `~/Notes/Prompts` and `home_calendar` syncs from
 missing, and fails naming the path when it exists but cannot be read.
 `home_prompts` is a legacy alias of `home_agents`.
 
-`pkg_fedora` still installs the `Rex` package, because conf's legacy
-Rexfiles are not retired yet; drop it together with them.
+`pkg_fedora` uninstalls the `Rex` package: every Rexfile it ran (this
+repo's and conf's) has been ported to gonf and retired.
 
 `pkg_fedora` is selected on the destination by the Fedora profile and runs its
 package operations through the configured privileged apply path. `home_*`
