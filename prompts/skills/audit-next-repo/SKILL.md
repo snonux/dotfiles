@@ -33,7 +33,7 @@ should never be audited, and remove it if they retract the exclusion.
 ## Prerequisites
 
 - `~/scripts/audit-due` must be installed (it ships with the dotfiles; install
-  via `rex home_scripts` if missing). It is a plain bash script with no deps
+  via `~/git/dotfiles/gonf.sh home_scripts` if missing). It is a plain bash script with no deps
   beyond git + coreutils.
 - The `ask` CLI (`~/go/bin/ask`) for task management within the audited repo.
 
