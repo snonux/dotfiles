@@ -11,7 +11,12 @@ type Pkg struct {
 
 func (Pkg) DescFedora() string { return "Install Fedora packages" }
 
+// Fedora installs the workstation package set. It also uninstalls the Rex
+// deployment tool: every Rexfile it used to run (this repo's and conf's) has
+// been ported to gonf and retired, so an explicit absent resource converges
+// hosts that still carry it instead of merely no longer installing it.
 func (Pkg) Fedora() {
+	NoPackage("Rex")
 	Package(List(
 		"opendoas",
 		"fd-find",
@@ -36,7 +41,6 @@ func (Pkg) Fedora() {
 		"perl-File-Slurp",
 		"procs",
 		"rakudo",
-		"Rex",
 		"ripgrep",
 		"ruby",
 		"strace",
