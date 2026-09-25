@@ -21,7 +21,6 @@
       "forcePush": true
     }
   ],
-  "sync_codeberg": true,
   "repositories": [
     "pages",
     "foo.zone",
