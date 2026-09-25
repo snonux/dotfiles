@@ -14,7 +14,7 @@ f3 hosts a plain Rocky Linux 9 bhyve VM named `rocky`. This VM is not part of th
 | DNS | `192.168.1.127`, `192.168.1.128`, fallback `192.168.1.1` |
 | OS | Rocky Linux 9.7 (Blue Onyx), x86_64 |
 | SSH | `root@192.168.1.123` |
-| VNC | `f3.lan.buetow.org:5900` while graphics are enabled |
+| VNC | `127.0.0.1:5900` on f3 (SSH tunnel) while graphics are enabled |
 
 ## vm-bhyve Policy on f3
 

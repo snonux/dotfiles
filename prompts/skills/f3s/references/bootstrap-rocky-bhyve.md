@@ -200,7 +200,7 @@ doas vm install "$VM" Rocky-9-x86_64-minimal-unattended.iso
 doas vm list
 ```
 
-VNC is normally available on `f3.lan.buetow.org:5900`. It is useful if Anaconda waits for input.
+VNC listens on `127.0.0.1:5900` on f3 (`graphics_listen`, gonf task `freebsd_bhyve_vnc_listen`); reach it with `ssh -p22 -L 5900:127.0.0.1:5900 f3.lan.buetow.org` and `vnc://localhost:5900`. It is useful if Anaconda waits for input.
 
 ## Autostart Policy
 
