@@ -7,7 +7,6 @@ import (
 
 	"github.com/snonux/dotfiles/gonf/paths"
 	. "github.com/snonux/gonf/api"
-	. "github.com/snonux/gonf/api/options"
 )
 
 // HomeTasks contains tasks that manage unprivileged resources under $HOME.
