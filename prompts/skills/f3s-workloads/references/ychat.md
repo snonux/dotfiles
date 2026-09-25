@@ -11,16 +11,16 @@ cluster as a GitOps-managed service.
 > ran live has been retired.
 
 This reference is the single home for f3s-specific deployment details. The
-public app repo (`ychat` on https://codeberg.org/snonux/ychat) deliberately
+public app repo (`ychat` on https://github.com/snonux/ychat) deliberately
 keeps deployment/cluster specifics **out of scope** — everything below lives
 here instead.
 
 ## Repositories and paths
 
 - App source: `~/git/ychat` (subproject `ychat/`; source on
-  https://codeberg.org/snonux/ychat)
+  https://github.com/snonux/ychat)
 - f3s config source: `~/git/conf` (mirrored on the in-cluster git-server;
-  https://codeberg.org/snonux/conf)
+  https://github.com/snonux/conf)
 - Helm chart: `f3s/ychat/helm-chart`
 - ArgoCD app: `f3s/argocd-apps/services/ychat.yaml`
 - LAN URL: `https://ychat.f3s.lan.buetow.org/`

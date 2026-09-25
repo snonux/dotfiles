@@ -1,6 +1,6 @@
 # Uptimed / uprecords collection via goprecords
 
-Central uptime stats come from **`uptimed`** record files aggregated by **[goprecords](https://codeberg.org/snonux/goprecords)**. The live API is **`https://goprecords.f3s.buetow.org`** (k3s **services** namespace; stats PVC; auth DB **`goprecords-auth.db`**).
+Central uptime stats come from **`uptimed`** record files aggregated by **[goprecords](https://github.com/snonux/goprecords)**. The live API is **`https://goprecords.f3s.buetow.org`** (k3s **services** namespace; stats PVC; auth DB **`goprecords-auth.db`**).
 
 ## Daemon and keys
 

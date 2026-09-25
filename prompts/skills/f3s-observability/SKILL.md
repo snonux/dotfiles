@@ -7,11 +7,11 @@ description: Reference skill for the f3s homelab observability stack, Prometheus
 
 Observability stack deployed into the `monitoring` namespace of the k3s cluster.
 
-**Current state (as of 2026-05-16)**: Prometheus + Alloy only. Grafana, Loki, and Tempo are **disabled** — their ArgoCD manifests are renamed to `.disabled` and their pods do not run.
+**Current state (as of 2026-09-25)**: Prometheus only. Grafana, Loki, Tempo and Alloy are **disabled** — their ArgoCD manifests are renamed to `.disabled` and their pods do not run.
 
 - Grafana disabled: SQLite-on-NFS is fundamentally unreliable across pod restarts. Grafana's database gets locked when the pod reschedules to a different node. Long-term fix: migrate to local-path PVC (same pattern as navidrome).
 - Loki/Tempo disabled: no log aggregation or distributed tracing until Grafana is re-enabled.
-- Alloy is running but **only emits its own logs** (`logging { level = "info" }`). Log shipping to Loki and trace forwarding to Tempo are removed from its config.
+- Alloy was disabled 2026-09-25 (audit #16): its no-op config only sent Grafana Labs usage reports. The Grafana/Loki/Tempo PV/PVCs were deleted too; the NFS data stays in `/data/nfs/k3svolumes/{grafana,loki}/data` (28M / 2.8G). `grafana.f3s.buetow.org` no longer exists on the frontends (DNS, relayd, acme, Gogios).
 - Prometheus TSDB was wiped and restarted clean (2026-05-16) after WAL corruption (zero-byte segments from a cluster blip).
 
 ## Components
@@ -19,7 +19,7 @@ Observability stack deployed into the `monitoring` namespace of the k3s cluster.
 | Component | Purpose | State |
 |-----------|---------|-------|
 | **Prometheus** | Time-series metrics, alerting rules, Alertmanager | **Running** |
-| **Alloy** | Telemetry collector (DaemonSet) | **Running** (minimal config only) |
+| **Alloy** | Telemetry collector (DaemonSet) | **Disabled** (was a no-op) |
 | **Node Exporter** | Host-level metrics (on k3s nodes AND FreeBSD hosts) | **Running** |
 | **Grafana** | Visualisation and dashboarding | **Disabled** (SQLite-on-NFS) |
 | **Loki** | Log aggregation (single-binary mode) | **Disabled** |

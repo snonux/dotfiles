@@ -196,3 +196,23 @@ echo 'coretemp_load="YES"' | doas tee -a /boot/loader.conf
 doas pkg install -y smartmontools
 doas smartctl -a /dev/ada1 | grep -i temperature  # "194 Temperature_Celsius"
 ```
+
+## zrepl "callback channel is full, discarding snapshot update event"
+
+Benign (checked 2026-09-25 against zrepl `internal/daemon/snapper/periodic.go`).
+After each snapshot the snapper does a non-blocking send of a "wake up
+replication" signal; if a wake-up is already pending because replication is
+still running (long catch-up, e.g. after f1 was down), the extra signal is
+dropped and this WARN is logged. The pending replication still ships every
+snapshot. Only worry if replication itself lags: compare the newest
+`zdata/enc/nfsdata@zrepl_*` on f0 with `zdata/sink/f0/zdata/enc/nfsdata` on f1.
+
+## Pods fail to start with "operation not permitted" under /data/nfs/k3svolumes
+
+Expected while the NFS mount is missing on that r-node: since 2026-09-25 the
+empty directory *under* the mount is `chattr +i` (gonf
+`rnodes_nfs_mountpoint_guard`), so pods can no longer silently write to the
+node's root disk when NFS is absent (they used to: fresh Postgres clusters,
+Valkey dumps, 94-429 MB per node, all deleted). Fix the mount (nfs-mount-monitor
+does it within ~20 s); do not remove the flag. Inspect the hidden directory via
+a bind mount: `B=$(mktemp -d); mount --bind / $B; lsattr -d $B/data/nfs/k3svolumes; umount $B`.

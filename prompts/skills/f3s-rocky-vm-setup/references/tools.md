@@ -14,7 +14,7 @@
 | fzf | 0.58.0 | `dnf install -y fzf` (EPEL) |
 | fzf fish plugin | — | **fisher install PatrickF1/fzf.fish** |
 | lazygit | 0.47.2 | `dnf copr enable -y atim/lazygit && dnf install -y lazygit` (not in EPEL) |
-| ask, hexai*, gt, gitsyncer, etc. | — | `go install codeberg.org/snonux/...` (see update::tools) |
+| ask, hexai*, gt, gitsyncer, etc. | — | `go install github.com/snonux/...` (see update::tools) |
 
 ## Building taskwarrior from source
 
@@ -53,13 +53,13 @@ yes | task >/dev/null 2>&1
 
 # 4. Install Go tooling binaries (run as paul)
 for prog in ask hexai hexai-lsp-server hexai-tmux-action hexai-mcp-server; do
-    go install codeberg.org/snonux/hexai/cmd/$prog@latest
+    go install github.com/snonux/hexai/cmd/$prog@latest
 done
 for prog in tasksamurai timesamurai gt; do
-    go install codeberg.org/snonux/$prog/cmd/$prog@latest
+    go install github.com/snonux/$prog/cmd/$prog@latest
 done
 for prog in gitsyncer gos snonux; do
-    go install codeberg.org/snonux/$prog/cmd/$prog@latest
+    go install github.com/snonux/$prog/cmd/$prog@latest
 done
 # (foostore, loadbars, totalrecall, goprecords may need X11/GL deps for GUI — skip on headless)
 ```

@@ -200,3 +200,7 @@ echo 'coretemp_load="YES"' | doas tee -a /boot/loader.conf
 ## Shell
 
 Default shell is `tcsh` (FreeBSD default). Run `rehash` after installing new packages for tcsh to find them.
+
+## Kernel panics 2026-08/09
+
+f0/f1/f2 each have ~10 dumps since Aug 2026 (15.1-p2). All are GPF or page fault in a ZFS taskq thread at `sched_ule_sswitch+0x888` (`retq`) or IP=0. They happen only at boot `zfs mount -a` or at shutdown pool export. Cause: the kernel stack VA reads a different physical page than the page tables map, i.e. stale TLB or a reused kstack page. Prime suspect: the Alder Lake-N (N100) INVLPG-global/PCID erratum. f3 is rarely power-cycled, so it rarely panics. Proposed fix (not applied, needs the user): `vm.pmap.pcid_enabled="0"` in loader.conf, Intel microcode early load, 15.1-p3. Full analysis: [kernel-panics.md](kernel-panics.md) §5-6.

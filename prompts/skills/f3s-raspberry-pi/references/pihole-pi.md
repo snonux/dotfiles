@@ -18,10 +18,10 @@ The leading **`.`** matches the apex and all subdomains.
 
 ## Tracked files in `conf`
 
-In the **`f3s`** repo (`https://codeberg.org/snonux/conf`):
+In the **`f3s`** repo (`https://github.com/snonux/conf`):
 
 - **`f3s/pihole/docker-pi/dnsmasq.d/99-f3s-lan-wildcard.conf`** — copy into **`~/pihole/etc-dnsmasq.d/`** on each Pi (bind-mounted to `/etc/dnsmasq.d` in the live compose).
-- **`f3s/pihole/docker-pi/docker-compose.example.yml`** — reference compose including the **`etc-dnsmasq.d`** volume; merge with your live **`docker-compose.yml`**.
+- **`f3s/pihole/docker-pi/docker-compose.yml`** — the live compose file (image pinned), deployed with the wildcard by gonf: `./gonf.sh cluster rocky-pis pihole`. Do not hand-edit it on the Pis.
 
 After changing dnsmasq config: **`docker compose restart`** in **`~/pihole`**.
 

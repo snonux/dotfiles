@@ -77,7 +77,7 @@ Sources for the breaking-change claims are cited inline in §3.
 
 ## 1. Current state (as deployed today)
 
-All Immich manifests live in the **conf** repo (`https://codeberg.org/snonux/conf`,
+All Immich manifests live in the **conf** repo (`https://github.com/snonux/conf`,
 locally `~/git/conf`), deployed via **ArgoCD**. Immich runs in the `services`
 namespace on the 3-node k3s cluster (r0/r1/r2).
 

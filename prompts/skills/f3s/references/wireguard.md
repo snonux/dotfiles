@@ -250,7 +250,7 @@ doas service wireguard restart
 Manually creating 8+ wg0.conf files is error-prone. A Ruby script automates this:
 
 ```sh
-git clone https://codeberg.org/snonux/wireguardmeshgenerator
+git clone https://github.com/snonux/wireguardmeshgenerator
 cd wireguardmeshgenerator
 bundle install
 sudo dnf install -y wireguard-tools
