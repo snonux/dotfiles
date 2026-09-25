@@ -118,3 +118,35 @@ spec:
                 port:
                   number: 8080
 ```
+
+## Encoded characters in request paths (Traefik >= 3.6)
+
+Since the k3s v1.36.4 upgrade (2026-09-25) the bundled Traefik is 3.7.8
+(chart 40.1.4). At startup it logs `WRN Traefik can reject some encoded
+characters in the request path ... set these options to false to avoid
+split-view` -- this is advisory only. The options are
+`entryPoints.<name>.http.encodedCharacters.allowEncodedSlash`,
+`allowEncodedBackSlash`, `allowEncodedNullCharacter`, `allowEncodedSemicolon`,
+`allowEncodedPercent`, `allowEncodedQuestionMark`, `allowEncodedHash`; since
+v3.6.7 they all default to `true` (allow), so nothing is rejected
+(migration notes: doc.traefik.io/traefik/v3.7/migrate/v3/). `sanitizePath`
+stays at its default (on). **No override is set in `f3s/traefik-config`, and
+none is needed.**
+
+Verified 2026-09-25 (task wk2) on both entrypoints -- `web` :80 (public, via
+OpenBSD relayd) and `websecure` :443 (LAN VIP `*.f3s.lan.buetow.org`):
+
+- Scratch rclone WebDAV behind a throwaway ingress: PUT/GET/PROPFIND/DELETE
+  round-trip of `a;b%20c#d.txt`, `ü ö.txt`, `x%2Fy.txt` (sent as `x%252Fy`),
+  `50%.txt`, `q?.txt`, `back\slash.txt` -- names land byte-exact on disk.
+- Immich: upload/download of `wk2 a;b%20c#d ü.jpg` via API on both hosts
+  (file name travels in multipart/Content-Disposition, not the path).
+- webdav, filebrowser (`/api/resources|raw|tus/<name>`), radicale, syncthing,
+  navidrome, jellyfin: unauthenticated probes with `%3B %2F %25 %3F %23 %5C
+  %00 %2520` and UTF-8 all reach the backend (backend `Server` header /
+  backend access log shows the raw encoded path) -- never a Traefik 400.
+
+Backend-side quirks, not Traefik: Apache webdav answers 404 for a raw `%2F`
+or `%00` in the path (`AllowEncodedSlashes Off`; a real file can't contain
+`/` and clients send a literal `%2F` as `%252F`, which works); rclone treats
+raw `%2F` as a separator (409); jellyfin (Kestrel) 400s on `%00`.
