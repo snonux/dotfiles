@@ -67,20 +67,31 @@ scp root@r0.lan.buetow.org:/etc/rancher/k3s/k3s.yaml ~/.kube/config
 # (repeat with r1 or r2 if r0 is down)
 ```
 
-## k3s config.yaml — expose etcd and controller-manager metrics
+## k3s config.yaml and registries.yaml (gonf-managed)
 
-For Prometheus to scrape etcd and controller-manager metrics, add to `/etc/rancher/k3s/config.yaml` on each r node:
+Both files are managed by gonf (task pk2, `gonf/rnodes/k3s.go`, assets in
+`f3s/r-nodes/k3s/`, per-host wg0 IP as `rnodes.K3sNode` in
+`gonf/cluster/cluster.go`); edit them there, not on the node:
+
+- `rnodes_k3s_config` -> `/etc/rancher/k3s/config.yaml`: `etcd-expose-metrics:
+  true`, `kube-apiserver-arg: [event-ttl=1h]`, `kube-controller-manager-arg:
+  [bind-address=0.0.0.0]` (Prometheus scrapes etcd and the controller manager),
+  `node-ip` / `advertise-address` = the node's wg0 IP (192.168.2.12N).
+- `rnodes_k3s_registries` -> `/etc/rancher/k3s/registries.yaml`: mirror
+  `registry.lan.buetow.org:30001` -> `http://localhost:30001` (the in-cluster
+  registry NodePort on the node itself).
+- `rnodes_image_gc` -> `config.yaml.d/50-image-gc.yaml` (`kubelet-arg+`).
+
+The join token stays in `/etc/systemd/system/k3s.service.env` (not gonf). gonf
+never restarts k3s (the three control-plane nodes deploy in parallel; a
+simultaneous restart drops etcd quorum). A change applies at the next boot or
+via a manual rolling restart, one node at a time: `systemctl restart k3s`, wait
+for Ready + `curl -s http://127.0.0.1:2381/metrics | grep
+etcd_server_has_leader` + all pods Running, then the next node.
 
 ```sh
-cat >> /etc/rancher/k3s/config.yaml << 'EOF'
-kube-controller-manager-arg:
-  - bind-address=0.0.0.0
-etcd-expose-metrics: true
-EOF
-systemctl restart k3s
+./gonf.sh -n cluster rocky-k3s rnodes_k3s_config rnodes_k3s_registries   # dry-run
 ```
-
-Verify: `curl -s http://127.0.0.1:2381/metrics | grep etcd_server_has_leader`
 
 ## Built-in Components
 
