@@ -33,8 +33,8 @@ Install **`curl`** and **`uptimed`** on every client that uploads.
 
 | Class | Hosts | Automation | Notes |
 |--------|--------|------------|--------|
-| OpenBSD frontends | **fishfinger**, **blowfish** | **gonf** task **`frontends_goprecords`** in **`~/git/conf/gonf`** (run via **`~/git/conf/gonf.sh`**); **`/etc/daily.local`** runs **`GOPRECORDS_HOST=<host> /usr/local/bin/goprecords-upload-client.sh`** once per **day** | Tokens are controller secrets **`gonf/secrets/frontends/etc/goprecords/<host>.token`** (optional: a host without one gets no uploader); script **`frontends/scripts/goprecords-upload-client.sh`** |
-| FreeBSD (Beelinks) | **f0**–**f3** (LAN **`192.168.1.130`–`133`**) | Manual **hourly** **root** **`cron`** calling **`goprecords-upload-client.sh`** with **`GOPRECORDS_HOST=f0`** … **`f3`** | **`/var/db/uptimed/records`**; SSH: **`fN.lan.buetow.org`** or **`192.168.1.(130+N)`** for **fN**, **`-p 22`** |
+| OpenBSD frontends | **fishfinger**, **blowfish** | **gonf** task **`frontends_goprecords`** in **`~/git/conf/gonf`** (run via **`~/git/conf/gonf.sh`**); **hourly** (`15 * * * *`) **root** crontab entry `goprecords-upload`, output to **`logger -t goprecords-upload`** (`/var/log/messages`); was daily from `/etc/daily.local` at 01:30 until task xk2 (2026-09-25) — that slot is inside the nightly f3s power-off, relayd falls back to httpd and the PUT gets **405**, so no frontend upload landed 2026-08-15..09-25 | Tokens are controller secrets **`gonf/secrets/frontends/etc/goprecords/<host>.token`** (optional: a host without one gets no uploader); script **`frontends/scripts/goprecords-upload-client.sh`** |
+| FreeBSD (Beelinks) | **f0**–**f3** (LAN **`192.168.1.130`–`133`**) | **gonf** task **`freebsd_goprecords_upload`** (`./gonf.sh cluster freebsd-hosts freebsd_goprecords_upload`): **hourly** (`0 * * * *`) **root** crontab entry `goprecords-upload` running **`goprecords-upload-client.sh`** with **`GOPRECORDS_HOST=f0`** … **`f3`**, output piped to **`logger -t goprecords-upload`** (`/var/log/messages`) | Tokens in vault **`Infra/goprecords-token-f0`**…**`f3`** (`gonf/freebsd/goprecords.go`, shared client in `gonf/goprecords/client.go`); the old hand-added **`/etc/crontab`** line was removed (task lk2, 2026-09-25); **`/var/db/uptimed/records`**; SSH: **`fN.lan.buetow.org`** or **`192.168.1.(130+N)`** for **fN**, **`-p 22`** |
 | Raspberry Pi (Rocky) | **pi2**–**pi3** | Manual **hourly** **systemd** **timer** (see README) | **`/var/spool/uptimed/records`**; uptimed waits for chronyd via a systemd override (see below); SSH: **`piN.lan.buetow.org`**, **`-p 22`** |
 | Raspberry Pi (NetBSD) | **pi0**–**pi1** | Manual **hourly** **root** **`cron`** (no systemd) calling **`goprecords-upload-client.sh`** with **`GOPRECORDS_HOST=pi0`**/**`pi1`** | **`/var/spool/uptimed/records`**; `ntpdate=YES` and uptimed requires the `ntpdate` rc.d milestone; see [NetBSD Pi setup](../../f3s-raspberry-pi/references/bootstrap-netbsd-pi.md#uptimed-built-from-source--no-prebuilt-package); SSH: **`piN.lan.buetow.org`**, **`-p 22`** |
 | Fedora laptop | **earth** | **user** **systemd** **`oneshot` + hourly timer** `goprecords-upload-earth.{service,timer}` | Service sets **`Environment=GOPRECORDS_HOST=earth`** and runs **`~/.local/bin/goprecords-upload-earth.sh`**; token **`~/.config/goprecords-upload-earth/token`** |
@@ -50,12 +50,13 @@ From **`~/git/conf`**:
 ./gonf.sh cluster frontends frontends
 ```
 
-`frontends_goprecords` also removes the old `goprecords-upload.sh` and its
-`daily.local` line.
+`frontends_goprecords` also removes the old `goprecords-upload.sh` and the
+former `daily.local` lines. A **405** from an upload means f3s was down at that
+hour (relayd httpd fallback), not a token problem (401/403).
 
 See **`frontends/README.md`** (section **goprecords upload**).
 
-## Manual clients (FreeBSD + Pis + earth)
+## Manual clients (Pis + earth)
 
 The canonical unified script is **`scripts/goprecords-upload-client.sh`** (also mirrored in **`contrib/`**). It is POSIX sh and works on all host types:
 

@@ -12,7 +12,10 @@ dashboards expect.
 doas pkg install -y node_exporter
 doas sysrc node_exporter_enable=YES
 # Bind to WireGuard interface (f0=192.168.2.130, f1=192.168.2.131, f2=192.168.2.132, f3=192.168.2.133)
-doas sysrc node_exporter_args='--web.listen-address=192.168.2.130:9100'
+# Managed by gonf since 2026-09-25 (freebsd_monitoring_*): the rc.d script always
+# adds its own listen address, so set node_exporter_listen_address (not _args),
+# or it also listens on :9100 on all interfaces.
+doas sysrc node_exporter_listen_address='192.168.2.130:9100'
 doas service node_exporter start
 ```
 

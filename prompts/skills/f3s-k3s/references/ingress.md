@@ -74,6 +74,17 @@ doas service pf start && doas service pflog start && doas service relayd start
 
 Run on both f0 and f1. Only CARP MASTER responds to VIP traffic.
 
+Since 2026-09-25 (task mk2) gonf manages all of this on f0/f1 — do not
+hand-edit: `gonf/freebsd/relayd.go`, sources in `f3s/freebsd-hosts/relayd/`,
+tasks `freebsd_relayd_rc_conf` (pf_enable/pflog_enable), `freebsd_relayd_pf`
+(pf.conf, validated with `pfctl -nf`, `pfctl -f` only on change) and
+`freebsd_relayd_daemon` (package, relayd.conf validated with `relayd -n -f`,
+relayd_enable via the service backend, **restart** only on change). Roll out
+one host at a time, BACKUP first:
+`./gonf.sh push -privilege doas -- -p 22 paul@f1.lan.buetow.org freebsd_relayd_pf freebsd_relayd_daemon`,
+then check a new ssh (LAN + WireGuard), `curl -k https://immich.f3s.lan.buetow.org`,
+and CARP state, then f0.
+
 ### cert-manager for LAN TLS
 
 LAN services use `*.f3s.lan.foo.zone` with a self-signed CA managed by cert-manager:

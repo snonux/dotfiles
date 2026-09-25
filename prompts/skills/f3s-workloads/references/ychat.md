@@ -5,7 +5,7 @@ with a mandatory embedded-SQLite backend. It is deployed on the f3s k3s
 cluster as a GitOps-managed service.
 
 > **Deployed.** The live LAN URL **https://ychat.f3s.lan.buetow.org/** serves
-> image tag `711d9e4` (v0.9.4, Pico CSS web UI), with a persistent volume
+> image tag `fdb28f8` (v0.9.5 + POST / endless-loop fix), with a persistent volume
 > (`ychat-data-pvc`, hostPath-backed NFS share) mounted at `/app/data`, so
 > registered accounts survive pod restarts. The no-DB build that previously
 > ran live has been retired.

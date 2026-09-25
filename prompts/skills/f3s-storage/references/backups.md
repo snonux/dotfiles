@@ -87,18 +87,17 @@ PV is always reachable.
 
 ### Workloads using local-path
 
-| App | Node | Path on node |
-|-----|------|--------------|
-| navidrome `/data` (DB + cache) | r1 | `/var/lib/rancher/k3s/storage/pvc-*_services_navidrome-data-pvc` |
+None as of 2026-09-25. Navidrome's `/data` was local-path on r1 (pinned via
+`nodeSelector`) until then; it moved back to an NFS hostPath PV
+(`/data/nfs/k3svolumes/navidrome/data`) so r1 is no longer a single point of
+failure. The DB is on NFS (guarded by `Recreate` + a single RWO claim); the disposable
+image/transcoding cache is an `emptyDir` (`ND_CACHEFOLDER=/cache`), which does
+not pin the pod. House rule (user, 2026-09-25): never pin a node in any
+manifest — no `nodeSelector`/`nodeName`/node affinity, no local-path PVs.
 
-### Migrating NFS hostPath → local-path
+### Migrating NFS hostPath → local-path — don't
 
-1. Disable ArgoCD auto-sync: `kubectl patch application <app> -n cicd --type=json -p='[{"op":"replace","path":"/spec/syncPolicy","value":{}}]'`
-2. Scale deployment to 0: `kubectl scale deployment <app> -n services --replicas=0`
-3. Delete old PVC and static PV.
-4. Create new PVC with `storageClassName: local-path`.
-5. Create a migration pod pinned to the target node that mounts both the NFS hostPath
-   (source) and the new PVC (target); copy data with `cp -av /src/. /dst/`.
-6. Delete migration pod, apply updated deployment (with `nodeSelector`), scale back up.
-7. Re-enable ArgoCD auto-sync and push manifests to git; push to in-cluster Forgejo
-   (`git push forgejo master`) so ArgoCD picks up the new storageClass spec.
+Retired: it requires pinning the pod to a node (`nodeSelector`), which the
+house rule forbids (Navidrome's r1 pin kept it down for 7h while f1 was off on
+2026-09-25). Keep persistent data on NFS hostPath PVs; use an `emptyDir` for
+disposable caches that are too slow on NFS.
