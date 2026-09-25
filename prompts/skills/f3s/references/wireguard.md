@@ -9,7 +9,7 @@ Hybrid WireGuard topology connecting the f3s infrastructure mesh, two gateway-on
 - `r0`, `r1`, `r2` — Rocky Linux Bhyve VMs
 - `blowfish`, `fishfinger` — OpenBSD internet gateways (OpenBSD Amsterdam and Hetzner)
 
-**Limited-peer nodes** (connect to the gateways, plus `rocky` — not full mesh):
+**Limited-peer nodes** (connect only to the gateways — not full mesh):
 - `pi0` — **NetBSD 11.0** on Raspberry Pi 3 (`192.168.2.203`)
 - `pi1` — **NetBSD 11.0** on Raspberry Pi 3 (`192.168.2.204`)
 
@@ -18,7 +18,9 @@ Hybrid WireGuard topology connecting the f3s infrastructure mesh, two gateway-on
 - `pixel7pro` — Android phone (192.168.2.201)
 
 Even `fN <-> rN` tunnels exist (technically redundant since the VM runs on the host) to keep config uniform.
-`pi0` and `pi1` are not full-mesh peers; each has exactly 3 peers: `blowfish`, `fishfinger`, and `rocky`.
+`pi0` and `pi1` are not full-mesh peers; each has exactly 2 peers: `blowfish` and `fishfinger`.
+
+`rocky` (`192.168.2.123`, the plain VM on f3) is also gateway-only: it peers with `blowfish`/`fishfinger` and excludes everything else. Exclusions must be symmetric in the generator YAML — until 2026-09-25 pi0/pi1 did not exclude `rocky`, so both carried a `rocky` peer that never handshaked (0 B received) because rocky had no matching peer.
 
 ### `pi0`/`pi1` (NetBSD): deployed userspace WireGuard
 
@@ -44,8 +46,9 @@ Historical evidence from 10.1: the `wg` kernel module did **not** ship in that e
 | r2 | 192.168.2.122 | fd42:beef:cafe:2::122 | Rocky VM (k3s node) |
 | blowfish | 192.168.2.110 | fd42:beef:cafe:2::110 | OpenBSD internet GW |
 | fishfinger | 192.168.2.111 | fd42:beef:cafe:2::111 | OpenBSD internet GW |
-| pi0 | 192.168.2.203 | fd42:beef:cafe:2::203 | NetBSD 11.0 on Raspberry Pi 3 (limited-peer: blowfish/fishfinger/rocky) |
-| pi1 | 192.168.2.204 | fd42:beef:cafe:2::204 | NetBSD 11.0 on Raspberry Pi 3 (limited-peer: blowfish/fishfinger/rocky) |
+| pi0 | 192.168.2.203 | fd42:beef:cafe:2::203 | NetBSD 11.0 on Raspberry Pi 3 (limited-peer: blowfish/fishfinger) |
+| pi1 | 192.168.2.204 | fd42:beef:cafe:2::204 | NetBSD 11.0 on Raspberry Pi 3 (limited-peer: blowfish/fishfinger) |
+| rocky | 192.168.2.123 | fd42:beef:cafe:2::123 | Plain Rocky VM on f3 (limited-peer: blowfish/fishfinger) |
 | earth | 192.168.2.200 | fd42:beef:cafe:2::200 | Fedora laptop (roaming) |
 | pixel7pro | 192.168.2.201 | fd42:beef:cafe:2::201 | Android phone (roaming) |
 
@@ -259,7 +262,7 @@ The script generates all configs and can push them via SSH.
 
 Current mesh-specific notes:
 
-- `pi0` and `pi1` are defined in the generator's YAML as `os: NetBSD` and excluded from most non-gateway peers, so they only tunnel to `blowfish`, `fishfinger`, and `rocky`
+- `pi0` and `pi1` are defined in the generator's YAML as `os: NetBSD` and excluded from most non-gateway peers, so they only tunnel to `blowfish` and `fishfinger` (`rocky` is in their `exclude_peers`, mirroring rocky's own exclusion of the Pis)
 - Installed config ownership must be OS-specific:
   - Linux: `root:root`
   - BSD: `root:wheel`
