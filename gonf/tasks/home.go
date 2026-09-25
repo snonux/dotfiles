@@ -125,7 +125,14 @@ func (HomeTasks) Sway() {
 	SyncDir(DestHome(".config/waybar"), paths.Dot+"/waybar/*")
 }
 
-func (HomeTasks) DescGitconfig() string { return "Set global git config" }
+func (HomeTasks) DescGitconfig() string { return "Set global git config (not on macOS)" }
+
+// OptsGitconfig skips macOS: git there is configured by hand, so a
+// Mac keeps its own global git config. gonf has no negated guard, so this
+// lists every other supported OS.
+func (HomeTasks) OptsGitconfig() TaskOptions {
+	return TaskOptions{WhenOS("linux", "freebsd", "openbsd", "netbsd")}
+}
 func (HomeTasks) Gitconfig() {
 	GitGlobal(
 		"user.email", "paul@buetow.org",
