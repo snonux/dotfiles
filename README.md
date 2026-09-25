@@ -60,28 +60,30 @@ Guards are serializable and evaluated on the destination (gonf >= v0.19.0), so a
 | `home_fish` | symlinks `~/.config/fish/conf.d` | all |
 | `home_fish_completions` | syncs `~/.config/fish/completions` | all |
 | `home_ghostty` | syncs `~/.config/ghostty` | all |
-| `home_gitconfig` | global git config (user, delta, difftastic, `hx` editor) | Linux |
+| `home_gitconfig` | global git config (user, delta, difftastic, `hx` editor) | all |
 | `home_gitsyncer` | symlinks `~/.config/gitsyncer` | all |
 | `home_helix` | syncs `~/.config/helix` | all |
 | `home_hexai` | syncs `~/.config/hexai` | Linux |
 | `home_lazygit` | syncs `~/.config/lazygit` | all |
 | `home_opencode` | syncs `~/.config/opencode` | all |
-| `home_pipewire` | installs `~/.config/pipewire/pipewire.conf` (0600) | all |
+| `home_pipewire` | installs `~/.config/pipewire/pipewire.conf` (0600) | Linux |
 | `home_prompts` | alias of `home_agents` | all |
-| `home_quickedit` | `~/QuickEdit` symlinks to data, Documents, dotfiles, gemtext, Notes, snippets, worktime | profile fedora, rocky, freebsd |
+| `home_quickedit` | `~/QuickEdit` symlinks to data, Documents, dotfiles, gemtext, Notes, snippets, worktime | profile fedora, rocky, freebsd, darwin |
 | `home_scripts` | syncs `~/scripts` (0750, prunes removed files) | all |
 | `home_signature` | installs `~/.signature` | all |
 | `home_ssh` | installs `~/.ssh/config` (0600) | all |
-| `home_sway` | syncs `~/.config/sway/config.d`, `~/.config/waybar` | all |
+| `home_sway` | syncs `~/.config/sway/config.d`, `~/.config/waybar` | Linux |
 | `home_systemd_user` | user units + timers `home-backup`, `quicklog-drain`, generated `random-wallpaper` (hourly) | Linux |
-| `home_taskwarrior` | installs `~/.taskrc` (Taskwarrior 3.x) | Linux |
+| `home_taskwarrior` | installs `~/.taskrc` (Taskwarrior 3.x) | all |
 | `home_timesamurai` | syncs `~/.config/timesamurai` | all |
 | `home_tmux` | syncs `~/.config/tmux` | all |
 | `home_tmux_rocky` | alias of `home_tmux` | all |
 | `home_vale` | symlinks `~/.vale.ini` | all |
 | `pkg_fedora` | installs the workstation package set, removes `Rex`; privileged | profile fedora |
 
-Profile detection reads `/etc/os-release`. FreeBSD has none, so pass `-profile=freebsd`.
+Profile detection reads `/etc/os-release`; macOS reports `darwin`. FreeBSD has neither, so pass `-profile=freebsd`.
+
+macOS works for a local run on the Mac and for `push you@mac home`: destination paths are recorded as `${HOME}/...` and expand to `/Users/<you>` there. There is no package or launchd backend, so `pkg_fedora` and `home_systemd_user` skip on a Mac. Symlink tasks (`home_bash`, `home_fish`, `home_gitsyncer`, `home_vale`, `home_agents`) point into `~/git/dotfiles` and `~/Notes/Prompts` on the destination, so a Mac needs those checkouts. lazygit on macOS reads `~/Library/Application Support/lazygit` unless `XDG_CONFIG_HOME` is set.
 
 ## Scripts
 
