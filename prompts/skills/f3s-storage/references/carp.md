@@ -59,6 +59,10 @@ The script must call `/usr/local/sbin/f3s-mount-keys` before any
 
 ## CARP management script (`/usr/local/bin/carp`)
 
+Source: `f3s/freebsd-hosts/carp/carp`, deployed to f0/f1 by gonf
+(`./gonf.sh cluster freebsd-hosts freebsd_carp_script`). `carp state` prints the
+bare state (MASTER/BACKUP/INIT) for scripts.
+
 ```sh
 doas carp             # show current state
 doas carp master      # force MASTER (e.g. reclaim after maintenance)
@@ -84,6 +88,11 @@ the ifconfig ioctl path. The CARP VIP will **not** float to f1 in this case.
 [troubleshooting.md](troubleshooting.md) for the full SUSPENDED-pool recovery runbook.
 
 ## Auto-failback from f1 to f0
+
+Source: `f3s/freebsd-hosts/carp/carp-auto-failback.sh`, deployed with its cron
+job and newsyslog rotation by gonf (`freebsd_carp_*` tasks; do not hand-edit
+root's crontab). It only promotes from a settled BACKUP (INIT during boot is
+skipped) and logs a failed promotion to syslog at daemon.err.
 
 Script `/usr/local/bin/carp-auto-failback.sh` runs every minute via cron on f0. Checks: currently BACKUP? `/data/nfs` mounted? Marker file exists? Failback not blocked? If all conditions met, promotes f0 to MASTER.
 

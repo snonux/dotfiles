@@ -1,6 +1,6 @@
 # DTail / dserver on f3s
 
-[DTail](https://codeberg.org/snonux/dtail) is a distributed log tool (tail/cat/grep/MapReduce) over SSH. The **dserver** daemon listens on **TCP 2222** (not port 22). Clients (`dtail`, `dcat`, `dgrep`, `dmap`, …) use normal SSH keys against dserver.
+[DTail](https://github.com/snonux/dtail) is a distributed log tool (tail/cat/grep/MapReduce) over SSH. The **dserver** daemon listens on **TCP 2222** (not port 22). Clients (`dtail`, `dcat`, `dgrep`, `dmap`, …) use normal SSH keys against dserver.
 
 Upstream install and examples live in the repo: `doc/installation.md`, `examples/`.
 
@@ -52,7 +52,7 @@ These hosts are the **x86_64** guests on f0/f1/f2. SSH and VM background: [Rocky
 ### Build the binaries (on earth)
 
 ```bash
-cd ~/git/dtail   # your checkout of https://codeberg.org/snonux/dtail
+cd ~/git/dtail   # your checkout of https://github.com/snonux/dtail
 
 # exact cross-builds for the Rocky VMs
 for bin in dserver dtail dcat dgrep dmap dtailhealth; do

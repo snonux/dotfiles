@@ -133,7 +133,7 @@ Create the directory on the NFS share before deploying: `mkdir /data/nfs/k3svolu
 
 ## Deployment: GitOps with ArgoCD
 
-Config repository: `https://codeberg.org/snonux/conf` (directory: `f3s/`)
+Config repository: `https://github.com/snonux/conf` (directory: `f3s/`)
 
 ArgoCD app structure:
 ```
@@ -146,7 +146,7 @@ argocd-apps/
 
 **To view pre-ArgoCD state** (how things were in Part 7):
 ```sh
-git clone https://codeberg.org/snonux/conf.git
+git clone https://github.com/snonux/conf.git
 cd conf && git checkout 15a86f3  # last commit before ArgoCD migration
 cd f3s/
 ```
@@ -167,3 +167,18 @@ kubectl get pods --all-namespaces    # all running pods
 kubectl get namespaces
 kubectl config set-context --current --namespace=<ns>
 ```
+
+## Host firewall on r0/r1/r2: firewalld is off on purpose
+
+Decided/verified 2026-09-25 (audit item 28): `firewalld` is **disabled** on the
+r-nodes, as the WireGuard setup (f3s hub `references/wireguard.md`) prescribes
+and as k3s recommends (firewalld's nftables rules fight kube-proxy/flannel).
+Exposure is acceptable because the nodes sit on the home LAN / WireGuard mesh
+only (the internet reaches workloads solely via the OpenBSD relayd frontends),
+and the listeners that matter are authenticated: 6443 (API), 10250 (kubelet),
+etcd 2379-2381 bound to the wg0 address. Unauthenticated but harmless on the
+LAN: 9100 (node_exporter). Needless: rpcbind on 0.0.0.0:111 — the k3svolumes
+mount is NFSv4 and does not need it; disabling `rpcbind.socket`/`rpcbind` is a
+safe cleanup to try on one node first (confirm the mount survives a remount).
+Re-enabling firewalld would need explicit rules for 6443, 10250, 2379-2381,
+8472/udp (flannel VXLAN), 51820/udp (wg0), 22, 2222 (dserver), 9100.

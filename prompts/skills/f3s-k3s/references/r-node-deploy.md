@@ -1,7 +1,7 @@
 # r-node Deploy Mechanism (gonf)
 
 The reusable way to roll out files and systemd units to the three k3s Rocky
-Linux VMs — **r0/r1/r2** — is a [gonf](https://codeberg.org/snonux/gonf) task
+Linux VMs — **r0/r1/r2** — is a [gonf](https://github.com/snonux/gonf) task
 in the conf repo's `gonf/` module. The canonical, fully-worked example is the
 **`rnodes_nfs_mount_monitor`** task. Treat it as the template for *any* r-node
 rollout; you do not need to re-derive the flow each time.
@@ -21,7 +21,7 @@ f3 is **not** part of this group — it is standalone bhyve and hosts the plain
 
 ## Where it lives
 
-In the conf repo (`https://codeberg.org/snonux/conf`):
+In the conf repo (`https://github.com/snonux/conf`):
 
 ```
 gonf/rnodes/maintenance.go                # r-node tasks (Maintenance struct)

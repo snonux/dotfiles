@@ -24,6 +24,7 @@ subfolder:
 - [FreeBSD Setup](references/freebsd-setup.md) — Base OS install, packages, ZFS snapshots, configuration
 - [UPS & Power](references/ups-power.md) — APC BX750MI, gonf-managed apcupsd on f0 (USB) and f1/f2/f3 (net clients)
 - [Console (HDMI/JetKVM) & Shutdown](references/console-jetkvm-shutdown.md) — FreeBSD 15.1 regressed console to vga 640x480 (fix `efi_max_resolution="1080p"` in loader.conf); JetKVM on f1, only 1080p captures; shutdown hang (`rc.shutdown` 90s watchdog → single-user → un-wakeable by WoL) from slow bhyve k3s guest stop — **mitigated 2026-06-28**: `rcshutdown_timeout="300"` set on f0/f1/f2 (vm-bhyve 1.7.3 has no `stop_timeout` lever); safe remote-reboot procedure (`vm stopall` then `reboot`)
+- [Kernel Panics & Hangs](references/kernel-panics.md) — investigating f-host crashes: where the dumps/logs are, decoding vmcores without debug symbols (`dmesg -M`, `nm`), boot timing via `kern.msgbuf_show_timestamp`; fleet-wide 15.1 ZFS-taskq panic signature (NULL IP / `sched_ule_sswitch+0x888`) = kstack VA/PA aliasing at boot mount/shutdown export, suspect N100 PCID/INVLPG erratum (fix plan: `vm.pmap.pcid_enabled=0`); the f1 2026-09-25 un-dumped hang
 - [Rocky Linux VMs](references/rocky-linux-vms.md) — Bhyve, vm-bhyve, VM config, NVMe disk fix; FreeBSD VM on f3 (migrated from f0)
 - [f3 Rocky VM](references/f3-rocky-vm.md) — Plain Rocky Linux 9 VM on f3 (`rocky`, `192.168.1.123`), autostart policy, root SSH
 - [Bootstrap Rocky bhyve VM](references/bootstrap-rocky-bhyve.md) — Runbook for creating a new plain Rocky Linux bhyve guest with unattended kickstart
@@ -71,4 +72,4 @@ table, physical hosts, WireGuard mesh, and off-LAN access that they all link bac
 
 ## Config Repository
 
-All manifests and config: `https://codeberg.org/snonux/conf` (directory: `f3s/`)
+All manifests and config: `https://github.com/snonux/conf` (directory: `f3s/`)

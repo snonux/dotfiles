@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"codeberg.org/snonux/dotfiles/gonf/paths"
+	"github.com/snonux/dotfiles/gonf/paths"
 	. "github.com/snonux/gonf/api"
 	. "github.com/snonux/gonf/api/options"
 )

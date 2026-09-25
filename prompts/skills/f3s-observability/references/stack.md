@@ -7,7 +7,7 @@ Alloy, Loki, Tempo, Alertmanager → Gogios.
 
 All components deployed via **ArgoCD** (GitOps). Manifests:
 ```
-https://codeberg.org/snonux/conf/src/branch/master/f3s
+https://github.com/snonux/conf/tree/master/f3s
 argocd-apps/monitoring/
 ```
 
