@@ -1,13 +1,15 @@
 # gonf recipes
 
-gonf module for this repo. Pinned: `github.com/snonux/gonf v0.21.0` (`go.mod`). Task list: [../README.md](../README.md#tasks).
+gonf module for this repo. Pinned: `github.com/snonux/gonf v0.23.0` (`go.mod`). Task list: [../README.md](../README.md#tasks).
 
 ## Layout
 
 ```text
-cmd/gonf/main.go   registers HomeTasks (home_*), Pkg (pkg_*), aliases, the "home" aggregate; cli.CLI()
+cmd/gonf/main.go   registers HomeTasks (home_*), Pkg (pkg_*), System (system_*), aliases, the "home" aggregate; cli.CLI()
 tasks/home.go      HomeTasks: unprivileged, everything under $HOME
 tasks/pkg.go       Pkg: embeds RequiresRoot, group guarded by WhenProfile("fedora")
+tasks/system.go    System: embeds RequiresRoot, group guarded by WhenHostnameContains("earth")
+fleet/hosts.go     LAN + wg0 mesh rows for earth's /etc/hosts block (copy of conf's etchosts inventory)
 paths/paths.go     controller source roots: Dot, DotPrivate, NotesPrompts
 Magefile.go        deps, build
 ```
@@ -49,7 +51,7 @@ func (HomeTasks) Foo() {
 cd ~/git/dotfiles/gonf
 GOWORK=off go build ./...
 GOWORK=off go vet ./...
-GOWORK=off go run ./cmd/gonf -list      # 27 tasks
+GOWORK=off go run ./cmd/gonf -list      # 29 tasks
 GOWORK=off go run ./cmd/gonf -n home    # dry-run
 mage          # = mage build: ./gonf binary
 mage deps     # go mod download
@@ -63,4 +65,8 @@ Bumping gonf: `go get github.com/snonux/gonf@vX.Y.Z && go mod tidy`. If a fresh 
 
 Use `../gonf.sh <args>` (see [../README.md](../README.md#deploy)). It sets `GONF_DOTFILES_ROOT` only when run from a checkout other than `~/git/dotfiles`, and never resolves symlinks (FreeBSD `/home -> /usr/home`), since link targets in the plan would change. A built `./gonf` takes the same args.
 
-`pkg_fedora` runs its package ops through the privileged apply path (`-privilege=sudo|doas`); `home_*` never escalate.
+`pkg_fedora` and `system_*` run their ops through the privileged apply path (`-privilege=sudo|doas`); `home_*` never escalate.
+
+`system_hosts` owns only the `# BEGIN GONF fleet` ... `# END GONF fleet` block of `/etc/hosts` (gonf `WithBlock`); the stock loopback header and the `hyperstack*.wg1` rows written by the hyperstack tool's `wg1-setup.sh` stay outside it. A new fleet host goes into `~/git/conf/gonf/etchosts` (or `frontends/data.go`) first, then into `fleet/hosts.go`.
+
+`system_wireguard` only keeps `/etc/wireguard` 0700 and the existing `wg0.conf`/`wg1.conf` 0600 root:root. Content belongs to `~/git/wireguardmeshgenerator` (wg0; run conf's `wireguard_mesh_install`) and the hyperstack tool (wg1). The `wg-quick@` units are deliberately left disabled and unmanaged.
