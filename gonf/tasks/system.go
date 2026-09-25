@@ -1,6 +1,9 @@
 package tasks
 
 import (
+	"path/filepath"
+	"strings"
+
 	"github.com/snonux/dotfiles/gonf/fleet"
 	. "github.com/snonux/gonf/api"
 )
@@ -46,10 +49,10 @@ func (System) DescWireguard() string {
 // config 0600 root:root, since they hold private keys. A config that does not exist
 // (no hyperstack VM yet) is not created.
 //
-// Units stay unmanaged on purpose: wg-quick@wg0 and wg-quick@wg1 are
-// disabled on earth, which roams, so wg0 is brought up by hand (sudo
-// systemctl start wg-quick@wg0) and wg-quick@wg1 is started by
-// wg1-setup.sh. Enabling auto-start is the user's call, not this recipe's.
+// wg-quick@wg0 and wg-quick@wg1 are enabled for auto-start at boot (user
+// decision 2026-09-25) for each tunnel whose config exists. Enable only, via
+// a guarded systemctl call: gonf's Service would also start them, and a
+// deploy must never bring a tunnel up or down on this roaming laptop.
 //
 // The directory also holds files neither generator writes (dated backups,
 // the single-gateway variants wg0-blowfish.conf and wg0-fishfinger.conf).
@@ -60,6 +63,9 @@ func (System) Wireguard() {
 	for _, conf := range wireGuardConfigs {
 		WhenPathExists(conf, func() {
 			EnsureFile(conf, Perm(0o600, Root))
+			unit := "wg-quick@" + strings.TrimSuffix(filepath.Base(conf), ".conf")
+			Command("systemctl", List("enable", unit),
+				OnlyIf("sh", List("-c", "! systemctl is-enabled --quiet "+unit)))
 		})
 	}
 }
