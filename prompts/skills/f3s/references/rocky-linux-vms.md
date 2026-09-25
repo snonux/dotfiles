@@ -58,10 +58,19 @@ The `uuid` and `network0_mac` differ for each of the three VMs.
 ### Install from ISO (interactive via VNC)
 ```sh
 doas vm install rocky Rocky-9.5-x86_64-minimal.iso
-# VNC address: vnc://f0:5900, vnc://f1:5900, vnc://f2:5900
+# VNC listens on 127.0.0.1:5900 only (graphics_listen, see below)
 ```
 
-Use GNOME VNC client from `earth` (Fedora laptop) to complete the graphical installer.
+VNC is bound to loopback on every f-host: gonf task `freebsd_bhyve_vnc_listen`
+(`~/git/conf/gonf/freebsd/bhyve.go`) sets `graphics_listen="127.0.0.1"` in
+every graphical guest's `/zroot/bhyve/<vm>/<vm>.conf`. vm-bhyve reads the
+config only on `vm start`, so a guest picks it up after a full stop/start
+(`doas vm list` shows the bound address). Tunnel from `earth` (Fedora laptop)
+and point the GNOME VNC client at `localhost:5900`:
+
+```sh
+ssh -p22 -L 5900:127.0.0.1:5900 f0.lan.buetow.org
+```
 
 ## After Install
 
@@ -160,7 +169,7 @@ doas vm list                          # list all VMs and state
 doas vm start rocky                   # start VM
 doas vm stop rocky                    # graceful ACPI stop (can be slow)
 doas vm reset rocky                   # force reset
-doas sockstat -4 | grep 5900          # check VNC port
+doas sockstat -4 | grep 5900          # check VNC port (127.0.0.1:5900 once restarted)
 ```
 
 > **`vm stop` is ACPI-only** — it sends a shutdown signal but does not wait. If the VM does not shut down within a reasonable time, force-kill the bhyve process:
