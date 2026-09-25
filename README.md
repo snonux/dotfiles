@@ -60,7 +60,7 @@ Guards are serializable and evaluated on the destination (gonf >= v0.19.0), so a
 | `home_fish` | symlinks `~/.config/fish/conf.d` | all |
 | `home_fish_completions` | syncs `~/.config/fish/completions` | all |
 | `home_ghostty` | syncs `~/.config/ghostty` | all |
-| `home_gitconfig` | global git config (user, delta, difftastic, `hx` editor) | all |
+| `home_gitconfig` | global git config (user, delta, difftastic, `hx` editor) | all but macOS |
 | `home_gitsyncer` | symlinks `~/.config/gitsyncer` | all |
 | `home_helix` | syncs `~/.config/helix` | all |
 | `home_hexai` | syncs `~/.config/hexai` | Linux |
