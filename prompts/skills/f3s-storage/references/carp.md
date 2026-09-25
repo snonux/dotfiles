@@ -53,9 +53,37 @@ hook would start NFS on its read-only replica. So:
 6. `./gonf.sh -dry-run cluster freebsd-hosts freebsd_carp_rc_conf` (only
    `rc-conf-carp` would-change on f0/f1), apply, re-run: clean.
 
-`netstat -s -p carp` on f1 shows a steadily growing "discarded for bad vhid"
-count (~1/s, already ~11k before the rotation; f0 shows 0). It predates the
-rotation and is unrelated to the key; cause not investigated.
+### "discarded for bad vhid" rising ~1/s on the BACKUP: harmless
+
+`netstat -s -p carp` on the BACKUP (normally f1) shows "discarded for bad
+vhid" growing by 1/s, while the MASTER shows ~0. The discards are exactly half
+of "packets received" (2026-09-25: 23587 received, 11790 bad vhid, +20/+10 in
+10 s). This is **not** a foreign CARP/VRRP speaker and not a misconfiguration
+(task 2l2):
+
+- `tcpdump -eni re0 proto 112` on f0 and f1 shows only one sender: f0
+  (`e8:ff:1e:d7:1c:ac`, 192.168.1.130 -> 224.0.0.18, vhid 1, 1/s). tcpdump
+  decodes it as "VRRPv2 ... authtype none" because CARP and VRRP share IP
+  proto 112, so the label is misleading. No router or other LAN device sends
+  adverts. f2/f3 have no carp addresses.
+- re0 is a member of the bhyve bridge `vm-public` (with tap0) on every f-host.
+  For each multicast frame, `bridge_input()` hands the original to re0's
+  stack and also *re-injects a copy as arriving on the bridge interface*
+  (`sys/net/if_bridge.c`, "Reinject the mbuf as arriving on the bridge").
+- `carp_input` (`sys/netinet/ip_carp.c`) looks for the vhid among the
+  addresses of the receiving interface. The re0 copy matches vhid 1 and is
+  processed normally. The `vm-public` copy has no CARP address, so it counts
+  as `carps_badvhid` and is dropped. So every advert gives one good and one
+  bad receive.
+- Only the BACKUP counts them because only the BACKUP receives adverts. The
+  MASTER only sends, and its own multicast is not looped back. f0's "2
+  received / 1 bad vhid" comes from the one advert f1 sent while it was
+  briefly master. After a failover the counters flip: f0 as BACKUP would
+  count 1/s.
+
+No action needed. Do not alert on this counter. Watch for **bad
+authentication** instead (key mismatch, see above), or for bad vhid growing
+faster than 1/s (which would mean another sender).
 
 ```sh
 # On f0 (default advskew=0, wins elections)
