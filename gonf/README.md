@@ -1,6 +1,6 @@
 # gonf recipes
 
-gonf module for this repo. Pinned: `github.com/snonux/gonf v0.20.0` (`go.mod`). Task list: [../README.md](../README.md#tasks).
+gonf module for this repo. Pinned: `github.com/snonux/gonf v0.21.0` (`go.mod`). Task list: [../README.md](../README.md#tasks).
 
 ## Layout
 
@@ -20,7 +20,7 @@ Source roots, read on the controller when the plan is recorded:
 | `paths.DotPrivate` | `~/git/conf_private/dotfiles` |
 | `paths.NotesPrompts` | `~/Notes/Prompts` |
 
-Destination paths use `Home(...)`.
+Destination paths use `DestHome(...)` (recorded as `${HOME}/...`, expanded on the destination). Controller sources use `paths.Dot`, `paths.DotPrivate` and `paths.NotesPrompts` (built with `Home`, read where gonf runs). Symlink targets into the destination's own checkout use `paths.DestDot` and `paths.DestNotesPrompts`.
 
 ## Adding a task
 
@@ -30,12 +30,12 @@ Add a method trio to `HomeTasks` in `tasks/home.go`:
 func (HomeTasks) DescFoo() string      { return "Install ~/.config/foo" }
 func (HomeTasks) OptsFoo() TaskOptions { return TaskOptions{WhenLinux()} } // optional guard
 func (HomeTasks) Foo() {
-	SyncDir(Home(".config/foo"), paths.Dot+"/foo/*")
+	SyncDir(DestHome(".config/foo"), paths.Dot+"/foo/*")
 }
 ```
 
 - Name is prefix + snake_case of the method: `FishCompletions` -> `home_fish_completions`. `home` picks it up via `^home_`.
-- Guards (`WhenLinux()`, `WhenProfile(...)`) must be serializable; they run on the destination.
+- Guards (`WhenLinux()`, `WhenDarwin()`, `WhenBSD()`, `WhenOS(...)`, `WhenProfile(...)`) must be serializable; they run on the destination.
 - Optional controller-side sources: guard with `optionalControllerSource(task, dir)`. Missing dir skips the task, unreadable dir fails the run. Destination-side existence: `WhenPathExists`.
 - Resources used here: `SyncDir` (`WithPrune`, `WithFileMode`), `InstallFile` (`WithMode`), `Link`/`WithSymlink`, `SymlinkMap`, `Dir`/`EnsureDir`, `GitGlobal`, `SystemdUnits`, `SystemdTimer`, `Package`/`NoPackage`.
 - Something needing root goes into `Pkg` (or another `RequiresRoot` group), not `HomeTasks`.

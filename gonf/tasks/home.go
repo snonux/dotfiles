@@ -15,33 +15,33 @@ type HomeTasks struct{}
 
 func (HomeTasks) DescHelix() string { return "Install ~/.config/helix" }
 func (HomeTasks) Helix() {
-	SyncDir(Home(".config/helix"), paths.Dot+"/helix/*")
+	SyncDir(DestHome(".config/helix"), paths.Dot+"/helix/*")
 }
 
 func (HomeTasks) DescGhostty() string { return "Install ~/.config/ghostty" }
 func (HomeTasks) Ghostty() {
-	SyncDir(Home(".config/ghostty"), paths.Dot+"/ghostty/*")
+	SyncDir(DestHome(".config/ghostty"), paths.Dot+"/ghostty/*")
 }
 
 func (HomeTasks) DescHexai() string      { return "Install ~/.config/hexai (Linux)" }
 func (HomeTasks) OptsHexai() TaskOptions { return TaskOptions{WhenLinux()} }
 func (HomeTasks) Hexai() {
-	SyncDir(Home(".config/hexai"), paths.Dot+"/hexai/*")
+	SyncDir(DestHome(".config/hexai"), paths.Dot+"/hexai/*")
 }
 
 func (HomeTasks) DescTimesamurai() string { return "Install ~/.config/timesamurai" }
 func (HomeTasks) Timesamurai() {
-	SyncDir(Home(".config/timesamurai"), paths.Dot+"/timesamurai/*")
+	SyncDir(DestHome(".config/timesamurai"), paths.Dot+"/timesamurai/*")
 }
 
 func (HomeTasks) DescLazygit() string { return "Install ~/.config/lazygit" }
 func (HomeTasks) Lazygit() {
-	SyncDir(Home(".config/lazygit"), paths.Dot+"/lazygit/*")
+	SyncDir(DestHome(".config/lazygit"), paths.Dot+"/lazygit/*")
 }
 
 func (HomeTasks) DescOpencode() string { return "Install ~/.config/opencode" }
 func (HomeTasks) Opencode() {
-	SyncDir(Home(".config/opencode"), paths.Dot+"/opencode/*")
+	SyncDir(DestHome(".config/opencode"), paths.Dot+"/opencode/*")
 }
 
 func (HomeTasks) DescAgents() string { return "Install agent command/skill symlinks" }
@@ -50,82 +50,82 @@ func (HomeTasks) DescAgents() string { return "Install agent command/skill symli
 // Notes/Prompts checkout. That checkout is optional (a controller without
 // it skips the task), but an unreadable one fails the run.
 func (HomeTasks) Agents() {
-	commands := paths.NotesPrompts + "/commands"
-	skills := paths.NotesPrompts + "/skills"
-	if !optionalControllerSource("home_agents", commands) {
+	if !optionalControllerSource("home_agents", paths.NotesPrompts+"/commands") {
 		return
 	}
-	if !optionalControllerSource("home_agents", skills) {
+	if !optionalControllerSource("home_agents", paths.NotesPrompts+"/skills") {
 		return
 	}
+	commands := paths.DestNotesPrompts + "/commands"
+	skills := paths.DestNotesPrompts + "/skills"
 
 	for _, tool := range List(".cursor", ".claude", ".agents", ".opencode", ".amp") {
-		toolDir := Home(tool)
+		toolDir := DestHome(tool)
 		EnsureDir(toolDir, WithMode(0o750))
 		Link(toolDir+"/commands", WithSymlink(commands))
 		Link(toolDir+"/skills", WithSymlink(skills))
 	}
 
 	// ~/.pi is often a symlink to an app data dir; EnsureDir rejects that.
-	WhenPathExists(Home(".pi"), func() {
-		Link(Home(".pi/commands"), WithSymlink(commands))
-		Link(Home(".pi/skills"), WithSymlink(skills))
+	WhenPathExists(DestHome(".pi"), func() {
+		Link(DestHome(".pi/commands"), WithSymlink(commands))
+		Link(DestHome(".pi/skills"), WithSymlink(skills))
 	})
 
-	codex := Home(".codex")
+	codex := DestHome(".codex")
 	EnsureDir(codex, WithMode(0o750))
 	Link(codex+"/prompts", WithSymlink(commands))
 }
 
 func (HomeTasks) DescScripts() string { return "Install ~/scripts" }
 func (HomeTasks) Scripts() {
-	SyncDir(Home("scripts"), paths.Dot+"/scripts/*", WithFileMode(0o750), WithPrune)
+	SyncDir(DestHome("scripts"), paths.Dot+"/scripts/*", WithFileMode(0o750), WithPrune)
 }
 
 func (HomeTasks) DescSsh() string { return "Install ~/.ssh/config" }
 func (HomeTasks) Ssh() {
-	InstallFile(Home(".ssh/config"), paths.Dot+"/ssh/config", WithMode(0o600))
+	InstallFile(DestHome(".ssh/config"), paths.Dot+"/ssh/config", WithMode(0o600))
 }
 
 func (HomeTasks) DescBash() string { return "Install bash configuration symlinks" }
 func (HomeTasks) Bash() {
-	Link(Home(".bash_profile"), WithSymlink(paths.Dot+"/bash/bash_profile"))
-	Link(Home(".bashrc"), WithSymlink(paths.Dot+"/bash/bashrc"))
+	Link(DestHome(".bash_profile"), WithSymlink(paths.DestDot+"/bash/bash_profile"))
+	Link(DestHome(".bashrc"), WithSymlink(paths.DestDot+"/bash/bashrc"))
 }
 
 func (HomeTasks) DescFish() string { return "Install fish conf.d symlink" }
 func (HomeTasks) Fish() {
-	Link(Home(".config/fish/conf.d"), WithSymlink(paths.Dot+"/fish/conf.d"))
+	Link(DestHome(".config/fish/conf.d"), WithSymlink(paths.DestDot+"/fish/conf.d"))
 }
 
 func (HomeTasks) DescFishCompletions() string { return "Install fish completions" }
 func (HomeTasks) FishCompletions() {
-	SyncDir(Home(".config/fish/completions"), paths.Dot+"/fish/completions/*")
+	SyncDir(DestHome(".config/fish/completions"), paths.Dot+"/fish/completions/*")
 }
 
 func (HomeTasks) DescGitsyncer() string { return "Install gitsyncer config symlink" }
 func (HomeTasks) Gitsyncer() {
-	Link(Home(".config/gitsyncer"), WithSymlink(paths.Dot+"/gitsyncer"))
+	Link(DestHome(".config/gitsyncer"), WithSymlink(paths.DestDot+"/gitsyncer"))
 }
 
 func (HomeTasks) DescVale() string { return "Install ~/.vale.ini symlink" }
 func (HomeTasks) Vale() {
-	Link(Home(".vale.ini"), WithSymlink(paths.Dot+"/vale.ini"))
+	Link(DestHome(".vale.ini"), WithSymlink(paths.DestDot+"/vale.ini"))
 }
 
 func (HomeTasks) DescTmux() string { return "Install ~/.config/tmux" }
 func (HomeTasks) Tmux() {
-	SyncDir(Home(".config/tmux"), paths.Dot+"/tmux/*")
+	SyncDir(DestHome(".config/tmux"), paths.Dot+"/tmux/*")
 }
 
-func (HomeTasks) DescSway() string { return "Install sway and waybar config" }
+func (HomeTasks) DescSway() string      { return "Install sway and waybar config (Linux)" }
+func (HomeTasks) OptsSway() TaskOptions { return TaskOptions{WhenLinux()} }
 func (HomeTasks) Sway() {
-	SyncDir(Home(".config/sway/config.d"), paths.Dot+"/sway/config.d/*")
-	SyncDir(Home(".config/waybar"), paths.Dot+"/waybar/*")
+	SyncDir(DestHome(".config/sway/config.d"), paths.Dot+"/sway/config.d/*")
+	SyncDir(DestHome(".config/waybar"), paths.Dot+"/waybar/*")
 }
 
-func (HomeTasks) DescGitconfig() string      { return "Set global git config (Linux)" }
-func (HomeTasks) OptsGitconfig() TaskOptions { return TaskOptions{WhenLinux()} }
+func (HomeTasks) DescGitconfig() string { return "Set global git config" }
 func (HomeTasks) Gitconfig() {
 	GitGlobal(
 		"user.email", "paul@buetow.org",
@@ -146,7 +146,7 @@ func (HomeTasks) Gitconfig() {
 
 func (HomeTasks) DescSignature() string { return "Install ~/.signature" }
 func (HomeTasks) Signature() {
-	InstallFile(Home(".signature"), paths.Dot+"/signature")
+	InstallFile(DestHome(".signature"), paths.Dot+"/signature")
 }
 
 func (HomeTasks) DescCalendar() string { return "Install ~/.calendar from private repo" }
@@ -158,37 +158,38 @@ func (HomeTasks) Calendar() {
 	if !optionalControllerSource("home_calendar", calendar) {
 		return
 	}
-	SyncDir(Home(".calendar"), calendar+"/*")
+	SyncDir(DestHome(".calendar"), calendar+"/*")
 }
 
-func (HomeTasks) DescPipewire() string { return "Install pipewire high-res config" }
+func (HomeTasks) DescPipewire() string      { return "Install pipewire high-res config (Linux)" }
+func (HomeTasks) OptsPipewire() TaskOptions { return TaskOptions{WhenLinux()} }
 func (HomeTasks) Pipewire() {
-	Dir(Home(".config/pipewire"), WithMode(0o750))
-	InstallFile(Home(".config/pipewire/pipewire.conf"), paths.Dot+"/pipewire/pipewire.conf", WithMode(0o600))
+	Dir(DestHome(".config/pipewire"), WithMode(0o750))
+	InstallFile(DestHome(".config/pipewire/pipewire.conf"), paths.Dot+"/pipewire/pipewire.conf", WithMode(0o600))
 }
 
 func (HomeTasks) DescQuickedit() string { return "Manage ~/QuickEdit symlinks" }
 func (HomeTasks) OptsQuickedit() TaskOptions {
-	return TaskOptions{WhenProfile("fedora", "rocky", "freebsd")}
+	return TaskOptions{WhenProfile("fedora", "rocky", "freebsd", "darwin")}
 }
 func (HomeTasks) Quickedit() {
-	EnsureDir(Home("QuickEdit"), WithMode(0o700))
-	SymlinkMap(Home("QuickEdit"),
-		"data", Home("data"),
-		"Documents", Home("Documents"),
-		"dotfiles", Home("git/dotfiles"),
-		"foo.zone-gemtext", Home("git/foo.zone-content/gemtext"),
-		"Notes", Home("Notes"),
-		"public-snippets", Home("git/conf/snippets"),
-		"worktime", Home("git/worktime"),
+	EnsureDir(DestHome("QuickEdit"), WithMode(0o700))
+	SymlinkMap(DestHome("QuickEdit"),
+		"data", DestHome("data"),
+		"Documents", DestHome("Documents"),
+		"dotfiles", DestHome("git/dotfiles"),
+		"foo.zone-gemtext", DestHome("git/foo.zone-content/gemtext"),
+		"Notes", DestHome("Notes"),
+		"public-snippets", DestHome("git/conf/snippets"),
+		"worktime", DestHome("git/worktime"),
 	)
 }
 
 func (HomeTasks) DescSystemdUser() string      { return "Install and enable systemd user units" }
 func (HomeTasks) OptsSystemdUser() TaskOptions { return TaskOptions{WhenLinux()} }
 func (HomeTasks) SystemdUser() {
-	units := SyncDir(Home(".config/systemd/user"), paths.Dot+"/systemd-user/*")
-	quicklogDrain := InstallFile(Home("scripts/quicklog-drain"), paths.Dot+"/scripts/quicklog-drain", WithMode(0o750))
+	units := SyncDir(DestHome(".config/systemd/user"), paths.Dot+"/systemd-user/*")
+	quicklogDrain := InstallFile(DestHome("scripts/quicklog-drain"), paths.Dot+"/scripts/quicklog-drain", WithMode(0o750))
 	// Only the unit files fan into the reload; the quicklog-drain script is
 	// an ordering dependency of its timer, so editing it does not reload.
 	SystemdUnits(
@@ -210,10 +211,9 @@ func (HomeTasks) SystemdUser() {
 	)
 }
 
-func (HomeTasks) DescTaskwarrior() string      { return "Install ~/.taskrc (Taskwarrior 3.x)" }
-func (HomeTasks) OptsTaskwarrior() TaskOptions { return TaskOptions{WhenLinux()} }
+func (HomeTasks) DescTaskwarrior() string { return "Install ~/.taskrc (Taskwarrior 3.x)" }
 func (HomeTasks) Taskwarrior() {
-	InstallFile(Home(".taskrc"), paths.Dot+"/taskwarrior/taskrc")
+	InstallFile(DestHome(".taskrc"), paths.Dot+"/taskwarrior/taskrc")
 }
 
 // optionalControllerSource reports whether the optional controller-side
