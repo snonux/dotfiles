@@ -1,45 +1,50 @@
-package tasks
+package home
 
 import (
 	"os"
-	"strings"
 
 	"codeberg.org/snonux/dotfiles/gonf/paths"
 	. "github.com/snonux/gonf/api"
-	. "github.com/snonux/gonf/api/options"
 )
 
+// HomeTasks holds the home_* tasks: RegisterMethods derives the "home_" prefix
+// from the package name.
 type HomeTasks struct{}
+
+// config syncs dotfiles/<name>/ into ~/.config/<name>/.
+func config(name string) {
+	SyncDir(Home(".config/"+name), paths.Dot+"/"+name+"/*")
+}
 
 func (HomeTasks) DescHelix() string { return "Install ~/.config/helix" }
 func (HomeTasks) Helix() {
-	SyncDir(Home(".config/helix"), paths.Dot+"/helix/*")
+	config("helix")
 }
 
 func (HomeTasks) DescGhostty() string { return "Install ~/.config/ghostty" }
 func (HomeTasks) Ghostty() {
-	SyncDir(Home(".config/ghostty"), paths.Dot+"/ghostty/*")
+	config("ghostty")
 }
 
-func (HomeTasks) DescHexai() string      { return "Install ~/.config/hexai (Linux)" }
-func (HomeTasks) WhenHexai(f Facts) bool { return f.GOOS == "linux" }
+func (HomeTasks) DescHexai() string     { return "Install ~/.config/hexai (Linux)" }
+func (HomeTasks) WhenHexai() TaskOption { return WhenLinux() }
 func (HomeTasks) Hexai() {
-	SyncDir(Home(".config/hexai"), paths.Dot+"/hexai/*")
+	config("hexai")
 }
 
 func (HomeTasks) DescTimesamurai() string { return "Install ~/.config/timesamurai" }
 func (HomeTasks) Timesamurai() {
-	SyncDir(Home(".config/timesamurai"), paths.Dot+"/timesamurai/*")
+	config("timesamurai")
 }
 
 func (HomeTasks) DescLazygit() string { return "Install ~/.config/lazygit" }
 func (HomeTasks) Lazygit() {
-	SyncDir(Home(".config/lazygit"), paths.Dot+"/lazygit/*")
+	config("lazygit")
 }
 
 func (HomeTasks) DescOpencode() string { return "Install ~/.config/opencode" }
 func (HomeTasks) Opencode() {
-	SyncDir(Home(".config/opencode"), paths.Dot+"/opencode/*")
+	config("opencode")
 }
 
 func (HomeTasks) DescAgents() string { return "Install agent command/skill symlinks" }
@@ -111,17 +116,12 @@ func (HomeTasks) Vale() {
 
 func (HomeTasks) DescTmux() string { return "Install ~/.config/tmux" }
 func (HomeTasks) Tmux() {
-	SyncDir(Home(".config/tmux"), paths.Dot+"/tmux/*")
+	config("tmux")
 }
 
 func (HomeTasks) DescTmuxRocky() string { return "Append rocky tmux overrides when on rocky" }
-func (HomeTasks) WhenTmuxRocky(f Facts) bool {
-	return And(
-		func(f Facts) bool { return f.GOOS == "linux" },
-		func(f Facts) bool {
-			return strings.Contains(strings.ToLower(f.Hostname), "rocky")
-		},
-	)(f)
+func (HomeTasks) OptsTmuxRocky() TaskOptions {
+	return TaskOptions{WhenLinux(), WhenHostnameContains("rocky")}
 }
 func (HomeTasks) TmuxRocky() {
 	line := "source-file ~/.config/tmux/tmux.rocky.conf"
@@ -135,8 +135,8 @@ func (HomeTasks) Sway() {
 	SyncDir(Home(".config/waybar"), paths.Dot+"/waybar/*")
 }
 
-func (HomeTasks) DescGitconfig() string      { return "Set global git config (Linux)" }
-func (HomeTasks) WhenGitconfig(f Facts) bool { return f.GOOS == "linux" }
+func (HomeTasks) DescGitconfig() string     { return "Set global git config (Linux)" }
+func (HomeTasks) WhenGitconfig() TaskOption { return WhenLinux() }
 func (HomeTasks) Gitconfig() {
 	GitGlobal(
 		"user.email", "paul@buetow.org",
@@ -174,10 +174,8 @@ func (HomeTasks) Pipewire() {
 	InstallFile(Home(".config/pipewire/pipewire.conf"), paths.Dot+"/pipewire/pipewire.conf", WithMode(0o600))
 }
 
-func (HomeTasks) DescQuickedit() string { return "Manage ~/QuickEdit symlinks" }
-func (HomeTasks) WhenQuickedit(f Facts) bool {
-	return f.GOOS == "linux" || f.GOOS == "freebsd"
-}
+func (HomeTasks) DescQuickedit() string     { return "Manage ~/QuickEdit symlinks" }
+func (HomeTasks) WhenQuickedit() TaskOption { return WhenOS("linux", "freebsd") }
 func (HomeTasks) Quickedit() {
 	EnsureDir(Home("QuickEdit"), WithMode(0o700))
 	SymlinkMap(Home("QuickEdit"),
@@ -201,8 +199,8 @@ func (HomeTasks) SystemdUser() {
 	Timer("quicklog-drain", WithUser, DependsOn(reload, quicklogDrain))
 }
 
-func (HomeTasks) DescTaskwarrior() string      { return "Install ~/.taskrc (Taskwarrior 3.x)" }
-func (HomeTasks) WhenTaskwarrior(f Facts) bool { return f.GOOS == "linux" }
+func (HomeTasks) DescTaskwarrior() string     { return "Install ~/.taskrc (Taskwarrior 3.x)" }
+func (HomeTasks) WhenTaskwarrior() TaskOption { return WhenLinux() }
 func (HomeTasks) Taskwarrior() {
 	InstallFile(Home(".taskrc"), paths.Dot+"/taskwarrior/taskrc")
 }

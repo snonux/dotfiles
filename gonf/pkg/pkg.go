@@ -1,15 +1,17 @@
-package tasks
+package pkg
 
 import (
 	. "github.com/snonux/gonf/api"
 )
 
+// Pkg holds the pkg_* tasks: RegisterMethods derives the "pkg_" prefix
+// from the package name.
 type Pkg struct{}
 
 func (Pkg) DescFedora() string { return "Install Fedora packages" }
 
 func (Pkg) Fedora() {
-	Package(List(
+	Packages(
 		"opendoas",
 		"fd-find",
 		"nodejs-bash-language-server",
@@ -49,5 +51,5 @@ func (Pkg) Fedora() {
 		"waybar",
 		"zathura",
 		"flameshot",
-	))
+	)
 }
