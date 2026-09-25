@@ -26,6 +26,10 @@ Installed paths on each f-host:
 /etc/rc.d/f3skeys
 ```
 
+Installed (0555 root:wheel) and enabled by gonf on f0-f3 since 2026-09-25
+(`gonf/freebsd/zfskeys.go`, tasks `freebsd_zfskeys_scripts` / `_rc_conf`);
+edit the repo copy, `sh -n` it, then deploy. gonf never runs them.
+
 `f3skeys` runs before FreeBSD's built-in `zfskeys` service. If the USB stick is
 missing or `fsck_ufs -p` fails, the helper logs the problem and exits
 successfully so boot continues. Encrypted datasets stay locked until the stick
@@ -144,7 +148,10 @@ passphrase-protected `zroot/secret` keystore (`/zroot/secret/zroot.enc.key`);
 that old passphrase key is now obsolete for `zusb`.
 
 Scripts and deployment docs live in the conf repo at
-`f3s/freebsd-hosts/zusb/` (`zusb-load`, `zusb-unload`, `README.md`). The raw
+`f3s/freebsd-hosts/zusb/` (`zusb-load`, `zusb-unload`, `README.md`); gonf
+installs them on all four f-hosts (`gonf/freebsd/zusb.go`, task
+`freebsd_zusb_scripts`, never runs them). Until 2026-09-25 f2/f3 still had
+the pre-power-management version. The raw
 key itself is **not** in git — it is copied stick-to-stick like the other keys.
 
 The backup workflow itself is driven by `/opt/snonux/bin/backup/backup` (which

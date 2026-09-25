@@ -168,7 +168,7 @@ To fix it, turn off JetKVM mass storage/virtual media, or unplug it.
 Per-host panic tables: `/var/crash/panic-summary-2026-09.txt` on f0-f2. Only
 the newest 2 vmcores per host were kept.
 
-## 6. Fix plan (needs the user; nothing applied yet)
+## 6. Fix plan (items 1 and 2 applied 2026-09-25, see §6a)
 
 1. **`vm.pmap.pcid_enabled="0"` in `/boot/loader.conf` on f0-f3.** This is
    the discriminating test and the likely fix. With PTI off it costs almost
@@ -178,7 +178,7 @@ the newest 2 vmcores per host were kept.
 2. Microcode: `pkg install cpu-microcode-intel`, then add
    `cpu_microcode_load="YES"` and
    `cpu_microcode_name="/boot/firmware/intel-ucode.bin"`. Verify with
-   `kldload cpuctl; cpucontrol -i 1 /dev/cpuctl0`, or dmesg `CPU microcode: updated`.
+   `kldload cpuctl; cpucontrol -m 0x8b /dev/cpuctl0`, or dmesg `CPU microcode: updated`.
 3. `freebsd-update install` to **15.1-RELEASE-p3** (available; kernel +
    hwpmc/krpc/sound; zfs.ko unchanged). This is hygiene, not the fix.
 4. If panics continue with PCID off, it is a FreeBSD kstack bug. Install
@@ -186,6 +186,35 @@ the newest 2 vmcores per host were kept.
    "dump stack valid, registers garbage" evidence. Also consider stable/15.
 5. Still useful: a hardware watchdog (`ichwd` + `watchdogd`) for the
    un-dumped hangs (f1 2026-09-25).
+
+## 6a. Fix applied 2026-09-25 (zj2), pending verification
+
+Applied via gonf on f0-f3 (`./gonf.sh cluster freebsd-hosts freebsd_loader_conf`,
+also part of the `freebsd` aggregate). No extra reboot: it takes effect at the
+next nightly f3sctl power cycle.
+
+- `gonf/freebsd/microcode.go` (`freebsd_microcode_package`): installs
+  `cpu-microcode-intel-20260512_1`. It ships `/boot/firmware/intel-ucode.bin`
+  (pkg-message and Handbook name this file) and `06-be-00` for the N100.
+- `gonf/freebsd/loader.go` (`freebsd_loader_conf`, needs the package): keyed lines
+  `vm.pmap.pcid_enabled="0"`, `cpu_microcode_load="YES"`,
+  `cpu_microcode_name="/boot/firmware/intel-ucode.bin"`, with comments.
+  `cpu_microcode_type` is already the default. freebsd-update p3 was **not** installed.
+
+**Verify after the next boot** (per host, `ssh -p 22 paul@fN.lan.buetow.org`):
+
+```sh
+sysctl vm.pmap.pcid_enabled           # must be 0
+dmesg -a | grep -i microcode          # "CPU microcode: updated from 0x... to 0x..."
+doas kldload -n cpuctl && doas cpucontrol -m 0x8b /dev/cpuctl0  # MSR 0x8b: high 32 bits = revision
+ls -lt /var/crash/                    # no new vmcore/info since 2026-09-25
+```
+
+**Success criterion:** no new `/var/crash` dump over about 20 power cycles per
+host (the old rate was ~10 % per cycle, so about 2 expected). Count cycles with
+`last | grep -c shutdown`. After that, zj2 can be closed. If a panic with the
+same signature still happens while `pcid_enabled=0`, go to plan item 4 (kstack
+bug: kernel-dbg, bt, FreeBSD PR).
 
 ## 7. Open questions
 

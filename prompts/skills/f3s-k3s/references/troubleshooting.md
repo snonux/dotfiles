@@ -77,8 +77,8 @@ kubectl get pv -o custom-columns=NAME:.metadata.name,SC:.spec.storageClassName,P
 
 A PV with `STORAGECLASS` set (not `<unset>`) and no `.spec.hostPath` field is
 genuinely node-local; leave those in place unless you're prepared to migrate
-data. As of 2026-08-14 that's `storage-tempo-0` (monitoring) and
-`navidrome-data-pvc` (services), both pinned to r1.
+data. As of 2026-09-25 there are none: `storage-tempo-0` is gone and
+Navidrome's `/data` moved back to an NFS hostPath PV (no longer pinned to r1).
 
 **Manual rebalance procedure** (moves pods off the hot node, e.g. r0):
 

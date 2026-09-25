@@ -112,8 +112,9 @@ Secret). Verify: `doas service shellyfans start` then
 `grep shellyfans /var/log/messages` (expect `Rack fans switched on`). Confirmed
 working via real reboot on f3.
 
-**Deployment status:** f0, f2, f3 done. **f1 pending** (was offline / would not
-wake via WoL when this was set up — deploy when it is back online).
+**Deployment status:** all four f-hosts; since 2026-09-25 gonf installs the
+scripts and `shellyfans_enable` (`gonf/freebsd/shellyfans.go`, tasks
+`freebsd_shellyfans_*`) without ever running them.
 
 ### f3sctl integration (earth + pi0/pi1)
 
