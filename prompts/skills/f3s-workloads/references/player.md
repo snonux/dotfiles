@@ -4,7 +4,7 @@ Player is deployed on the f3s k3s cluster as a GitOps-managed service.
 
 ## Repositories and paths
 
-- App source: `~/git/player`
+- App source: `~/git/player` (server in `player-server/`, Android app in `player-android/`)
 - f3s config source: `~/git/conf`
 - Helm chart: `~/git/conf/f3s/player/helm-chart`
 - ArgoCD app: `~/git/conf/f3s/argocd-apps/services/player.yaml`
@@ -37,8 +37,13 @@ git push forgejo master
 
 Use the app git commit SHA as the immutable image tag.
 
+`~/git/player` is a monorepo; the Go server, its `Dockerfile` and
+`.dockerignore` live in `player-server/`. Build from that directory. The
+`.dockerignore` keeps the large local `testmedia/` library (~200 GB) out of
+the build context; without it the build fills the disk.
+
 ```sh
-cd ~/git/player
+cd ~/git/player/player-server
 go test ./...
 
 TAG=$(git rev-parse --short HEAD)
@@ -88,13 +93,15 @@ kubectl apply --dry-run=client -f /tmp/player-helm-render.yaml
 kubectl apply --dry-run=client -f /tmp/xplayer-helm-render.yaml
 ```
 
-Commit and push:
+Commit and push. `~/git/conf` often has unrelated uncommitted work in other
+charts, so stage the player files by explicit path, never `git add -A`:
 
 ```sh
-git add f3s/player/helm-chart f3s/xplayer/helm-chart
+git add f3s/player/helm-chart/Chart.yaml f3s/player/helm-chart/templates/deployment.yaml \
+  f3s/xplayer/helm-chart/Chart.yaml f3s/xplayer/helm-chart/templates/deployment.yaml
 git commit -m "Update player image tags"
 git push master master
-git push r0 master
+git push forgejo master   # ArgoCD reads the in-cluster Forgejo repo
 ```
 
 Refresh ArgoCD and wait for rollout:
@@ -153,6 +160,24 @@ curl -fsS https://player.f3s.buetow.org/healthz
 curl -fsS https://xplayer.f3s.buetow.org/healthz
 curl -kfsS https://player.f3s.lan.buetow.org/healthz
 curl -kfsS https://player.f3s.lan.buetow.org/readyz
+```
+
+`curl https://<host>/` returns `401 unauthorized` for non-browser clients;
+browsers (`Accept: text/html`) get a `307` to `/login.html`. That is expected.
+
+There is no admin-password env override and no password reset: accounts live
+in `/data/media.db` (player: `paul` admin, `xman` user; xplayer: `xman`
+admin). To test the logged-in UI without real credentials, run the same image
+locally with a fresh DB and `player-server/testdata/media`, then run the
+Playwright suite against it:
+
+```sh
+podman run -d --name player-imgtest -p 18090:8080 --userns=keep-id:uid=65534,gid=65534 \
+  -v /tmp/imgtest/data:/data:Z -v /tmp/imgtest/media:/media:Z \
+  -e DB_PATH=/data/media.db -e MEDIA_ROOT=/media -e SECURE_COOKIES=false \
+  r0.lan.buetow.org:30001/player:$TAG
+cd ~/git/player/player-server/test/e2e-web && PLAYER_URL=http://127.0.0.1:18090 npx playwright test
+podman rm -f player-imgtest
 ```
 
 Verify the runtime UID and NFS write access:
