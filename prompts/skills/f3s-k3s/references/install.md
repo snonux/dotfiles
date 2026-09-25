@@ -2,7 +2,7 @@
 
 3-node HA k3s cluster running on Rocky Linux VMs (r0, r1, r2). All nodes act as both control-plane and etcd members (no separate worker nodes).
 
-- k3s version: **v1.32.6+k3s1** (as of Part 7)
+- k3s version: **v1.36.4+k3s1** (upgraded 2026-09-25 from v1.32.6+k3s1, see [Upgrading k3s](#upgrading-k3s); etcd 3.6.14, Traefik 3.7.8 / chart 40.1.4, containerd 2.3.4)
 - etcd mode: **embedded HA** (`--cluster-init`)
 - All control-plane traffic goes over **WireGuard** (192.168.2.x IPs)
 
@@ -150,6 +150,64 @@ git clone https://github.com/snonux/conf.git
 cd conf && git checkout 15a86f3  # last commit before ArgoCD migration
 cd f3s/
 ```
+
+## Upgrading k3s
+
+Upgrade **one minor at a time** (k8s version-skew policy), using the latest
+patch of each minor (`gh release list -R k3s-io/k3s`, or
+`curl -s https://update.k3s.io/v1-release/channels`). Last done 2026-09-25:
+1.32.6 -> 1.33.13+k3s2 -> 1.34.11+k3s1 -> 1.35.8+k3s1 -> 1.36.4+k3s1 (~35 min
+total, all three nodes, no downtime beyond pod reschedules). Finish well before
+the nightly ~23:30 f-host power-off.
+
+1. `k3s etcd-snapshot save --name pre-upgrade-<ver>` on r0 and copy the file from
+   `/var/lib/rancher/k3s/server/db/snapshots/` to
+   `/data/nfs/k3svolumes/etcd-snapshots/` (chmod 600). Record `kubectl get nodes
+   -o wide`, pods, `kubectl get applications -A` (ArgoCD apps live in ns `cicd`).
+2. Per node (r2, r1, then r0; point kubectl at another node's API while r0
+   restarts, e.g. `--server=https://r1.lan.buetow.org:6443`):
+   `kubectl drain <node> --ignore-daemonsets --delete-emptydir-data`, then re-run
+   the installer **with the same server args as the current ExecStart** (the
+   script rewrites the unit and `k3s.service.env`; `config.yaml`,
+   `config.yaml.d/` and `registries.yaml` are left alone):
+
+   ```sh
+   # r0
+   curl -sfL https://get.k3s.io | K3S_TOKEN=$(cat ~/.k3s_token) INSTALL_K3S_VERSION=vX.Y.Z+k3sN \
+     sh -s - server --cluster-init --tls-san=r0.wg0.wan.buetow.org
+   # r1 / r2
+   curl -sfL https://get.k3s.io | K3S_TOKEN=$(cat ~/.k3s_token) INSTALL_K3S_VERSION=vX.Y.Z+k3sN \
+     sh -s - server --server https://r0.wg0.wan.buetow.org:6443 --tls-san=rN.wg0.wan.buetow.org
+   ```
+
+   Check `k3s --version` afterwards: once the installer exited 0 yet left the
+   old binary (transient GitHub download failure); re-running fixed it. Wait for
+   the node to be Ready on the new version, uncordon, and confirm etcd
+   (`curl -s 127.0.0.1:2381/metrics | grep etcd_server_has_leader` on each node),
+   all pods Running and all ArgoCD apps Synced/Healthy before the next node.
+3. After the last node: full check, ingress probes, and remove stale
+   `/var/lib/rancher/k3s/data/<hash>` dirs other than `current`/`previous`
+   (~250M each).
+
+Expected noise during a mixed-version window:
+- `kube-system/helm-install-traefik-*` CrashLoopBackOff: the new bundled chart
+  tgz is only served by already-upgraded apiservers (404 from old ones) and etcd
+  times out while a member restarts. It completes on its own once most servers
+  are upgraded.
+- ArgoCD apps briefly `Unknown` (repo is the in-cluster Forgejo, which gets
+  rescheduled by the drain); `kubectl -n cicd annotate application <app>
+  argocd.argoproj.io/refresh=hard --overwrite` clears it.
+- Public `code.f3s` / `gpodder.f3s` on 443 return nothing: blocked in relayd on
+  purpose, not an upgrade issue.
+
+Version notes: 1.33 moves etcd 3.5 -> 3.6 (needs >= 3.5.20 first; cluster
+version flips to 3.6 once all members run it, so rolling back below 1.33 means
+an etcd snapshot restore) and Traefik 3.3 -> 3.7 (chart 34 -> 40; our
+`HelmChartConfig` only sets `additionalArguments` and `metrics.prometheus`,
+both still valid). Traefik >= 3.6 rejects some encoded characters in request
+paths by default (startup WRN). 1.34 drops the `node-role.kubernetes.io/master`
+tolerations (nothing here selects on it). Use an etcdctl 3.6.x for the
+[etcd recovery](troubleshooting.md) procedure now.
 
 ## Node IP Summary
 
