@@ -93,8 +93,11 @@ adding encrypted ZFS roots.
 
 ## Pool feature flags (`zpool upgrade`)
 
-All f-hosts run OpenZFS 2.4.2 (kmod and userland). Enabling a feature is
-**one-way**: afterwards only OpenZFS 2.4+ can import the pool. Decision
+All f-hosts run OpenZFS 2.4.2 (kmod and userland). Enabling a feature
+cannot be undone. An *enabled* feature alone does not block older importers;
+once a new feature becomes *active* (e.g. `block_cloning_endian` on the
+first BRT ZAP), pre-2.4 software can no longer import the pool, so treat it
+as 2.4+ only. Decision
 (2026-09-26): no older system (rescue media, FreeBSD 14, t450, a bhyve
 restore-drill guest, see the f3s skill's `backup-restore-test.md`) needs to
 import `zdata`, so no `compatibility=` pin (it stays `off`).
@@ -106,9 +109,11 @@ import `zdata`, so no `compatibility=` pin (it stays `off`).
   are still the Dec 2024 builds (660480 bytes), not the 15.1
   `/boot/loader.efi` (Jun 2026). Before any zroot upgrade, copy
   `/boot/loader.efi` over both EFI-partition paths. The loader only has to
-  understand features that are *active* (in use), so enabled-but-unused
-  features do not break boot (f3 boots fine with all enabled on an older
-  loader), but do not rely on that.
+  understand features that are *active* and not read-only compatible, so
+  enabled-but-unused features do not break boot. f3 boots with all features
+  enabled on its Mar 2026 EFI loader (665088 bytes, also older than
+  `/boot/loader.efi`); that is no evidence for the Dec 2024 loaders on
+  f0/f1/f2.
 - **zdata** f2, f1, f0 (in that order, 2026-09-26, online, no reboot):
   `zpool upgrade zdata` enabled `redaction_list_spill`, `raidz_expansion`,
   `fast_dedup`, `longname`, `large_microzap`, `block_cloning_endian`,
@@ -124,7 +129,8 @@ import `zdata`, so no `compatibility=` pin (it stays `off`).
   most of the time, so its feature state is unrecorded (check at the next
   `zusb-load` with `zpool get all zusb | grep feature@`). Upgrade it only
   while imported, after a clean scrub, and after confirming no pre-2.4
-  system must import it (it was migrated from t450).
+  system must import it (`zusb/data/enc` was migrated from
+  t450; see usb-keys.md).
 
 Check with `zpool get all <pool> | grep feature@ | grep disabled` (no `doas`
 needed).
