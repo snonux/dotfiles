@@ -14,6 +14,9 @@ if applicable, tag it in git, commit, and push.
 
 ## Instructions
 
+- Check whether this app is published through the snonux F-Droid repo (see
+  `references/fdroid-release.md`, section 1). If it is, follow that reference
+  for the release steps. Where it contradicts this skill, the reference wins.
 - Check the project's AGENTS.md / README first: if it documents a release
   procedure or a bump recipe (e.g. `just bump-version x.y.z` in a monorepo that
   keeps several version files in sync), follow that instead of editing version
