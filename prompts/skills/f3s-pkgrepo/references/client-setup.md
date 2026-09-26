@@ -43,12 +43,15 @@ REPO
 
 ## OpenBSD (blowfish, fishfinger)
 
-Custom repo is configured via `PKG_PATH` in `/root/.profile`, deployed by the gonf task `frontends_pkg_repo`. The gonf package tasks (`frontends_gogios`, `frontends_d_tail`) pass the same `PKG_PATH` themselves, so they do not depend on the profile.
-Official OpenBSD packages still install normally via `/etc/installurl`.
+Custom repo is configured via `PKG_PATH` in `/root/.profile` and `/home/rex/.profile` (doas.conf has `keepenv`, so rex's `doas pkg_add` uses rex's environment), deployed by the gonf task `frontends_pkg_repo`. The gonf package tasks (`frontends_gogios`, `frontends_d_tail`) pass the custom `PKG_PATH` themselves, so they do not depend on the profile.
 
 ```sh
-export PKG_PATH="https://pkgrepo.f3s.buetow.org/openbsd/7.9/packages/amd64/"
+export PKG_PATH="installpath:https://pkgrepo.f3s.buetow.org/openbsd/7.9/packages/amd64/"
 ```
+
+A set `PKG_PATH` replaces `/etc/installurl`; the `installpath` element puts the official tree back, so `pkg_add -u` sees both (same value as `unattended-upgrade.sh pkgs`). Without the custom element (plain `/etc/installurl`), `pkg_add -u` prints `Couldn't find updates for dtail-... gogios-...` — only one URL fits in installurl. Before 2026-09-26 the profile had the custom repo only (hid official updates) and rex had nothing.
+
+`pkg_add -u` upgrades a custom package only when the repo package's `@comment pkgpath=` matches the installed one. Both OpenBSD packages carry `pkgpath=local/<name>` (`pkg-openbsd.sh` for gogios since 2026-08-13, `pkg-dtail-openbsd.sh` for dtail since 2026-09-26; `local/` never collides with an official port). An installed package with an empty pkgpath (`pkg_info -f dtail | grep pkgpath`) needs a one-time `pkg_delete` + `pkg_add`; in-place upgrade was proven on the build VM with a throwaway dtail-4.3.3-ng.
 
 ### Using packages
 
@@ -80,10 +83,11 @@ frontends since 2026-09-26; the old `7.8/` tree is unused). The path must match
 release upgrade: rebuild dtail/gogios into the new tree (`packages/Makefile`
 `OPENBSD_VERSION`, build VM on the new release), bump the
 `customOpenBSDPackages` constant in `gonf/frontends/monitoring.go`, apply
-`frontends_pkg_repo`, and reinstall: dtail has no pkgpath, so
-`pkg_delete dtail && pkg_add dtail` (then `rcctl restart dserver`); gogios
-takes `pkg_add -u -D installed gogios`. Never set `PKG_PATH` for the base
-`pkg_add -u` after sysupgrade: it replaces `/etc/installurl`.
+`frontends_pkg_repo`, and reinstall the same versions from the new tree with
+`pkg_add -u -D installed dtail gogios` (then `rcctl restart dserver`). For the
+base `pkg_add -u` after sysupgrade, `PKG_PATH` must be unset or start with
+`installpath` (the managed profiles do): a custom-only value replaces
+`/etc/installurl`.
 
 ### Package signing
 
