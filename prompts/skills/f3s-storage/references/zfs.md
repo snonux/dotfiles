@@ -14,10 +14,10 @@ keys held on per-host USB sticks, and how to roll a new encrypted dataset
 
 ## zdata Pool Setup
 
-On f0 and f1, create the zdata pool on the second SSD:
+On f0, f1 and f2, create the zdata pool on the second SSD:
 
 ```sh
-# Pool setup (f0 and f1 only)
+# Pool setup (f0, f1 and f2)
 doas zpool create zdata ada1   # ada1 = second SSD
 ```
 
@@ -95,15 +95,20 @@ adding encrypted ZFS roots.
 
 All f-hosts run OpenZFS 2.4.2 (kmod and userland). Enabling a feature is
 **one-way**: afterwards only OpenZFS 2.4+ can import the pool. Decision
-(2026-09-26): no older system (rescue media, FreeBSD 14, t450, the
-backuprestoretest VM) needs to import `zdata`, so no `compatibility=` pin
-(it stays `off`).
+(2026-09-26): no older system (rescue media, FreeBSD 14, t450, a bhyve
+restore-drill guest, see the f3s skill's `backup-restore-test.md`) needs to
+import `zdata`, so no `compatibility=` pin (it stays `off`).
 
 - **zroot**: only f3 has all features enabled. On f0/f1/f2 zroot still has
   the same 8 features disabled (checked 2026-09-26); left alone because it
-  is the boot pool. Never upgrade a boot pool without first confirming the
-  EFI loader (`/boot/efi/efi/boot/bootx64.efi`, `/boot/loader.efi`) is from
-  the running release and supports every feature being enabled.
+  is the boot pool. The loaders on the EFI partition of f0/f1/f2
+  (`/boot/efi/efi/boot/bootx64.efi`, `/boot/efi/efi/freebsd/loader.efi`)
+  are still the Dec 2024 builds (660480 bytes), not the 15.1
+  `/boot/loader.efi` (Jun 2026). Before any zroot upgrade, copy
+  `/boot/loader.efi` over both EFI-partition paths. The loader only has to
+  understand features that are *active* (in use), so enabled-but-unused
+  features do not break boot (f3 boots fine with all enabled on an older
+  loader), but do not rely on that.
 - **zdata** f2, f1, f0 (in that order, 2026-09-26, online, no reboot):
   `zpool upgrade zdata` enabled `redaction_list_spill`, `raidz_expansion`,
   `fast_dedup`, `longname`, `large_microzap`, `block_cloning_endian`,
@@ -111,11 +116,15 @@ backuprestoretest VM) needs to import `zdata`, so no `compatibility=` pin
   `zpool status -x` healthy, write probe on `/data`, zrepl f0 -> f1
   (`zdata/sink/f0`) kept replicating, NFS writes from r0-r2 OK.
 - **`dynamic_gang_header`** stays disabled on purpose: `zpool upgrade` never
-  enables it (not read-only compatible, only helps extremely fragmented
-  pools). Enable only deliberately with
+  enables it; it must be set manually or via a compatibility file. It is not
+  read-only compatible and only helps extremely fragmented pools. Enable only
+  deliberately with
   `zpool set feature@dynamic_gang_header=enabled`.
 - **zusb** (see [usb-keys.md](usb-keys.md)): not upgraded; it is exported
-  most of the time. Upgrade it only while imported via `zusb-load`, after a
-  clean scrub.
+  most of the time, so its feature state is unrecorded (check at the next
+  `zusb-load` with `zpool get all zusb | grep feature@`). Upgrade it only
+  while imported, after a clean scrub, and after confirming no pre-2.4
+  system must import it (it was migrated from t450).
 
-Check with `zpool get all <pool> | grep feature@ | grep disabled`.
+Check with `zpool get all <pool> | grep feature@ | grep disabled` (no `doas`
+needed).
