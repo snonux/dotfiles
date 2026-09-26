@@ -32,7 +32,7 @@ Note: original plan was HAST, replaced by **zrepl** (ZFS send/receive) — more 
 
 | Layer | Technology | Role |
 |-------|-----------|------|
-| Block | M.2+2.5" SSD (f0/f1) | Physical storage |
+| Block | M.2+2.5" SSD (f0/f1/f2) | Physical storage |
 | Filesystem | ZFS (`zdata/enc`) | Data integrity, AES-256-GCM encryption |
 | Replication | `zrepl` | Continuous ZFS replication f0→f1 (1min NFS, 10min VM) |
 | HA | CARP VIP 192.168.1.138 | Automatic failover for NFS/stunnel |

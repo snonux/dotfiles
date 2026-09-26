@@ -93,7 +93,8 @@ jobs:
 
 ## f2 configuration (sink for f3's freebsd VM)
 
-f2 has no second drive so the sink lives in `zroot/sink`:
+The sink lives in `zroot/sink` (created before f2 got its zdata SSD; not
+moved):
 
 ```sh
 doas zfs create zroot/sink

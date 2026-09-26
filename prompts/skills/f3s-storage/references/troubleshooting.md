@@ -80,7 +80,9 @@ Commands like `zpool clear`, `zpool scrub`, `zpool offline`, and even `ls /data/
 indefinitely because they wait for kernel IO that will never complete.
 
 **Known cause (2026-05-15)**: Samsung 870 EVO 1TB on f0 (ada1) hit 107 read errors and
-105M+ write errors during normal operation. Subsequent investigation pointed at
+105M+ write errors during normal operation. f0's zdata disk has since been
+replaced by a SanDisk Ultra 3D 4TB. f2's zdata is also a Samsung 870 EVO 1TB
+(serial S75CNX0Y119830K); whether it is the same disk is not recorded. Subsequent investigation pointed at
 **thermal throttling** in the small Beelink S12 Pro enclosure — see the Thermal
 section below.
 
