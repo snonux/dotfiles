@@ -6,9 +6,9 @@ gonf module for this repo. Pinned: `github.com/snonux/gonf v0.23.0` (`go.mod`). 
 
 ```text
 cmd/gonf/main.go   registers HomeTasks (home_*), Pkg (pkg_*), System (system_*), aliases, the "home" aggregate; cli.CLI()
-tasks/home.go      HomeTasks: unprivileged, everything under $HOME
-tasks/pkg.go       Pkg: embeds RequiresRoot, group guarded by WhenProfile("fedora")
-tasks/system.go    System: embeds RequiresRoot, group guarded by WhenHostnameContains("earth")
+home/home.go       HomeTasks: unprivileged, everything under $HOME
+pkg/pkg.go         Pkg: embeds RequiresRoot, group guarded by WhenProfile("fedora")
+system/system.go   System: embeds RequiresRoot, group guarded by WhenHostnameContains("earth")
 fleet/hosts.go     LAN + wg0 mesh rows for earth's /etc/hosts block (copy of conf's etchosts inventory)
 paths/paths.go     controller source roots: Dot, DotPrivate, NotesPrompts
 Magefile.go        deps, build
@@ -26,20 +26,20 @@ Destination paths use `DestHome(...)` (recorded as `${HOME}/...`, expanded on th
 
 ## Adding a task
 
-Add a method trio to `HomeTasks` in `tasks/home.go`:
+Add a method trio to `HomeTasks` in `home/home.go`:
 
 ```go
 func (HomeTasks) DescFoo() string      { return "Install ~/.config/foo" }
 func (HomeTasks) OptsFoo() TaskOptions { return TaskOptions{WhenLinux()} } // optional guard
 func (HomeTasks) Foo() {
-	SyncDir(DestHome(".config/foo"), paths.Dot+"/foo/*")
+	config("foo") // SyncDir(DestHome(".config/foo"), paths.Dot+"/foo/*")
 }
 ```
 
-- Name is prefix + snake_case of the method: `FishCompletions` -> `home_fish_completions`. `home` picks it up via `^home_`.
+- Name is prefix + snake_case of the method: `FishCompletions` -> `home_fish_completions`. The prefix is the package name (gonf derives it: `home.HomeTasks` -> `home_`, `pkg.Pkg` -> `pkg_`, `system.System` -> `system_`), so `main.go` passes no `WithPrefix`. `home` picks it up via `^home_`.
 - Guards (`WhenLinux()`, `WhenDarwin()`, `WhenBSD()`, `WhenOS(...)`, `WhenProfile(...)`) must be serializable; they run on the destination.
 - Optional controller-side sources: guard with `optionalControllerSource(task, dir)`. Missing dir skips the task, unreadable dir fails the run. Destination-side existence: `WhenPathExists`.
-- Resources used here: `SyncDir` (`WithPrune`, `WithFileMode`), `InstallFile` (`WithMode`), `Link`/`WithSymlink`, `SymlinkMap`, `Dir`/`EnsureDir`, `GitGlobal`, `SystemdUnits`, `SystemdTimer`, `Package`/`NoPackage`.
+- Resources used here: `SyncDir` (`WithPrune`, `WithFileMode`), `InstallFile` (`WithMode`), `Link`/`WithSymlink`, `SymlinkMap`, `Dir`/`EnsureDir`, `GitGlobal`, `SystemdUnits`, `SystemdTimer`, `Packages`/`NoPackage`.
 - Something needing root goes into `Pkg` (or another `RequiresRoot` group), not `HomeTasks`.
 - Renamed task: keep the old name as `Alias(old, desc, new)` in `main.go` (see `home_prompts`, `home_tmux_rocky`).
 

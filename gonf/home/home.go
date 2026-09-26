@@ -1,4 +1,4 @@
-package tasks
+package home
 
 import (
 	"errors"
@@ -12,35 +12,40 @@ import (
 // HomeTasks contains tasks that manage unprivileged resources under $HOME.
 type HomeTasks struct{}
 
+// config syncs dotfiles/<name>/ into ~/.config/<name>/ on the destination.
+func config(name string) {
+	SyncDir(DestHome(".config/"+name), paths.Dot+"/"+name+"/*")
+}
+
 func (HomeTasks) DescHelix() string { return "Install ~/.config/helix" }
 func (HomeTasks) Helix() {
-	SyncDir(DestHome(".config/helix"), paths.Dot+"/helix/*")
+	config("helix")
 }
 
 func (HomeTasks) DescGhostty() string { return "Install ~/.config/ghostty" }
 func (HomeTasks) Ghostty() {
-	SyncDir(DestHome(".config/ghostty"), paths.Dot+"/ghostty/*")
+	config("ghostty")
 }
 
 func (HomeTasks) DescHexai() string      { return "Install ~/.config/hexai (Linux)" }
 func (HomeTasks) OptsHexai() TaskOptions { return TaskOptions{WhenLinux()} }
 func (HomeTasks) Hexai() {
-	SyncDir(DestHome(".config/hexai"), paths.Dot+"/hexai/*")
+	config("hexai")
 }
 
 func (HomeTasks) DescTimesamurai() string { return "Install ~/.config/timesamurai" }
 func (HomeTasks) Timesamurai() {
-	SyncDir(DestHome(".config/timesamurai"), paths.Dot+"/timesamurai/*")
+	config("timesamurai")
 }
 
 func (HomeTasks) DescLazygit() string { return "Install ~/.config/lazygit" }
 func (HomeTasks) Lazygit() {
-	SyncDir(DestHome(".config/lazygit"), paths.Dot+"/lazygit/*")
+	config("lazygit")
 }
 
 func (HomeTasks) DescOpencode() string { return "Install ~/.config/opencode" }
 func (HomeTasks) Opencode() {
-	SyncDir(DestHome(".config/opencode"), paths.Dot+"/opencode/*")
+	config("opencode")
 }
 
 func (HomeTasks) DescAgents() string { return "Install agent command/skill symlinks" }
@@ -114,7 +119,7 @@ func (HomeTasks) Vale() {
 
 func (HomeTasks) DescTmux() string { return "Install ~/.config/tmux" }
 func (HomeTasks) Tmux() {
-	SyncDir(DestHome(".config/tmux"), paths.Dot+"/tmux/*")
+	config("tmux")
 }
 
 func (HomeTasks) DescSway() string      { return "Install sway and waybar config (Linux)" }
