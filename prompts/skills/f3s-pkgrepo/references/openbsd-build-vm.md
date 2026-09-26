@@ -38,5 +38,9 @@ Source is synced via `git archive HEAD | ssh ... tar -x` — not `scp -r` — to
 - Serial console activated via `set tty com0` at the OpenBSD boot prompt
 - Password prompts need `sleep 2` before `send` — `sleep 1` is not enough for the serial console
 - OpenBSD 7.8 added an "Encrypt the root disk?" prompt before the partition layout
+- The VM runs the frontends' release (7.9 since 2026-09-26, `OBSD_VERSION` in
+  `setup.sh`). For a new release: move `openbsd-build.qcow2` aside (the 7.8
+  disk is kept as `openbsd-build-78.qcow2`), bump `OBSD_VERSION`, rerun
+  `setup.sh` + `provision.sh` (the 7.9 install ran unattended unchanged)
 - After CONGRATULATIONS, choose shell (`s`) not reboot — the CD is still attached; configure wheel group via `chroot /mnt`
 - Username `build` is rejected ("not a usable loginname") — use `pbuild`

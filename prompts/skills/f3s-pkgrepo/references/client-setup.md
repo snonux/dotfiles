@@ -47,7 +47,7 @@ Custom repo is configured via `PKG_PATH` in `/root/.profile`, deployed by the go
 Official OpenBSD packages still install normally via `/etc/installurl`.
 
 ```sh
-export PKG_PATH="https://pkgrepo.f3s.buetow.org/openbsd/7.8/packages/amd64/"
+export PKG_PATH="https://pkgrepo.f3s.buetow.org/openbsd/7.9/packages/amd64/"
 ```
 
 ### Using packages
@@ -74,12 +74,16 @@ Two things needed:
    ./gonf.sh cluster frontends frontends_pkg_repo   # adds PKG_PATH to /root/.profile on all frontends
    ```
 
-Update `PKG_PATH` whenever the OpenBSD version changes (currently 7.8, the only
-OpenBSD tree in the repo). Since 2026-09-26 fishfinger runs 7.9 but still
-installs from the 7.8 path: `pkg_add -u -n dtail gogios` resolves cleanly and
-the 7.8-built binaries run against 7.9's `libc.so.103`. Move both frontends
-(the `customOpenBSDPackages` constant in `gonf/frontends/monitoring.go`) to a
-`7.9/` tree only after blowfish is upgraded too and the packages are rebuilt.
+Update `PKG_PATH` whenever the OpenBSD version changes (currently 7.9 on both
+frontends since 2026-09-26; the old `7.8/` tree is unused). The path must match
+`uname -r`: the unattended-upgrade audit builds the fleet URL from it. After a
+release upgrade: rebuild dtail/gogios into the new tree (`packages/Makefile`
+`OPENBSD_VERSION`, build VM on the new release), bump the
+`customOpenBSDPackages` constant in `gonf/frontends/monitoring.go`, apply
+`frontends_pkg_repo`, and reinstall: dtail has no pkgpath, so
+`pkg_delete dtail && pkg_add dtail` (then `rcctl restart dserver`); gogios
+takes `pkg_add -u -D installed gogios`. Never set `PKG_PATH` for the base
+`pkg_add -u` after sysupgrade: it replaces `/etc/installurl`.
 
 ### Package signing
 

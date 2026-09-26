@@ -82,7 +82,7 @@ pkg_create \
     output/package-name-1.0.tgz
 # Copy to PV via f0
 scp package.tgz f0.lan.buetow.org:/tmp/
-ssh -p 22 f0.lan.buetow.org "doas cp /tmp/package.tgz /data/nfs/k3svolumes/pkgrepo/openbsd/7.8/packages/amd64/"
+ssh -p 22 f0.lan.buetow.org "doas cp /tmp/package.tgz /data/nfs/k3svolumes/pkgrepo/openbsd/7.9/packages/amd64/"
 ```
 
 ### NetBSD (on pi0)

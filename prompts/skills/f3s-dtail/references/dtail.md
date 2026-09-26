@@ -11,7 +11,7 @@ Upstream install and examples live in the repo: `doc/installation.md`, `examples
 | **pi0–pi1** | NetBSD 11.0 **aarch64** (Raspberry Pi 3, see `bootstrap-netbsd-pi.md`) | Cross-build **netbsd/arm64**, `nozstd`; installed via `pkg_add` from the custom pkgrepo | `paul@piN.lan.buetow.org` |
 | **pi2–pi3** | Rocky Linux 9 **aarch64** (Raspberry Pi 3) | Cross-build **linux/arm64**, `nozstd` | `paul@piN.lan.buetow.org` |
 | **r0–r2** | Rocky Linux 9 **x86_64** (bhyve VMs, k3s nodes) | Cross-build **linux/amd64**, `nozstd` | Often `root@rN.lan.buetow.org` (see [Rocky Linux VMs](../../f3s/references/rocky-linux-vms.md)); add `root` (and `paul` if present) to **Server.Permissions.Users** in `dtail.json` |
-| **blowfish, fishfinger** | OpenBSD **amd64** (fishfinger 7.9 since 2026-09-26, blowfish 7.8 until its upgrade) | Native OpenBSD package build | `rex@blowfish.buetow.org`, `rex@fishfinger.buetow.org` |
+| **blowfish, fishfinger** | OpenBSD 7.9 **amd64** (both since 2026-09-26) | Native OpenBSD package build | `rex@blowfish.buetow.org`, `rex@fishfinger.buetow.org` |
 
 `pi0`/`pi1` (NetBSD) run dserver since 2026-07-09 from the `dtail` package in the custom pkgrepo — build pipeline (`make dtail-netbsd`), install steps, rc.d/npf details, and gotchas live in the `f3s-pkgrepo` skill's `dtail-package.md`.
 
