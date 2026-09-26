@@ -17,7 +17,7 @@ specific repo — do not pre-emptively tag repos to hide them. A repo without a
 recent audit marker is genuinely due and should stay due until the user either
 audits it or explicitly defers it.
 
-**Excluded repos (never audit):** `conf_private`, `libbpfgo`, `ds-sim` are
+**Excluded repos (never audit):** `conf_private`, `libbpfgo`, `ds-sim`, `worktime`, `rexfiles` are
 permanently excluded from auditing. Filter them out of the due list in step 2
 and never offer, audit, or defer-tag them — even if the user picks a slot they
 occupied. This list is user-maintained: add a repo here when the user says it
@@ -212,7 +212,7 @@ after its first proper audit instead (step 4 start tag; end marker via
 
 - **Always show the top 5 and let the user pick.** Never auto-audit; never
   bulk-defer. One explicit selection per repo.
-- **Never audit excluded repos.** `conf_private`, `libbpfgo`, `ds-sim` are
+- **Never audit excluded repos.** `conf_private`, `libbpfgo`, `ds-sim`, `worktime`, `rexfiles` are
   filtered out of the due list and out of the top 5; they are never audited,
   offered, or defer-tagged unless the user explicitly lifts the exclusion.
 - **One repo per audit pass.** Don't audit multiple repos in one session.
