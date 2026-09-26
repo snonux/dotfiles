@@ -74,7 +74,12 @@ Two things needed:
    ./gonf.sh cluster frontends frontends_pkg_repo   # adds PKG_PATH to /root/.profile on all frontends
    ```
 
-Update `PKG_PATH` whenever the OpenBSD version changes (currently 7.8).
+Update `PKG_PATH` whenever the OpenBSD version changes (currently 7.8, the only
+OpenBSD tree in the repo). Since 2026-09-26 fishfinger runs 7.9 but still
+installs from the 7.8 path: `pkg_add -u -n dtail gogios` resolves cleanly and
+the 7.8-built binaries run against 7.9's `libc.so.103`. Move both frontends
+(the `customOpenBSDPackages` constant in `gonf/frontends/monitoring.go`) to a
+`7.9/` tree only after blowfish is upgraded too and the packages are rebuilt.
 
 ### Package signing
 
