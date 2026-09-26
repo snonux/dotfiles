@@ -27,8 +27,8 @@ const (
 // the hyperstack tooling's wg1-setup.sh on every VM create.
 var wireGuardConfigs = List(wireGuardDir+"/wg0.conf", wireGuardDir+"/wg1.conf")
 
-func (System) DescHosts() string { return "Manage the fleet block of /etc/hosts (earth)" }
-
+// Hosts manages the fleet block of /etc/hosts (earth).
+//
 // Hosts owns only the "# BEGIN GONF fleet" block of /etc/hosts: the LAN and
 // wg0 mesh rows from the fleet package. Everything outside the markers stays
 // as it is: Fedora's stock loopback header, and the hyperstack*.wg1 rows that
@@ -37,13 +37,12 @@ func (System) DescHosts() string { return "Manage the fleet block of /etc/hosts 
 // Mode 0644 root:root is Fedora's stock for the file; before gonf it had
 // drifted to 0664 root:wheel.
 func (System) Hosts() {
-	File(etcHosts, WithBlock("fleet", fleet.EarthHostsBlock()...), Perm(0o644, Root))
+	File(etcHosts, WithBlock("fleet", fleet.EarthHostsBlock()...), RootOwned)
 }
 
-func (System) DescWireguard() string {
-	return "Keep /etc/wireguard and the wg0/wg1 configs private (earth, perms only)"
-}
-
+// Wireguard keeps /etc/wireguard and the wg0/wg1 configs private (earth,
+// perms only).
+//
 // Wireguard (task system_wireguard) manages permissions only, never
 // content or units: the directory is 0700 root:root and each existing tunnel
 // config 0600 root:root, since they hold private keys. A config that does not exist
@@ -59,10 +58,10 @@ func (System) DescWireguard() string {
 // They are 0600 already and are left alone: deleting them is the user's
 // decision.
 func (System) Wireguard() {
-	Dir(wireGuardDir, Perm(0o700, Root))
+	Dir(wireGuardDir, RootPrivate)
 	for _, conf := range wireGuardConfigs {
 		WhenPathExists(conf, func() {
-			EnsureFile(conf, Perm(0o600, Root))
+			EnsureFile(conf, RootPrivate)
 			unit := "wg-quick@" + strings.TrimSuffix(filepath.Base(conf), ".conf")
 			Command("systemctl", List("enable", unit),
 				OnlyIf("sh", List("-c", "! systemctl is-enabled --quiet "+unit)))

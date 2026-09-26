@@ -9,8 +9,8 @@ type Pkg struct {
 	RequiresRoot
 }
 
-func (Pkg) DescFedora() string { return "Install Fedora packages" }
-
+// Fedora installs Fedora packages.
+//
 // Fedora installs the workstation package set. It also uninstalls the Rex
 // deployment tool: every Rexfile it used to run (this repo's and conf's) has
 // been ported to gonf and retired, so an explicit absent resource converges
