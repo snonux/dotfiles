@@ -1,4 +1,4 @@
-package tasks
+package pkg
 
 import (
 	. "github.com/snonux/gonf/api"
@@ -17,7 +17,7 @@ func (Pkg) DescFedora() string { return "Install Fedora packages" }
 // hosts that still carry it instead of merely no longer installing it.
 func (Pkg) Fedora() {
 	NoPackage("Rex")
-	Package(List(
+	Packages(
 		"opendoas",
 		"fd-find",
 		"nodejs-bash-language-server",
@@ -56,5 +56,5 @@ func (Pkg) Fedora() {
 		"waybar",
 		"zathura",
 		"flameshot",
-	))
+	)
 }
