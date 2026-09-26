@@ -1,8 +1,6 @@
 package main
 
 import (
-	"os"
-
 	"github.com/snonux/dotfiles/gonf/home"
 	"github.com/snonux/dotfiles/gonf/pkg"
 	"github.com/snonux/dotfiles/gonf/system"
@@ -23,10 +21,10 @@ func main() {
 	// Alias it is active wherever home_tmux is (earth included, which a
 	// controller-side hostname guard used to hide from -list and "home").
 	Alias("home_tmux_rocky", "Legacy alias for home_tmux (rocky overrides load from tmux.conf)", "home_tmux")
-	RegisterMethods(pkg.Pkg{}, WithGroupWhen(WhenProfile("fedora"))) // pkg_*
+	RegisterMethods(pkg.Pkg{}, WhenProfile("fedora")) // pkg_*
 	// System is earth-only (its fleet /etc/hosts block and WireGuard perms
 	// describe that laptop), so it is guarded by hostname, not by profile.
-	RegisterMethods(system.System{}, WithGroupWhen(WhenHostnameContains("earth"))) // system_*
-	Aggregate("home", "Install all home_* configuration", "^home_")
-	os.Exit(cli.CLI())
+	RegisterMethods(system.System{}, WhenHostnameContains("earth")) // system_*
+	AggregatePrefix("home", "Install all home_* configuration")
+	cli.Main()
 }
