@@ -1,13 +1,15 @@
 # ZFS Pools & Encryption
 
-Covers the `zdata` pool layout on f0/f1, encryption keys held on per-host
-USB sticks, and how to roll a new encrypted dataset (data and bhyve).
+Covers the `zdata` pool layout on f0/f1/f2, pool feature flags, encryption
+keys held on per-host USB sticks, and how to roll a new encrypted dataset
+(data and bhyve).
 
 ## Physical Disks
 
-- **f0**: 512GB M.2 (OS/zroot) + Samsung SSD 870 EVO 1TB (zdata)
-- **f1**: 512GB M.2 (OS/zroot) + Crucial CT1000BX500SSD1 1TB (zdata)
-- **f2**: No second drive (no zdata pool)
+- **f0**: 512GB M.2 (OS/zroot) + SanDisk Ultra 3D 4TB (zdata, `ada1`)
+- **f1**: 512GB M.2 (OS/zroot) + WD Blue SA510 4TB (zdata, `ada1`)
+- **f2**: 512GB M.2 (OS/zroot) + Samsung SSD 870 EVO 1TB (zdata, `ada1`;
+  holds `zdata/enc/earth-backup`)
 - **f3**: 512GB M.2 (OS/zroot); no zdata pool yet (planned)
 
 ## zdata Pool Setup
@@ -88,3 +90,32 @@ doas zfs destroy -R zroot/bhyve_old
 Boot-time key loading is managed by `f3skeys` plus FreeBSD's `zfskeys`. Keep
 the per-host dataset list in [USB Key Mounting](usb-keys.md) up to date when
 adding encrypted ZFS roots.
+
+## Pool feature flags (`zpool upgrade`)
+
+All f-hosts run OpenZFS 2.4.2 (kmod and userland). Enabling a feature is
+**one-way**: afterwards only OpenZFS 2.4+ can import the pool. Decision
+(2026-09-26): no older system (rescue media, FreeBSD 14, t450, the
+backuprestoretest VM) needs to import `zdata`, so no `compatibility=` pin
+(it stays `off`).
+
+- **zroot**: only f3 has all features enabled. On f0/f1/f2 zroot still has
+  the same 8 features disabled (checked 2026-09-26); left alone because it
+  is the boot pool. Never upgrade a boot pool without first confirming the
+  EFI loader (`/boot/efi/efi/boot/bootx64.efi`, `/boot/loader.efi`) is from
+  the running release and supports every feature being enabled.
+- **zdata** f2, f1, f0 (in that order, 2026-09-26, online, no reboot):
+  `zpool upgrade zdata` enabled `redaction_list_spill`, `raidz_expansion`,
+  `fast_dedup`, `longname`, `large_microzap`, `block_cloning_endian`,
+  `physical_rewrite`. Each pool had a clean scrub the same day; afterwards
+  `zpool status -x` healthy, write probe on `/data`, zrepl f0 -> f1
+  (`zdata/sink/f0`) kept replicating, NFS writes from r0-r2 OK.
+- **`dynamic_gang_header`** stays disabled on purpose: `zpool upgrade` never
+  enables it (not read-only compatible, only helps extremely fragmented
+  pools). Enable only deliberately with
+  `zpool set feature@dynamic_gang_header=enabled`.
+- **zusb** (see [usb-keys.md](usb-keys.md)): not upgraded; it is exported
+  most of the time. Upgrade it only while imported via `zusb-load`, after a
+  clean scrub.
+
+Check with `zpool get all <pool> | grep feature@ | grep disabled`.
