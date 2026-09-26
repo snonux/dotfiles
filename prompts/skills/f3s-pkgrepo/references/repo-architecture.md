@@ -23,7 +23,7 @@ Custom FreeBSD, OpenBSD, NetBSD, and Rocky Linux package repository served from 
         meta.conf / meta
         data.pkg
   openbsd/
-    7.8/
+    7.9/                  # current (7.8/ left over, unused since 2026-09-26)
       packages/
         amd64/            # .tgz files (signify-signed)
   netbsd/
@@ -74,7 +74,7 @@ kubectl -n infra rollout status deployment/pkgrepo
 ## Per-OS Repo Notes
 
 - **FreeBSD**: version follows ABI naming (`FreeBSD:15:amd64`); packages unsigned (`signature_type: "NONE"`); always regenerate metadata with `pkg repo` after adding/removing packages
-- **OpenBSD**: no repo index needed — `pkg_add` fetches by name; packages signed with signify; version in path should match host OS (currently 7.8; fishfinger on 7.9 still uses the 7.8 tree until blowfish is upgraded, see client-setup.md)
+- **OpenBSD**: no repo index needed — `pkg_add` fetches by name; packages signed with signify; version in path must match host OS (currently 7.9 on both frontends, see client-setup.md)
 - **NetBSD**: packages unsigned; `pkg_add` works with a direct package URL, `pkg_summary.gz` alongside the packages enables pkgin; package versions must not contain dashes (`4.3.2-ng` → `4.3.2ng`); `+BUILD_INFO` (`MACHINE_ARCH`/`OS_VERSION`) is checked by `pkg_add` on install, which is why packages are assembled natively on pi0
 - **Rocky Linux**: standard DNF layout; unsigned repo (`gpgcheck=0`); architecture-specific paths (`x86_64` / `aarch64`)
 - **FreeBSD csh**: default shell is csh — avoid inline one-liners with `||`, `&&`, `!`, or multi-line quoting over SSH; use piped `/bin/sh` or separate SSH invocations

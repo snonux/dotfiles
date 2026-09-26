@@ -30,7 +30,7 @@ OpenBSD notes:
   1. Migrate the host key FIRST to preserve the host identity: `doas install -d -o _dserver -m 0700 /var/db/dserver && doas cp -p /var/run/dserver/cache/ssh_host_key /var/db/dserver/` — otherwise dserver generates a new host key and clients without `--trustAllHosts` must re-accept it
   2. Reinstall the package (same-version: `pkg_add -u` is a no-op — `doas pkg_delete dtail` then `doas env PKG_PATH=... pkg_add dtail`)
   3. `doas rcctl restart dserver` — without this the running daemon keeps the old relative-path config until reboot
-  (done on fishfinger 2026-07-10; **blowfish still runs the pre-2026-07-10 package**)
+  (done on fishfinger 2026-07-10 and on blowfish 2026-09-26, whose host key was already in `/var/db/dserver`)
 - Since 2026-07-10 the rc.d script sets `rc_bg=YES` and calls `rc_cmd "$1"` normally — dserver does not daemonize itself, and rc.subr's `rc_bg` is the proper way to background it. Earlier packages backgrounded the whole framework (`rc_cmd $1 &`), which hid `rc_pre` failures and the start result from `rcctl`
 - From the WireGuard VPN, `f0.lan.buetow.org` may not route — run the Makefile with `make dtail-openbsd FREEBSD_HOST=f0.wg0` (same override applies to the other `dtail-*` targets, which upload via f0)
 
@@ -219,3 +219,4 @@ dcat --plain --noColor --trustAllHosts --user paul \
 | 2026-07-09 | NetBSD pi0–pi1 | `dtail-4.3.2ng` installed (first NetBSD deployment), dserver running as `dserver` on 2222, `dcat /etc/fstab` ✓ (`--user paul`) |
 | 2026-07-10 | FreeBSD f0–f2 | `dtail-4.3.2-ng` reinstalled with persistent host key (`/var/db/dserver`) — key migrated first, sha256 identical, mtime preserved; rc.d precmd repopulates key cache; `dcat /etc/fstab` ✓ (`--user paul`). **f3 unreachable (no route via wg0) — still on the pre-2026-07-10 package, migrate + upgrade when back** |
 | 2026-07-10 | OpenBSD fishfinger | `dtail-4.3.2-ng` reinstalled (rc_bg rc.d + hardened key-cache script); host key sha256/mtime unchanged, `rcctl restart` reports ok, `dcat /etc/fstab` ✓ (`--user rex`). blowfish still on the older package |
+| 2026-09-26 | OpenBSD blowfish, fishfinger (7.9) | `dtail-4.3.2-ng` rebuilt on the 7.9 build VM from dtail `e76e0e6` (same source as the 7.8 package), published to `openbsd/7.9/`, reinstalled (`pkg_delete` + `pkg_add`) and dserver restarted on both; host keys unchanged, `dcat /etc/fstab` ✓ both (`--user rex`) |
