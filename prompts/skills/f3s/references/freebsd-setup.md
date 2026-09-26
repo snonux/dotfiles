@@ -155,7 +155,7 @@ Local non-replicated datasets are covered by a zrepl `snap` job:
     snapshotting:
       type: cron
       prefix: zrepl_local_
-      cron: "0 3 * * *"
+      cron: "0 12 * * *"   # was 03:00 until 2026-09-26; hosts are off at night and zrepl cron does not catch up
     pruning:
       keep:
         - type: regex

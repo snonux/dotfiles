@@ -83,6 +83,7 @@ cert = /usr/local/etc/stunnel/server-cert.pem
 key = /usr/local/etc/stunnel/server-key.pem
 setuid = stunnel
 setgid = stunnel
+pid = /var/run/stunnel/stunnel.pid
 
 [nfs-tls]
 accept = 192.168.1.138:2323
@@ -91,6 +92,11 @@ CAfile = /usr/local/etc/stunnel/ca/ca-cert.pem
 verify = 2
 requireCert = yes
 ```
+
+The `pid` line is required (added 2026-09-26): stunnel 5 writes no pid file by
+default, so without it `service stunnel status/stop/restart` cannot see the
+daemon and `carpcontrol.sh` never stops stunnel on the BACKUP (f1). Expected
+state: stunnel running on the CARP MASTER only.
 
 ```sh
 doas pkg install -y stunnel
