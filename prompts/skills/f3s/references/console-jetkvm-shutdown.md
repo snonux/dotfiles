@@ -400,3 +400,14 @@ unless the JetKVM is attached — it lives on f1 only):
 Sequence multiple hosts **one at a time** (do storage MASTER **f0 last** — rebooting it
 fails the `f3s-storage-ha` CARP VIP over to f1) so only one k3s node is down at once
 (etcd quorum preserved). f1 is normally CARP BACKUP; f0 is MASTER.
+
+## JetKVM virtual USB drive stalled every boot for ~6 minutes (fixed 2026-09-26)
+
+The JetKVM's mass-storage function (USB `0x1d6b:0x0104`, "JetKVM USB Emulation
+Device") never answers the CAM probe, so each f-host boot sat at `Root mount
+waiting for: CAM` until ~370s. gonf `freebsd_loader_conf` now sets
+`hw.usb.quirk.0="0x1d6b 0x0104 0x0000 0xffff UQ_MSC_IGNORE"` on f0-f3: only the
+mass-storage interface is ignored (keyboard/mouse keep working; the /keys USB
+sticks have other IDs). Verified on f3: sshd at 22s instead of 391s. To install
+from a JetKVM-attached ISO, remove the line (or override at the loader prompt:
+`unset hw.usb.quirk.0`) for that boot.
