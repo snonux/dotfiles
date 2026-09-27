@@ -1,0 +1,281 @@
+#!/usr/bin/env bash
+# End-to-end test for the taskwarrior tag export/import round trip in
+# fish/conf.d/taskwarrior.fish (_taskwarrior::export_tag / _taskwarrior::import_label)
+# against a sandboxed taskwarrior database.
+#
+# Covered hardening properties:
+#   1. Tasks are deleted only after the export file was written successfully.
+#      A failed write (missing $WORKTIME_DIR) and an empty export (exit 0 but
+#      no content) must both keep the tasks.
+#   2. Same-second exports of the same tag from different hosts produce
+#      distinct files (tw-<tag>-export-<ts>-<host>-<status>.json) instead of
+#      clobbering each other in the git-synced worktime dir. The "different
+#      hosts" are simulated with per-sandbox fake `hostname` binaries, separate
+#      sandbox task DBs and one shared worktime dir.
+#   3. The importer's glob (tw-<label>-export-*.json) still finds the new
+#      filenames, imports the tasks and removes the files.
+#
+# Safety properties of this harness:
+#   * Every `task` and `fish` invocation runs via env -i with HOME, TASKDATA
+#     and .taskrc (data.location) pointed at the sandbox, so the real ~/.taskrc
+#     (S3 sync, 80MB+ DB) is never read and the real DB is never touched.
+#     The real task binary is never launched against the real home.
+#   * Hostnames come from fake binaries in the sandbox PATH; no real hostname
+#     leaks into assertions.
+#   * The sandbox (mktemp -d under /tmp) is removed on exit, even on failure.
+#
+# Usage: ./scripts/taskwarrior-export-e2e
+#
+# Exit status: 0 = all phases passed; 1 = at least one assertion failed
+
+set -uo pipefail
+
+PROGRAM=${0##*/}
+FAILURES=0
+SAN=""
+REAL_TASK=$(command -v task)
+REAL_FISH=$(command -v fish)
+CHILD_PATH="/usr/local/bin:/usr/bin:/bin"
+DOTFILES="$(cd "$(dirname "$0")/.." && pwd)"
+TASKWARRIOR_FISH="$DOTFILES/fish/conf.d/taskwarrior.fish"
+
+# Fixed timestamps so every expected filename is deterministic
+TS_MAIN=1790000000
+TS_MISSING=1790000001
+TS_COLLISION=1790000002
+
+cleanup() {
+  [[ -n "$SAN" && -d "$SAN" ]] && rm -rf "$SAN"
+}
+trap cleanup EXIT
+
+say() { echo; echo "== $* =="; }
+
+fail() {
+  echo "FAIL: $1: $2" >&2
+  FAILURES=$((FAILURES + 1))
+}
+
+assert_rc() { # assert_rc NAME EXPECTED ACTUAL
+  if [[ "$2" -eq "$3" ]]; then
+    echo "ok: $1"
+  else
+    fail "$1" "expected rc $2, got $3"
+  fi
+}
+
+assert_eq() { # assert_eq NAME EXPECTED ACTUAL
+  if [[ "$2" == "$3" ]]; then
+    echo "ok: $1"
+  else
+    fail "$1" "expected [$2], got [$3]"
+  fi
+}
+
+assert_contains() { # assert_contains NAME HAYSTACK NEEDLE
+  if [[ "$2" == *"$3"* ]]; then
+    echo "ok: $1"
+  else
+    fail "$1" "[$2] does not contain [$3]"
+  fi
+}
+
+assert_exists() { # assert_exists NAME PATH
+  if [[ -e "$2" ]]; then
+    echo "ok: $1 ($2)"
+  else
+    fail "$1" "$2 is missing"
+  fi
+}
+
+assert_missing() { # assert_missing NAME PATH
+  if [[ ! -e "$2" ]]; then
+    echo "ok: $1 ($2)"
+  else
+    fail "$1" "$2 exists but must not"
+  fi
+}
+
+# real taskwarrior against a sandbox DB. tw HOME TASKDATA <args...>
+tw() {
+  env -i HOME="$1" TASKDATA="$2" PATH="$CHILD_PATH" \
+    "$REAL_TASK" rc.verbose=nothing "${@:3}"
+}
+
+# run the repo fish functions against a sandbox DB. run_fish HOME TASKDATA
+# WORKTIME_DIR EXTRA_PATH <fish code>
+run_fish() {
+  env -i HOME="$1" TASKDATA="$2" WORKTIME_DIR="$3" QUICKLOG_HEADLESS=1 \
+    PATH="$4:$CHILD_PATH" "$REAL_FISH" --no-config -c \
+    "source '$TASKWARRIOR_FISH'; ${5}"
+}
+
+# --- preflight --------------------------------------------------------------------------
+
+if [[ -z "$REAL_TASK" || -z "$REAL_FISH" ]]; then
+  echo "$PROGRAM: need task and fish in PATH" >&2
+  exit 1
+fi
+if [[ ! -r "$TASKWARRIOR_FISH" ]]; then
+  echo "$PROGRAM: $TASKWARRIOR_FISH not readable — run from the dotfiles repo" >&2
+  exit 1
+fi
+if ! command -v jq >/dev/null; then
+  echo "$PROGRAM: jq not found in PATH" >&2
+  exit 1
+fi
+
+# --- sandbox ----------------------------------------------------------------------------
+
+say "build sandbox"
+
+SAN=$(mktemp -d /tmp/tw-export-e2e.XXXXXX)
+mkdir -p "$SAN/home" "$SAN/taskdata" "$SAN/wt" "$SAN/bin" "$SAN/binA" "$SAN/binB"
+echo "data.location=$SAN/taskdata" >"$SAN/home/.taskrc"
+printf '#!/bin/sh\necho hostA\n' >"$SAN/binA/hostname"
+printf '#!/bin/sh\necho hostB\n' >"$SAN/binB/hostname"
+chmod +x "$SAN/binA/hostname" "$SAN/binB/hostname"
+# Fake `task` for the empty-export phase: count says 1, export writes nothing
+# and exits 0, delete must never run (marker file stays absent).
+FAKE_TASK_MARKER="$SAN/fake-task-delete-marker"
+printf '#!/bin/sh\ncase "$*" in\n  *count*) echo 1 ;;\n  *export*) exit 0 ;;\n  *delete*) : >"$FAKE_TASK_MARKER" ;;\nesac\nexit 0\n' \
+  >"$SAN/bin/task"
+chmod +x "$SAN/bin/task"
+echo "sandbox at $SAN"
+
+# --- phase 1: successful export writes per-host files and deletes the tasks ---------------
+
+say "phase 1: export success path"
+
+tw "$SAN/home" "$SAN/taskdata" add "e2e pending alpha" +e2e >/dev/null
+tw "$SAN/home" "$SAN/taskdata" add "e2e completed alpha" +e2e >/dev/null
+tw "$SAN/home" "$SAN/taskdata" rc.confirmation=off '/e2e completed alpha/' done >/dev/null
+assert_eq "one pending +e2e task staged" \
+  "$(tw "$SAN/home" "$SAN/taskdata" +e2e status:pending count)" 1
+assert_eq "one completed +e2e task staged" \
+  "$(tw "$SAN/home" "$SAN/taskdata" +e2e status:completed count)" 1
+
+rc=0
+run_fish "$SAN/home" "$SAN/taskdata" "$SAN/wt" "$SAN/binA" \
+  "_taskwarrior::export_tag e2e $TS_MAIN" >"$SAN/phase1.out" 2>"$SAN/phase1.err" || rc=$?
+assert_rc "export_tag run" 0 "$rc"
+
+PENDING_FILE="$SAN/wt/tw-e2e-export-$TS_MAIN-hostA-pending.json"
+COMPLETED_FILE="$SAN/wt/tw-e2e-export-$TS_MAIN-hostA-completed.json"
+assert_exists "pending export file has host segment" "$PENDING_FILE"
+assert_exists "completed export file has host segment" "$COMPLETED_FILE"
+assert_eq "pending export content" \
+  "$(jq -r '.[].description' "$PENDING_FILE")" "e2e pending alpha"
+assert_eq "completed export content" \
+  "$(jq -r '.[].description' "$COMPLETED_FILE")" "e2e completed alpha"
+assert_eq "pending tasks deleted after successful export" \
+  "$(tw "$SAN/home" "$SAN/taskdata" +e2e status:pending count)" 0
+assert_eq "completed tasks deleted after successful export" \
+  "$(tw "$SAN/home" "$SAN/taskdata" +e2e status:completed count)" 0
+assert_contains "export progress reported" "$(cat "$SAN/phase1.out")" "Exporting 1 pending tasks tagged +e2e"
+
+# --- phase 2: failed write keeps the tasks ------------------------------------------------
+
+say "phase 2: missing WORKTIME_DIR keeps the tasks"
+
+tw "$SAN/home" "$SAN/taskdata" add "keeper task" +keep >/dev/null
+rc=0
+run_fish "$SAN/home" "$SAN/taskdata" "$SAN/does-not-exist" "$SAN/binA" \
+  "_taskwarrior::export_tag keep $TS_MISSING" >"$SAN/phase2.out" 2>"$SAN/phase2.err" || rc=$?
+assert_rc "export_tag run with missing dir" 0 "$rc"
+assert_eq "task NOT deleted when the export write fails" \
+  "$(tw "$SAN/home" "$SAN/taskdata" +keep status:pending count)" 1
+assert_contains "failure warning on stderr" "$(cat "$SAN/phase2.err")" "Export failed"
+assert_contains "warning names the bad path" \
+  "$(cat "$SAN/phase2.err")" "$SAN/does-not-exist/tw-keep-export-$TS_MISSING"
+assert_eq "no stray export file materialized anywhere" \
+  "$(find "$SAN" -name 'tw-keep-*' | wc -l | tr -d ' ')" 0
+
+# --- phase 3: empty export (exit 0, no content) must not delete ----------------------------
+
+say "phase 3: empty export keeps the tasks (test -s guard)"
+
+rc=0
+env -i HOME="$SAN/home" TASKDATA="$SAN/taskdata" WORKTIME_DIR="$SAN/wt" \
+  QUICKLOG_HEADLESS=1 FAKE_TASK_MARKER="$FAKE_TASK_MARKER" \
+  PATH="$SAN/bin:$SAN/binA:$CHILD_PATH" "$REAL_FISH" --no-config -c \
+  "source '$TASKWARRIOR_FISH'; _taskwarrior::export_tag empty $TS_MAIN" \
+  >"$SAN/phase3.out" 2>"$SAN/phase3.err" || rc=$?
+assert_rc "export_tag run with empty export" 0 "$rc"
+assert_missing "delete not invoked when the export file is empty" "$FAKE_TASK_MARKER"
+assert_contains "failure warning on stderr" "$(cat "$SAN/phase3.err")" "Export failed"
+assert_eq "empty partial export file cleaned up" \
+  "$(find "$SAN/wt" -name 'tw-empty-*' | wc -l | tr -d ' ')" 0
+
+# --- phase 4: same-second exports from two hosts do not clobber each other ----------------
+
+say "phase 4: same-second exports from two hosts"
+
+# Second sandbox home/DB pair, so hostA and hostB have independent task DBs
+# but share one git-synced worktime dir.
+mkdir -p "$SAN/homeA" "$SAN/homeB" "$SAN/taskdataA" "$SAN/taskdataB" "$SAN/wt-shared"
+echo "data.location=$SAN/taskdataA" >"$SAN/homeA/.taskrc"
+echo "data.location=$SAN/taskdataB" >"$SAN/homeB/.taskrc"
+tw "$SAN/homeA" "$SAN/taskdataA" add "collision from hostA" +mult >/dev/null
+tw "$SAN/homeB" "$SAN/taskdataB" add "collision from hostB" +mult >/dev/null
+
+rc=0
+run_fish "$SAN/homeA" "$SAN/taskdataA" "$SAN/wt-shared" "$SAN/binA" \
+  "_taskwarrior::export_tag mult $TS_COLLISION" >"$SAN/phase4a.out" 2>&1 || rc=$?
+assert_rc "hostA export run" 0 "$rc"
+rc=0
+run_fish "$SAN/homeB" "$SAN/taskdataB" "$SAN/wt-shared" "$SAN/binB" \
+  "_taskwarrior::export_tag mult $TS_COLLISION" >"$SAN/phase4b.out" 2>&1 || rc=$?
+assert_rc "hostB export run" 0 "$rc"
+
+HOSTA_FILE="$SAN/wt-shared/tw-mult-export-$TS_COLLISION-hostA-pending.json"
+HOSTB_FILE="$SAN/wt-shared/tw-mult-export-$TS_COLLISION-hostB-pending.json"
+assert_exists "hostA export file" "$HOSTA_FILE"
+assert_exists "hostB export file" "$HOSTB_FILE"
+assert_eq "hostA file kept its own tasks" \
+  "$(jq -r '.[].description' "$HOSTA_FILE")" "collision from hostA"
+assert_eq "hostB file kept its own tasks" \
+  "$(jq -r '.[].description' "$HOSTB_FILE")" "collision from hostB"
+
+# --- phase 5: importer glob finds the new filenames and round-trips ------------------------
+
+say "phase 5: import round trip"
+
+rc=0
+run_fish "$SAN/homeA" "$SAN/taskdataA" "$SAN/wt-shared" "$SAN/binA" \
+  "_taskwarrior::import_label mult" >"$SAN/phase5.out" 2>&1 || rc=$?
+assert_rc "import_label run" 0 "$rc"
+assert_missing "hostA export file consumed" "$HOSTA_FILE"
+assert_missing "hostB export file consumed" "$HOSTB_FILE"
+IMPORTED=$(tw "$SAN/homeA" "$SAN/taskdataA" status:pending export | jq -r '.[].description' | sort)
+assert_contains "hostA DB re-imported its own task" "$IMPORTED" "collision from hostA"
+assert_contains "hostA DB imported hostB's task" "$IMPORTED" "collision from hostB"
+
+# --- phase 6: old-format (pre-hostname) files still import ---------------------------------
+
+say "phase 6: legacy filename still imports"
+
+mkdir -p "$SAN/wt-legacy"
+cat >"$SAN/wt-legacy/tw-legacy-export-1-pending.json" <<'EOF'
+[
+{"description": "legacy file task", "status": "pending", "entry": "20260101T000000Z", "uuid": "11111111-2222-3333-4444-555555555555"}
+]
+EOF
+rc=0
+run_fish "$SAN/homeA" "$SAN/taskdataA" "$SAN/wt-legacy" "$SAN/binA" \
+  "_taskwarrior::import_label legacy" >"$SAN/phase6.out" 2>&1 || rc=$?
+assert_rc "legacy import_label run" 0 "$rc"
+assert_contains "legacy-format file imported" \
+  "$(tw "$SAN/homeA" "$SAN/taskdataA" status:pending export | jq -r '.[].description')" \
+  "legacy file task"
+assert_missing "legacy export file consumed" "$SAN/wt-legacy/tw-legacy-export-1-pending.json"
+
+# --- summary ------------------------------------------------------------------------------
+
+echo
+if [[ "$FAILURES" -eq 0 ]]; then
+  echo "$PROGRAM: all phases passed"
+  exit 0
+fi
+echo "$PROGRAM: $FAILURES assertion(s) failed" >&2
+exit 1

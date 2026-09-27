@@ -175,13 +175,15 @@ end
 
 # Exports all tasks tagged +$tag for both pending and completed status into
 # per-status .json files in $WORKTIME_DIR, then deletes the exported tasks. The
-# tag name doubles as the file label (tw-<tag>-export-<ts>-<status>.json) so the
-# importer can match the files again by tag name or, for host-routed tags like
-# "rocky" and "zen", by hostname. See _taskwarrior::import_label for the
-# matching side.
+# tag name doubles as the file label (tw-<tag>-export-<ts>-<host>-<status>.json)
+# so the importer can match the files again by tag name or, for host-routed tags
+# like "rocky" and "zen", by hostname. The <host> segment keeps same-second
+# exports from different hosts (this dir is git-synced) from clobbering each
+# other's files. See _taskwarrior::import_label for the matching side.
 function _taskwarrior::export_tag
     set -l tag $argv[1]
     set -l ts $argv[2]
+    set -l host (hostname)
 
     for task_status in pending completed
         set -l count (task +$tag status:$task_status count)
@@ -190,9 +192,20 @@ function _taskwarrior::export_tag
             continue
         end
 
+        set -l outfile "$WORKTIME_DIR/tw-$tag-export-$ts-$host-$task_status.json"
+
         echo "Exporting $count $task_status tasks tagged +$tag"
-        task +$tag status:$task_status export >"$WORKTIME_DIR/tw-$tag-export-$ts-$task_status.json"
-        yes | task +$tag status:$task_status delete &>/dev/null
+        # Delete only after the export file was written successfully; a failed
+        # write (e.g. missing $WORKTIME_DIR) must not lose the tasks. A failed
+        # redirection skips `task export` entirely, so this catches a bad path
+        # as well as a failing export. Remove a partial file so it is neither
+        # git-synced nor imported with an error by the receiving host.
+        if task +$tag status:$task_status export >"$outfile"; and test -s "$outfile"
+            yes | task +$tag status:$task_status delete &>/dev/null
+        else
+            rm -f "$outfile"
+            echo "Export failed: $outfile; keeping $count $task_status tasks tagged +$tag" >&2
+        end
     end
 end
 
