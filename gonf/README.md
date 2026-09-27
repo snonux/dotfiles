@@ -7,8 +7,8 @@ gonf module for this repo. Pinned: `github.com/snonux/gonf v0.23.0` (`go.mod`). 
 ```text
 cmd/gonf/main.go   registers HomeTasks (home_*), Pkg (pkg_*), System (system_*), aliases, the "home" aggregate; cli.CLI()
 home/home.go       HomeTasks: unprivileged, everything under $HOME
-pkg/pkg.go         Pkg: embeds RequiresRoot, group guarded by WhenProfile("fedora")
-system/system.go   System: embeds RequiresRoot; Hosts/Wireguard earth-only; Uptimed earth+zen
+pkg/pkg.go         Pkg: embeds RequiresRoot, group guarded by WhenProfile("fedora"); Opendoas, FishTools, Taskwarrior, Helix, Fedora
+system/system.go   System: embeds RequiresRoot; Hosts/Wireguard earth-only; Uptimed earth+zen; FishShell earth+zen+rocky
 fleet/hosts.go     LAN + wg0 mesh rows for earth's /etc/hosts block (copy of conf's etchosts inventory)
 paths/paths.go     controller source roots: Dot, DotPrivate, NotesPrompts
 Magefile.go        deps, build
@@ -54,7 +54,7 @@ A hand-written `DescFoo() string` still wins over the generated one.
 cd ~/git/dotfiles/gonf
 GOWORK=off go build ./...
 GOWORK=off go vet ./...
-GOWORK=off go run ./cmd/gonf -list      # 29 tasks
+GOWORK=off go run ./cmd/gonf -list      # 32 tasks
 GOWORK=off go run ./cmd/gonf -n home    # dry-run
 mage          # = mage build: ./gonf binary
 mage deps     # go mod download

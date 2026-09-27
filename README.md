@@ -7,7 +7,7 @@ My dotfiles, deployed locally or over ssh with [gonf](https://github.com/snonux/
 | Dir | Contents |
 |---|---|
 | `bash/` | `bash_profile`, `bashrc` |
-| `fish/` | `conf.d/`, `completions/` |
+| `fish/` | `conf.d/`, `completions/`, `functions/` (fzf.fish plugin) |
 | `zsh/` | zsh config (no gonf task) |
 | `ghostty/` | ghostty terminal config |
 | `gitsyncer/` | gitsyncer config |
@@ -16,6 +16,7 @@ My dotfiles, deployed locally or over ssh with [gonf](https://github.com/snonux/
 | `hexai/` | hexai config |
 | `lazygit/` | lazygit config |
 | `opencode/` | opencode config |
+| `opendoas/` | `/etc/doas.conf` (`permit nopass :wheel`) for Fedora |
 | `pipewire/` | high-res `pipewire.conf` (earth only) |
 | `uptimed/` | `uptimed.conf` template (`LOG_MAXIMUM_ENTRIES=0`) for earth and zen |
 | `signature/` | mail signature (file) |
@@ -39,8 +40,9 @@ My dotfiles, deployed locally or over ssh with [gonf](https://github.com/snonux/
 ./gonf.sh -list                    # all tasks
 ./gonf.sh -n home                  # dry-run
 ./gonf.sh home                     # every home_* task
-./gonf.sh pkg_fedora               # Fedora packages (Fedora profile only)
-./gonf.sh -privilege=sudo system_hosts system_wireguard system_uptimed
+./gonf.sh pkg_opendoas             # opendoas on every Fedora host
+./gonf.sh pkg_fedora               # Fedora workstation packages (Fedora profile only)
+./gonf.sh -privilege=sudo system_hosts system_wireguard system_uptimed system_fish_shell
 ./gonf.sh home_helix home_tmux     # single tasks
 ./gonf.sh -profile=freebsd home    # override profile detection
 ./gonf.sh push paul@rocky home     # remote: plan streamed over ssh
@@ -59,7 +61,7 @@ Guards are serializable and evaluated on the destination (gonf >= v0.19.0), so a
 | `home_agents` | links `commands/`, `skills/` of `~/Notes/Prompts` into `~/.cursor`, `~/.claude`, `~/.agents`, `~/.opencode`, `~/.amp`, `~/.pi` (if present); `~/.codex/prompts` | all; skipped if `~/Notes/Prompts` missing on controller |
 | `home_bash` | symlinks `~/.bash_profile`, `~/.bashrc` | all |
 | `home_calendar` | syncs `~/.calendar` from `~/git/conf_private/dotfiles/calendar` | all; skipped if that checkout is missing on controller |
-| `home_fish` | symlinks `~/.config/fish/conf.d` | all |
+| `home_fish` | symlinks `~/.config/fish/conf.d`, syncs `~/.config/fish/functions` (fzf.fish plugin) | all |
 | `home_fish_completions` | syncs `~/.config/fish/completions` | all |
 | `home_ghostty` | syncs `~/.config/ghostty` | all |
 | `home_gitconfig` | global git config (user, delta, difftastic, `hx` editor) | all but macOS |
@@ -68,6 +70,7 @@ Guards are serializable and evaluated on the destination (gonf >= v0.19.0), so a
 | `home_helix` | syncs `~/.config/helix` | all |
 | `home_hexai` | syncs `~/.config/hexai` | Linux |
 | `home_lazygit` | syncs `~/.config/lazygit` | all |
+| `home_notes` | ensures `~/Notes` exists (creates only when missing) | all |
 | `home_opencode` | syncs `~/.config/opencode` | all |
 | `home_pipewire` | installs `~/.config/pipewire/pipewire.conf` (0600) | Linux, hostname earth |
 | `home_prompts` | alias of `home_agents` | all |
@@ -83,6 +86,11 @@ Guards are serializable and evaluated on the destination (gonf >= v0.19.0), so a
 | `home_tmux_rocky` | alias of `home_tmux` | all |
 | `home_vale` | symlinks `~/.vale.ini` | all |
 | `pkg_fedora` | installs the workstation package set, removes `Rex`; privileged | profile fedora |
+| `pkg_fish_tools` | installs `fzf` and `zoxide`; privileged | profile fedora |
+| `pkg_helix` | installs `helix` (`hx`); privileged | profile fedora |
+| `pkg_opendoas` | installs `opendoas` and `/etc/doas.conf` (`permit nopass :wheel`); privileged | profile fedora |
+| `pkg_taskwarrior` | installs Taskwarrior 3.x (`task`); privileged | profile fedora |
+| `system_fish_shell` | installs `fish`, sets paul's login shell to `/usr/bin/fish`; privileged | hostname earth, zen or rocky |
 | `system_hosts` | owns the `# BEGIN GONF fleet` block of `/etc/hosts` (LAN + wg0 mesh rows), 0644 root:root; lines outside the block stay; privileged | hostname earth |
 | `system_uptimed` | installs `uptimed`, deploys `/etc/uptimed.conf`, enables the daemon; privileged | hostname earth or zen |
 | `system_wireguard` | `/etc/wireguard` 0700, existing `wg0.conf`/`wg1.conf` 0600 root:root; never content or units; privileged | hostname earth |

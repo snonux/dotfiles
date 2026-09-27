@@ -24,26 +24,30 @@ function supersync::gitsyncer
 end
 
 function supersync::prompts
-    # Since files might have been added and/or modified withoug being
+    # Since files might have been added and/or modified without being
     # committed to git yet.
     # On Darwin (macOS) the public dotfiles repo is pull-only, so prompts are
     # pushed to ~/git/helpers/prompts instead. The dotfiles/prompts branch is
     # only ever pushed from Linux hosts.
+    set -l prompts_dir
     if test -d ~/git/dotfiles/prompts -a (uname) != Darwin
-        # For my Linux hosts
-        cd ~/git/dotfiles/prompts
-        find . -type f -name \*.md | xargs git add
-        find . -type f -name \*.md | xargs git commit -m 'update prompts'
-        git push
-        cd -
+        set prompts_dir ~/git/dotfiles/prompts
     else if test -d ~/git/helpers/prompts
-        # For my Mac host
-        cd ~/git/helpers/prompts
-        find . -type f -name \*.md | xargs git add
-        find . -type f -name \*.md | xargs git commit -m 'update prompts'
-        git push
-        cd -
+        set prompts_dir ~/git/helpers/prompts
+    else
+        return
     end
+
+    git -C $prompts_dir add -A -- '*.md'; or return 1
+    git -C $prompts_dir diff --cached --quiet -- '*.md'
+    set -l diff_status $status
+    if test $diff_status -gt 1
+        return $diff_status
+    end
+    if test $diff_status -eq 1
+        git -C $prompts_dir commit -m 'update prompts' -- '*.md'; or return 1
+    end
+    git -C $prompts_dir push
 end
 
 function supersync::is_it_time_to_sync

@@ -2,6 +2,10 @@
 
 package system
 
+func (System) DescFishShell() string {
+	return "Installs fish and sets it as paul's login shell (earth, zen, rocky)"
+}
+
 func (System) DescHosts() string { return "Manages the fleet block of /etc/hosts (earth)" }
 
 func (System) DescUptimed() string { return "Installs and enables the uptimed daemon (earth, zen)" }

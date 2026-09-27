@@ -1,6 +1,6 @@
 # /work-on-tasks
 
-**Description:** Automatically work through tasks for the current git project using the `agent-task-management` skill. The command selects pending tasks, executes them (delegating to a fresh sub-agent per task when there are 2+ tasks to work on, or implementing directly when there is only 1), completes them, and auto-progresses until no actionable tasks remain. Independent tasks may run as parallel sub-agents with no fixed cap, guarded by a memory check before each launch, unless an explicit concurrency limit is stated.
+**Description:** Automatically work through tasks for the current git project using the `agent-task-management` skill. The command first completes every already-started task, then selects pending tasks, unless the invocation explicitly states otherwise. It delegates to a fresh sub-agent per task when there are 2+ tasks to work on, or implements directly when there is only 1, and auto-progresses until no actionable tasks remain. Independent tasks may run as parallel sub-agents with no fixed cap, guarded by a memory check before each launch, unless an explicit concurrency limit is stated.
 
 **Parameters:**
 - strategy (optional): How to choose tasks when multiple are available (e.g., "highest-impact", "priority", "due-date", "quick-win")
@@ -20,6 +20,8 @@ Any concurrency limit stated alongside the parameters (e.g. "at most 2 agents", 
 Use the `agent-task-management` skill for this entire workflow.
 
 I want you to automatically execute tasks to work for the **current git project** from start to finish. Once one task completes, automatically continue with the next task.
+
+**Started-task rule:** First complete every task that is already started. Do not begin a new task until those started tasks are complete, unless this invocation explicitly says otherwise.
 
 ### Your role: orchestrator (with a sub-agent threshold)
 
@@ -121,5 +123,5 @@ For a single task the fresh-context overhead is not worth it — the orchestrato
 - Never run conflicting tasks (dependencies, overlapping files/area, shared resource) in the same worktree at the same time; serialize them or isolate them in separate worktrees. With a shared worktree, stage and commit only in-scope files by explicit path.
 - Never allow task implementation, fixing, or review sub-agents to spawn nested sub-agents; the orchestrator owns all launches.
 - Never implement tasks in the orchestrator's own context **when delegating** (2+ tasks to work on) — always delegate to a sub-agent. When there is exactly 1 task to work on, implement directly instead of spawning a sub-agent.
-- Resume all already-started tasks before selecting new ones from `ask ready`; several started tasks are normal, never a reason to stop.
+- Complete all already-started tasks before selecting new ones from `ask ready`, unless this invocation explicitly says otherwise; several started tasks are normal, never a reason to stop.
 - After a task's implementation, review, fixes, and closure are complete, immediately move on (refill free worker slots, or pick the next task).

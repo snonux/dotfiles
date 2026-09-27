@@ -8,7 +8,7 @@ func (HomeTasks) DescBash() string { return "Installs bash configuration symlink
 
 func (HomeTasks) DescCalendar() string { return "Installs ~/.calendar from private repo" }
 
-func (HomeTasks) DescFish() string { return "Installs fish conf.d symlink" }
+func (HomeTasks) DescFish() string { return "Installs fish conf.d symlink and plugin functions" }
 
 func (HomeTasks) DescFishCompletions() string { return "Installs fish completions" }
 
@@ -27,6 +27,8 @@ func (HomeTasks) DescHelix() string { return "Installs ~/.config/helix" }
 func (HomeTasks) DescHexai() string { return "Installs ~/.config/hexai (Linux)" }
 
 func (HomeTasks) DescLazygit() string { return "Installs ~/.config/lazygit" }
+
+func (HomeTasks) DescNotes() string { return "Ensures ~/Notes exists" }
 
 func (HomeTasks) DescOpencode() string { return "Installs ~/.config/opencode" }
 

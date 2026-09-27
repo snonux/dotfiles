@@ -86,32 +86,70 @@ end
 
 function taskwarrior::export::bd
     if test -d ~/Notes/Bulgarian
-        # Export bulgarian dumi
+        # Export bulgarian dumi. Keep the task until task export, jq, and the
+        # final compacted note all succeed. In particular, a command that
+        # emits partial JSON and then fails must not make us delete tasks that
+        # were absent from that partial export.
+        set -l json (task +bd status:pending export)
+        set -l export_status $status
+        set -l entries (printf '%s\n' "$json" | jq -r '.[].description')
+        set -l parse_status $pipestatus
+        set -l uuids (printf '%s\n' "$json" | jq -r '.[].uuid')
+        set -l uuid_status $pipestatus
         set -l outfile ~/Notes/Bulgarian/bd-(date +%s).txt
-        task +bd status:pending export | jq -r '.[].description' >$outfile
-        # Guard against "No tasks specified." when there is nothing to delete
-        test (task +bd status:pending count) -gt 0; and yes | task +bd status:pending delete
-        cat ~/Notes/Bulgarian/bd-*.txt | sort -u >~/Notes/Bulgarian/compact-(date +%s).tmp && rm ~/Notes/Bulgarian/bd-*.txt
-        sort -u ~/Notes/Bulgarian/compact-*.tmp >~/Notes/Bulgarian/bd-compacted.txt && rm ~/Notes/Bulgarian/compact-*.tmp
+        set -l should_delete 0
+        if test $export_status -eq 0; and test $parse_status[1] -eq 0; and test $parse_status[2] -eq 0; and test $uuid_status[1] -eq 0; and test $uuid_status[2] -eq 0; and test (count $entries) -gt 0; and test (count $entries) -eq (count $uuids)
+            if printf '%s\n' $entries >$outfile
+                set should_delete 1
+            end
+        else
+            touch $outfile
+        end
+        set -l compact_tmp ~/Notes/Bulgarian/compact-(date +%s).tmp
+        set -l final_tmp ~/Notes/Bulgarian/bd-compacted.txt.tmp
+        # Expand the source names before installing the replacement so the
+        # cleanup cannot remove the new bd-compacted.txt.
+        set -l source_files ~/Notes/Bulgarian/bd-*.txt
+        if cat $source_files | sort -u >$compact_tmp; and sort -u $compact_tmp >$final_tmp; and test -s $final_tmp; and mv $final_tmp ~/Notes/Bulgarian/bd-compacted.txt
+            rm $source_files $compact_tmp
+            if test $should_delete -eq 1
+                for uuid in $uuids
+                    yes | task "$uuid" delete
+                end
+            end
+        else if test -f $outfile; and not test -s $outfile
+            rm -f $outfile $compact_tmp $final_tmp
+        end
     end
 end
 
 function taskwarrior::export::maybe
     set -l maybefile ~/Notes/random/Maybe.md
     if test -f $maybefile
-        # Export all maybe project tags
+        touch $maybefile.tmp.1
+        # Export all maybe project tags. Defer deletion until the assembled
+        # note is atomically installed, so a failure writing the final note or
+        # a partial task export cannot lose any tasks.
+        set -l exported_uuids
         for tag in m may maybe
-            task +$tag -random status:pending export | jq -r '.[] | "\(.project): \(.description)"' | sed 's/^/* /' >>$maybefile.tmp.1
-            # Guard against "No tasks specified." when there is nothing to delete
-            test (task +$tag -random status:pending count) -gt 0; and yes | task +$tag -random status:pending delete
+            set -l json (task +$tag -random status:pending export)
+            set -l export_status $status
+            set -l entries (printf '%s\n' "$json" | jq -r '.[] | "\(.project): \(.description)"' | sed 's/^/* /')
+            set -l parse_status $pipestatus
+            set -l uuids (printf '%s\n' "$json" | jq -r '.[].uuid')
+            set -l uuid_status $pipestatus
+            if test $export_status -eq 0; and test $parse_status[1] -eq 0; and test $parse_status[2] -eq 0; and test $parse_status[3] -eq 0; and test $uuid_status[1] -eq 0; and test $uuid_status[2] -eq 0; and test (count $entries) -gt 0; and test (count $entries) -eq (count $uuids); and printf '%s\n' $entries >>$maybefile.tmp.1
+                set -a exported_uuids $uuids
+            end
         end
         grep -F '* ' $maybefile >>$maybefile.tmp.1
 
-        echo "# Maybe (7)" >$maybefile.tmp.2
-        echo '' >>$maybefile.tmp.2
-        echo 'Thinks I maybe will do something about or maybe not' >>$maybefile.tmp.2
-        echo '' >>$maybefile.tmp.2
-        sort -u $maybefile.tmp.1 >>$maybefile.tmp.2 && mv $maybefile.tmp.2 $maybefile && rm $maybefile.tmp.1
+        if echo "# Maybe (7)" >$maybefile.tmp.2; and echo '' >>$maybefile.tmp.2; and echo 'Thinks I maybe will do something about or maybe not' >>$maybefile.tmp.2; and echo '' >>$maybefile.tmp.2; and sort -u $maybefile.tmp.1 >>$maybefile.tmp.2; and test -s $maybefile.tmp.2; and mv $maybefile.tmp.2 $maybefile
+            rm $maybefile.tmp.1
+            for uuid in $exported_uuids
+                yes | task "$uuid" delete
+            end
+        end
     end
 end
 
@@ -131,8 +169,11 @@ function taskwarrior::export::add
     for uuid in $uuids
         test -n "$uuid"; or continue
         set -l json (task "$uuid" export)
+        test $status -eq 0; or continue
         set -l project (echo "$json" | jq -r '.[0].project // ""')
+        test $status -eq 0; or continue
         set -l description (echo "$json" | jq -r '.[0].description')
+        test $status -eq 0; or continue
 
         # A task without a project has no file to route to; leave it pending
         # rather than silently discarding the note
@@ -148,28 +189,42 @@ function taskwarrior::export::add
             echo "# $title (30)" >$outfile
             echo '' >>$outfile
         end
-        echo "* $description" >>$outfile
-
-        yes | task "$uuid" delete &>/dev/null
+        # The delete may only run once the note line was appended; a failed
+        # write must not lose the note.
+        if echo "* $description" >>$outfile
+            yes | task "$uuid" delete &>/dev/null
+        else
+            echo "Export failed: $outfile; keeping the note '$description'" >&2
+        end
     end
 end
 
 function taskwarrior::export::wins
     set -l winsfile ~/Notes/random/Wins.md
     if test -f $winsfile
-        # Export all wins tags
+        touch $winsfile.tmp.1
+        # Export all wins tags. Defer deletion until the assembled note is
+        # atomically installed and require each export and parse to succeed.
+        set -l exported_uuids
         for tag in win wins
-            task +$tag -random status:pending export | jq -r '.[].description' | sed 's/^/* /' >>$winsfile.tmp.1
-            # Guard against "No tasks specified." when there is nothing to delete
-            test (task +$tag -random status:pending count) -gt 0; and yes | task +$tag -random status:pending delete &>/dev/null
+            set -l json (task +$tag -random status:pending export)
+            set -l export_status $status
+            set -l entries (printf '%s\n' "$json" | jq -r '.[].description' | sed 's/^/* /')
+            set -l parse_status $pipestatus
+            set -l uuids (printf '%s\n' "$json" | jq -r '.[].uuid')
+            set -l uuid_status $pipestatus
+            if test $export_status -eq 0; and test $parse_status[1] -eq 0; and test $parse_status[2] -eq 0; and test $parse_status[3] -eq 0; and test $uuid_status[1] -eq 0; and test $uuid_status[2] -eq 0; and test (count $entries) -gt 0; and test (count $entries) -eq (count $uuids); and printf '%s\n' $entries >>$winsfile.tmp.1
+                set -a exported_uuids $uuids
+            end
         end
         grep -F '* ' $winsfile >>$winsfile.tmp.1
 
-        echo "# wins (7)" >$winsfile.tmp.2
-        echo '' >>$winsfile.tmp.2
-        echo 'Wins I had' >>$winsfile.tmp.2
-        echo '' >>$winsfile.tmp.2
-        sort -u $winsfile.tmp.1 >>$winsfile.tmp.2 && mv $winsfile.tmp.2 $winsfile && rm $winsfile.tmp.1
+        if echo "# wins (7)" >$winsfile.tmp.2; and echo '' >>$winsfile.tmp.2; and echo 'Wins I had' >>$winsfile.tmp.2; and echo '' >>$winsfile.tmp.2; and sort -u $winsfile.tmp.1 >>$winsfile.tmp.2; and test -s $winsfile.tmp.2; and mv $winsfile.tmp.2 $winsfile
+            rm $winsfile.tmp.1
+            for uuid in $exported_uuids
+                yes | task "$uuid" delete &>/dev/null
+            end
+        end
     end
 end
 
@@ -209,15 +264,18 @@ function _taskwarrior::export_tag
     end
 end
 
-# Imports and removes every export file in $WORKTIME_DIR whose embedded label
-# (the <label> in tw-<label>-export-*.json) matches $label. The label is either a
-# tag name or a hostname. See _taskwarrior::export_tag for the producing side.
+# Imports every export file in $WORKTIME_DIR whose embedded label (the <label>
+# in tw-<label>-export-*.json) matches $label, and removes each file only after
+# it was imported successfully — a failed import must not consume the export.
+# The label is either a tag name or a hostname. See _taskwarrior::export_tag
+# for the producing side.
 function _taskwarrior::import_label
     set -l label $argv[1]
 
     find $WORKTIME_DIR -name "tw-$label-export-*.json" | while read -l import
-        task import $import
-        rm $import
+        if task import $import
+            rm $import
+        end
     end
 end
 
@@ -519,8 +577,11 @@ function taskwarrior::gos_queue
     for uuid in $uuids
         test -n "$uuid"; or continue
         set -l json (task "$uuid" export)
+        test $status -eq 0; or continue
         set -l description (echo "$json" | jq -r '.[0].description')
+        test $status -eq 0; or continue
         set -l tags (echo "$json" | jq -r '.[0].tags[]')
+        test $status -eq 0; or continue
 
         # Collect platform tags, modifier tags, and remaining hashtags
         set -l platforms
@@ -554,10 +615,13 @@ function taskwarrior::gos_queue
         set -l hash (printf '%s' "$message" | md5sum | awk '{print $1}')
         set -l file "$gos_dir/$hash.txt"
         echo "Gos queue: $file"
-        printf "$message\n" >"$file"
-
-        # Remove the task from taskwarrior
-        yes | task "$uuid" delete &>/dev/null
+        # The delete may only run once the queue file was written; a failed
+        # write must not lose the share.
+        if printf "$message\n" >"$file"; and test -s "$file"
+            yes | task "$uuid" delete &>/dev/null
+        else
+            echo "Gos queue: writing $file failed; keeping the share '$description'" >&2
+        end
     end
 end
 
