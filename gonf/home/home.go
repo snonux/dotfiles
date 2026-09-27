@@ -13,6 +13,15 @@ import (
 // HomeTasks contains tasks that manage unprivileged resources under $HOME.
 type HomeTasks struct{}
 
+// Notes ensures ~/Notes exists.
+//
+// Notes creates the directory only when missing (EnsureDir). An existing
+// directory or a symlink to one — earth's Syncthing vault link — is left
+// alone. Other tasks (home_agents, home_quickedit, quicklog) expect this path.
+func (HomeTasks) Notes() {
+	EnsureDir(DestHome("Notes"), WithMode(0o755))
+}
+
 // config syncs dotfiles/<name>/ into ~/.config/<name>/ on the destination.
 func config(name string) {
 	SyncDir(DestHome(".config/"+name), paths.Dot(name+"/*"))
@@ -99,10 +108,15 @@ func (HomeTasks) Bash() {
 	Symlink(DestHome(".bashrc"), paths.DestDot("bash/bashrc"))
 }
 
-// Fish installs fish conf.d symlink.
+// Fish installs fish conf.d symlink and plugin functions.
+//
+// Fish links conf.d into the checkout and syncs fish/functions (fzf.fish
+// plugin bindings) into ~/.config/fish/functions without pruning other
+// local function files.
 func (HomeTasks) Fish() {
 	EnsureDir(DestHome(".config/fish"), WithMode(0o750))
 	Symlink(DestHome(".config/fish/conf.d"), paths.DestDot("fish/conf.d"))
+	SyncDir(DestHome(".config/fish/functions"), paths.Dot("fish/functions/*"))
 }
 
 // FishCompletions installs fish completions.

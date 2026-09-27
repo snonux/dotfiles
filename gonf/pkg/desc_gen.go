@@ -3,3 +3,13 @@
 package pkg
 
 func (Pkg) DescFedora() string { return "Installs Fedora packages" }
+
+func (Pkg) DescFishTools() string { return "Installs fzf and zoxide (Fedora)" }
+
+func (Pkg) DescHelix() string { return "Installs the helix editor (Fedora)" }
+
+func (Pkg) DescOpendoas() string {
+	return "Installs opendoas and a passwordless wheel doas.conf (Fedora)"
+}
+
+func (Pkg) DescTaskwarrior() string { return "Installs Taskwarrior 3.x (Fedora package \"task\")" }
