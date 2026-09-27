@@ -1,6 +1,8 @@
 fish_vi_key_bindings
 
-fzf --fish | source
+if command -q fzf
+	fzf --fish | source
+end
 
 # Add paths to PATH
 set -U fish_user_paths ~/bin ~/scripts ~/go/bin ~/.cargo/bin ~/.local/bin ~/flutter/bin $fish_user_paths
