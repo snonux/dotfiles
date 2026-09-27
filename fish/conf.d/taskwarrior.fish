@@ -86,11 +86,24 @@ end
 
 function taskwarrior::export::bd
     if test -d ~/Notes/Bulgarian
-        # Export bulgarian dumi
+        # Export bulgarian dumi. The export file is always created (even when
+        # the capture is empty) so the compaction below keeps working over
+        # bd-*.txt. Delete only when the pipeline captured dumi and the write
+        # succeeded: a failed export pipeline (missing jq, broken taskwarrior)
+        # or a failed write must not lose the dumi, and an empty capture means
+        # there is nothing to delete (replaces the old "No tasks specified."
+        # count guard). The guard verifies the captured output, not the
+        # pipeline's exit codes — a partially emitted export remains the same
+        # pre-existing residual risk as before.
+        set -l entries (task +bd status:pending export | jq -r '.[].description')
         set -l outfile ~/Notes/Bulgarian/bd-(date +%s).txt
-        task +bd status:pending export | jq -r '.[].description' >$outfile
-        # Guard against "No tasks specified." when there is nothing to delete
-        test (task +bd status:pending count) -gt 0; and yes | task +bd status:pending delete
+        if test (count $entries) -gt 0
+            if printf '%s\n' $entries >$outfile
+                yes | task +bd status:pending delete
+            end
+        else
+            touch $outfile
+        end
         cat ~/Notes/Bulgarian/bd-*.txt | sort -u >~/Notes/Bulgarian/compact-(date +%s).tmp && rm ~/Notes/Bulgarian/bd-*.txt
         sort -u ~/Notes/Bulgarian/compact-*.tmp >~/Notes/Bulgarian/bd-compacted.txt && rm ~/Notes/Bulgarian/compact-*.tmp
     end
@@ -99,11 +112,19 @@ end
 function taskwarrior::export::maybe
     set -l maybefile ~/Notes/random/Maybe.md
     if test -f $maybefile
-        # Export all maybe project tags
+        touch $maybefile.tmp.1
+        # Export all maybe project tags. Each tag's entries are captured first:
+        # the delete may only run once they were appended to the shared temp
+        # file (a post-hoc size check cannot tell one tag's lines from
+        # another's), and an empty capture (failed pipeline or nothing to
+        # delete) must not lose the tasks. The guard verifies the captured
+        # output, not the pipeline's exit codes — a partially emitted export
+        # remains the same pre-existing residual risk as before.
         for tag in m may maybe
-            task +$tag -random status:pending export | jq -r '.[] | "\(.project): \(.description)"' | sed 's/^/* /' >>$maybefile.tmp.1
-            # Guard against "No tasks specified." when there is nothing to delete
-            test (task +$tag -random status:pending count) -gt 0; and yes | task +$tag -random status:pending delete
+            set -l entries (task +$tag -random status:pending export | jq -r '.[] | "\(.project): \(.description)"' | sed 's/^/* /')
+            if test (count $entries) -gt 0; and printf '%s\n' $entries >>$maybefile.tmp.1
+                yes | task +$tag -random status:pending delete
+            end
         end
         grep -F '* ' $maybefile >>$maybefile.tmp.1
 
@@ -148,20 +169,32 @@ function taskwarrior::export::add
             echo "# $title (30)" >$outfile
             echo '' >>$outfile
         end
-        echo "* $description" >>$outfile
-
-        yes | task "$uuid" delete &>/dev/null
+        # The delete may only run once the note line was appended; a failed
+        # write must not lose the note.
+        if echo "* $description" >>$outfile
+            yes | task "$uuid" delete &>/dev/null
+        else
+            echo "Export failed: $outfile; keeping the note '$description'" >&2
+        end
     end
 end
 
 function taskwarrior::export::wins
     set -l winsfile ~/Notes/random/Wins.md
     if test -f $winsfile
-        # Export all wins tags
+        touch $winsfile.tmp.1
+        # Export all wins tags. Each tag's entries are captured first: the
+        # delete may only run once they were appended to the shared temp file
+        # (a post-hoc size check cannot tell one tag's lines from another's),
+        # and an empty capture (failed pipeline or nothing to delete) must not
+        # lose the tasks. The guard verifies the captured output, not the
+        # pipeline's exit codes — a partially emitted export remains the same
+        # pre-existing residual risk as before.
         for tag in win wins
-            task +$tag -random status:pending export | jq -r '.[].description' | sed 's/^/* /' >>$winsfile.tmp.1
-            # Guard against "No tasks specified." when there is nothing to delete
-            test (task +$tag -random status:pending count) -gt 0; and yes | task +$tag -random status:pending delete &>/dev/null
+            set -l entries (task +$tag -random status:pending export | jq -r '.[].description' | sed 's/^/* /')
+            if test (count $entries) -gt 0; and printf '%s\n' $entries >>$winsfile.tmp.1
+                yes | task +$tag -random status:pending delete &>/dev/null
+            end
         end
         grep -F '* ' $winsfile >>$winsfile.tmp.1
 
@@ -209,15 +242,18 @@ function _taskwarrior::export_tag
     end
 end
 
-# Imports and removes every export file in $WORKTIME_DIR whose embedded label
-# (the <label> in tw-<label>-export-*.json) matches $label. The label is either a
-# tag name or a hostname. See _taskwarrior::export_tag for the producing side.
+# Imports every export file in $WORKTIME_DIR whose embedded label (the <label>
+# in tw-<label>-export-*.json) matches $label, and removes each file only after
+# it was imported successfully — a failed import must not consume the export.
+# The label is either a tag name or a hostname. See _taskwarrior::export_tag
+# for the producing side.
 function _taskwarrior::import_label
     set -l label $argv[1]
 
     find $WORKTIME_DIR -name "tw-$label-export-*.json" | while read -l import
-        task import $import
-        rm $import
+        if task import $import
+            rm $import
+        end
     end
 end
 
@@ -554,10 +590,13 @@ function taskwarrior::gos_queue
         set -l hash (printf '%s' "$message" | md5sum | awk '{print $1}')
         set -l file "$gos_dir/$hash.txt"
         echo "Gos queue: $file"
-        printf "$message\n" >"$file"
-
-        # Remove the task from taskwarrior
-        yes | task "$uuid" delete &>/dev/null
+        # The delete may only run once the queue file was written; a failed
+        # write must not lose the share.
+        if printf "$message\n" >"$file"; and test -s "$file"
+            yes | task "$uuid" delete &>/dev/null
+        else
+            echo "Gos queue: writing $file failed; keeping the share '$description'" >&2
+        end
     end
 end
 

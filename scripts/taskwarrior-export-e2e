@@ -1,19 +1,25 @@
 #!/usr/bin/env bash
-# End-to-end test for the taskwarrior tag export/import round trip in
-# fish/conf.d/taskwarrior.fish (_taskwarrior::export_tag / _taskwarrior::import_label)
-# against a sandboxed taskwarrior database.
+# End-to-end test for the taskwarrior tag export/import round trip and the
+# sibling note/gos exporters in fish/conf.d/taskwarrior.fish
+# (_taskwarrior::export_tag, _taskwarrior::import_label, taskwarrior::export::bd,
+# taskwarrior::export::maybe, taskwarrior::export::add, taskwarrior::export::wins,
+# taskwarrior::gos_queue) against a sandboxed taskwarrior database.
 #
 # Covered hardening properties:
 #   1. Tasks are deleted only after the export file was written successfully.
 #      A failed write (missing $WORKTIME_DIR) and an empty export (exit 0 but
-#      no content) must both keep the tasks.
+#      no content) must both keep the tasks. The same guard applies to the
+#      note exporters (bd/maybe/add/wins) and gos_queue: a broken pipeline
+#      (simulated with a jq-less PATH) or an unwritable target must keep the
+#      tasks, while successful exports delete them.
 #   2. Same-second exports of the same tag from different hosts produce
 #      distinct files (tw-<tag>-export-<ts>-<host>-<status>.json) instead of
 #      clobbering each other in the git-synced worktime dir. The "different
 #      hosts" are simulated with per-sandbox fake `hostname` binaries, separate
 #      sandbox task DBs and one shared worktime dir.
 #   3. The importer's glob (tw-<label>-export-*.json) still finds the new
-#      filenames, imports the tasks and removes the files.
+#      filenames, imports the tasks and removes the files — but only after a
+#      successful import; a malformed file must survive for a later retry.
 #
 # Safety properties of this harness:
 #   * Every `task` and `fish` invocation runs via env -i with HOME, TASKDATA
@@ -64,11 +70,11 @@ assert_rc() { # assert_rc NAME EXPECTED ACTUAL
   fi
 }
 
-assert_eq() { # assert_eq NAME EXPECTED ACTUAL
+assert_eq() { # assert_eq NAME ACTUAL EXPECTED (same order as quicklog-drain-e2e)
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
   else
-    fail "$1" "expected [$2], got [$3]"
+    fail "$1" got [$2], expected [$3]
   fi
 }
 
@@ -77,6 +83,14 @@ assert_contains() { # assert_contains NAME HAYSTACK NEEDLE
     echo "ok: $1"
   else
     fail "$1" "[$2] does not contain [$3]"
+  fi
+}
+
+assert_not_contains() { # assert_not_contains NAME HAYSTACK NEEDLE
+  if [[ "$2" != *"$3"* ]]; then
+    echo "ok: $1"
+  else
+    fail "$1" "[$2] must not contain [$3]"
   fi
 }
 
@@ -141,6 +155,17 @@ FAKE_TASK_MARKER="$SAN/fake-task-delete-marker"
 printf '#!/bin/sh\ncase "$*" in\n  *count*) echo 1 ;;\n  *export*) exit 0 ;;\n  *delete*) : >"$FAKE_TASK_MARKER" ;;\nesac\nexit 0\n' \
   >"$SAN/bin/task"
 chmod +x "$SAN/bin/task"
+# jq-less PATH to simulate a broken export pipeline deterministically (used by
+# the note/gos exporter failure phases). Everything the exporters need except
+# jq; hostname comes from the fake-hostname dir appended after this one.
+mkdir -p "$SAN/nojq"
+for bin in task date sort cat rm mv grep sed find yes touch uname sh; do
+  if ! command -v "$bin" >/dev/null; then
+    echo "$PROGRAM: $bin not found in PATH" >&2
+    exit 1
+  fi
+  ln -s "$(command -v "$bin")" "$SAN/nojq/$bin"
+done
 echo "sandbox at $SAN"
 
 # --- phase 1: successful export writes per-host files and deletes the tasks ---------------
@@ -269,6 +294,155 @@ assert_contains "legacy-format file imported" \
   "$(tw "$SAN/homeA" "$SAN/taskdataA" status:pending export | jq -r '.[].description')" \
   "legacy file task"
 assert_missing "legacy export file consumed" "$SAN/wt-legacy/tw-legacy-export-1-pending.json"
+
+# --- phase 7: import_label keeps files that fail to import ------------------
+
+say "phase 7: import_label keeps files that fail to import"
+
+mkdir -p "$SAN/wt-import"
+printf 'not valid json' >"$SAN/wt-import/tw-imp-export-1-pending.json"
+cat >"$SAN/wt-import/tw-imp-export-2-pending.json" <<'EOF'
+[
+{"description": "import guard task", "status": "pending", "entry": "20260102T000000Z", "uuid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}
+]
+EOF
+run_fish "$SAN/home" "$SAN/taskdata" "$SAN/wt-import" "$SAN/binA" \
+  "_taskwarrior::import_label imp" >"$SAN/phase7.out" 2>&1
+assert_exists "malformed file kept for a later retry on failed import" \
+  "$SAN/wt-import/tw-imp-export-1-pending.json"
+assert_missing "valid file consumed after successful import" \
+  "$SAN/wt-import/tw-imp-export-2-pending.json"
+assert_contains "valid file's task imported" \
+  "$(tw "$SAN/home" "$SAN/taskdata" status:pending export | jq -r '.[].description')" "import guard task"
+assert_contains "import error reported for the malformed file" \
+  "$(cat "$SAN/phase7.out")" "tw-imp-export-1"
+
+# --- phase 8: export::maybe and export::wins guard the delete ----------------
+
+say "phase 8: export::maybe/export::wins guard the delete"
+
+mkdir -p "$SAN/home/Notes/random"
+cat >"$SAN/home/Notes/random/Maybe.md" <<'EOF'
+# Maybe (7)
+
+Thinks I maybe will do something about or maybe not
+
+* old maybe line
+EOF
+cat >"$SAN/home/Notes/random/Wins.md" <<'EOF'
+# wins (7)
+
+Wins I had
+
+* old win line
+EOF
+tw "$SAN/home" "$SAN/taskdata" add project:foo +maybe "maybe entry one" >/dev/null
+tw "$SAN/home" "$SAN/taskdata" add +win "wins entry one" >/dev/null
+
+# Failure path: no jq on PATH → the capture is empty → the deletes must not run
+env -i HOME="$SAN/home" TASKDATA="$SAN/taskdata" QUICKLOG_HEADLESS=1 \
+  PATH="$SAN/nojq:$SAN/binA" "$REAL_FISH" --no-config -c \
+  "source '$TASKWARRIOR_FISH'; taskwarrior::export::maybe; taskwarrior::export::wins" \
+  >"$SAN/phase8-fail.out" 2>"$SAN/phase8-fail.err"
+assert_eq "failed pipeline keeps the maybe task" \
+  "$(tw "$SAN/home" "$SAN/taskdata" +maybe status:pending count)" 1
+assert_eq "failed pipeline keeps the win task" \
+  "$(tw "$SAN/home" "$SAN/taskdata" +win status:pending count)" 1
+assert_not_contains "Maybe.md has no new line on failure" \
+  "$(cat "$SAN/home/Notes/random/Maybe.md")" "maybe entry one"
+assert_contains "Maybe.md keeps its old lines on failure" \
+  "$(cat "$SAN/home/Notes/random/Maybe.md")" "old maybe line"
+assert_eq "no leftover tmp files on failure" \
+  "$(find "$SAN/home/Notes/random" -name '*.tmp.*' | wc -l | tr -d ' ')" 0
+
+# Success path: entries written, then tasks deleted
+rc=0
+run_fish "$SAN/home" "$SAN/taskdata" "$SAN/wt" "$SAN/binA" \
+  "taskwarrior::export::maybe; taskwarrior::export::wins" >"$SAN/phase8-ok.out" 2>&1 || rc=$?
+assert_rc "maybe/wins success run" 0 "$rc"
+assert_contains "maybe entry exported to Maybe.md" \
+  "$(cat "$SAN/home/Notes/random/Maybe.md")" "* foo: maybe entry one"
+assert_contains "old maybe line preserved" \
+  "$(cat "$SAN/home/Notes/random/Maybe.md")" "* old maybe line"
+assert_contains "wins entry exported to Wins.md" \
+  "$(cat "$SAN/home/Notes/random/Wins.md")" "* wins entry one"
+assert_eq "maybe task deleted after successful export" \
+  "$(tw "$SAN/home" "$SAN/taskdata" +maybe status:pending count)" 0
+assert_eq "win task deleted after successful export" \
+  "$(tw "$SAN/home" "$SAN/taskdata" +win status:pending count)" 0
+
+# --- phase 9: export::bd guards the delete -----------------------------------
+
+say "phase 9: export::bd guards the delete"
+
+mkdir -p "$SAN/home/Notes/Bulgarian"
+tw "$SAN/home" "$SAN/taskdata" add +bd "dumi edno" >/dev/null
+
+env -i HOME="$SAN/home" TASKDATA="$SAN/taskdata" QUICKLOG_HEADLESS=1 \
+  PATH="$SAN/nojq:$SAN/binA" "$REAL_FISH" --no-config -c \
+  "source '$TASKWARRIOR_FISH'; taskwarrior::export::bd" \
+  >"$SAN/phase9-fail.out" 2>"$SAN/phase9-fail.err"
+assert_eq "failed pipeline keeps the +bd dumi" \
+  "$(tw "$SAN/home" "$SAN/taskdata" +bd status:pending count)" 1
+assert_eq "empty export file cleaned up by compaction" \
+  "$(find "$SAN/home/Notes/Bulgarian" \( -name 'bd-[0-9]*' -o -name '*.tmp' \) | wc -l | tr -d ' ')" 0
+
+rc=0
+run_fish "$SAN/home" "$SAN/taskdata" "$SAN/wt" "$SAN/binA" \
+  "taskwarrior::export::bd" >"$SAN/phase9-ok.out" 2>&1 || rc=$?
+assert_rc "export::bd success run" 0 "$rc"
+assert_contains "dumi compacted" \
+  "$(cat "$SAN/home/Notes/Bulgarian/bd-compacted.txt")" "dumi edno"
+assert_eq "+bd dumi deleted after successful export" \
+  "$(tw "$SAN/home" "$SAN/taskdata" +bd status:pending count)" 0
+
+# --- phase 10: export::add guards the delete ---------------------------------
+
+say "phase 10: export::add guards the delete"
+
+tw "$SAN/home" "$SAN/taskdata" add project:e2eproj +add "note line one" >/dev/null
+tw "$SAN/home" "$SAN/taskdata" add project:dirproj +add "dir note" >/dev/null
+# A directory where the note file should go: every write to it fails
+mkdir "$SAN/home/Notes/random/dirproj.md"
+rc=0
+run_fish "$SAN/home" "$SAN/taskdata" "$SAN/wt" "$SAN/binA" \
+  "taskwarrior::export::add" >"$SAN/phase10.out" 2>"$SAN/phase10.err" || rc=$?
+assert_rc "export::add run" 0 "$rc"
+assert_contains "note routed to the project file" \
+  "$(cat "$SAN/home/Notes/random/e2eproj.md")" "* note line one"
+assert_eq "routed note deleted after successful export" \
+  "$(tw "$SAN/home" "$SAN/taskdata" project:e2eproj +add status:pending count)" 0
+assert_eq "unwritable target keeps the note" \
+  "$(tw "$SAN/home" "$SAN/taskdata" project:dirproj +add status:pending count)" 1
+assert_contains "failure warning on stderr" "$(cat "$SAN/phase10.err")" "Export failed"
+
+# --- phase 11: gos_queue guards the delete -----------------------------------
+
+say "phase 11: gos_queue guards the delete"
+
+mkdir -p "$SAN/gos"
+tw "$SAN/home" "$SAN/taskdata" add +share +li "share me" >/dev/null
+rc=0
+env -i HOME="$SAN/home" TASKDATA="$SAN/taskdata" GOS_DIR="$SAN/gos" QUICKLOG_HEADLESS=1 \
+  PATH="$SAN/binA:$CHILD_PATH" "$REAL_FISH" --no-config -c \
+  "source '$TASKWARRIOR_FISH'; taskwarrior::gos_queue" >"$SAN/phase11.out" 2>&1 || rc=$?
+assert_rc "gos_queue success run" 0 "$rc"
+GOS_FILE=$(find "$SAN/gos" -name '*.txt' | head -1)
+assert_exists "gos queue file written" "$GOS_FILE"
+assert_contains "gos message content" "$(cat "$GOS_FILE")" "share:li share me"
+assert_eq "shared task deleted after queueing" \
+  "$(tw "$SAN/home" "$SAN/taskdata" +share status:pending count)" 0
+
+# Failure path: read-only gos dir → the queue write fails → the share is kept
+chmod a-w "$SAN/gos"
+tw "$SAN/home" "$SAN/taskdata" add +share "share two" >/dev/null
+env -i HOME="$SAN/home" TASKDATA="$SAN/taskdata" GOS_DIR="$SAN/gos" QUICKLOG_HEADLESS=1 \
+  PATH="$SAN/binA:$CHILD_PATH" "$REAL_FISH" --no-config -c \
+  "source '$TASKWARRIOR_FISH'; taskwarrior::gos_queue" >"$SAN/phase11b.out" 2>&1
+assert_eq "unwritable gos dir keeps the share" \
+  "$(tw "$SAN/home" "$SAN/taskdata" +share status:pending count)" 1
+assert_contains "failure warning printed" "$(cat "$SAN/phase11b.out")" "keeping the share"
+chmod u+w "$SAN/gos"
 
 # --- summary ------------------------------------------------------------------------------
 
