@@ -444,6 +444,62 @@ assert_eq "unwritable gos dir keeps the share" \
 assert_contains "failure warning printed" "$(cat "$SAN/phase11b.out")" "keeping the share"
 chmod u+w "$SAN/gos"
 
+# --- phase 12: partial output from a failed task export keeps every task ----
+
+say "phase 12: partial task export failure keeps every task"
+
+tw "$SAN/home" "$SAN/taskdata" add +bd "partial bd" >/dev/null
+tw "$SAN/home" "$SAN/taskdata" add project:partial +maybe "partial maybe" >/dev/null
+tw "$SAN/home" "$SAN/taskdata" add +win "partial win" >/dev/null
+tw "$SAN/home" "$SAN/taskdata" add project:partial +add "partial add" >/dev/null
+tw "$SAN/home" "$SAN/taskdata" add +share "partial share" >/dev/null
+env -i HOME="$SAN/home" TASKDATA="$SAN/taskdata" WORKTIME_DIR="$SAN/wt" GOS_DIR="$SAN/gos" QUICKLOG_HEADLESS=1 \
+  PATH="$SAN/binA:$CHILD_PATH" "$REAL_FISH" --no-config -c \
+  "source '$TASKWARRIOR_FISH'; function task; if contains -- export \$argv; printf '[{\\\"description\\\":\\\"partial\\\",\\\"project\\\":\\\"partial\\\",\\\"tags\\\":[\\\"share\\\"]}]'; return 1; end; command task \$argv; end; taskwarrior::export::bd; taskwarrior::export::maybe; taskwarrior::export::wins; taskwarrior::export::add; taskwarrior::gos_queue" \
+  >"$SAN/phase12.out" 2>"$SAN/phase12.err"
+assert_eq "partial failed export keeps the bd task" \
+  "$(tw "$SAN/home" "$SAN/taskdata" +bd status:pending count)" 1
+assert_eq "partial failed export keeps the maybe task" \
+  "$(tw "$SAN/home" "$SAN/taskdata" +maybe status:pending count)" 1
+assert_eq "partial failed export keeps the win task" \
+  "$(tw "$SAN/home" "$SAN/taskdata" +win status:pending count)" 1
+assert_eq "partial failed export keeps the add task" \
+  "$(tw "$SAN/home" "$SAN/taskdata" project:partial +add status:pending count)" 1
+assert_eq "partial failed export keeps the new share task" \
+  "$(tw "$SAN/home" "$SAN/taskdata" /partial\ share/ status:pending count)" 1
+
+# --- phase 13: final note write failure defers deletion ---------------------
+
+say "phase 13: failed final note write keeps maybe tasks"
+
+mkdir "$SAN/home/Notes/random/Maybe.md.tmp.2"
+env -i HOME="$SAN/home" TASKDATA="$SAN/taskdata" WORKTIME_DIR="$SAN/wt" QUICKLOG_HEADLESS=1 \
+  PATH="$SAN/binA:$CHILD_PATH" "$REAL_FISH" --no-config -c \
+  "source '$TASKWARRIOR_FISH'; taskwarrior::export::maybe" \
+  >"$SAN/phase13.out" 2>"$SAN/phase13.err"
+assert_eq "maybe task survives a failed final note write" \
+  "$(tw "$SAN/home" "$SAN/taskdata" +maybe status:pending count)" 1
+assert_not_contains "Maybe.md remains unchanged after final write failure" \
+  "$(cat "$SAN/home/Notes/random/Maybe.md")" "partial maybe"
+rmdir "$SAN/home/Notes/random/Maybe.md.tmp.2"
+
+# --- phase 14: delete only the UUIDs from the exported snapshot -------------
+
+say "phase 14: late matching task survives snapshot delete"
+
+env -i HOME="$SAN/home" TASKDATA="$SAN/taskdata" WORKTIME_DIR="$SAN/wt" QUICKLOG_HEADLESS=1 \
+  PATH="$SAN/binA:$CHILD_PATH" "$REAL_FISH" --no-config -c \
+  "source '$TASKWARRIOR_FISH'; set -g inserted 0; function task; if contains -- delete \$argv; and test \$inserted -eq 0; set -g inserted 1; command task add project:foo +maybe 'late maybe'; end; command task \$argv; end; taskwarrior::export::maybe" \
+  >"$SAN/phase14.out" 2>"$SAN/phase14.err"
+assert_eq "exported maybe task is deleted" \
+  "$(tw "$SAN/home" "$SAN/taskdata" /partial\ maybe/ status:pending count)" 0
+assert_eq "late matching maybe task survives" \
+  "$(tw "$SAN/home" "$SAN/taskdata" /late\ maybe/ status:pending count)" 1
+assert_contains "snapshot task reached Maybe.md" \
+  "$(cat "$SAN/home/Notes/random/Maybe.md")" "partial maybe"
+assert_not_contains "late task was not falsely recorded as exported" \
+  "$(cat "$SAN/home/Notes/random/Maybe.md")" "late maybe"
+
 # --- summary ------------------------------------------------------------------------------
 
 echo
