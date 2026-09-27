@@ -58,9 +58,9 @@ function _taskwarrior::set_import_export_tags
     end
 end
 
-function taskwarrior::is_personal_device
-    test (uname) = Linux
-end
+# function taskwarrior::is_personal_device
+#     test (uname) = Linux
+# end
 
 function taskwarrior::random_count
     task status:pending +random -work count
