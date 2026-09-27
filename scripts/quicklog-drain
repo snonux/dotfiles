@@ -59,6 +59,10 @@
 #   QUICKLOG_REPO          Quicklog checkout (default ~/git/quicklog)
 #   QUICKLOG_DART          Dart SDK binary (default ~/flutter/bin/dart)
 #   QUICKLOG_FISH_CONF_DIR fish conf.d to source (default ~/.config/fish/conf.d)
+#   QUICKLOG_FISH_PATH     PATH for the import fish (default: the same
+#                          minimal /usr/local/bin:/usr/bin:/bin; the E2E
+#                          harness prepends a fake `task` so its kill tests
+#                          can block an import at a deterministic moment)
 #   PUB_CACHE              forwarded to pub/dart so a sandboxed HOME can
 #                          still use the warm package cache
 # TASKDATA, when set, is passed through to the import so a sandboxed
@@ -75,6 +79,9 @@ FISH_BIN="$(command -v fish)"
 readonly FISH_BIN
 declare -r LOCK="${XDG_RUNTIME_DIR:-/tmp}/quicklog-drain.lock"
 declare -r CHILD_PATH="/usr/local/bin:/usr/bin:/bin"
+# The import fish runs with this PATH; the QUICKLOG_FISH_PATH override lets
+# the E2E harness inject a fake `task` for its deterministic kill tests.
+declare -r FISH_IMPORT_PATH="${QUICKLOG_FISH_PATH:-$CHILD_PATH}"
 declare -ra REQUIRED_VARS=(
   GARAGE_ENDPOINT
   GARAGE_REGION
@@ -199,7 +206,7 @@ run_fish_import() {
   local -a env_args=(
     env -i
     HOME="$HOME"
-    PATH="$CHILD_PATH"
+    PATH="$FISH_IMPORT_PATH"
     QUICKLOG_HEADLESS=1
     QUICKLOG_FISH_CONF_DIR="$FISH_CONF_DIR"
   )

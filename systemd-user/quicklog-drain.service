@@ -5,7 +5,14 @@ After=network-online.target
 
 [Service]
 Type=oneshot
+# RuntimeMaxSec has no effect for Type=oneshot — systemd logs "no effect in
+# combination with Type=oneshot. Ignoring" (seen in the live journal) and
+# ignores it. TimeoutStartSec is the effective bound instead: for Type=oneshot
+# its default is infinity, so without this a wedged run (the S3 client sets no
+# HTTP timeout) would hold the unit forever and silently block every hourly
+# tick. systemd kills the whole unit cgroup on timeout — dart coproc and the
+# headless import fish included, regardless of process groups. A killed run is
+# safe: notes are never deleted for unacked imports, so they stay queued in the
+# bucket and the next hourly tick retries them (imports dedup on retry).
+TimeoutStartSec=15min
 ExecStart=%h/scripts/quicklog-drain
-# The import talks to Garage and taskwarrior per note; a wedged run must not
-# hold the hourly slot forever (objects survive a kill and retry next hour).
-RuntimeMaxSec=15min

@@ -86,7 +86,7 @@ function _taskwarrior::quicklog_import_line --description 'Import one Quicklog n
             set due "$tokens[1]"
             set idx 2
         else
-            echo "quicklog: malformed line (due offset outside 1..10000): $line" >&2
+            echo "quicklog: malformed line (due offset outside 0..10000): $line" >&2
             return 2
         end
     end
