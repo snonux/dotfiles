@@ -1,5 +1,5 @@
 [Unit]
-Description=Drain Quicklog notes from Garage S3 once per hour
+Description=Import Quicklog notes from Garage S3 into Taskwarrior once per hour
 
 [Timer]
 OnCalendar=hourly

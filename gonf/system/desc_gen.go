@@ -4,6 +4,8 @@ package system
 
 func (System) DescHosts() string { return "Manages the fleet block of /etc/hosts (earth)" }
 
+func (System) DescUptimed() string { return "Installs and enables the uptimed daemon (earth, zen)" }
+
 func (System) DescWireguard() string {
 	return "Keeps /etc/wireguard and the wg0/wg1 configs private (earth, perms only)"
 }

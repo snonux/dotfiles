@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/snonux/dotfiles/gonf/paths"
+	"github.com/snonux/dotfiles/gonf/system"
 	. "github.com/snonux/gonf/api"
 )
 
@@ -100,6 +101,7 @@ func (HomeTasks) Bash() {
 
 // Fish installs fish conf.d symlink.
 func (HomeTasks) Fish() {
+	EnsureDir(DestHome(".config/fish"), WithMode(0o750))
 	Symlink(DestHome(".config/fish/conf.d"), paths.DestDot("fish/conf.d"))
 }
 
@@ -171,9 +173,11 @@ func (HomeTasks) Calendar() {
 	SyncDir(DestHome(".calendar"), calendar+"/*")
 }
 
-func (HomeTasks) OptsPipewire() TaskOptions { return TaskOptions{WhenLinux()} }
+func (HomeTasks) OptsPipewire() TaskOptions {
+	return TaskOptions{WhenLinux(), WhenHostnameContains("earth")}
+}
 
-// Pipewire installs pipewire high-res config (Linux).
+// Pipewire installs pipewire high-res config (Linux, hostname earth).
 func (HomeTasks) Pipewire() {
 	Dir(DestHome(".config/pipewire"), WithMode(0o750))
 	InstallFile(DestHome(".config/pipewire/pipewire.conf"), paths.Dot("pipewire/pipewire.conf"), WithMode(0o600))
@@ -200,28 +204,72 @@ func (HomeTasks) Quickedit() {
 func (HomeTasks) OptsSystemdUser() TaskOptions { return TaskOptions{WhenLinux()} }
 
 // SystemdUser installs and enables systemd user units.
+//
+// home-backup is removed on every Linux host. quicklog-drain and
+// random-wallpaper are installed only when the hostname contains "earth".
 func (HomeTasks) SystemdUser() {
-	units := SyncDir(DestHome(".config/systemd/user"), paths.Dot("systemd-user/*"))
-	quicklogDrain := InstallFile(DestHome("scripts/quicklog-drain"), paths.Dot("scripts/quicklog-drain"), WithMode(0o750))
-	// Only the unit files fan into the reload; the quicklog-drain script is
-	// an ordering dependency of its timer, so editing it does not reload.
-	SystemdUnits(
-		WithUserBus(),
-		FanIn(units),
-		ActivateTimer("home-backup"),
-		ActivateTimer("quicklog-drain", DependsOn(quicklogDrain)),
-	)
-	// The wallpaper timer is simple enough to generate instead of syncing
-	// raw unit files; SystemdTimer writes the same unit bytes, reloads, and
-	// converges enablement itself.
-	SystemdTimer("random-wallpaper",
-		WithUser,
-		WithCommand("%h/scripts/random-wallpaper.sh"),
-		WithOnCalendar("hourly"),
-		WithPersistent,
-		WithDescription("Set random GNOME wallpaper once per hour"),
-		WithServiceDescription("Set random GNOME wallpaper from image directory"),
-	)
+	NoSystemdTimer("home-backup", WithUser)
+
+	WhenHostname("earth", func() {
+		units := SyncDir(DestHome(".config/systemd/user"), paths.Dot("systemd-user/quicklog-drain.*"))
+		quicklogDrain := InstallFile(DestHome("scripts/quicklog-drain"), paths.Dot("scripts/quicklog-drain"), WithMode(0o750))
+		// Only the unit files fan into the reload; the quicklog-drain script
+		// is an ordering dependency of its timer, so editing it does not reload.
+		SystemdUnits(
+			WithUserBus(),
+			FanIn(units),
+			ActivateTimer("quicklog-drain", DependsOn(quicklogDrain)),
+		)
+		// Generated timer (units mode 0644); shares the user-bus reload when
+		// declared after SystemdUnits in this same when-fragment.
+		SystemdTimer("random-wallpaper",
+			WithUser,
+			WithCommand("%h/scripts/random-wallpaper.sh"),
+			WithOnCalendar("hourly"),
+			WithPersistent,
+			WithDescription("Set random GNOME wallpaper once per hour"),
+			WithServiceDescription("Set random GNOME wallpaper from image directory"),
+		)
+	})
+}
+
+func (HomeTasks) OptsGoprecordsUpload() TaskOptions {
+	// Needs system_uptimed so daemon + upload stay one apply on earth/zen.
+	return TaskOptions{WhenLinux(), WhenHostnameIn("earth", "zen"), Needs(system.System.Uptimed)}
+}
+
+// GoprecordsUpload installs the hourly uptimed upload to goprecords (earth, zen).
+//
+// GoprecordsUpload installs the POSIX upload client under ~/.local/bin and the
+// matching user systemd oneshot+timer. earth also runs the Mac/worktime
+// mega-m3-pro import (second ExecStart). Needs system_uptimed (daemon half of
+// the pair). Tokens stay out of git: ~/.config/goprecords-upload-<host>/token.
+func (HomeTasks) GoprecordsUpload() {
+	EnsureDir(DestHome(".local/bin"), WithMode(0o755))
+	script := InstallFile(DestHome(".local/bin/goprecords-upload-client.sh"),
+		paths.Dot("scripts/goprecords-upload-client.sh"), WithMode(0o750))
+
+	WhenHostname("earth", func() {
+		EnsureDir(DestHome(".config/goprecords-upload-earth"), WithMode(0o700))
+		svc := InstallFile(DestHome(".config/systemd/user/goprecords-upload-earth.service"),
+			paths.Dot("systemd-user/goprecords-upload-earth.service"), WithMode(0o644))
+		tmr := InstallFile(DestHome(".config/systemd/user/goprecords-upload-earth.timer"),
+			paths.Dot("systemd-user/goprecords-upload-earth.timer"), WithMode(0o644))
+		SystemdUnits(WithUserBus(), FanIn(svc, tmr),
+			ActivateTimer("goprecords-upload-earth", DependsOn(script)))
+		NoSystemdTimer("goprecords-upload-zen", WithUser)
+	})
+
+	WhenHostname("zen", func() {
+		EnsureDir(DestHome(".config/goprecords-upload-zen"), WithMode(0o700))
+		svc := InstallFile(DestHome(".config/systemd/user/goprecords-upload-zen.service"),
+			paths.Dot("systemd-user/goprecords-upload-zen.service"), WithMode(0o644))
+		tmr := InstallFile(DestHome(".config/systemd/user/goprecords-upload-zen.timer"),
+			paths.Dot("systemd-user/goprecords-upload-zen.timer"), WithMode(0o644))
+		SystemdUnits(WithUserBus(), FanIn(svc, tmr),
+			ActivateTimer("goprecords-upload-zen", DependsOn(script)))
+		NoSystemdTimer("goprecords-upload-earth", WithUser)
+	})
 }
 
 // Taskwarrior installs ~/.taskrc (Taskwarrior 3.x).

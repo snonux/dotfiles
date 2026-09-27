@@ -1,0 +1,13 @@
+[Unit]
+Description=Upload uptimed files from earth (and the synced Mac/worktime repo) to goprecords.f3s.buetow.org
+
+[Service]
+Type=oneshot
+# Required by the generic upload script; without it the script aborts
+# immediately with "set GOPRECORDS_HOST".
+Environment=GOPRECORDS_HOST=earth
+ExecStart=%h/.local/bin/goprecords-upload-client.sh
+# Also publish the Mac's uprecords that get synced into the worktime repo
+# (re-labelled as mega-m3-pro). Soft-fail (-): the helper lives in the
+# private worktime repo and may be absent on a fresh earth.
+ExecStart=-/usr/local/sbin/fish -c 'source ~/.config/fish/config.fish 2>/dev/null; worktime::uprecords::darwin::import'

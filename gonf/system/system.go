@@ -5,12 +5,13 @@ import (
 	"strings"
 
 	"github.com/snonux/dotfiles/gonf/fleet"
+	"github.com/snonux/dotfiles/gonf/paths"
 	. "github.com/snonux/gonf/api"
 )
 
-// System contains root-owned configuration of the Fedora laptop earth
-// outside the package database. main.go registers it with a hostname guard,
-// so it never applies to another host this module is pushed to.
+// System contains root-owned configuration outside the package database.
+// Per-task Opts* guards pick the host: Hosts and Wireguard are earth-only;
+// Uptimed runs on earth and zen.
 type System struct {
 	RequiresRoot
 }
@@ -18,6 +19,7 @@ type System struct {
 const (
 	etcHosts     = "/etc/hosts"
 	wireGuardDir = "/etc/wireguard"
+	uptimedConf  = "/etc/uptimed.conf"
 )
 
 // wireGuardConfigs are the tunnel configs gonf keeps private. Their content
@@ -26,6 +28,8 @@ const (
 // wireguard_mesh_install), wg1.conf is replaced (and extended with peers) by
 // the hyperstack tooling's wg1-setup.sh on every VM create.
 var wireGuardConfigs = List(wireGuardDir+"/wg0.conf", wireGuardDir+"/wg1.conf")
+
+func (System) OptsHosts() TaskOptions { return TaskOptions{WhenHostnameContains("earth")} }
 
 // Hosts manages the fleet block of /etc/hosts (earth).
 //
@@ -38,6 +42,10 @@ var wireGuardConfigs = List(wireGuardDir+"/wg0.conf", wireGuardDir+"/wg1.conf")
 // drifted to 0664 root:wheel.
 func (System) Hosts() {
 	File(etcHosts, WithBlock("fleet", fleet.EarthHostsBlock()...), RootOwned)
+}
+
+func (System) OptsWireguard() TaskOptions {
+	return TaskOptions{WhenHostnameContains("earth")}
 }
 
 // Wireguard keeps /etc/wireguard and the wg0/wg1 configs private (earth,
@@ -67,4 +75,19 @@ func (System) Wireguard() {
 				OnlyIf("sh", List("-c", "! systemctl is-enabled --quiet "+unit)))
 		})
 	}
+}
+
+func (System) OptsUptimed() TaskOptions {
+	return TaskOptions{WhenHostnameIn("earth", "zen")}
+}
+
+// Uptimed installs and enables the uptimed daemon (earth, zen).
+//
+// Uptimed installs the Fedora package, deploys /etc/uptimed.conf (earth's
+// template: LOG_MAXIMUM_ENTRIES=0 so records are kept forever), and enables
+// the system service. Config changes restart the daemon.
+func (System) Uptimed() {
+	pkg := Package("uptimed")
+	conf := InstallFile(uptimedConf, paths.Dot("uptimed/uptimed.conf"), RootOwned, DependsOn(pkg))
+	Service("uptimed", WithRestart, OnChange(conf), DependsOn(pkg, conf))
 }

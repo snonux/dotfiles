@@ -1,0 +1,1027 @@
+#!/usr/bin/env bash
+# End-to-end test for the Quicklog S3 → taskwarrior direct-import pipeline.
+#
+# Exercises the real path end to end: live Garage objects created with
+# tool/put_note.dart, the real scripts/quicklog-drain wrapper (repo copy, not
+# the deployed one), its headless fish import sourcing copies of the repo
+# fish/conf.d files, and a real taskwarrior binary — all against a sandboxed
+# HOME and taskwarrior database. The user's real ~/.task (a symlink — the
+# fingerprints use find -L and content hashes), ~/Notes and Garage notes are
+# fingerprinted before and after and must be identical. The whole run takes
+# a few minutes.
+#
+# Safety properties of this harness:
+#   * The hourly quicklog-drain.timer is stopped for the duration and
+#     restored afterwards (also on failure, via the EXIT trap).
+#   * Every drain the harness performs (import, --dest) passes --only with
+#     exactly the test's own staged keys, so a note created by the phone
+#     mid-run can never be drained, imported or deleted by the test. The
+#     production ql-* key filtering stays covered by the Dart unit tests
+#     (test/s3_drain_test.dart), and the wrapper's default no-filter path
+#     is exercised indirectly: at drain time the staged test keys are the
+#     entire ql-* population of the bucket (the preflight below refuses to
+#     start otherwise), so --only with all test keys selects exactly what
+#     the production default would select.
+#   * Test objects in the production bucket use unique ql-*.md keys and are
+#     deleted again even when a phase fails (create → verify → delete).
+#   * The harness refuses to start while any ql-* object sits in the bucket,
+#     so its bucket-wide assertions stay meaningful.
+#   * Residual risk: a note arriving mid-run can make the harness's
+#     *assertions* fail (never the data — --only keeps it untouched); the
+#     isolation phase reports any such foreign keys. If that happens, drain
+#     the phone note normally and re-run.
+#
+# Protocol failure paths are exercised without S3 at all: QUICKLOG_DART is
+# pointed at a scripted fake emitter that mimics bin/quicklog_drain.dart
+# --import against a file-based bucket (emit JSON line → read ack → delete
+# only on ok), so malformed stream lines and consumer death are tested
+# deterministically. The real Dart side's matching semantics (desync abort,
+# EOF abort, delete-only-after-ok-ack) are unit-tested in the quicklog repo.
+#
+# Usage (from the dotfiles repo, or with QUICKLOG_E2E_DOTFILES pointing at it):
+#   ./scripts/quicklog-drain-e2e
+#
+# Exit status: 0 = all phases passed; 1 = at least one assertion failed
+# (cleanup and timer restoration happen regardless).
+
+set -uo pipefail
+
+PROGRAM=${0##*/}
+FAILURES=0
+SAN=""
+TIMER_WAS_ACTIVE=false
+TEST_KEYS=()
+REAL_HOME="$HOME"
+CREDS="${QUICKLOG_CREDS:-$HOME/.config/garage/quicklog.env}"
+REPO="${QUICKLOG_REPO:-$HOME/git/quicklog}"
+DART="${QUICKLOG_DART:-$HOME/flutter/bin/dart}"
+DOTFILES="${QUICKLOG_E2E_DOTFILES:-}"
+REAL_TASK=/usr/bin/task
+CHILD_PATH="/usr/local/bin:/usr/bin:/bin"
+
+if [[ -z "$DOTFILES" ]]; then
+  DOTFILES="$(cd "$(dirname "$0")/.." && pwd)"
+fi
+if [[ ! -r "$DOTFILES/fish/conf.d/quicklog.fish" ]]; then
+  echo "$PROGRAM: $DOTFILES has no fish/conf.d/quicklog.fish — set QUICKLOG_E2E_DOTFILES to the dotfiles repo" >&2
+  exit 1
+fi
+
+# Load credentials once, exactly like the production wrapper does. They stay
+# in this process and are passed explicitly (never printed) to the Dart tools.
+# shellcheck disable=SC1090
+source "$CREDS"
+
+say() { printf '\n== %s ==\n' "$*"; }
+fail() {
+  FAILURES=$((FAILURES + 1))
+  echo "$PROGRAM: FAIL: $*" >&2
+}
+assert_rc() { # desc expected_rc actual_rc
+  if [[ "$2" != "$3" ]]; then
+    fail "$1: expected rc=$2, got rc=$3"
+  else
+    echo "ok: $1 (rc=$3)"
+  fi
+}
+assert_rc_nonzero() { # desc actual_rc
+  if [[ "$2" -eq 0 ]]; then
+    fail "$1: expected a nonzero exit code, got rc=0"
+  else
+    echo "ok: $1 (rc=$2)"
+  fi
+}
+assert_eq() { # desc actual expected
+  if [[ "$2" != "$3" ]]; then
+    fail "$1: got '$2', expected '$3'"
+  else
+    echo "ok: $1"
+  fi
+}
+assert_contains() { # desc haystack needle
+  if [[ "$2" == *"$3"* ]]; then
+    echo "ok: $1"
+  else
+    fail "$1: '$2' does not contain '$3'"
+  fi
+}
+assert_not_contains() { # desc haystack needle
+  if [[ "$2" != *"$3"* ]]; then
+    echo "ok: $1"
+  else
+    fail "$1: '$2' unexpectedly contains '$3'"
+  fi
+}
+
+# --- live S3 helpers --------------------------------------------------------
+
+# Built once after sourcing credentials; passed explicitly (never printed) to
+# the Dart S3 tools.
+S3_ENV_ARGS=(
+  "GARAGE_ENDPOINT=${GARAGE_ENDPOINT:-}"
+  "GARAGE_REGION=${GARAGE_REGION:-}"
+  "GARAGE_BUCKET=${GARAGE_BUCKET:-}"
+  "GARAGE_ACCESS_KEY_ID=${GARAGE_ACCESS_KEY_ID:-}"
+  "GARAGE_SECRET_ACCESS_KEY=${GARAGE_SECRET_ACCESS_KEY:-}"
+)
+
+s3() { # s3 <bin/quicklog_drain.dart args...>
+  env -C "$REPO" -i HOME="$REAL_HOME" PATH="$CHILD_PATH" "${S3_ENV_ARGS[@]}" \
+    "$DART" run bin/quicklog_drain.dart "$@"
+}
+
+put_note() { # put_note KEY CONTENT — stage a fixture object in the bucket
+  TEST_KEYS+=("$1")
+  printf '%s' "$2" |
+    env -C "$REPO" -i HOME="$REAL_HOME" PATH="$CHILD_PATH" "${S3_ENV_ARGS[@]}" \
+      "$DART" run tool/put_note.dart "$1"
+}
+
+bucket_keys() { # ql-* keys currently in the bucket
+  s3 --keys 2>/dev/null
+}
+
+# --- sandbox taskwarrior helpers ---------------------------------------------
+
+tw() { # tw <task args...> — task against the sandbox DB
+  env -i HOME="$SAN/home" TASKDATA="$SAN/taskdata" PATH="$CHILD_PATH" \
+    "$REAL_TASK" rc.verbose=nothing "$@"
+}
+
+sandbox_task_count() {
+  tw status:pending count 2>/dev/null | tail -1
+}
+
+sandbox_export() { # exports pending tasks as JSON to stdout
+  tw rc.json.array=on status:pending export 2>/dev/null
+}
+
+sandbox_descriptions() {
+  sandbox_export | jq -r '.[].description' | sort
+}
+
+count_desc() { # count_desc DESC — number of pending tasks with this exact description
+  sandbox_export | jq --arg d "$1" '[.[] | select(.description == $d)] | length'
+}
+
+# --- fingerprints of the user's real data ------------------------------------
+#
+# The real taskwarrior DB is checked by content, never by invoking the real
+# task binary: ~/.taskrc configures S3 sync and the DB is 80 MB+ — launching
+# real taskwarrior from a test is neither cheap nor side-effect-free. The
+# fingerprints hash the file content (immune to the mtime granularity races
+# that made the old size+mtime check flaky) and use find -L because ~/.task
+# is a symlink that plain `find` never descends into (the old file count was
+# a constant zero for exactly that reason).
+
+real_db_fingerprint() {
+  local db="$REAL_HOME/.task/taskchampion.sqlite3"
+  if [[ ! -e "$db" ]]; then
+    echo "no-task-db"
+    return 0
+  fi
+  local count main_sha wal_sha
+  count=$(find -L "$REAL_HOME/.task" -maxdepth 1 -type f 2>/dev/null | wc -l)
+  main_sha=$(sha256sum "$db" | cut -d' ' -f1)
+  if [[ -e "$db-wal" ]]; then
+    wal_sha=$(sha256sum "$db-wal" | cut -d' ' -f1)
+  else
+    wal_sha="no-wal"
+  fi
+  echo "$count $main_sha $wal_sha"
+}
+
+# Cheap semantic fingerprint via a read-only sqlite query (no taskwarrior
+# launch, no sync, no hooks): task count and content size. immutable=1 is
+# required — a plain mode=ro WAL reader *creates* -shm/-wal journal files
+# next to the real DB (observed live), which would both dirty the user's
+# ~/.task and break the content fingerprint above.
+real_db_semantics() {
+  local db="$REAL_HOME/.task/taskchampion.sqlite3"
+  if [[ ! -e "$db" ]]; then
+    echo "no-task-db"
+    return 0
+  fi
+  sqlite3 "file:$db?mode=ro&immutable=1" \
+    'SELECT count(*), coalesce(sum(length(data)),0) FROM tasks' 2>/dev/null \
+    || echo "sqlite-unreadable"
+}
+
+real_notes_fingerprint() {
+  find -L "$REAL_HOME/Notes" -maxdepth 1 -name 'ql-*' -type f 2>/dev/null | sort
+  # ~/Notes is a symlink: find -L or the staging dir is never reached
+  find -L "$REAL_HOME/Notes/Quicklog" -maxdepth 1 -printf '%P %s %T@\n' 2>/dev/null |
+    sha256sum | cut -d' ' -f1
+}
+
+real_due_stamp_fingerprint() {
+  stat -c '%Y' "$REAL_HOME/.taskwarrior_due.last" 2>/dev/null || echo "no-stamp"
+}
+
+# --- fixtures ------------------------------------------------------------------
+
+# One note exercising the line-format edge cases, imported straight into the
+# headless fish in phase 2. Expected tasks:
+#   1. home/groceries "buy milk ✓ ünïcode", due in 2 days
+#   2. project/tag1+tag2 "ship the thing" (no due)
+#   3. tagonly "do stuff" (single tag, no project)
+#   4. foo/bar "weird tags" (Foo→project, empty tag token dropped)
+#   5. tagonly "+urgent fix it" (+ token kept in the description by `--`)
+#   6. tagonly "do normalized stuff" (doubled spaces collapse)
+#   7. tagonly "fix the parser" (trailing 'r' must survive the CR strip)
+#   8. crlftag "keep final letter" (literal CRLF: CR stripped, no r chopped)
+#   9. tagonly "-dash leading minus stays" (leading-dash description literal)
+#  10. longtag "x"×1000 (very long description)
+# Malformed lines (blank, whitespace-only, bare word, bare due number, due
+# offset outside 0..10000) are permanently skipped — 10 tasks total.
+FIXTURE_GOOD=10
+LONG_DESC=$(printf 'x%.0s' $(seq 1000))
+FIXTURE_NOTE=$'2 Home,groceries buy milk ✓ ünïcode\nProject,tag1,tag2 ship the thing\n\ntagonly do stuff\n   \njustoneword\n3\nFoo,,bar weird tags\ntagonly +urgent fix it\ntagonly do  normalized   stuff\ntagonly fix the parser\ncrlftag keep final letter\r\n99999 tagonly due way out of range\ntagonly -dash leading minus stays\nlongtag '$LONG_DESC$'\n'
+
+make_key() { # make_key OFFSET_SECONDS — valid ql-YYMMDD-HHMMSS.md key
+  printf 'ql-%s.md' "$(date -u -d "+$1 seconds" +%y%m%d-%H%M%S)"
+}
+
+# --- cleanup ---------------------------------------------------------------------
+
+cleanup() {
+  local rc=$?
+  echo
+  say "cleanup"
+  local key remaining
+  remaining=$(bucket_keys 2>/dev/null)
+  for key in "${TEST_KEYS[@]}"; do
+    if [[ "$remaining" == *"$key"* ]]; then
+      if s3 --delete "$key" >/dev/null 2>&1; then
+        echo "deleted leftover $key"
+      else
+        echo "could not delete leftover $key" >&2
+      fi
+    fi
+  done
+  rm -f /tmp/ql-e2e-*.md
+  if [[ -n "$SAN" && -d "$SAN" ]]; then
+    rm -rf "$SAN"
+    echo "removed sandbox $SAN"
+  fi
+  if [[ "$TIMER_WAS_ACTIVE" == true ]]; then
+    systemctl --user start quicklog-drain.timer
+    if systemctl --user is-active --quiet quicklog-drain.timer; then
+      echo "restored quicklog-drain.timer (active)"
+    else
+      echo "$PROGRAM: FAILED to restore quicklog-drain.timer" >&2
+      FAILURES=$((FAILURES + 1))
+    fi
+  fi
+  echo
+  if ((FAILURES == 0 && rc == 0)); then
+    echo "E2E RESULT: ALL PHASES PASSED"
+  else
+    echo "E2E RESULT: $FAILURES assertion(s) failed (script rc=$rc)"
+  fi
+  exit $((FAILURES > 0 ? 1 : rc))
+}
+trap cleanup EXIT
+
+# --- phase 0: preflight -------------------------------------------------------------
+
+say "phase 0: preflight"
+
+for tool in fish jq flock timeout systemctl sqlite3 pgrep; do
+  command -v "$tool" >/dev/null 2>&1 || {
+    echo "$PROGRAM: missing tool: $tool" >&2
+    exit 1
+  }
+done
+[[ -x "$DART" ]] || { echo "$PROGRAM: missing Dart SDK at $DART" >&2; exit 1; }
+[[ -x "$REAL_TASK" ]] || { echo "$PROGRAM: missing $REAL_TASK" >&2; exit 1; }
+[[ -r "$CREDS" ]] || { echo "$PROGRAM: missing $CREDS" >&2; exit 1; }
+[[ -d "$REPO" ]] || { echo "$PROGRAM: missing Quicklog repo $REPO" >&2; exit 1; }
+[[ -r "$REPO/tool/put_note.dart" ]] || { echo "$PROGRAM: missing tool/put_note.dart in $REPO" >&2; exit 1; }
+
+# Warm the package resolution once, so no `dart run` below can print
+# dependency-resolution noise mid-test: the wrapper's --import protocol
+# desyncs on stray stdout, and bucket_keys() parses dart's stdout directly.
+env -C "$REPO" -i HOME="$REAL_HOME" PATH="$CHILD_PATH" \
+  "$DART" pub get >/dev/null 2>&1 \
+  || echo "$PROGRAM: WARNING: dart pub get failed; dart run may print resolution noise" >&2
+
+say "phase 0b: dart CLI arg matrix (no credentials, no S3)"
+
+# Usage errors must exit 64; parseable invocations proceed to the credential
+# check and exit 1 (GARAGE_* deliberately absent from the environment).
+# shellcheck disable=SC2086
+for bad in "--limit 0" "--delete k --limit 2" "--delete" "--dest" "--import --bogus" "--keys --only x" "--import --only a,,b"; do
+  rc=0
+  env -C "$REPO" -i HOME="$REAL_HOME" PATH="$CHILD_PATH" \
+    "$DART" run bin/quicklog_drain.dart $bad >/dev/null 2>&1 || rc=$?
+  assert_rc "usage error for: $bad" 64 "$rc"
+done
+stderr_capture=$(mktemp)
+# shellcheck disable=SC2086
+env -C "$REPO" -i HOME="$REAL_HOME" PATH="$CHILD_PATH" \
+  "$DART" run bin/quicklog_drain.dart --limit 0 >"$stderr_capture" 2>&1
+assert_contains "usage error prints usage text" "$(cat "$stderr_capture")" "Usage:"
+rm -f "$stderr_capture"
+# shellcheck disable=SC2086
+for good in "--import" "--import --only ql-x.md,ql-y.md" "--keys" "--dest /tmp/ql-e2e-nonexistent" "--delete ql-x.md"; do
+  rc=0
+  env -C "$REPO" -i HOME="$REAL_HOME" PATH="$CHILD_PATH" \
+    "$DART" run bin/quicklog_drain.dart $good >/dev/null 2>&1 || rc=$?
+  assert_rc "parsed, fails on missing creds: $good" 1 "$rc"
+done
+
+if systemctl --user is-active --quiet quicklog-drain.timer; then
+  TIMER_WAS_ACTIVE=true
+  echo "quicklog-drain.timer is active — it will be stopped for the test"
+fi
+
+REAL_DB_BEFORE=$(real_db_fingerprint)
+REAL_DB_SEM_BEFORE=$(real_db_semantics)
+REAL_NOTES_BEFORE=$(real_notes_fingerprint)
+REAL_STAMP_BEFORE=$(real_due_stamp_fingerprint)
+BUCKET_BEFORE=$(bucket_keys | sort)
+
+if [[ -n "$BUCKET_BEFORE" ]]; then
+  echo "$PROGRAM: bucket has pending notes; drain them before running the E2E:" >&2
+  printf '%s\n' "$BUCKET_BEFORE" >&2
+  exit 1
+fi
+echo "ok: bucket empty, real data fingerprinted"
+
+# --- phase 1: sandbox ------------------------------------------------------------------
+
+say "phase 1: build sandbox"
+
+SAN=$(mktemp -d /tmp/ql-e2e.XXXXXX)
+mkdir -p "$SAN/home" "$SAN/taskdata" "$SAN/conf.d" "$SAN/xdg" "$SAN/wt" "$SAN/bin"
+echo "data.location=$SAN/taskdata" >"$SAN/home/.taskrc"
+cp "$DOTFILES/fish/conf.d/taskwarrior.fish" "$SAN/conf.d/"
+cp "$DOTFILES/fish/conf.d/quicklog.fish" "$SAN/conf.d/"
+echo "sandbox at $SAN"
+
+# The real wrapper with every path knob pointed at the sandbox. Every drain
+# passes --only with the harness's own staged keys (see header: the phone-note
+# mid-run hazard). Options:
+#   --taskdata DIR  override the sandbox TASKDATA (broken-DB scenarios)
+#   --dart PATH     override the dart binary (fake-emitter scenarios)
+#   --only CSV      override the --only key list (default: all staged keys)
+build_wrapper_env() { # build_wrapper_env [TASKDATA] [DART]
+  WRAPPER_ENV=(
+    HOME="$SAN/home"
+    TASKDATA="${1:-$SAN/taskdata}"
+    XDG_RUNTIME_DIR="$SAN/xdg"
+    QUICKLOG_CREDS="$CREDS"
+    QUICKLOG_REPO="$REPO"
+    QUICKLOG_DART="${2:-$DART}"
+    QUICKLOG_FISH_CONF_DIR="$SAN/conf.d"
+    PUB_CACHE="$REAL_HOME/.pub-cache"
+  )
+}
+
+test_keys_csv() { # comma-separated list of all keys this run has staged
+  local IFS=,
+  printf '%s' "${TEST_KEYS[*]}"
+}
+
+run_script() { # run_script [--taskdata DIR] [--dart PATH] [--only CSV] <wrapper args...>
+  local taskdata="" dartbin="" only_csv=""
+  while [[ "${1:-}" == --taskdata || "${1:-}" == --dart || "${1:-}" == --only ]]; do
+    case "$1" in
+      --taskdata) taskdata="$2" ;;
+      --dart) dartbin="$2" ;;
+      --only) only_csv="$2" ;;
+    esac
+    shift 2
+  done
+  build_wrapper_env "$taskdata" "$dartbin"
+  only_csv="${only_csv:-$(test_keys_csv)}"
+  env "${WRAPPER_ENV[@]}" "$DOTFILES/scripts/quicklog-drain" --only "$only_csv" "$@"
+}
+
+# Headless fish against the sandbox (production parity: QUICKLOG_HEADLESS).
+# The fish command is single-quoted on purpose: $QUICKLOG_FISH_CONF_DIR is
+# expanded by fish from its own environment, not by this shell.
+run_fish() { # run_fish <fish command>
+  # shellcheck disable=SC2016
+  env -i \
+    HOME="$SAN/home" \
+    TASKDATA="$SAN/taskdata" \
+    QUICKLOG_HEADLESS=1 \
+    QUICKLOG_FISH_CONF_DIR="$SAN/conf.d" \
+    PATH="$CHILD_PATH" \
+    fish --no-config -c '
+      source "$QUICKLOG_FISH_CONF_DIR/taskwarrior.fish"
+      source "$QUICKLOG_FISH_CONF_DIR/quicklog.fish"
+      '"$1"'
+    '
+}
+
+# Is a headless import fish still writing to the sandbox DB? Matched via the
+# cmdline plus the sandbox TASKDATA in its environment, so other users of the
+# same functions (an interactive `ti`) are never mistaken for ours.
+sandbox_import_running() {
+  local pid
+  for pid in $(pgrep -f 'taskwarrior::quicklog_import_content' 2>/dev/null); do
+    if tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null |
+      grep -q "^TASKDATA=$SAN/taskdata$"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+wait_no_sandbox_import() {
+  local _
+  for _ in $(seq 1 90); do
+    sandbox_import_running || return 0
+    sleep 1
+  done
+  fail "sandbox import fish still running after 90s"
+  return 1
+}
+
+wait_no_dart() { # the real drain tool EOF-aborts on its own once the wrapper dies
+  local _
+  for _ in $(seq 1 30); do
+    pgrep -f 'bin/quicklog_drain.dart' >/dev/null 2>&1 || return 0
+    sleep 1
+  done
+  echo "note: dart drain process still lingering; continuing" >&2
+}
+
+# Total byte size of the sandbox DB and its WAL — grows with every task add,
+# so the kill tests can wait for "the import has started" without touching
+# the database itself.
+db_size_sum() {
+  local total=0 f
+  for f in "$SAN/taskdata/taskchampion.sqlite3" "$SAN/taskdata/taskchampion.sqlite3-wal"; do
+    if [[ -e "$f" ]]; then
+      total=$((total + $(stat -c %s "$f")))
+    fi
+  done
+  echo "$total"
+}
+
+# --- phase 2: fish parser unit (no S3) ---------------------------------------------------
+
+say "phase 2: import_content against sandbox taskwarrior"
+
+rc=0
+printf '%s' "$FIXTURE_NOTE" | run_fish 'taskwarrior::quicklog_import_content' || rc=$?
+assert_rc "import_content accepts the fixture (malformed lines skipped)" 0 "$rc"
+assert_eq "fixture produced $FIXTURE_GOOD tasks" "$(sandbox_task_count)" "$FIXTURE_GOOD"
+
+assert_contains "unicode description intact" "$(sandbox_descriptions)" "buy milk ✓ ünïcode"
+assert_contains "description + token kept literal" "$(sandbox_descriptions)" "+urgent fix it"
+assert_contains "double spaces normalized" "$(sandbox_descriptions)" "do normalized stuff"
+assert_not_contains "bare word did not become a task" "$(sandbox_descriptions)" "justoneword"
+assert_eq "out-of-range due offset was a permanent skip" "$(count_desc 'due way out of range')" 0
+
+assert_eq "trailing-r description imported exactly (F1 regression)" \
+  "$(count_desc 'fix the parser')" 1
+assert_eq "CRLF line: CR stripped, final r kept exactly (F1 regression)" \
+  "$(count_desc 'keep final letter')" 1
+assert_eq "no description contains a stray carriage return" \
+  "$(sandbox_export | jq '[.[] | select(.description | contains("\r"))] | length')" 0
+assert_eq "leading-dash description imported literally" \
+  "$(count_desc '-dash leading minus stays')" 1
+
+sandbox_export >"$SAN/export.json"
+assert_eq "project parsed from capitalized token" \
+  "$(jq -r '.[] | select(.description == "buy milk ✓ ünïcode") | .project' "$SAN/export.json")" "home"
+assert_eq "comma tag parsed" \
+  "$(jq -r '.[] | select(.description == "buy milk ✓ ünïcode") | .tags[0]' "$SAN/export.json")" "groceries"
+assert_eq "multi tags parsed" \
+  "$(jq -r '.[] | select(.description == "ship the thing") | .tags | sort | join(",")' "$SAN/export.json")" "tag1,tag2"
+assert_eq "empty tag token dropped, project kept" \
+  "$(jq -r '.[] | select(.description == "weird tags") | .project' "$SAN/export.json")" "foo"
+assert_eq "empty tag token dropped, tag kept" \
+  "$(jq -r '.[] | select(.description == "weird tags") | .tags | join(",")' "$SAN/export.json")" "bar"
+
+due_raw=$(jq -r '.[] | select(.description == "buy milk ✓ ünïcode") | .due' "$SAN/export.json")
+now_epoch=$(date +%s)
+if [[ "$due_raw" =~ ^[0-9]+$ ]]; then
+  if ((due_raw > now_epoch + 86400 && due_raw < now_epoch + 3 * 86400)); then
+    echo "ok: due in ~2 days ($due_raw)"
+  else
+    fail "due offset not ~2 days: $due_raw (now $now_epoch)"
+  fi
+elif [[ "$due_raw" =~ ^2[0-9]{7}T[0-9]{6}Z$ ]]; then
+  assert_eq "due lands 2 days out" "${due_raw:0:8}" "$(date -u -d '+2 days' +%Y%m%d)"
+else
+  fail "due missing or unrecognized: $due_raw"
+fi
+
+assert_eq "very long description imported intact" \
+  "$(jq -r '.[] | select(.description | startswith("x")) | .description | length' "$SAN/export.json" | sort -u | tail -1)" "1000"
+
+say "phase 2b: duplicate note content is skipped (F2 dedup, fish level)"
+
+rc=0
+printf '%s' "$FIXTURE_NOTE" | run_fish 'taskwarrior::quicklog_import_content' 2>"$SAN/dedup.err" || rc=$?
+assert_rc "re-import of identical content succeeds" 0 "$rc"
+assert_eq "re-import added no duplicates" "$(sandbox_task_count)" "$FIXTURE_GOOD"
+assert_contains "duplicate lines reported on stderr" "$(cat "$SAN/dedup.err")" "task already pending"
+assert_eq "no duplicate descriptions after re-import" \
+  "$(sandbox_export | jq '[.[].description] | group_by(.) | map(select(length > 1)) | length')" 0
+
+say "phase 2c: quicklogger scans local dirs (Notes + WORKTIME_DIR)"
+mkdir -p "$SAN/home/Notes"
+printf 'localone first local task\nlocaltwo second local task\nmalformed\n' >"$SAN/home/Notes/ql-e2e-local.md"
+printf 'wtonly worktime task\n' >"$SAN/wt/ql-e2e-wt.md"
+rc=0
+# shellcheck disable=SC2016
+env -i HOME="$SAN/home" TASKDATA="$SAN/taskdata" WORKTIME_DIR="$SAN/wt" QUICKLOG_HEADLESS=1 \
+  QUICKLOG_FISH_CONF_DIR="$SAN/conf.d" PATH="$CHILD_PATH" \
+  fish --no-config -c '
+    source "$QUICKLOG_FISH_CONF_DIR/taskwarrior.fish"
+    source "$QUICKLOG_FISH_CONF_DIR/quicklog.fish"
+    taskwarrior::quicklogger
+  ' || rc=$?
+assert_rc "quicklogger run" 0 "$rc"
+assert_contains "local dir task imported" "$(sandbox_descriptions)" "first local task"
+assert_contains "WORKTIME_DIR task imported" "$(sandbox_descriptions)" "worktime task"
+if [[ ! -e "$SAN/home/Notes/ql-e2e-local.md" && ! -e "$SAN/wt/ql-e2e-wt.md" ]]; then
+  echo "ok: processed files moved away"
+else
+  fail "processed ql files still in place"
+fi
+
+say "phase 2d: quicklogger keeps a file whose import fails, then imports it once"
+
+# A fake taskwarrior binary that fails while a marker file exists — a
+# transient failure source that quicklogger must survive by keeping the file.
+cat >"$SAN/bin/task" <<'FAKETASK'
+#!/bin/bash
+if [[ -e "$TASK_FAIL_MARKER" ]]; then
+  echo "fake task: simulated failure" >&2
+  exit 1
+fi
+exec /usr/bin/task "$@"
+FAKETASK
+chmod +x "$SAN/bin/task"
+printf 'keepfail first kept line\nkeepfail second kept line\nmalformed\n' >"$SAN/home/Notes/ql-e2e-keepfail.md"
+COUNT_BEFORE=$(sandbox_task_count)
+touch "$SAN/fail-marker"
+rc=0
+# shellcheck disable=SC2016
+env -i HOME="$SAN/home" TASKDATA="$SAN/taskdata" TASK_FAIL_MARKER="$SAN/fail-marker" \
+  QUICKLOG_HEADLESS=1 QUICKLOG_FISH_CONF_DIR="$SAN/conf.d" \
+  PATH="$SAN/bin:$CHILD_PATH" \
+  fish --no-config -c '
+    source "$QUICKLOG_FISH_CONF_DIR/taskwarrior.fish"
+    source "$QUICKLOG_FISH_CONF_DIR/quicklog.fish"
+    taskwarrior::quicklogger
+  ' || rc=$?
+assert_rc_nonzero "quicklogger fails while taskwarrior is broken" "$rc"
+assert_eq "no tasks added during the failure" "$(sandbox_task_count)" "$COUNT_BEFORE"
+if [[ -e "$SAN/home/Notes/ql-e2e-keepfail.md" ]]; then
+  echo "ok: failed file stays in Notes"
+else
+  fail "failed file was consumed despite the failure"
+fi
+if compgen -G "/tmp/ql-e2e-keepfail.md" >/dev/null; then
+  fail "failed file was moved to /tmp"
+else
+  echo "ok: failed file not moved to /tmp"
+fi
+
+rm -f "$SAN/fail-marker"
+rc=0
+# shellcheck disable=SC2016
+env -i HOME="$SAN/home" TASKDATA="$SAN/taskdata" QUICKLOG_HEADLESS=1 \
+  QUICKLOG_FISH_CONF_DIR="$SAN/conf.d" PATH="$CHILD_PATH" \
+  fish --no-config -c '
+    source "$QUICKLOG_FISH_CONF_DIR/taskwarrior.fish"
+    source "$QUICKLOG_FISH_CONF_DIR/quicklog.fish"
+    taskwarrior::quicklogger
+  ' || rc=$?
+assert_rc "quicklogger succeeds once unblocked" 0 "$rc"
+assert_eq "kept file imported exactly once (first line)" "$(count_desc 'first kept line')" 1
+assert_eq "kept file imported exactly once (second line)" "$(count_desc 'second kept line')" 1
+if [[ ! -e "$SAN/home/Notes/ql-e2e-keepfail.md" ]]; then
+  echo "ok: recovered file moved away"
+else
+  fail "recovered file still in place"
+fi
+
+# Fresh sandbox DB for the pipeline phases so counts stay exact
+rm -rf "$SAN/taskdata"
+mkdir -p "$SAN/taskdata"
+
+# --- phase 3: live Garage → taskwarrior happy path ------------------------------------------
+
+say "phase 3: live S3 import via the real wrapper"
+if [[ "$TIMER_WAS_ACTIVE" == true ]]; then
+  systemctl --user stop quicklog-drain.timer
+  echo "quicklog-drain.timer stopped"
+fi
+
+# The S3 fixture deliberately repeats the F1/F2 edge cases with fresh
+# descriptions so the exact-equality assertions prove the CR strip, the
+# trailing-r survival and the leading-dash passthrough over the whole
+# S3 → dart → jq → fish → taskwarrior path.
+K3A=$(make_key 3)
+K3B=$(make_key 4)
+K3C=$(make_key 5) # empty note
+K3D=$(make_key 6) # note without trailing newline
+S3_F3_NOTE=$'s3tag ends in letter r\ns3crlf crlf final letter stays\r\njustoneword\ns3tag -minus literal dash kept\n'
+put_note "$K3A" "$S3_F3_NOTE"
+put_note "$K3B" 'solo single line note'
+put_note "$K3C" ''
+put_note "$K3D" 'notrailing newline note'
+assert_eq "four fixtures staged" "$(bucket_keys | grep -c '^ql-')" "4"
+
+rc=0
+run_script || rc=$?
+assert_rc "wrapper exit code" 0 "$rc"
+for key in "$K3A" "$K3B" "$K3C" "$K3D"; do
+  if bucket_keys | grep -F -x -q "$key"; then
+    fail "test key still in bucket after drain: $key"
+  else
+    echo "ok: drained $key"
+  fi
+done
+assert_eq "tasks in sandbox DB (3 edge lines + 2 single notes)" "$(sandbox_task_count)" "5"
+assert_eq "trailing-r description exact over S3 (F1 regression)" \
+  "$(count_desc 'ends in letter r')" 1
+assert_eq "CRLF description exact over S3 (F1 regression)" \
+  "$(count_desc 'crlf final letter stays')" 1
+assert_eq "leading-dash description literal over S3" \
+  "$(count_desc '-minus literal dash kept')" 1
+assert_eq "no description contains a stray carriage return" \
+  "$(sandbox_export | jq '[.[] | select(.description | contains("\r"))] | length')" 0
+assert_contains "note without trailing newline imported" "$(sandbox_descriptions)" "newline note"
+assert_contains "single line note imported" "$(sandbox_descriptions)" "single line note"
+assert_eq "no duplicate descriptions after S3 import" \
+  "$(sandbox_export | jq '[.[].description] | group_by(.) | map(select(length > 1)) | length')" 0
+if [[ ! -d "$SAN/home/Notes/Quicklog" ]] &&
+  [[ -z "$(find "$SAN/home" -name 'ql-*' -type f 2>/dev/null)" ]]; then
+  echo "ok: no filesystem staging happened"
+else
+  fail "wrapper staged files into the sandbox"
+fi
+
+# --- phase 4: import failure keeps the note; retry imports once -----------------------------
+
+say "phase 4: failed import keeps the object; retry imports exactly once"
+
+K4=$(make_key 7)
+put_note "$K4" 'retryme transient import target'
+COUNT_BEFORE=$(sandbox_task_count)
+
+mkdir -p "$SAN/blocked"
+chmod 555 "$SAN/blocked"
+rc=0
+run_script --taskdata "$SAN/blocked" >/dev/null 2>&1 || rc=$?
+if [[ $rc -ne 0 ]]; then
+  echo "ok: wrapper failed with broken taskwarrior (rc=$rc)"
+else
+  fail "wrapper succeeded despite broken taskwarrior"
+fi
+assert_contains "failed note kept in bucket" "$(bucket_keys)" "$K4"
+assert_eq "no tasks added during failure" "$(sandbox_task_count)" "$COUNT_BEFORE"
+
+rc=0
+run_script >/dev/null || rc=$?
+assert_rc "retry run succeeds" 0 "$rc"
+if bucket_keys | grep -F -x -q "$K4"; then
+  fail "retried note still in bucket"
+else
+  echo "ok: retried note drained"
+fi
+assert_eq "retried note imported exactly once" \
+  "$(sandbox_descriptions | grep -c '^transient import target$')" "1"
+
+# --- phase 4b: crash window — kill mid-import, note kept, re-drain dedups ------------------
+
+say "phase 4b: wrapper kill mid-import keeps the note; re-drain imports no duplicates"
+
+# A multi-line note: good line, malformed line, good line, then filler lines
+# that widen the kill window (the import takes several seconds, the poll below
+# kills as soon as the first task add lands — the same SIGTERM a systemd
+# RuntimeMaxSec kill or a manual `timeout` would deliver).
+K4B=$(make_key 12)
+KILLWIN_BODY='killwin first good line\njustoneword\nkillwin third good line\n'
+KILLWIN_FILLER=$(seq -f 'killwin bulk task %03.0f' 1 120)
+KILLWIN_NOTE=$(printf '%b' "$KILLWIN_BODY"; echo "$KILLWIN_FILLER")
+put_note "$K4B" "$KILLWIN_NOTE"
+KILLWIN_GOODS=122 # first + third + 120 filler lines
+
+DB_BASE=$(db_size_sum)
+build_wrapper_env
+env "${WRAPPER_ENV[@]}" "$DOTFILES/scripts/quicklog-drain" --only "$K4B" &
+WPID=$!
+killed_after_import=false
+for _ in $(seq 1 240); do
+  if (( $(db_size_sum) > DB_BASE )); then
+    killed_after_import=true
+    break
+  fi
+  sleep 0.25
+done
+kill -TERM "$WPID" 2>/dev/null || true
+wait "$WPID" 2>/dev/null
+WPID_RC=$?
+if [[ "$killed_after_import" == true ]]; then
+  echo "ok: wrapper killed mid-import (rc=$WPID_RC)"
+else
+  echo "note: kill landed outside the import window (still valid: object must be kept)"
+fi
+wait_no_sandbox_import
+wait_no_dart
+assert_contains "killed run kept the note in the bucket" "$(bucket_keys)" "$K4B"
+
+rc=0
+run_script >/dev/null || rc=$?
+assert_rc "re-drain after kill succeeds" 0 "$rc"
+if bucket_keys | grep -F -x -q "$K4B"; then
+  fail "re-drained note still in bucket"
+else
+  echo "ok: re-drained note deleted after dedup-import"
+fi
+sandbox_export >"$SAN/export.json"
+assert_eq "no duplicate descriptions after crash-window re-drain (F2 dedup)" \
+  "$(jq '[.[].description] | group_by(.) | map(select(length > 1)) | length' "$SAN/export.json")" 0
+assert_eq "killwin note imported exactly once per line" \
+  "$(jq '[.[] | select(.description == "first good line" or .description == "third good line" or (.description | startswith("bulk task")))] | length' "$SAN/export.json")" "$KILLWIN_GOODS"
+assert_eq "malformed killwin line never became a task" \
+  "$(jq '[.[] | select(.description == "justoneword")] | length' "$SAN/export.json")" 0
+
+# --- phase 5: --dry-run, --limit, --only and --dest ------------------------------------------
+
+say "phase 5: --dry-run, --limit, --only and --dest"
+
+K5A=$(make_key 8)
+K5B=$(make_key 9)
+put_note "$K5A" 'limitme first limited note'
+put_note "$K5B" 'limitme second limited note'
+COUNT_P5=$(sandbox_task_count)
+
+rc=0
+run_script --dry-run >/dev/null || rc=$?
+assert_rc "dry-run exit code" 0 "$rc"
+assert_eq "dry-run deleted nothing" "$(bucket_keys | grep -c '^ql-')" "2"
+assert_eq "dry-run imported nothing" "$(sandbox_task_count)" "$COUNT_P5"
+
+rc=0
+run_script --force >/dev/null 2>&1 || rc=$?
+assert_rc "--force rejected in import mode" 64 "$rc"
+assert_eq "--force touched nothing" "$(bucket_keys | grep -c '^ql-')" "2"
+
+rc=0
+run_script --limit 1 >/dev/null || rc=$?
+assert_rc "limited run exit code" 0 "$rc"
+assert_contains "older note imported" "$(sandbox_descriptions)" "first limited note"
+assert_not_contains "newer note not imported" "$(sandbox_descriptions)" "second limited note"
+assert_eq "only the newer note remains in the bucket" "$(bucket_keys)" "$K5B"
+
+rc=0
+run_script >/dev/null || rc=$?
+assert_rc "final run drains the rest" 0 "$rc"
+assert_contains "newer note imported on next run" "$(sandbox_descriptions)" "second limited note"
+
+say "phase 5b: --only drains only the named keys"
+
+K5C=$(make_key 13)
+K5D=$(make_key 14)
+put_note "$K5C" 'onlyone targeted by only flag'
+put_note "$K5D" 'onlytwo not in the only list'
+rc=0
+run_script --only "$K5C" >/dev/null || rc=$?
+assert_rc "--only run exit code" 0 "$rc"
+assert_eq "key in the --only list was drained" "$(count_desc 'targeted by only flag')" 1
+assert_contains "key outside --only stays in the bucket" "$(bucket_keys)" "$K5D"
+
+rc=0
+run_script >/dev/null || rc=$?
+assert_rc "subsequent run drains the remaining key" 0 "$rc"
+assert_eq "remaining key imported exactly once" "$(count_desc 'not in the only list')" 1
+if bucket_keys | grep -F -x -q "$K5D"; then
+  fail "remaining key still in bucket"
+else
+  echo "ok: remaining key drained"
+fi
+
+say "phase 5c: --dest legacy mode smoke test"
+
+K5E=$(make_key 20)
+K5F=$(make_key 21)
+mkdir -p "$SAN/dest"
+put_note "$K5E" 'destmode first legacy note'
+put_note "$K5F" 'destmode second legacy note'
+rc=0
+run_script --dest "$SAN/dest" >/dev/null || rc=$?
+assert_rc "--dest run exit code" 0 "$rc"
+assert_eq "first legacy file landed with exact content" \
+  "$(cat "$SAN/dest/$K5E")" 'destmode first legacy note'
+assert_eq "second legacy file landed with exact content" \
+  "$(cat "$SAN/dest/$K5F")" 'destmode second legacy note'
+remaining_after_dest=$(bucket_keys)
+for key in "$K5E" "$K5F"; do
+  if [[ "$remaining_after_dest" == *"$key"* ]]; then
+    fail "--dest left object behind: $key"
+  else
+    echo "ok: --dest deleted remote object $key"
+  fi
+done
+
+say "phase 5d: stranded staging-dir preflight reports and proceeds"
+
+# F3: notes staged into ~/Notes/Quicklog by the retired flow are stranded
+# (nothing scans that directory anymore). The import preflight must warn
+# about them, and the import must still proceed.
+mkdir -p "$SAN/home/Notes/Quicklog"
+printf 'stranded staged by the old flow\n' >"$SAN/home/Notes/Quicklog/ql-e2e-stranded.md"
+K5G=$(make_key 22)
+put_note "$K5G" 'strandchk import proceeds anyway'
+rc=0
+run_script >"$SAN/strand.out" 2>&1 || rc=$?
+assert_rc "import proceeds despite stranded files" 0 "$rc"
+assert_contains "stranded preflight warns" "$(cat "$SAN/strand.out")" "stranded"
+assert_contains "stranded preflight names the file" "$(cat "$SAN/strand.out")" "ql-e2e-stranded.md"
+# The wrapper's hint contains a literal ~/Notes on purpose (human-facing text)
+# shellcheck disable=SC2088
+assert_contains "stranded preflight hints at ~/Notes" "$(cat "$SAN/strand.out")" "~/Notes"
+assert_eq "stranded file was not imported by the drain" "$(count_desc 'staged by the old flow')" 0
+if [[ -e "$SAN/home/Notes/Quicklog/ql-e2e-stranded.md" ]]; then
+  echo "ok: stranded file left in place for the operator"
+else
+  fail "stranded file was consumed or moved"
+fi
+assert_eq "import still drained its own key" "$(count_desc 'import proceeds anyway')" 1
+rm -rf "$SAN/home/Notes/Quicklog"
+
+# --- phase 6: protocol failure paths without S3 (fake emitter) ------------------------------
+
+say "phase 6: protocol failures with the fake dart emitter"
+
+# The fake emulates bin/quicklog_drain.dart --import: it streams one JSON
+# line per staged object, reads one ack per note, and deletes the object
+# file only on an ok-ack with a matching key — the same semantics the real
+# tool has (unit-tested in the quicklog repo). A marker file makes it emit a
+# garbage line first (malformed-stream-line scenario).
+mkdir -p "$SAN/home/fake-dart/objects"
+cat >"$SAN/bin/fakedart" <<'FAKEDART'
+#!/bin/bash
+set -u
+if [[ "${1:-}" == "pub" ]]; then
+  exit 0 # the wrapper pre-resolves with `dart pub get`; accept and no-op
+fi
+if [[ "${1:-}" != "run" ]]; then
+  exit 64
+fi
+shift # run
+shift # bin/quicklog_drain.dart — remaining flags (e.g. --only) don't matter:
+      # the fake's bucket only ever holds the keys the harness staged.
+state="$HOME/fake-dart"
+log() { printf '%s\n' "$*" >>"$state/log"; }
+
+if [[ -f "$state/garbage-first" ]]; then
+  printf 'this is not a json protocol line\n'
+  log "emitted garbage"
+fi
+
+for obj in $(ls "$state/objects" | sort); do
+  content_json=$(jq -Rs . <"$state/objects/$obj")
+  printf '{"key":"%s","content":%s}\n' "$obj" "$content_json"
+  log "emitted $obj"
+  if ! IFS= read -r ack; then
+    log "aborted: consumer went away after $obj"
+    exit 1
+  fi
+  ack_key=$(jq -r '.key // empty' <<<"$ack" 2>/dev/null) || ack_key=""
+  ack_ok=$(jq -r '.ok // empty' <<<"$ack" 2>/dev/null) || ack_ok=""
+  if [[ "$ack_key" != "$obj" ]]; then
+    log "desync abort: ack for '$ack_key' but expected '$obj'"
+    exit 1
+  fi
+  if [[ "$ack_ok" == "true" ]]; then
+    rm -f "$state/objects/$obj"
+    log "deleted $obj"
+  else
+    log "kept $obj"
+  fi
+done
+exit 0
+FAKEDART
+chmod +x "$SAN/bin/fakedart"
+
+say "phase 6a: malformed stream line — wrapper aborts, emitter keeps its objects"
+
+KEY6A=$(make_key 15)
+printf 'tagonly fakedart malformed path line\n' >"$SAN/home/fake-dart/objects/$KEY6A"
+touch "$SAN/home/fake-dart/garbage-first"
+rc=0
+run_script --dart "$SAN/bin/fakedart" >/dev/null 2>&1 || rc=$?
+assert_rc_nonzero "wrapper exits nonzero on a malformed stream line" "$rc"
+assert_contains "fake dart saw the desync" "$(cat "$SAN/home/fake-dart/log")" "desync abort"
+if [[ -e "$SAN/home/fake-dart/objects/$KEY6A" ]]; then
+  echo "ok: emitter kept the object (nothing deleted)"
+else
+  fail "emitter deleted an object despite the desync"
+fi
+assert_eq "note consumed before the abort imported exactly once" \
+  "$(count_desc 'fakedart malformed path line')" 1
+
+say "phase 6b: consumer death mid-stream — acked object deleted, current object kept"
+
+rm -f "$SAN/home/fake-dart/garbage-first" "$SAN/home/fake-dart/log"
+# The malformed-line object from 6a served its purpose (it was asserted kept;
+# its line was imported into the sandbox) — remove it so the 6b background
+# run only deals with the two consumer-death keys.
+rm -f "$SAN/home/fake-dart/objects/$KEY6A"
+KEY6B1=$(make_key 16)
+KEY6B2=$(make_key 17)
+printf 'tagonly fakedart first acked note\n' >"$SAN/home/fake-dart/objects/$KEY6B1"
+{
+  echo 'fakedart second good line'
+  echo 'justoneword'
+  # Fresh descriptions (never used by earlier phases): colliding with the
+  # killwin "bulk task NNN" lines would make the dedup skip these lines and
+  # collapse the kill window the test relies on.
+  seq -f 'fakedart fakebulk task %03.0f' 1 60
+} >"$SAN/home/fake-dart/objects/$KEY6B2"
+FAKE6B_GOODS=61 # 1 second-line + 60 fakebulk lines
+
+build_wrapper_env "" "$SAN/bin/fakedart"
+env "${WRAPPER_ENV[@]}" "$DOTFILES/scripts/quicklog-drain" --only "$KEY6B1,$KEY6B2" &
+WPID=$!
+for _ in $(seq 1 120); do
+  if grep -q "emitted $KEY6B2" "$SAN/home/fake-dart/log" 2>/dev/null; then
+    break
+  fi
+  sleep 0.25
+done
+# Kill the wrapper — the consumer of the dart stream — while the second note
+# is mid-import: the same SIGTERM a systemd RuntimeMaxSec kill delivers.
+kill -TERM "$WPID" 2>/dev/null || true
+wait "$WPID" 2>/dev/null
+WPID_RC=$?
+assert_rc_nonzero "killed wrapper run exits nonzero" "$WPID_RC"
+# The fake logs the abort microseconds after the wrapper's pipe closes; poll
+# briefly so the assertion below cannot race the log write.
+for _ in $(seq 1 20); do
+  if grep -q "aborted: consumer went away" "$SAN/home/fake-dart/log" 2>/dev/null; then
+    break
+  fi
+  sleep 0.5
+done
+wait_no_sandbox_import
+assert_contains "emitter saw the consumer die" "$(cat "$SAN/home/fake-dart/log")" "aborted: consumer went away"
+assert_contains "first note was acked and deleted" "$(cat "$SAN/home/fake-dart/log")" "deleted $KEY6B1"
+if [[ -e "$SAN/home/fake-dart/objects/$KEY6B2" ]]; then
+  echo "ok: mid-stream object kept after consumer death"
+else
+  fail "mid-stream object was deleted despite consumer death"
+fi
+
+rc=0
+run_script --dart "$SAN/bin/fakedart" >/dev/null || rc=$?
+assert_rc "re-run after consumer death succeeds" 0 "$rc"
+if [[ -e "$SAN/home/fake-dart/objects/$KEY6B2" ]]; then
+  fail "emitter kept the object after a successful re-run"
+else
+  echo "ok: object deleted after successful re-import"
+fi
+sandbox_export >"$SAN/export.json"
+assert_eq "no duplicate descriptions after consumer-death re-run (F2 dedup)" \
+  "$(jq '[.[].description] | group_by(.) | map(select(length > 1)) | length' "$SAN/export.json")" 0
+assert_eq "multi-line note imported exactly once per good line" \
+  "$(jq '[.[] | select(.description == "second good line" or (.description | startswith("fakebulk task")))] | length' "$SAN/export.json")" "$FAKE6B_GOODS"
+assert_eq "first acked note imported exactly once" \
+  "$(jq '[.[] | select(.description == "fakedart first acked note")] | length' "$SAN/export.json")" 1
+
+# --- phase 7: isolation verification ------------------------------------------------------------
+
+say "phase 7: isolation verification"
+
+assert_eq "real taskwarrior DB content unchanged" "$(real_db_fingerprint)" "$REAL_DB_BEFORE"
+assert_eq "real taskwarrior DB semantics unchanged" "$(real_db_semantics)" "$REAL_DB_SEM_BEFORE"
+assert_eq "real notes dir unchanged" "$(real_notes_fingerprint)" "$REAL_NOTES_BEFORE"
+assert_eq "real due-stamp file unchanged" "$(real_due_stamp_fingerprint)" "$REAL_STAMP_BEFORE"
+
+leftovers=0
+for key in "${TEST_KEYS[@]}"; do
+  if bucket_keys | grep -F -x -q "$key"; then
+    fail "test key left in bucket: $key"
+    leftovers=$((leftovers + 1))
+  fi
+done
+if ((leftovers == 0)); then
+  echo "ok: no test keys left in the bucket"
+fi
+
+if [[ "$(bucket_keys | sort)" != "$BUCKET_BEFORE" ]]; then
+  echo "WARNING: foreign keys appeared mid-run (--only kept them untouched):" >&2
+  comm -13 <(printf '%s\n' "$BUCKET_BEFORE") <(bucket_keys | sort) >&2
+  echo "WARNING: drain them normally, then re-run the harness" >&2
+fi
+
+echo
+if [[ $FAILURES -eq 0 ]]; then
+  echo "ALL PHASES PASSED"
+else
+  echo "$FAILURES assertion(s) FAILED"
+fi

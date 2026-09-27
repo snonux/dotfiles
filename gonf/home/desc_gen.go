@@ -18,6 +18,10 @@ func (HomeTasks) DescGitconfig() string { return "Sets global git config (not on
 
 func (HomeTasks) DescGitsyncer() string { return "Installs gitsyncer config symlink" }
 
+func (HomeTasks) DescGoprecordsUpload() string {
+	return "Installs the hourly uptimed upload to goprecords (earth, zen)"
+}
+
 func (HomeTasks) DescHelix() string { return "Installs ~/.config/helix" }
 
 func (HomeTasks) DescHexai() string { return "Installs ~/.config/hexai (Linux)" }
@@ -26,7 +30,9 @@ func (HomeTasks) DescLazygit() string { return "Installs ~/.config/lazygit" }
 
 func (HomeTasks) DescOpencode() string { return "Installs ~/.config/opencode" }
 
-func (HomeTasks) DescPipewire() string { return "Installs pipewire high-res config (Linux)" }
+func (HomeTasks) DescPipewire() string {
+	return "Installs pipewire high-res config (Linux, hostname earth)"
+}
 
 func (HomeTasks) DescQuickedit() string { return "Manages ~/QuickEdit symlinks" }
 

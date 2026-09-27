@@ -1,0 +1,7 @@
+[Unit]
+Description=Upload uptimed files from zen to goprecords.f3s.buetow.org
+
+[Service]
+Type=oneshot
+Environment=GOPRECORDS_HOST=zen
+ExecStart=%h/.local/bin/goprecords-upload-client.sh

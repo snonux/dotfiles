@@ -47,12 +47,14 @@ var lanHosts = []lanHost{
 	{name: "pi3", ip: "192.168.1.128"},
 }
 
-// earthLAN are LAN rows beyond conf's inventory: the two Shelly plugs and
-// the stopped-by-default freebsd development VM on f3 (its backup-restore
-// test clone reuses the same address), with its old "fbsd" alias.
+// earthLAN are LAN rows beyond conf's inventory: the two Shelly plugs, the
+// zen ThinkPad T450, and the stopped-by-default freebsd development VM on
+// f3 (its backup-restore test clone reuses the same address), with its old
+// "fbsd" alias.
 var earthLAN = []lanHost{
 	{name: "shelly1", ip: "192.168.1.28"},
 	{name: "shelly2", ip: "192.168.1.29"},
+	{name: "zen", ip: "192.168.1.13"},
 	{name: "freebsd", ip: "192.168.1.139", aliases: []string{"fbsd"}},
 }
 

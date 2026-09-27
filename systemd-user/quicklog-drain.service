@@ -1,8 +1,11 @@
 [Unit]
-Description=Drain Quicklog notes from Garage S3
+Description=Import Quicklog notes from Garage S3 into Taskwarrior
 Wants=network-online.target
 After=network-online.target
 
 [Service]
 Type=oneshot
 ExecStart=%h/scripts/quicklog-drain
+# The import talks to Garage and taskwarrior per note; a wedged run must not
+# hold the hourly slot forever (objects survive a kill and retry next hour).
+RuntimeMaxSec=15min

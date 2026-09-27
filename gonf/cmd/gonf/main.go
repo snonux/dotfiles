@@ -22,9 +22,9 @@ func main() {
 	// controller-side hostname guard used to hide from -list and "home").
 	Alias("home_tmux_rocky", "Legacy alias for home_tmux (rocky overrides load from tmux.conf)", "home_tmux")
 	RegisterMethods(pkg.Pkg{}, WhenProfile("fedora")) // pkg_*
-	// System is earth-only (its fleet /etc/hosts block and WireGuard perms
-	// describe that laptop), so it is guarded by hostname, not by profile.
-	RegisterMethods(system.System{}, WhenHostnameContains("earth")) // system_*
+	// system_hosts / system_wireguard are earth-only (Opts*); system_uptimed
+	// also applies on zen (OptsUptimed WhenHostnameIn).
+	RegisterMethods(system.System{}) // system_*
 	AggregatePrefix("home", "Install all home_* configuration")
 	cli.Main()
 }

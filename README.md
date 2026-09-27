@@ -16,11 +16,12 @@ My dotfiles, deployed locally or over ssh with [gonf](https://github.com/snonux/
 | `hexai/` | hexai config |
 | `lazygit/` | lazygit config |
 | `opencode/` | opencode config |
-| `pipewire/` | high-res `pipewire.conf` |
+| `pipewire/` | high-res `pipewire.conf` (earth only) |
+| `uptimed/` | `uptimed.conf` template (`LOG_MAXIMUM_ENTRIES=0`) for earth and zen |
 | `signature/` | mail signature (file) |
 | `ssh/` | `~/.ssh/config` |
 | `sway/`, `waybar/` | sway `config.d/`, waybar config |
-| `systemd-user/` | raw user units: `home-backup`, `quicklog-drain` (service + timer) |
+| `systemd-user/` | raw user units: `quicklog-drain` (earth), `goprecords-upload-{earth,zen}`; `home-backup` legacy (removed by gonf) |
 | `taskwarrior/` | `taskrc` |
 | `timesamurai/` | timesamurai config |
 | `tmux/` | `tmux.conf`, `tmux.local.conf`, `tmux.rocky.conf` |
@@ -39,7 +40,7 @@ My dotfiles, deployed locally or over ssh with [gonf](https://github.com/snonux/
 ./gonf.sh -n home                  # dry-run
 ./gonf.sh home                     # every home_* task
 ./gonf.sh pkg_fedora               # Fedora packages (Fedora profile only)
-./gonf.sh -privilege=sudo system_hosts system_wireguard  # earth only
+./gonf.sh -privilege=sudo system_hosts system_wireguard system_uptimed
 ./gonf.sh home_helix home_tmux     # single tasks
 ./gonf.sh -profile=freebsd home    # override profile detection
 ./gonf.sh push paul@rocky home     # remote: plan streamed over ssh
@@ -61,20 +62,20 @@ Guards are serializable and evaluated on the destination (gonf >= v0.19.0), so a
 | `home_fish` | symlinks `~/.config/fish/conf.d` | all |
 | `home_fish_completions` | syncs `~/.config/fish/completions` | all |
 | `home_ghostty` | syncs `~/.config/ghostty` | all |
-| `home_gitconfig` | global git config (user, delta, difftastic, `hx` editor) | all but macOS |
+| `home_goprecords_upload` | hourly user timer uploading uptimed stats to goprecords; Needs `system_uptimed`; earth also imports mega-m3-pro | Linux, hostname earth or zen |
 | `home_gitsyncer` | symlinks `~/.config/gitsyncer` | all |
 | `home_helix` | syncs `~/.config/helix` | all |
 | `home_hexai` | syncs `~/.config/hexai` | Linux |
 | `home_lazygit` | syncs `~/.config/lazygit` | all |
 | `home_opencode` | syncs `~/.config/opencode` | all |
-| `home_pipewire` | installs `~/.config/pipewire/pipewire.conf` (0600) | Linux |
+| `home_pipewire` | installs `~/.config/pipewire/pipewire.conf` (0600) | Linux, hostname earth |
 | `home_prompts` | alias of `home_agents` | all |
 | `home_quickedit` | `~/QuickEdit` symlinks to data, Documents, dotfiles, gemtext, Notes, snippets, worktime | profile fedora, rocky, freebsd, darwin |
 | `home_scripts` | syncs `~/scripts` (0750, prunes removed files) | all |
 | `home_signature` | installs `~/.signature` | all |
 | `home_ssh` | installs `~/.ssh/config` (0600) | all |
 | `home_sway` | syncs `~/.config/sway/config.d`, `~/.config/waybar` | Linux |
-| `home_systemd_user` | user units + timers `home-backup`, `quicklog-drain`, generated `random-wallpaper` (hourly) | Linux |
+| `home_systemd_user` | removes `home-backup` timer; on hostname earth installs `quicklog-drain` and generated `random-wallpaper` (hourly) | Linux |
 | `home_taskwarrior` | installs `~/.taskrc` (Taskwarrior 3.x) | all |
 | `home_timesamurai` | syncs `~/.config/timesamurai` | all |
 | `home_tmux` | syncs `~/.config/tmux` | all |
@@ -82,6 +83,7 @@ Guards are serializable and evaluated on the destination (gonf >= v0.19.0), so a
 | `home_vale` | symlinks `~/.vale.ini` | all |
 | `pkg_fedora` | installs the workstation package set, removes `Rex`; privileged | profile fedora |
 | `system_hosts` | owns the `# BEGIN GONF fleet` block of `/etc/hosts` (LAN + wg0 mesh rows), 0644 root:root; lines outside the block stay; privileged | hostname earth |
+| `system_uptimed` | installs `uptimed`, deploys `/etc/uptimed.conf`, enables the daemon; privileged | hostname earth or zen |
 | `system_wireguard` | `/etc/wireguard` 0700, existing `wg0.conf`/`wg1.conf` 0600 root:root; never content or units; privileged | hostname earth |
 
 Profile detection reads `/etc/os-release`; macOS reports `darwin`. FreeBSD has neither, so pass `-profile=freebsd`.
@@ -98,16 +100,16 @@ Installed by `home_scripts`. Quick hacks mostly.
 | `audit-due` | lists git repos due for a code audit (churn since last `audit/<date>` tag) |
 | `brokenlinkfinder` | crawls a site for broken links (Ruby) |
 | `gvim` | opens helix in a new ghostty window (qutebrowser editor hook) |
-| `home-backup` | rsyncs `$HOME` to a remote host, with excludes; run by the `home-backup` timer |
+| `home-backup` | rsyncs `$HOME` to a remote host, with excludes; manual (timer removed by `home_systemd_user`) |
 | `hx.prompt` | reads a prompt in a tmux split with helix |
 | `hx.aichat-prompt`, `hx.chatgpt-prompt`, `hx.hexai-prompt`, `hx.nvim-copilot-prompt` | pipe an `hx.prompt` prompt to aichat, chatgpt, hexai or nvim Copilot |
 | `hx.goformatter` | `goimports \| gofumpt` |
 | `immich-export` | exports Immich assets per account and date range |
 | `immich-upload` | uploads images to Immich, skipping SHA1 duplicates |
 | `pihole-dns-toggle` | toggles Pi-hole DNS for the active NetworkManager connection |
-| `quicklog-drain` | drains Quicklog notes from Garage into `~/Notes/Quicklog`; run by its timer |
+| `quicklog-drain` | imports Quicklog notes from Garage S3 directly into taskwarrior (no local staging); run by its timer; `scripts/quicklog-drain-e2e` tests the whole pipeline against a sandbox. Deploy note: `fish/conf.d` is a live symlink (applies immediately) while this script and the systemd units are gonf copies — deploy both together via `./gonf.sh home`, otherwise the import preflight warns about notes stranded in `~/Notes/Quicklog` |
 | `randomnote.rb` | prints a random line from the foo.zone notes or a local book text |
-| `random-wallpaper.sh` | sets a random GNOME wallpaper; run hourly by `random-wallpaper.timer` |
+| `random-wallpaper.sh` | sets a random GNOME wallpaper; run hourly by `random-wallpaper.timer` (earth only) |
 | `screenshot` | flameshot wrapper: `full`, `screen`, `gui` |
 | `sideload-koreader` | installs a KOReader APK over adb |
 | `stabilize-video` | 2-pass vidstab + 4K HEVC encode (VAAPI, libx265 fallback) |

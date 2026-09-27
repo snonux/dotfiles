@@ -1,134 +1,79 @@
-# Uptimed / uprecords collection via goprecords
+# Uptimed / uprecords via goprecords
 
-Central uptime stats come from **`uptimed`** record files aggregated by **[goprecords](https://github.com/snonux/goprecords)**. The live API is **`https://goprecords.f3s.buetow.org`** (k3s **services** namespace; stats PVC; auth DB **`goprecords-auth.db`**).
+Central uptime stats: **[goprecords](https://github.com/snonux/goprecords)** at
+**`https://goprecords.f3s.buetow.org`** (k3s **services**, stats PVC,
+**`goprecords-auth.db`**).
 
-## Daemon and keys
+Client install, tokens, hourly schedules, and the **uptimed daemon** are
+**gonf-managed** as one pair per OS group: applying the upload task always
+converges uptimed first (`Needs`). Do not hand-edit upload units/cron or
+uptimed conf/drop-ins on fleet hosts — change the recipes and re-apply.
 
-- **Read API:** `GET /report` (Plaintext, Markdown, Gemtext, HTML).
-- **Upload API:** `PUT /upload/{HOSTNAME}/{kind}` with kinds `records`, `txt`, `cur.txt`, `os.txt`, `cpuinfo.txt`.
-- **Keys:** issued only on the server, e.g.  
-  `kubectl exec -n services deployment/goprecords -- goprecords --create-client-key HOST -stats-dir=/data/stats`  
-  Re-issuing replaces the previous token; update every client that uses that host name.
+## Gonf recipes (source of truth)
 
-The **`HOSTNAME`** in the URL must match the name passed to **`--create-client-key`**. Use stable short names (**`f0`**, **`pi2`**, **`fishfinger`**, …) consistent with stats file basenames. That short name is only for **`GOPRECORDS_HOST`** and upload URLs — not for SSH.
+| Hosts | Repo | Upload task (pulls uptimed) | Uptimed task |
+|--------|------|-----------------------------|--------------|
+| blowfish, fishfinger | `~/git/conf` | `frontends_goprecords` | `frontends_uptimed` |
+| f0–f3 | `~/git/conf` | `freebsd_goprecords_upload` | `freebsd_base_uptimed` |
+| pi0, pi1 | `~/git/conf` | `netbsd_goprecords_upload` | `netbsd_goprecords_uptimed` |
+| pi2, pi3 | `~/git/conf` | `rocky_goprecords_upload` | `rocky_goprecords_uptimed` |
+| earth, zen | `~/git/dotfiles` | `home_goprecords_upload` | `system_uptimed` |
 
-## SSH / DNS (f3s)
+Shared client helper in conf: `gonf/goprecords/client.go` (script asset
+`frontends/scripts/goprecords-upload-client.sh`). Shared Linux/NetBSD
+`uptimed.conf` (`LOG_MAXIMUM_ENTRIES=0`): `gonf/goprecords/assets/uptimed.conf`.
+Dotfiles installs the same upload script under `~/.local/bin` for the laptops.
 
-- **`f0.lan` is not a hostname** (it will not resolve). Use the **full** name **`f0.lan.buetow.org`**, or the **LAN IP** from the f3s table (**`192.168.1.130`** for **f0**, **`.131`–`.133`** for **f1**–**f3**).
-- **FreeBSD Beelinks and Pis:** **`ssh -p 22 paul@…`** (default SSH port). Your **`~/.ssh/config`** may use **port 2** for **OpenBSD frontends** only — that does **not** apply to **f0**–**f3** or **pi0**–**pi3**.
-- **Pis:** **`pi0.lan.buetow.org`** … **`pi3.lan.buetow.org`** (full FQDN), port **22**.
-- **Manual upload test over SSH:** Beelinks use **`doas env GOPRECORDS_HOST=fN /usr/local/bin/goprecords-upload-client.sh`** (not **`sudo`** — often absent). Rocky Pis use **`sudo env GOPRECORDS_HOST=piN …`**. NetBSD Pis use **`doas env PATH=/usr/pkg/bin:/usr/bin:/bin:/usr/sbin:/sbin GOPRECORDS_HOST=piN /usr/pkg/bin/goprecords-upload-client.sh`**; the explicit path is required so the script can find pkgsrc `curl` and `uprecords` under `doas`.
+Tokens: foostore `Infra/goprecords-token-<host>` (frontends, f-hosts) or file
+fallback under `conf/gonf/secrets/` (see that tree’s README); laptops use
+`~/.config/goprecords-upload-<host>/token`.
 
-## Where it is documented in-repo
+NetBSD Pis: binary is still the hand-built `/usr/pkg/sbin/uptimed` (no aarch64
+pkgsrc package); gonf owns conf, `/etc/rc.d/uptimed`, and enable.
 
-In **goprecords** **`README.md`**:
+## API / keys (server)
 
-- HTTP API and upload **`curl`** examples
-- **“Setting up a new upload client”** (generic)
-- **“Manual hourly upload (single host, not config-managed)”** — POSIX script **`contrib/goprecords-upload-client.sh`**, **FreeBSD** hourly **`cron`** (with **`PATH`**), **Linux** **`systemd`** **`oneshot` + `timer`**
-
-Install **`curl`** and **`uptimed`** on every client that uploads.
-
-## By host class (f3s)
-
-| Class | Hosts | Automation | Notes |
-|--------|--------|------------|--------|
-| OpenBSD frontends | **fishfinger**, **blowfish** | **gonf** task **`frontends_goprecords`** in **`~/git/conf/gonf`** (run via **`~/git/conf/gonf.sh`**); **hourly** (`15 * * * *`) **root** crontab entry `goprecords-upload`, output to **`logger -t goprecords-upload`** (`/var/log/messages`); was daily from `/etc/daily.local` at 01:30 until task xk2 (2026-09-25) — that slot is inside the nightly f3s power-off, relayd falls back to httpd and the PUT gets **405**, so no frontend upload landed 2026-08-15..09-25 | Tokens are controller secrets **`gonf/secrets/frontends/etc/goprecords/<host>.token`** (optional: a host without one gets no uploader); script **`frontends/scripts/goprecords-upload-client.sh`** |
-| FreeBSD (Beelinks) | **f0**–**f3** (LAN **`192.168.1.130`–`133`**) | **gonf** task **`freebsd_goprecords_upload`** (`./gonf.sh cluster freebsd-hosts freebsd_goprecords_upload`): **hourly** (`0 * * * *`) **root** crontab entry `goprecords-upload` running **`goprecords-upload-client.sh`** with **`GOPRECORDS_HOST=f0`** … **`f3`**, output piped to **`logger -t goprecords-upload`** (`/var/log/messages`) | Tokens in vault **`Infra/goprecords-token-f0`**…**`f3`** (`gonf/freebsd/goprecords.go`, shared client in `gonf/goprecords/client.go`); the old hand-added **`/etc/crontab`** line was removed (task lk2, 2026-09-25); **`/var/db/uptimed/records`**; SSH: **`fN.lan.buetow.org`** or **`192.168.1.(130+N)`** for **fN**, **`-p 22`** |
-| Raspberry Pi (Rocky) | **pi2**–**pi3** | Manual **hourly** **systemd** **timer** (see README) | **`/var/spool/uptimed/records`**; uptimed waits for chronyd via a systemd override (see below); SSH: **`piN.lan.buetow.org`**, **`-p 22`** |
-| Raspberry Pi (NetBSD) | **pi0**–**pi1** | Manual **hourly** **root** **`cron`** (no systemd) calling **`goprecords-upload-client.sh`** with **`GOPRECORDS_HOST=pi0`**/**`pi1`** | **`/var/spool/uptimed/records`**; `ntpdate=YES` and uptimed requires the `ntpdate` rc.d milestone; see [NetBSD Pi setup](../../f3s-raspberry-pi/references/bootstrap-netbsd-pi.md#uptimed-built-from-source--no-prebuilt-package); SSH: **`piN.lan.buetow.org`**, **`-p 22`** |
-| Fedora laptop | **earth** | **user** **systemd** **`oneshot` + hourly timer** `goprecords-upload-earth.{service,timer}` | Service sets **`Environment=GOPRECORDS_HOST=earth`** and runs **`~/.local/bin/goprecords-upload-earth.sh`**; token **`~/.config/goprecords-upload-earth/token`** |
-| Mac (uptimed) → published by earth | **mega-m3-pro** (raw host `MBDVXJ4XKH9C`) | Mac drops records into the **worktime** git repo; **earth** pushes them via a **second `ExecStart`** in `goprecords-upload-earth.service` | See [Mac / mega-m3-pro via earth](#mac--mega-m3-pro-via-earth) below |
-
-## OpenBSD frontends (gonf)
-
-From **`~/git/conf`**:
-
-```bash
-./gonf.sh cluster frontends frontends_goprecords
-# or the full frontend setup aggregate
-./gonf.sh cluster frontends frontends
-```
-
-`frontends_goprecords` also removes the old `goprecords-upload.sh` and the
-former `daily.local` lines. A **405** from an upload means f3s was down at that
-hour (relayd httpd fallback), not a token problem (401/403).
-
-See **`frontends/README.md`** (section **goprecords upload**).
-
-## Manual clients (Pis + earth)
-
-The canonical unified script is **`scripts/goprecords-upload-client.sh`** (also mirrored in **`contrib/`**). It is POSIX sh and works on all host types:
-
-- **root** (FreeBSD/Linux): token at **`/etc/goprecords-upload.token`** (**`0600`**)
-- **non-root** (earth user session): token at **`$XDG_CONFIG_HOME/goprecords-upload-<HOST>/token`**
-
-Copy to **`/usr/local/bin/`** (system) or **`~/.local/bin/`** (user), set **`GOPRECORDS_HOST`** per machine (**cron** **`env`** or **`systemd`** **`Environment`**/**`EnvironmentFile`**). Full snippets: **goprecords** **`README.md`**.
-
-> **earth gotcha:** `goprecords-upload-earth.sh` is a *copy of the generic* `goprecords-upload-client.sh`, so it aborts with `set GOPRECORDS_HOST` unless the var is provided. The service therefore **must** carry `Environment=GOPRECORDS_HOST=earth`. (A missing env var silently broke earth uploads for ~a month — symptom: stale timestamp on the report, service `status=1/FAILURE` with `set GOPRECORDS_HOST` in `journalctl --user -u goprecords-upload-earth`.)
-
-## Rocky Pi uptimed clock synchronization
-
-**pi2** and **pi3** have no hardware RTC. At boot their clocks initially use a stale timestamp until chronyd synchronizes with NTP. The packaged `uptimed.service` only declares `After=time-sync.target`; that target does not guarantee chronyd has obtained valid time. If uptimed starts too early, it records the stale boot date and goprecords may omit the host's `*` active marker because activity is calculated from the newest record's boot time plus uptime, not from upload time.
-
-Both Pis have this override at **`/etc/systemd/system/uptimed.service.d/time-sync.conf`**:
-
-```ini
-[Unit]
-Wants=network-online.target chronyd.service
-After=network-online.target chronyd.service
-
-[Service]
-ExecStartPre=/usr/bin/chronyc waitsync 60 0.5
-```
-
-Apply or verify it with:
+- Report: `GET /report`
+- Upload: `PUT /upload/{HOSTNAME}/{kind}` (`records`, `txt`, `cur.txt`, `os.txt`, `cpuinfo.txt`)
+- Issue/replace a client key:
 
 ```sh
-sudo systemctl daemon-reload
-sudo systemd-analyze verify uptimed.service
-sudo systemctl restart uptimed
-systemctl show uptimed -p ExecStartPre -p ExecMainStartTimestamp
+kubectl exec -n services deployment/goprecords -- \
+  goprecords --create-client-key HOST -stats-dir=/data/stats
 ```
 
-`chronyc waitsync 60 0.5` allows up to 60 attempts and starts uptimed once the remaining clock correction is at most 0.5 seconds. It works as the service's unprivileged `daemon` user.
+`HOSTNAME` must match `GOPRECORDS_HOST` / `--create-client-key` (short names:
+`f0`, `pi2`, `zen`, …).
 
-If a Pi already has a stale current record, restart uptimed after NTP is synchronized, then run the normal upload immediately:
+More API detail: goprecords repo **`README.md`**. Helm: **`conf/f3s/goprecords/`**.
+
+## Ops notes not owned by gonf
+
+### Rocky Pi clock sync (pi2/pi3)
+
+Gonf installs
+`/etc/systemd/system/uptimed.service.d/time-sync.conf` with
+`ExecStartPre=/usr/bin/chronyc waitsync 60 0.5` so uptimed does not record a
+stale boot time. See also [pihole-pi.md](../../f3s-raspberry-pi/references/pihole-pi.md).
+
+### Mac → mega-m3-pro via earth
+
+Not a direct client. Worktime fish helpers
+(`worktime::uprecords::darwin::{collect,import}`) sync Mac records into git;
+earth’s `goprecords-upload-earth.service` (second `ExecStart`, soft-fail)
+publishes them as **`mega-m3-pro`**. Dedicated token:
+`~/.config/goprecords-upload-mega-m3-pro/token`.
+
+### One-shot upload test
 
 ```sh
-sudo systemctl restart uptimed
+# earth / zen (user)
+systemctl --user start goprecords-upload-earth.service   # or -zen
+# f-hosts / NetBSD Pis / frontends (root script)
+doas env GOPRECORDS_HOST=f0 /usr/local/bin/goprecords-upload-client.sh
+# Rocky Pis
 sudo systemctl start goprecords-upload.service
 ```
 
-Check the source and uploaded records with `uprecords -a`, `/var/spool/uptimed/records`, and the goprecords `LastUpdated` report. This repaired pi3 on **2026-07-16**: its uploader had been healthy, but its only stored boot timestamp was from **2025-12-02**; restarting uptimed added the correct **2026-06-25** boot timestamp and restored the `*` marker. A subsequent pi3 reboot verified the override: chronyd stepped the stale clock at **13:00:57 UTC**, `chronyc waitsync` succeeded, and uptimed started afterward at **13:01:03 UTC** with the correct current boot date.
-
-## Mac / mega-m3-pro via earth
-
-The Mac (Apple Silicon, **`Darwin`**) is **not** a direct upload client. Instead:
-
-The logic lives in a **fish helper kept in the (private) worktime repo**, **`~/git/worktime/scripts/uprecords-sync.fish`** (functions `worktime::uprecords::darwin::collect` / `…::import`), so host-specific details stay out of the public dotfiles repo. `dotfiles/fish/conf.d/worktime.fish` **`source`**s it, and **`worktime::supersync`** calls both functions.
-
-1. On the Mac, **`worktime::uprecords::darwin::collect`** copies the local **uptimed** records into the **worktime** git repo as
-   **`uprecords-MBDVXJ4XKH9C.records`** and **`uprecords-MBDVXJ4XKH9C.txt`**, and they get synced via `git` (part of **`worktime::supersync`**). Guards on `uname = Darwin`.
-2. On **earth** (the only host that publishes), **`worktime::uprecords::darwin::import`** reads those repo files and **`PUT`**s them to goprecords, **re-labelling** the raw host `MBDVXJ4XKH9C` → **`mega-m3-pro`**:
-   - `PUT /upload/mega-m3-pro/records` and `PUT /upload/mega-m3-pro/txt`
-   - token at **`~/.config/goprecords-upload-mega-m3-pro/token`** (`0600`).
-   - Guards on `hostname = earth`; exits cleanly (warning) if the token is missing.
-3. Automation: `goprecords-upload-earth.service` has a **second `ExecStart`** that runs the import hourly alongside earth's own upload:
-   ```ini
-   ExecStart=%h/.local/bin/goprecords-upload-earth.sh
-   ExecStart=/usr/local/sbin/fish -c worktime::uprecords::darwin::import
-   ```
-   The import is a **no-op off earth** (guards on `hostname = earth`) and exits cleanly with a warning if the `mega-m3-pro` token is absent, so it never fails the service.
-
-**Token note:** each token is bound to its host name server-side — the **earth** token returns **403** for `mega-m3-pro`. Issue a dedicated key (see *Daemon and keys* above):
-```sh
-kubectl exec -n services deployment/goprecords -- \
-  goprecords --create-client-key mega-m3-pro -stats-dir=/data/stats
-```
-Re-issuing **replaces** any previous `mega-m3-pro` token (the Mac used to upload directly until it switched to the repo route). When roaming, reach the cluster via the OpenBSD frontend jump (see [k3s remote access](../../f3s-k3s/references/remote-access.md)), then store the printed token in `~/.config/goprecords-upload-mega-m3-pro/token` on earth.
-
-## Related conf repo paths
-
-- Kubernetes Helm: **`conf/f3s/goprecords/`** (image, PVC, ingress **`goprecords.f3s.buetow.org`**)
-- OpenBSD gonf: **`conf/gonf/frontends/maintenance.go`** (`Goprecords`, task **`frontends_goprecords`**), script **`conf/frontends/scripts/goprecords-upload-client.sh`**
+SSH to Beelinks/Pis is **port 22** (not the OpenBSD frontend port 2). Prefer
+`fN.lan.buetow.org` / `piN.lan.buetow.org` or LAN IPs from the f3s host table.

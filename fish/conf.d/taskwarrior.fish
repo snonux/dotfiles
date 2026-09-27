@@ -374,9 +374,12 @@ function _taskwarrior::add_task
     end
 
     # Print the full command before executing it for transparency;
-    # description is escaped so the output is unambiguous even with quotes or special chars
-    echo "task add $cmd_args "(string escape -- $description)
-    set -l created (task add $cmd_args $description)
+    # description is escaped so the output is unambiguous even with quotes or special chars.
+    # The `--` keeps description text that looks like taskwarrior syntax
+    # (+tag, -word) from being parsed as modifiers (verified with TW 3.4.2).
+    echo "task add $cmd_args -- "(string escape -- $description)
+    set -l created (task add $cmd_args -- $description)
+    set -l add_status $status
     echo $created
 
     # Optional annotation (e.g. source notes path for +random quotes)
@@ -387,119 +390,10 @@ function _taskwarrior::add_task
             task $id annotate $_flag_annotate
         end
     end
-end
 
-# Drain ql-*.md notes from the Garage quicklog bucket into ~/Notes/Quicklog,
-# then delete the remote objects. Credentials come from
-# ~/.config/garage/quicklog.env (sh syntax — same pattern as tasksync.fish).
-# Env is applied only for this command; never export AWS_ENDPOINT_URL_S3.
-function taskwarrior::quicklog_drain --description 'Drain Garage quicklog bucket into ~/Notes/Quicklog'
-    set -l creds "$HOME/.config/garage/quicklog.env"
-    set -l dest "$HOME/Notes/Quicklog"
-    set -l repo "$HOME/git/quicklog"
-
-    if not test -r $creds
-        echo "taskwarrior::quicklog_drain: missing $creds" >&2
-        return 1
-    end
-
-    if not test -d $repo
-        echo "taskwarrior::quicklog_drain: missing Quicklog repo $repo" >&2
-        return 1
-    end
-
-    mkdir -p $dest
-
-    set -l env_kv (sh -c ". $creds; printenv GARAGE_ENDPOINT GARAGE_REGION GARAGE_BUCKET GARAGE_ACCESS_KEY_ID GARAGE_SECRET_ACCESS_KEY")
-
-    if test (count $env_kv) -lt 5
-        echo "taskwarrior::quicklog_drain: could not read all values from $creds" >&2
-        return 1
-    end
-
-    env -C $repo \
-        GARAGE_ENDPOINT=$env_kv[1] \
-        GARAGE_REGION=$env_kv[2] \
-        GARAGE_BUCKET=$env_kv[3] \
-        GARAGE_ACCESS_KEY_ID=$env_kv[4] \
-        GARAGE_SECRET_ACCESS_KEY=$env_kv[5] \
-        dart run bin/quicklog_drain.dart --dest $dest $argv
-end
-
-# Scans all known notes directories for quick-log files (ql-*) and parses each
-# line into its constituent task fields. Each line follows the format:
-#   [NUMBER] TAG[,TAG,...] description
-# where NUMBER is an optional due offset in days, TAG is either a
-# comma-separated list of lowercase tags or a capitalized project name, and
-# everything after TAG is the task description.
-function taskwarrior::quicklogger
-    # Directories to scan for quick-log files (ql-*)
-    set -l notes_dirs "$HOME/Notes" "$HOME/Notes/Quicklog" "$WORKTIME_DIR"
-
-    for dir in $notes_dirs
-        # Skip directories that don't exist on this machine
-        if not test -d "$dir"
-            continue
-        end
-
-        # -L follows symlinks (~/Notes is a symlink to Syncthing vault)
-        # -maxdepth 1 keeps the search non-recursive
-        for ql_file in (find -L "$dir" -maxdepth 1 -name 'ql-*' -type f)
-            while read -l line
-                # Skip blank lines
-                test -n "$line"; or continue
-
-                # Tokenise by spaces; idx tracks the current parse position
-                set -l tokens (string split ' ' -- "$line")
-                set -l idx 1
-
-                # Optional first token: a plain integer means due in N days
-                set -l due ""
-                if string match -qr '^\d+$' -- "$tokens[1]"
-                    set due "$tokens[1]"
-                    set idx 2
-                end
-
-                # Next token is the tag/project field; advance idx past it
-                set -l tag_field "$tokens[$idx]"
-                set idx (math "$idx + 1")
-
-                # Split the tag field on commas first, then inspect the first element.
-                # A capital first letter on the first element signals a project name;
-                # any remaining comma-separated elements become plain tags.
-                # e.g. "Foo,bar,baz" → project=foo, tags=(bar baz)
-                # e.g. "bar,baz"     → project="",  tags=(bar baz)
-                set -l tag_parts (string split ',' -- "$tag_field")
-                set -l project ""
-                set -l tags
-                if string match -qr '^[A-Z]' -- "$tag_parts[1]"
-                    set project (string lower -- "$tag_parts[1]")
-                    # Remaining parts (if any) are plain tags, lowercased for consistency
-                    test (count $tag_parts) -gt 1; and set tags (string lower -- $tag_parts[2..-1])
-                else
-                    set tags (string lower -- $tag_parts)
-                end
-
-                # Everything from idx onward is the free-text description
-                set -l description ""
-                if test $idx -le (count $tokens)
-                    set description (string join ' ' -- $tokens[$idx..-1])
-                end
-
-                # Build flag args for the helper, omitting empty optional fields
-                set -l add_args
-                test -n "$due"; and set -a add_args --due $due
-                test -n "$project"; and set -a add_args --project $project
-                for tag in $tags
-                    set -a add_args --tag $tag
-                end
-                _taskwarrior::add_task $add_args $description
-            end <$ql_file
-            # Restrict permissions before moving so the file is not world-readable in /tmp
-            chmod 600 $ql_file
-            mv $ql_file /tmp/
-        end
-    end
+    # Propagate `task add`'s exit status so callers (the quicklog import)
+    # can keep failed notes for retry instead of consuming them
+    return $add_status
 end
 
 # Parses a random-quote entry. If it matches "word: description", echoes project then description (one per line); otherwise echoes empty then entry.
@@ -655,7 +549,7 @@ function taskwarrior::invoke
     taskwarrior::cleanup
     taskwarrior::random_quote
     taskwarrior::unscheduled
-    taskwarrior::quicklog_drain
+    taskwarrior::quicklog_import
     taskwarrior::quicklogger
     taskwarrior::gos_queue
     # Rename tr tag to track
@@ -666,16 +560,21 @@ function taskwarrior::invoke
     yes | task +auto -agent modify +agent
 end
 
-abbr -a ta task
-abbr -a log 'task add +log'
-abbr -a tdue 'tasksamurai status:pending due.before:now'
-abbr -a track 'taskwarrior::add::track'
-abbr -a ti 'taskwarrior::invoke; tasksamurai due.before:today+7d'
-abbr -a ts tasksamurai
-abbr tpt taskwarrior::project_tasks
-abbr tsp taskwarrior::project_tasks::tasksamurai
-abbr st 'supersync; tasksamurai due.before:today+7d'
-abbr agenttasks tasksamurai +agent
-abbr agentasks tasksamurai +agent
+# Interactive conveniences only. Headless callers (the quicklog-drain import
+# wrapper sets QUICKLOG_HEADLESS=1) source this file purely for its functions
+# and must not define abbreviations or run the once-a-day due-count check.
+if not set -q QUICKLOG_HEADLESS
+    abbr -a ta task
+    abbr -a log 'task add +log'
+    abbr -a tdue 'tasksamurai status:pending due.before:now'
+    abbr -a track 'taskwarrior::add::track'
+    abbr -a ti 'taskwarrior::invoke; tasksamurai due.before:today+7d'
+    abbr -a ts tasksamurai
+    abbr tpt taskwarrior::project_tasks
+    abbr tsp taskwarrior::project_tasks::tasksamurai
+    abbr st 'supersync; tasksamurai due.before:today+7d'
+    abbr agenttasks tasksamurai +agent
+    abbr agentasks tasksamurai +agent
 
-taskwarrior::due_count::daily
+    taskwarrior::due_count::daily
+end

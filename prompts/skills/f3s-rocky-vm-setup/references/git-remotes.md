@@ -19,13 +19,18 @@ ssh-keygen -t ed25519 -N '' \
   -C 'paul@rocky forgejo'
 ```
 
-Pin it for the forge host in `~/.ssh/config` so git never offers the wrong key:
+The pin lives in the shared dotfiles `ssh/config` (deployed by gonf `home_ssh`),
+guarded so it only applies on hosts that have the key — do **not** hand-edit
+`~/.ssh/config` on rocky, the next `home_ssh` deploy overwrites it:
 
 ```
-Host code.f3s.buetow.org
-  IdentityFile ~/.ssh/id_ed25519_forgejo
-  IdentitiesOnly yes
+Match host code.f3s.buetow.org exec "test -f %d/.ssh/id_ed25519_forgejo"
+IdentityFile ~/.ssh/id_ed25519_forgejo
+IdentitiesOnly yes
 ```
+
+It must stay above `Host *.buetow.org`. Symptom when missing: `Permission
+denied (publickey)` on clone, because ssh only offers `id_rsa`/`id_ed25519`.
 
 Publish the pubkey to the Forgejo user `rocky` (API or web UI) — steps in the
 Forgejo reference above. Verify:

@@ -19,6 +19,14 @@ Host *.aws.buetow.org
 User ec2-user
 Port 22
 
+# Forgejo: hosts with a dedicated passphrase-less Forgejo key (e.g. rocky)
+# must offer only that key. Guarded by the file check because this config is
+# shared with hosts (e.g. earth) that authenticate with their default keys.
+# Must stay above *.buetow.org so it is evaluated first.
+Match host code.f3s.buetow.org exec "test -f %d/.ssh/id_ed25519_forgejo"
+IdentityFile ~/.ssh/id_ed25519_forgejo
+IdentitiesOnly yes
+
 Host *.buetow.org
 Port 2
 
