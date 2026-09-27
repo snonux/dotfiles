@@ -40,7 +40,7 @@ My dotfiles, deployed locally or over ssh with [gonf](https://github.com/snonux/
 ./gonf.sh -n home                  # dry-run
 ./gonf.sh home                     # every home_* task
 ./gonf.sh pkg_fedora               # Fedora packages (Fedora profile only)
-./gonf.sh -privilege=sudo system_hosts system_wireguard system_uptimed
+./gonf.sh -privilege=sudo system_hosts system_wireguard system_uptimed system_fish_shell
 ./gonf.sh home_helix home_tmux     # single tasks
 ./gonf.sh -profile=freebsd home    # override profile detection
 ./gonf.sh push paul@rocky home     # remote: plan streamed over ssh
@@ -82,6 +82,7 @@ Guards are serializable and evaluated on the destination (gonf >= v0.19.0), so a
 | `home_tmux_rocky` | alias of `home_tmux` | all |
 | `home_vale` | symlinks `~/.vale.ini` | all |
 | `pkg_fedora` | installs the workstation package set, removes `Rex`; privileged | profile fedora |
+| `system_fish_shell` | installs `fish`, sets paul's login shell to `/usr/bin/fish`; privileged | hostname earth, zen or rocky |
 | `system_hosts` | owns the `# BEGIN GONF fleet` block of `/etc/hosts` (LAN + wg0 mesh rows), 0644 root:root; lines outside the block stay; privileged | hostname earth |
 | `system_uptimed` | installs `uptimed`, deploys `/etc/uptimed.conf`, enables the daemon; privileged | hostname earth or zen |
 | `system_wireguard` | `/etc/wireguard` 0700, existing `wg0.conf`/`wg1.conf` 0600 root:root; never content or units; privileged | hostname earth |

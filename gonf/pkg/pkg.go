@@ -25,7 +25,6 @@ func (Pkg) Fedora() {
 		"syncthing",
 		"ncdu",
 		"ack",
-		"fish",
 		"bat",
 		"ctags",
 		"fzf",

@@ -11,7 +11,7 @@ import (
 
 // System contains root-owned configuration outside the package database.
 // Per-task Opts* guards pick the host: Hosts and Wireguard are earth-only;
-// Uptimed runs on earth and zen.
+// Uptimed runs on earth and zen; FishShell on earth, zen and rocky.
 type System struct {
 	RequiresRoot
 }
@@ -90,4 +90,22 @@ func (System) Uptimed() {
 	pkg := Package("uptimed")
 	conf := InstallFile(uptimedConf, paths.Dot("uptimed/uptimed.conf"), RootOwned, DependsOn(pkg))
 	Service("uptimed", WithRestart, OnChange(conf), DependsOn(pkg, conf))
+}
+
+func (System) OptsFishShell() TaskOptions {
+	return TaskOptions{WhenHostnameIn("earth", "zen", "rocky")}
+}
+
+// FishShell installs fish and sets it as paul's login shell (earth, zen, rocky).
+//
+// FishShell installs the fish package first, then runs usermod only when
+// paul's passwd shell is not already /usr/bin/fish. User.WithShell is
+// creation-time only, so an existing account needs this guarded command.
+// On rocky, paul has no general sudo: push as root@rocky.lan.
+func (System) FishShell() {
+	pkg := Package("fish")
+	Command("usermod", List("-s", "/usr/bin/fish", "paul"),
+		WithName("paul-fish-shell"),
+		DependsOn(pkg),
+		Unless("sh", List("-c", `[ "$(getent passwd paul | cut -d: -f7)" = /usr/bin/fish ]`)))
 }
