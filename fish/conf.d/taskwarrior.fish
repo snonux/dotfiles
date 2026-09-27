@@ -177,7 +177,8 @@ end
 # per-status .json files in $WORKTIME_DIR, then deletes the exported tasks. The
 # tag name doubles as the file label (tw-<tag>-export-<ts>-<status>.json) so the
 # importer can match the files again by tag name or, for host-routed tags like
-# "rocky", by hostname. See _taskwarrior::import_label for the matching side.
+# "rocky" and "zen", by hostname. See _taskwarrior::import_label for the
+# matching side.
 function _taskwarrior::export_tag
     set -l tag $argv[1]
     set -l ts $argv[2]
@@ -211,10 +212,13 @@ function taskwarrior::export
     _taskwarrior::set_import_export_tags
     set -l ts (date +%s)
 
-    # Export this host's outgoing work/personal tag plus the host-routed +rocky
-    # tasks. Each tag is exported under its own name as the file label; +rocky is
-    # exported on every host so the rocky VM can import it via its hostname.
-    for tag in $TASK_EXPORT_TAG rocky
+    # Export this host's outgoing work/personal tag plus the host-routed
+    # +rocky and +zen tasks. Each tag is exported under its own name as the
+    # file label; +rocky and +zen are exported on every host so the rocky VM
+    # and the zen laptop can import them via their hostnames. A task tagged
+    # with several routing tags (e.g. +zen +work) is exported once under the
+    # first matching label in the loop order and relays from there.
+    for tag in $TASK_EXPORT_TAG rocky zen
         _taskwarrior::export_tag $tag $ts
     end
 
@@ -230,7 +234,8 @@ function taskwarrior::import
     # Import files labelled with this host's incoming work/personal tag, plus
     # files labelled with this host's name. The +rocky exports are labelled
     # "rocky", so the rocky host imports them through the hostname match while
-    # other hosts leave them in place for the rocky VM to pick up.
+    # other hosts leave them in place for the rocky VM to pick up; the same
+    # hostname match delivers the "zen" exports to the zen laptop.
     for label in $TASK_IMPORT_TAG (hostname)
         _taskwarrior::import_label $label
     end
