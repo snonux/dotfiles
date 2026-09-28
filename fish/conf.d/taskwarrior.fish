@@ -696,14 +696,14 @@ function taskwarrior::gos_queue
 
         set -l message "$share_tag $description"
         if test (count $hashtags) -gt 0
-            set message "$message\n\n"(string join ' ' -- $hashtags)
+            set message "$message"\n\n(string join ' ' -- $hashtags)
         end
         set -l hash (printf '%s' "$message" | md5sum | awk '{print $1}')
         set -l file "$gos_dir/$hash.txt"
         echo "Gos queue: $file"
         # The delete may only run once the queue file was written; a failed
         # write must not lose the share.
-        if printf "$message\n" >"$file"; and test -s "$file"
+        if printf '%s\n' "$message" >"$file"; and test -s "$file"; and printf '%s\n' "$message" | cmp -s - "$file"
             yes | task "$uuid" delete &>/dev/null
         else
             echo "Gos queue: writing $file failed; keeping the share '$description'" >&2
