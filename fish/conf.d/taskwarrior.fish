@@ -605,7 +605,8 @@ function taskwarrior::cleanup
     end
     if test $n -gt 0
         echo "taskwarrior::cleanup: purging $n deleted ≥{$days}d"
-        yes | task rc.gc=0 rc.verbose:nothing status:deleted modified.before:today-"$days"days purge
+        task rc.confirmation=off rc.gc=0 rc.verbose:nothing \
+            status:deleted modified.before:today-"$days"days purge
     else
         echo "taskwarrior::cleanup: no deleted ≥{$days}d"
     end
