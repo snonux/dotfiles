@@ -163,6 +163,18 @@ function _taskwarrior::quicklog_import_line --description 'Import one Quicklog n
     return 0
 end
 
+# A failed export or JSON parse cannot provide a safe deduplication list.
+# Check both pipeline stages before either consumer processes a note.
+function _taskwarrior::quicklog_load_pending --description 'Load pending descriptions for Quicklog deduplication'
+    set -g __quicklog_pending (task status:pending export | jq -r '.[].description')
+    set -l preload_status $pipestatus
+    if test $preload_status[1] -ne 0; or test $preload_status[2] -ne 0
+        set -e __quicklog_pending
+        echo 'quicklog: pending task export failed (kept for retry)' >&2
+        return 1
+    end
+end
+
 # Imports a Quicklog note's content (read from stdin, one line per task) into
 # taskwarrior using the shared line parser. This is the consumer side of the
 # quicklog-drain S3 protocol: the script pipes each note's content here and
@@ -178,7 +190,7 @@ end
 # lines are consumed), 1 when any line failed transiently — the caller must
 # then keep the source note for retry.
 function taskwarrior::quicklog_import_content --description 'Import Quicklog note content from stdin into taskwarrior'
-    set -g __quicklog_pending (task status:pending export | jq -r '.[].description')
+    _taskwarrior::quicklog_load_pending; or return 1
     set -l failed 0
     while read -l line
         _taskwarrior::quicklog_import_line "$line"
@@ -218,7 +230,7 @@ function taskwarrior::quicklogger --description 'Import locally created Quicklog
         set -a notes_dirs "$WORKTIME_DIR"
     end
 
-    set -g __quicklog_pending (task status:pending export | jq -r '.[].description')
+    _taskwarrior::quicklog_load_pending; or return 1
     set -l any_kept 0
 
     for dir in $notes_dirs
