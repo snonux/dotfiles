@@ -39,7 +39,8 @@ My dotfiles, deployed locally or over ssh with [gonf](https://github.com/snonux/
 ```sh
 ./gonf.sh -list                    # all tasks
 ./gonf.sh -n home                  # dry-run
-./gonf.sh home                     # every home_* task
+./gonf.sh home                     # unprivileged home configuration
+./gonf.sh -privilege=sudo home_goprecords_upload # upload timer and its system_uptimed prerequisite (earth/zen)
 ./gonf.sh pkg_opendoas             # opendoas on every Fedora host
 ./gonf.sh pkg_fedora               # Fedora workstation packages (Fedora profile only)
 ./gonf.sh -privilege=sudo system_hosts system_wireguard system_uptimed system_fish_shell
@@ -57,7 +58,7 @@ Guards are serializable and evaluated on the destination (gonf >= v0.19.0), so a
 
 | Task | Does | Applies to |
 |---|---|---|
-| `home` | all `home_*` tasks | all |
+| `home` | unprivileged `home_*` configuration; excludes `home_goprecords_upload` | all |
 | `home_agents` | links `commands/`, `skills/` of `~/Notes/Prompts` into `~/.cursor`, `~/.claude`, `~/.agents`, `~/.opencode`, `~/.amp`, `~/.pi` (if present); `~/.codex/prompts` | all; skipped if `~/Notes/Prompts` missing on controller |
 | `home_bash` | symlinks `~/.bash_profile`, `~/.bashrc` | all |
 | `home_calendar` | syncs `~/.calendar` from `~/git/conf_private/dotfiles/calendar` | all; skipped if that checkout is missing on controller |

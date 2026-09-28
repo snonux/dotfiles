@@ -5,8 +5,8 @@ gonf module for this repo. Pinned: `github.com/snonux/gonf v0.23.0` (`go.mod`). 
 ## Layout
 
 ```text
-cmd/gonf/main.go   registers HomeTasks (home_*), Pkg (pkg_*), System (system_*), aliases, the "home" aggregate; cli.CLI()
-home/home.go       HomeTasks: unprivileged, everything under $HOME
+cmd/gonf/main.go   registers HomeTasks (home_*), Pkg (pkg_*), System (system_*), aliases, the explicit unprivileged "home" aggregate; cli.Main()
+home/home.go       HomeTasks: home resources, including upload timer with privileged system_uptimed prerequisite
 pkg/pkg.go         Pkg: embeds RequiresRoot, group guarded by WhenProfile("fedora"); Opendoas, FishTools, Taskwarrior, Helix, Fedora
 system/system.go   System: embeds RequiresRoot; Hosts/Wireguard earth-only; Uptimed earth+zen; FishShell earth+zen+rocky
 fleet/hosts.go     LAN + wg0 mesh rows for earth's /etc/hosts block (copy of conf's etchosts inventory)
@@ -39,7 +39,7 @@ func (HomeTasks) Foo() {
 
 A hand-written `DescFoo() string` still wins over the generated one.
 
-- Name is prefix + snake_case of the method: `FishCompletions` -> `home_fish_completions`. The prefix is the package name (gonf derives it: `home.HomeTasks` -> `home_`, `pkg.Pkg` -> `pkg_`, `system.System` -> `system_`), so `main.go` passes no `WithPrefix`. `home` picks it up via `^home_`.
+- Name is prefix + snake_case of the method: `FishCompletions` -> `home_fish_completions`. The prefix is the package name (gonf derives it: `home.HomeTasks` -> `home_`, `pkg.Pkg` -> `pkg_`, `system.System` -> `system_`), so `main.go` passes no `WithPrefix`. Add new unprivileged home tasks to the explicit `home` aggregate in `main.go` when they belong in the standard deployment.
 - Guards (`WhenLinux()`, `WhenDarwin()`, `WhenBSD()`, `WhenOS(...)`, `WhenProfile(...)`) must be serializable; they run on the destination.
 - Optional controller-side sources: guard with `optionalControllerSource(task, dir)`. Missing dir skips the task, unreadable dir fails the run. Destination-side existence: `WhenPathExists`.
 - Resources used here: `SyncDir` (`WithPrune`, `WithFileMode`), `InstallFile` (`WithMode`), `Symlink`, `SymlinkMap`, `Dir`/`EnsureDir`, `GitGlobal`, `SystemdUnits`, `SystemdTimer`, `Packages`/`NoPackage`.
@@ -60,7 +60,7 @@ mage          # = mage build: ./gonf binary
 mage deps     # go mod download
 ```
 
-No `_test.go` files; `-list` and a dry-run are the check.
+`cmd/gonf/main_test.go` checks the recorded home and upload plans plus local CLI privilege preflight. Use `-list` and a dry-run for a local smoke check.
 
 Bumping gonf: `go get github.com/snonux/gonf@vX.Y.Z && go mod tidy`. If a fresh tag is not on the proxy yet: `GOPROXY=direct GOSUMDB=off go mod tidy`.
 
@@ -68,7 +68,7 @@ Bumping gonf: `go get github.com/snonux/gonf@vX.Y.Z && go mod tidy`. If a fresh 
 
 Use `../gonf.sh <args>` (see [../README.md](../README.md#deploy)). It sets `GONF_DOTFILES_ROOT` only when run from a checkout other than `~/git/dotfiles`, and never resolves symlinks (FreeBSD `/home -> /usr/home`), since link targets in the plan would change. A built `./gonf` takes the same args.
 
-`pkg_fedora` and `system_*` run their ops through the privileged apply path (`-privilege=sudo|doas`); `home_*` never escalate.
+`pkg_fedora` and `system_*` run their ops through the privileged apply path (`-privilege=sudo|doas`). The `home` aggregate lists unprivileged home tasks explicitly and excludes `home_goprecords_upload`, whose `Needs(system_uptimed)` records privileged work. Run that task separately with `-privilege=sudo|doas` when installing its timer; its own operations remain unprivileged.
 
 `system_hosts` owns only the `# BEGIN GONF fleet` ... `# END GONF fleet` block of `/etc/hosts` (gonf `WithBlock`); the stock loopback header and the `hyperstack*.wg1` rows written by the hyperstack tool's `wg1-setup.sh` stay outside it. A new fleet host goes into `~/git/conf/gonf/etchosts` (or `frontends/data.go`) first, then into `fleet/hosts.go`.
 

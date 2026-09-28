@@ -9,6 +9,11 @@ import (
 )
 
 func main() {
+	registerTasks()
+	cli.Main()
+}
+
+func registerTasks() {
 	RegisterMethods(home.HomeTasks{}) // home_*: prefix derived from package home
 	// home_prompts is the legacy public name of home_agents. As an Alias it
 	// records home_agents' ops directly and the "home" aggregate records them
@@ -26,6 +31,33 @@ func main() {
 	// also applies on zen (OptsUptimed WhenHostnameIn); system_fish_shell
 	// on earth, zen and rocky (OptsFishShell).
 	RegisterMethods(system.System{}) // system_*
-	AggregatePrefix("home", "Install all home_* configuration")
-	cli.Main()
+	// Keep the unprivileged home deploy independent of the privileged
+	// system_uptimed prerequisite of home_goprecords_upload. List members
+	// explicitly so a future home task cannot add privileged work to home.
+	AggregateTasks("home", "Install unprivileged home configuration",
+		"home_agents",
+		"home_bash",
+		"home_calendar",
+		"home_fish",
+		"home_fish_completions",
+		"home_ghostty",
+		"home_gitconfig",
+		"home_gitsyncer",
+		"home_helix",
+		"home_hexai",
+		"home_lazygit",
+		"home_notes",
+		"home_opencode",
+		"home_pipewire",
+		"home_quickedit",
+		"home_scripts",
+		"home_signature",
+		"home_ssh",
+		"home_sway",
+		"home_systemd_user",
+		"home_taskwarrior",
+		"home_timesamurai",
+		"home_tmux",
+		"home_vale",
+	)
 }
