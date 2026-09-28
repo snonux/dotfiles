@@ -56,6 +56,7 @@ function _taskwarrior::set_import_export_tags
         set -gx TASK_IMPORT_TAG personal
         set -gx TASK_EXPORT_TAG work
     end
+    return 0
 end
 
 # function taskwarrior::is_personal_device
@@ -68,6 +69,7 @@ end
 
 function taskwarrior::random_slots_left
     set -l pending (taskwarrior::random_count)
+    or return 1
     math $TASKWARRIOR_MAX_PENDING_RANDOM_TASKS - $pending
 end
 
@@ -85,6 +87,7 @@ function taskwarrior::normalize_tags
 end
 
 function taskwarrior::export::bd
+    set -l failed 0
     if test -d ~/Notes/Bulgarian
         # Export bulgarian dumi. Keep the task until task export, jq, and the
         # final compacted note all succeed. In particular, a command that
@@ -97,15 +100,23 @@ function taskwarrior::export::bd
         set -l uuids (printf '%s\n' "$json" | jq -r '.[].uuid')
         set -l uuid_status $pipestatus
         set -l outfile ~/Notes/Bulgarian/bd-(date +%s).txt
+        or set failed 1
         set -l should_delete 0
+        if test $export_status -ne 0; or test $parse_status[1] -ne 0; or test $parse_status[2] -ne 0; or test $uuid_status[1] -ne 0; or test $uuid_status[2] -ne 0; or test (count $entries) -ne (count $uuids)
+            set failed 1
+        end
         if test $export_status -eq 0; and test $parse_status[1] -eq 0; and test $parse_status[2] -eq 0; and test $uuid_status[1] -eq 0; and test $uuid_status[2] -eq 0; and test (count $entries) -gt 0; and test (count $entries) -eq (count $uuids)
             if printf '%s\n' $entries >$outfile
                 set should_delete 1
+            else
+                set failed 1
             end
         else
             touch $outfile
+            or set failed 1
         end
         set -l compact_tmp ~/Notes/Bulgarian/compact-(date +%s).tmp
+        or set failed 1
         set -l compacted_note ~/Notes/Bulgarian/bd-compacted.txt
         set -l final_tmp $compacted_note.tmp
         set -l source_files
@@ -122,34 +133,48 @@ function taskwarrior::export::bd
         end
         cat $compact_inputs | sort -u >$compact_tmp
         set -l compact_status $pipestatus
+        if test $compact_status[1] -ne 0; or test $compact_status[2] -ne 0
+            set failed 1
+        end
         if test $compact_status[1] -eq 0; and test $compact_status[2] -eq 0; and sort -u $compact_tmp >$final_tmp; and test -s $final_tmp; and mv $final_tmp $compacted_note
             set -l exported_entries_present 1
             if test $should_delete -eq 1
                 for entry in $entries
                     if not grep -Fqx -- "$entry" $compacted_note
                         set exported_entries_present 0
+                        set failed 1
                         break
                     end
                 end
             end
             if test -f $compacted_note; and test $exported_entries_present -eq 1
                 rm $source_files $compact_tmp
+                or set failed 1
                 if test $should_delete -eq 1
                     for uuid in $uuids
                         yes | task "$uuid" delete
+                        or set failed 1
                     end
                 end
+            else
+                set failed 1
             end
         else if test -f $outfile; and not test -s $outfile
             rm -f $outfile $compact_tmp $final_tmp
+            or set failed 1
+        else
+            set failed 1
         end
     end
+    return $failed
 end
 
 function taskwarrior::export::maybe
     set -l maybefile ~/Notes/random/Maybe.md
+    set -l failed 0
     if test -f $maybefile
         touch $maybefile.tmp.1
+        or set failed 1
         # Export all maybe project tags. Defer deletion until the assembled
         # note is atomically installed, so a failure writing the final note or
         # a partial task export cannot lose any tasks.
@@ -161,19 +186,35 @@ function taskwarrior::export::maybe
             set -l parse_status $pipestatus
             set -l uuids (printf '%s\n' "$json" | jq -r '.[].uuid')
             set -l uuid_status $pipestatus
-            if test $export_status -eq 0; and test $parse_status[1] -eq 0; and test $parse_status[2] -eq 0; and test $parse_status[3] -eq 0; and test $uuid_status[1] -eq 0; and test $uuid_status[2] -eq 0; and test (count $entries) -gt 0; and test (count $entries) -eq (count $uuids); and printf '%s\n' $entries >>$maybefile.tmp.1
-                set -a exported_uuids $uuids
+            if test $export_status -ne 0; or test $parse_status[1] -ne 0; or test $parse_status[2] -ne 0; or test $parse_status[3] -ne 0; or test $uuid_status[1] -ne 0; or test $uuid_status[2] -ne 0; or test (count $entries) -ne (count $uuids)
+                set failed 1
+                continue
+            end
+            if test (count $entries) -gt 0
+                if printf '%s\n' $entries >>$maybefile.tmp.1
+                    set -a exported_uuids $uuids
+                else
+                    set failed 1
+                end
             end
         end
         grep -F '* ' $maybefile >>$maybefile.tmp.1
+        if test $status -gt 1
+            return 1
+        end
 
         if echo "# Maybe (7)" >$maybefile.tmp.2; and echo '' >>$maybefile.tmp.2; and echo 'Thinks I maybe will do something about or maybe not' >>$maybefile.tmp.2; and echo '' >>$maybefile.tmp.2; and sort -u $maybefile.tmp.1 >>$maybefile.tmp.2; and test -s $maybefile.tmp.2; and mv $maybefile.tmp.2 $maybefile
             rm $maybefile.tmp.1
+            or set failed 1
             for uuid in $exported_uuids
                 yes | task "$uuid" delete
+                or set failed 1
             end
+        else
+            set failed 1
         end
     end
+    return $failed
 end
 
 # Routes +add tagged tasks into per-project note files under ~/Notes/random/,
@@ -185,18 +226,29 @@ end
 function taskwarrior::export::add
     set -l notes_dir ~/Notes/random
     if not test -d $notes_dir
-        return
+        return 0
     end
 
     set -l uuids (task +add status:pending _uuids)
+    or return 1
+    set -l failed 0
     for uuid in $uuids
         test -n "$uuid"; or continue
         set -l json (task "$uuid" export)
-        test $status -eq 0; or continue
+        if test $status -ne 0
+            set failed 1
+            continue
+        end
         set -l project (echo "$json" | jq -r '.[0].project // ""')
-        test $status -eq 0; or continue
+        if test $pipestatus[2] -ne 0
+            set failed 1
+            continue
+        end
         set -l description (echo "$json" | jq -r '.[0].description')
-        test $status -eq 0; or continue
+        if test $pipestatus[2] -ne 0
+            set failed 1
+            continue
+        end
 
         # A task without a project has no file to route to; leave it pending
         # rather than silently discarding the note
@@ -205,27 +257,35 @@ function taskwarrior::export::add
         end
 
         set -l outfile "$notes_dir/$project.md"
+        set -l write_failed 0
         if not test -f $outfile
             # Match the "# Title (30)" header convention used by the other
             # files in $notes_dir (the "(30)" is their random-quote review interval)
             set -l title (string upper -- (string sub -l 1 -- $project))(string sub -s 2 -- $project)
             echo "# $title (30)" >$outfile
+            or set write_failed 1
             echo '' >>$outfile
+            or set write_failed 1
         end
         # The delete may only run once the note line was appended; a failed
         # write must not lose the note.
-        if echo "* $description" >>$outfile
+        if test $write_failed -eq 0; and echo "* $description" >>$outfile
             yes | task "$uuid" delete &>/dev/null
+            or set failed 1
         else
             echo "Export failed: $outfile; keeping the note '$description'" >&2
+            set failed 1
         end
     end
+    return $failed
 end
 
 function taskwarrior::export::wins
     set -l winsfile ~/Notes/random/Wins.md
+    set -l failed 0
     if test -f $winsfile
         touch $winsfile.tmp.1
+        or set failed 1
         # Export all wins tags. Defer deletion until the assembled note is
         # atomically installed and require each export and parse to succeed.
         set -l exported_uuids
@@ -236,19 +296,35 @@ function taskwarrior::export::wins
             set -l parse_status $pipestatus
             set -l uuids (printf '%s\n' "$json" | jq -r '.[].uuid')
             set -l uuid_status $pipestatus
-            if test $export_status -eq 0; and test $parse_status[1] -eq 0; and test $parse_status[2] -eq 0; and test $parse_status[3] -eq 0; and test $uuid_status[1] -eq 0; and test $uuid_status[2] -eq 0; and test (count $entries) -gt 0; and test (count $entries) -eq (count $uuids); and printf '%s\n' $entries >>$winsfile.tmp.1
-                set -a exported_uuids $uuids
+            if test $export_status -ne 0; or test $parse_status[1] -ne 0; or test $parse_status[2] -ne 0; or test $parse_status[3] -ne 0; or test $uuid_status[1] -ne 0; or test $uuid_status[2] -ne 0; or test (count $entries) -ne (count $uuids)
+                set failed 1
+                continue
+            end
+            if test (count $entries) -gt 0
+                if printf '%s\n' $entries >>$winsfile.tmp.1
+                    set -a exported_uuids $uuids
+                else
+                    set failed 1
+                end
             end
         end
         grep -F '* ' $winsfile >>$winsfile.tmp.1
+        if test $status -gt 1
+            return 1
+        end
 
         if echo "# wins (7)" >$winsfile.tmp.2; and echo '' >>$winsfile.tmp.2; and echo 'Wins I had' >>$winsfile.tmp.2; and echo '' >>$winsfile.tmp.2; and sort -u $winsfile.tmp.1 >>$winsfile.tmp.2; and test -s $winsfile.tmp.2; and mv $winsfile.tmp.2 $winsfile
             rm $winsfile.tmp.1
+            or set failed 1
             for uuid in $exported_uuids
                 yes | task "$uuid" delete &>/dev/null
+                or set failed 1
             end
+        else
+            set failed 1
         end
     end
+    return $failed
 end
 
 # Exports all tasks tagged +$tag for both pending and completed status into
@@ -262,9 +338,14 @@ function _taskwarrior::export_tag
     set -l tag $argv[1]
     set -l ts $argv[2]
     set -l host (hostname)
+    set -l failed 0
 
     for task_status in pending completed
         set -l count (task +$tag status:$task_status count)
+        if test $status -ne 0
+            set failed 1
+            continue
+        end
 
         if test $count -eq 0
             continue
@@ -280,11 +361,15 @@ function _taskwarrior::export_tag
         # git-synced nor imported with an error by the receiving host.
         if task +$tag status:$task_status export >"$outfile"; and test -s "$outfile"
             yes | task +$tag status:$task_status delete &>/dev/null
+            or set failed 1
         else
             rm -f "$outfile"
+            or set failed 1
             echo "Export failed: $outfile; keeping $count $task_status tasks tagged +$tag" >&2
+            set failed 1
         end
     end
+    return $failed
 end
 
 # Imports every export file in $WORKTIME_DIR whose embedded label (the <label>
@@ -295,16 +380,25 @@ end
 function _taskwarrior::import_label
     set -l label $argv[1]
 
-    find $WORKTIME_DIR -name "tw-$label-export-*.json" | while read -l import
+    set -l imports (find $WORKTIME_DIR -name "tw-$label-export-*.json")
+    or return 1
+    set -l failed 0
+    for import in $imports
         if task import $import
             rm $import
+            or set failed 1
+        else
+            set failed 1
         end
     end
+    return $failed
 end
 
 function taskwarrior::export
-    _taskwarrior::set_import_export_tags
+    _taskwarrior::set_import_export_tags; or return 1
     set -l ts (date +%s)
+    or return 1
+    set -l failed 0
 
     # Export this host's outgoing work/personal tag plus the host-routed
     # +rocky and +zen tasks. Each tag is exported under its own name as the
@@ -314,16 +408,23 @@ function taskwarrior::export
     # first matching label in the loop order and relays from there.
     for tag in $TASK_EXPORT_TAG rocky zen
         _taskwarrior::export_tag $tag $ts
+        or set failed 1
     end
 
     taskwarrior::export::bd
+    or set failed 1
     taskwarrior::export::maybe
+    or set failed 1
     taskwarrior::export::wins
+    or set failed 1
     taskwarrior::export::add
+    or set failed 1
+    return $failed
 end
 
 function taskwarrior::import
-    _taskwarrior::set_import_export_tags
+    _taskwarrior::set_import_export_tags; or return 1
+    set -l failed 0
 
     # Import files labelled with this host's incoming work/personal tag, plus
     # files labelled with this host's name. The +rocky exports are labelled
@@ -332,7 +433,9 @@ function taskwarrior::import
     # hostname match delivers the "zen" exports to the zen laptop.
     for label in $TASK_IMPORT_TAG (hostname)
         _taskwarrior::import_label $label
+        or set failed 1
     end
+    return $failed
 end
 
 # Fast UUID batch from taskchampion.sqlite3 (avoids TW3 loading the whole set).
@@ -496,6 +599,10 @@ function taskwarrior::cleanup
     end
 
     set -l n (_taskwarrior::old_count deleted modified $days)
+    if test $status -ne 0
+        echo "taskwarrior::cleanup: unable to count old deleted tasks; skipping purge" >&2
+        return 1
+    end
     if test $n -gt 0
         echo "taskwarrior::cleanup: purging $n deleted ≥{$days}d"
         yes | task rc.gc=0 rc.verbose:nothing status:deleted modified.before:today-"$days"days purge
@@ -506,11 +613,16 @@ end
 
 function taskwarrior::unscheduled
     # _ids can emit a trailing empty line; skip empty values to avoid a no-filter modify
-    for id in (task status:pending -unsched -nosched -meeting -track -tr due: _ids)
+    set -l ids (task status:pending -unsched -nosched -meeting -track -tr due: _ids)
+    or return 1
+    set -l failed 0
+    for id in $ids
         test -n "$id"; or continue
         # echo "timeout 5s task modify $id due:(builtin random 0 30)d"
         timeout 5s task modify "$id" due:(builtin random 0 42)d &>/dev/null
+        or set failed 1
     end
+    return $failed
 end
 
 # Adds a single taskwarrior task. Can be reused anywhere task creation is needed.
@@ -547,10 +659,12 @@ function _taskwarrior::add_task
     # Optional annotation (e.g. source notes path for +random quotes)
     if test -n "$_flag_annotate"
         set -l id (string match -r --groups-only 'Created task (\d+)' -- $created)
-        if test -n "$id"
-            echo "task $id annotate "(string escape -- $_flag_annotate)
-            task $id annotate $_flag_annotate
+        if test -z "$id"
+            return 1
         end
+        echo "task $id annotate "(string escape -- $_flag_annotate)
+        task $id annotate $_flag_annotate
+        or return 1
     end
 
     # Propagate `task add`'s exit status so callers (the quicklog import)
@@ -579,12 +693,20 @@ function _taskwarrior::fill_random_slot
 
     # Extract all bullet entries (lines starting with "* ") and strip the marker
     set -l entries (grep '^\* ' $file | string replace -r '^\* ' '')
+    set -l entry_statuses $pipestatus
+    if test $entry_statuses[1] -gt 1; or test $entry_statuses[1] -eq 0 -a $entry_statuses[2] -ne 0
+        return 1
+    end
     if test (count $entries) -eq 0
-        return
+        return 0
     end
 
     # Descriptions of pending +random tasks, used to avoid creating duplicates
     set -l existing (task status:pending +random export | jq -r '.[].description')
+    set -l export_statuses $pipestatus
+    if test $export_statuses[1] -ne 0; or test $export_statuses[2] -ne 0
+        return 1
+    end
 
     # Pick a random entry, retrying if its description already exists as a
     # pending +random task. Try at most 3 times; if all attempts collide we give up on this slot rather than looping forever (there may be nothing else to pick).
@@ -600,7 +722,7 @@ function _taskwarrior::fill_random_slot
 
     # All attempts hit an already-pending task; skip adding for this slot
     if test (count $parsed) -eq 0
-        return
+        return 0
     end
 
     # Tag the chosen entry with both +random and the source file tag;
@@ -620,32 +742,45 @@ function taskwarrior::random_quote
 
     # Nothing to do if the random notes directory doesn't exist on this machine
     if not test -d "$random_dir"
-        return
+        return 0
     end
 
     # Ensure there is always at least one +maybe task pending, even when the
     # ordinary +random slots are full.
-    if test (task status:pending +maybe count) -eq 0
+    set -l failed 0
+    set -l maybe_count (task status:pending +maybe count)
+    if test $status -ne 0; or not string match -qr '^[0-9]+$' -- "$maybe_count"
+        set failed 1
+    else if test $maybe_count -eq 0
         _taskwarrior::fill_random_slot "$random_dir/Maybe.md"
+        or set failed 1
     end
 
     # Check how many pending +random task slots are still open
     set -l slots (taskwarrior::random_slots_left)
+    if test $status -ne 0
+        return 1
+    end
     if test $slots -le 0
-        return
+        return $failed
     end
 
     # Collect .md files, skipping Syncthing conflict copies which are not canonical
     set -l md_files (find "$random_dir" -name '*.md' -not -name '*.sync-conflict*')
+    if test $status -ne 0
+        return 1
+    end
     if test (count $md_files) -eq 0
-        return
+        return $failed
     end
 
     # Fill each open slot with one randomly selected task
     for i in (seq $slots)
         set -l file $md_files[(builtin random 1 (count $md_files))]
         _taskwarrior::fill_random_slot $file
+        or set failed 1
     end
+    return $failed
 end
 
 # Known gos platform aliases (must match gos internal/platforms aliases)
@@ -657,18 +792,29 @@ set -g TASKWARRIOR_GOS_PLATFORMS li linkedin ma mastodon no noop sno snonux sn x
 function taskwarrior::gos_queue
     set -l gos_dir "$GOS_DIR"
     if not test -d "$gos_dir"
-        return
+        return 0
     end
 
     set -l uuids (task +share status:pending _uuids)
+    or return 1
+    set -l failed 0
     for uuid in $uuids
         test -n "$uuid"; or continue
         set -l json (task "$uuid" export)
-        test $status -eq 0; or continue
+        if test $status -ne 0
+            set failed 1
+            continue
+        end
         set -l description (echo "$json" | jq -r '.[0].description')
-        test $status -eq 0; or continue
+        if test $pipestatus[2] -ne 0
+            set failed 1
+            continue
+        end
         set -l tags (echo "$json" | jq -r '.[0].tags[]')
-        test $status -eq 0; or continue
+        if test $pipestatus[2] -ne 0
+            set failed 1
+            continue
+        end
 
         # Collect platform tags, modifier tags, and remaining hashtags
         set -l platforms
@@ -700,33 +846,69 @@ function taskwarrior::gos_queue
             set message "$message"\n\n(string join ' ' -- $hashtags)
         end
         set -l hash (printf '%s' "$message" | md5sum | awk '{print $1}')
+        set -l hash_statuses $pipestatus
+        if test $hash_statuses[1] -ne 0; or test $hash_statuses[2] -ne 0; or test $hash_statuses[3] -ne 0; or test -z "$hash"
+            set failed 1
+            continue
+        end
         set -l file "$gos_dir/$hash.txt"
         echo "Gos queue: $file"
         # The delete may only run once the queue file was written; a failed
         # write must not lose the share.
         if printf '%s\n' "$message" >"$file"; and test -s "$file"; and printf '%s\n' "$message" | cmp -s - "$file"
             yes | task "$uuid" delete &>/dev/null
+            or set failed 1
         else
             echo "Gos queue: writing $file failed; keeping the share '$description'" >&2
+            set failed 1
         end
     end
+    return $failed
 end
 
 function taskwarrior::invoke
+    set -l failed 0
     taskwarrior::export
+    or set failed 1
     taskwarrior::import
+    or set failed 1
     taskwarrior::cleanup
+    or set failed 1
     taskwarrior::random_quote
+    or set failed 1
     taskwarrior::unscheduled
+    or set failed 1
     taskwarrior::quicklog_import
+    or set failed 1
     taskwarrior::quicklogger
+    or set failed 1
     taskwarrior::gos_queue
+    or set failed 1
     # Rename tr tag to track
-    yes | task +tr -track modify +track -tr
+    set -l count (task +tr -track count)
+    if test $status -ne 0
+        set failed 1
+    else if test $count -gt 0
+        yes | task +tr -track modify +track -tr
+        or set failed 1
+    end
     # Add track tag to tr project
-    yes | task -track proj:tr modify +track
+    set count (task -track proj:tr count)
+    if test $status -ne 0
+        set failed 1
+    else if test $count -gt 0
+        yes | task -track proj:tr modify +track
+        or set failed 1
+    end
     # All tasks with auto tag also have agent tag
-    yes | task +auto -agent modify +agent
+    set count (task +auto -agent count)
+    if test $status -ne 0
+        set failed 1
+    else if test $count -gt 0
+        yes | task +auto -agent modify +agent
+        or set failed 1
+    end
+    return $failed
 end
 
 # Interactive conveniences only. Headless callers (the quicklog-drain import

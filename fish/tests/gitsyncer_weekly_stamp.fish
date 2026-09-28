@@ -36,6 +36,64 @@ printf '%s\n' \
     >"$gitsyncer"
 chmod +x "$gitsyncer"
 
+set -gx GITSYNCER_TEST_MODE success
+: >"$enable_file"
+: >"$GITSYNCER_TEST_CALLS"
+supersync::gitsyncer
+or fail "empty enable file did not run the initial sync"
+test (cat "$enable_file") -gt 0
+or fail "initial sync did not advance the weekly stamp"
+test (count (cat "$GITSYNCER_TEST_CALLS")) -eq 2
+or fail "initial sync did not run both commands"
+echo 0 >"$enable_file"
+
+function date
+    return 1
+end
+supersync::gitsyncer
+and fail "failed timestamp lookup succeeded"
+functions -e date
+test (cat "$enable_file") = 0
+or fail "failed timestamp lookup changed the weekly stamp"
+
+function cat
+    if test "$argv[1]" = "$HOME/.gitsyncer_enable"
+        return 1
+    end
+    command cat $argv
+end
+supersync::gitsyncer
+and fail "failed stamp read succeeded"
+functions -e cat
+test (cat "$enable_file") = 0
+or fail "failed stamp read changed the weekly stamp"
+
+function math
+    return 1
+end
+supersync::gitsyncer
+and fail "failed weekly interval calculation succeeded"
+functions -e math
+test (cat "$enable_file") = 0
+or fail "failed weekly interval calculation changed the stamp"
+
+function math
+    if test "$argv[1]" != 7
+        return 1
+    end
+    builtin math $argv
+end
+supersync::gitsyncer
+and fail "failed elapsed-time calculation succeeded"
+functions -e math
+test (cat "$enable_file") = 0
+or fail "failed elapsed-time calculation changed the weekly stamp"
+
+echo invalid >"$enable_file"
+supersync::gitsyncer
+and fail "invalid weekly stamp succeeded"
+echo 0 >"$enable_file"
+
 for mode in sync_fail showcase_fail
     set -gx GITSYNCER_TEST_MODE $mode
     echo 0 >"$enable_file"

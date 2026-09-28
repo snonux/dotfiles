@@ -241,9 +241,22 @@ function taskwarrior::quicklogger --description 'Import locally created Quicklog
 
         # -L follows symlinks (~/Notes is a symlink to the Syncthing vault)
         # -maxdepth 1 keeps the search non-recursive
-        for ql_file in (find -L "$dir" -maxdepth 1 -name 'ql-*' -type f)
+        set -l ql_files (find -L "$dir" -maxdepth 1 -name 'ql-*' -type f)
+        if test $status -ne 0
+            set any_kept 1
+            continue
+        end
+        for ql_file in $ql_files
+            # Load the whole note before importing any line. A failed read
+            # must keep the source for retry, including failures after a
+            # partial read. Empty lines are parser no-ops.
+            set -l lines (command cat "$ql_file")
+            if test $status -ne 0
+                set any_kept 1
+                continue
+            end
             set -l keep 0
-            while read -l line
+            for line in $lines
                 _taskwarrior::quicklog_import_line "$line"
                 switch $status
                     case 0
@@ -260,12 +273,16 @@ function taskwarrior::quicklogger --description 'Import locally created Quicklog
                         echo "quicklogger: unexpected import status $status (kept for retry): $line" >&2
                         set keep 1
                 end
-            end <$ql_file
+            end
             if test $keep -eq 0
                 # Restrict permissions before moving so the file is not
                 # world-readable in /tmp
-                chmod 600 $ql_file
-                mv $ql_file /tmp/
+                if chmod 600 $ql_file
+                    mv $ql_file /tmp/
+                    or set any_kept 1
+                else
+                    set any_kept 1
+                end
             else
                 set any_kept 1
                 echo "quicklogger: kept $ql_file for retry (task add failed)" >&2

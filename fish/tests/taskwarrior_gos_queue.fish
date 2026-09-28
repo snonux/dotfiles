@@ -63,6 +63,7 @@ function printf
     builtin printf $argv
 end
 taskwarrior::gos_queue >/dev/null 2>/dev/null
+and fail "short queue write reported success"
 functions -e printf
 test "$DELETE_COUNT" -eq 1
 or fail "task was deleted after a short write"
@@ -79,6 +80,7 @@ function printf
     builtin printf $argv
 end
 taskwarrior::gos_queue >/dev/null 2>/dev/null
+and fail "failed queue write reported success"
 functions -e printf
 test "$DELETE_COUNT" -eq 1
 or fail "task was deleted after printf failed"

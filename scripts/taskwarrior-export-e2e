@@ -209,7 +209,7 @@ tw "$SAN/home" "$SAN/taskdata" add "keeper task" +keep >/dev/null
 rc=0
 run_fish "$SAN/home" "$SAN/taskdata" "$SAN/does-not-exist" "$SAN/binA" \
   "_taskwarrior::export_tag keep $TS_MISSING" >"$SAN/phase2.out" 2>"$SAN/phase2.err" || rc=$?
-assert_rc "export_tag run with missing dir" 0 "$rc"
+assert_rc "export_tag run with missing dir" 1 "$rc"
 assert_eq "task NOT deleted when the export write fails" \
   "$(tw "$SAN/home" "$SAN/taskdata" +keep status:pending count)" 1
 assert_contains "failure warning on stderr" "$(cat "$SAN/phase2.err")" "Export failed"
@@ -228,7 +228,7 @@ env -i HOME="$SAN/home" TASKDATA="$SAN/taskdata" WORKTIME_DIR="$SAN/wt" \
   PATH="$SAN/bin:$SAN/binA:$CHILD_PATH" "$REAL_FISH" --no-config -c \
   "source '$TASKWARRIOR_FISH'; _taskwarrior::export_tag empty $TS_MAIN" \
   >"$SAN/phase3.out" 2>"$SAN/phase3.err" || rc=$?
-assert_rc "export_tag run with empty export" 0 "$rc"
+assert_rc "export_tag run with empty export" 1 "$rc"
 assert_missing "delete not invoked when the export file is empty" "$FAKE_TASK_MARKER"
 assert_contains "failure warning on stderr" "$(cat "$SAN/phase3.err")" "Export failed"
 assert_eq "empty partial export file cleaned up" \
@@ -308,8 +308,10 @@ cat >"$SAN/wt-import/tw-imp-export-2-pending.json" <<'EOF'
 {"description": "import guard task", "status": "pending", "entry": "20260102T000000Z", "uuid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}
 ]
 EOF
+rc=0
 run_fish "$SAN/home" "$SAN/taskdata" "$SAN/wt-import" "$SAN/binA" \
-  "_taskwarrior::import_label imp" >"$SAN/phase7.out" 2>&1
+  "_taskwarrior::import_label imp" >"$SAN/phase7.out" 2>&1 || rc=$?
+assert_rc "import_label reports one failed file" 1 "$rc"
 assert_exists "malformed file kept for a later retry on failed import" \
   "$SAN/wt-import/tw-imp-export-1-pending.json"
 assert_missing "valid file consumed after successful import" \
@@ -342,10 +344,18 @@ tw "$SAN/home" "$SAN/taskdata" add project:foo +maybe "maybe entry one" >/dev/nu
 tw "$SAN/home" "$SAN/taskdata" add +win "wins entry one" >/dev/null
 
 # Failure path: no jq on PATH → the capture is empty → the deletes must not run
+rc=0
 env -i HOME="$SAN/home" TASKDATA="$SAN/taskdata" QUICKLOG_HEADLESS=1 \
   PATH="$SAN/nojq:$SAN/binA" "$REAL_FISH" --no-config -c \
-  "source '$TASKWARRIOR_FISH'; taskwarrior::export::maybe; taskwarrior::export::wins" \
-  >"$SAN/phase8-fail.out" 2>"$SAN/phase8-fail.err"
+  "source '$TASKWARRIOR_FISH'; taskwarrior::export::maybe" \
+  >"$SAN/phase8-maybe-fail.out" 2>"$SAN/phase8-maybe-fail.err" || rc=$?
+assert_rc "maybe export reports missing jq" 1 "$rc"
+rc=0
+env -i HOME="$SAN/home" TASKDATA="$SAN/taskdata" QUICKLOG_HEADLESS=1 \
+  PATH="$SAN/nojq:$SAN/binA" "$REAL_FISH" --no-config -c \
+  "source '$TASKWARRIOR_FISH'; taskwarrior::export::wins" \
+  >"$SAN/phase8-wins-fail.out" 2>"$SAN/phase8-wins-fail.err" || rc=$?
+assert_rc "wins export reports missing jq" 1 "$rc"
 assert_eq "failed pipeline keeps the maybe task" \
   "$(tw "$SAN/home" "$SAN/taskdata" +maybe status:pending count)" 1
 assert_eq "failed pipeline keeps the win task" \
@@ -380,10 +390,12 @@ say "phase 9: export::bd guards the delete"
 mkdir -p "$SAN/home/Notes/Bulgarian"
 tw "$SAN/home" "$SAN/taskdata" add +bd "dumi edno" >/dev/null
 
+rc=0
 env -i HOME="$SAN/home" TASKDATA="$SAN/taskdata" QUICKLOG_HEADLESS=1 \
   PATH="$SAN/nojq:$SAN/binA" "$REAL_FISH" --no-config -c \
   "source '$TASKWARRIOR_FISH'; taskwarrior::export::bd" \
-  >"$SAN/phase9-fail.out" 2>"$SAN/phase9-fail.err"
+  >"$SAN/phase9-fail.out" 2>"$SAN/phase9-fail.err" || rc=$?
+assert_rc "Bulgarian export reports missing jq" 1 "$rc"
 assert_eq "failed pipeline keeps the +bd dumi" \
   "$(tw "$SAN/home" "$SAN/taskdata" +bd status:pending count)" 1
 assert_eq "empty export file cleaned up by compaction" \
@@ -419,7 +431,7 @@ rc=0
 run_fish "$SAN/home" "$SAN/taskdata" "$SAN/wt" "$SAN/binA" \
   "function cat; command cat \$argv[1]; return 1; end; taskwarrior::export::bd" \
   >"$SAN/phase9-cat-fail.out" 2>&1 || rc=$?
-assert_rc "export::bd failed source read run" 0 "$rc"
+assert_rc "export::bd failed source read run" 1 "$rc"
 assert_eq "failed source read preserves compacted note" \
   "$(cat "$BD_NOTE")" $'dumi dve\ndumi edno'
 assert_eq "failed source read keeps exported task" \
@@ -444,7 +456,7 @@ rc=0
 run_fish "$SAN/home" "$SAN/taskdata" "$SAN/wt" "$SAN/binA" \
   "function mv; command mv \$argv; if string match -q '*/bd-compacted.txt' -- \$argv[-1]; printf '%s\\n' 'truncated' >\$argv[-1]; end; end; taskwarrior::export::bd" \
   >"$SAN/phase9-incomplete.out" 2>&1 || rc=$?
-assert_rc "export::bd incomplete note run" 0 "$rc"
+assert_rc "export::bd incomplete note run" 1 "$rc"
 assert_eq "incomplete installed note keeps exported task" \
   "$(tw "$SAN/home" "$SAN/taskdata" +bd status:pending count)" 1
 assert_eq "incomplete installed note keeps dated source" \
@@ -470,7 +482,7 @@ mkdir "$SAN/home/Notes/random/dirproj.md"
 rc=0
 run_fish "$SAN/home" "$SAN/taskdata" "$SAN/wt" "$SAN/binA" \
   "taskwarrior::export::add" >"$SAN/phase10.out" 2>"$SAN/phase10.err" || rc=$?
-assert_rc "export::add run" 0 "$rc"
+assert_rc "export::add run" 1 "$rc"
 assert_contains "note routed to the project file" \
   "$(cat "$SAN/home/Notes/random/e2eproj.md")" "* note line one"
 assert_eq "routed note deleted after successful export" \
@@ -499,9 +511,11 @@ assert_eq "shared task deleted after queueing" \
 # Failure path: read-only gos dir → the queue write fails → the share is kept
 chmod a-w "$SAN/gos"
 tw "$SAN/home" "$SAN/taskdata" add +share "share two" >/dev/null
+rc=0
 env -i HOME="$SAN/home" TASKDATA="$SAN/taskdata" GOS_DIR="$SAN/gos" QUICKLOG_HEADLESS=1 \
   PATH="$SAN/binA:$CHILD_PATH" "$REAL_FISH" --no-config -c \
-  "source '$TASKWARRIOR_FISH'; taskwarrior::gos_queue" >"$SAN/phase11b.out" 2>&1
+  "source '$TASKWARRIOR_FISH'; taskwarrior::gos_queue" >"$SAN/phase11b.out" 2>&1 || rc=$?
+assert_rc "unwritable gos dir reports failure" 1 "$rc"
 assert_eq "unwritable gos dir keeps the share" \
   "$(tw "$SAN/home" "$SAN/taskdata" +share status:pending count)" 1
 assert_contains "failure warning printed" "$(cat "$SAN/phase11b.out")" "keeping the share"
@@ -516,10 +530,16 @@ tw "$SAN/home" "$SAN/taskdata" add project:partial +maybe "partial maybe" >/dev/
 tw "$SAN/home" "$SAN/taskdata" add +win "partial win" >/dev/null
 tw "$SAN/home" "$SAN/taskdata" add project:partial +add "partial add" >/dev/null
 tw "$SAN/home" "$SAN/taskdata" add +share "partial share" >/dev/null
-env -i HOME="$SAN/home" TASKDATA="$SAN/taskdata" WORKTIME_DIR="$SAN/wt" GOS_DIR="$SAN/gos" QUICKLOG_HEADLESS=1 \
-  PATH="$SAN/binA:$CHILD_PATH" "$REAL_FISH" --no-config -c \
-  "source '$TASKWARRIOR_FISH'; function task; if contains -- export \$argv; printf '[{\\\"description\\\":\\\"partial\\\",\\\"project\\\":\\\"partial\\\",\\\"tags\\\":[\\\"share\\\"]}]'; return 1; end; command task \$argv; end; taskwarrior::export::bd; taskwarrior::export::maybe; taskwarrior::export::wins; taskwarrior::export::add; taskwarrior::gos_queue" \
-  >"$SAN/phase12.out" 2>"$SAN/phase12.err"
+for exporter in \
+  taskwarrior::export::bd taskwarrior::export::maybe \
+  taskwarrior::export::wins taskwarrior::export::add taskwarrior::gos_queue; do
+  rc=0
+  env -i HOME="$SAN/home" TASKDATA="$SAN/taskdata" WORKTIME_DIR="$SAN/wt" GOS_DIR="$SAN/gos" QUICKLOG_HEADLESS=1 \
+    PATH="$SAN/binA:$CHILD_PATH" "$REAL_FISH" --no-config -c \
+    "source '$TASKWARRIOR_FISH'; function task; if contains -- export \$argv; printf '[{\\\"description\\\":\\\"partial\\\",\\\"project\\\":\\\"partial\\\",\\\"tags\\\":[\\\"share\\\"]}]'; return 1; end; command task \$argv; end; $exporter" \
+    >"$SAN/phase12-${exporter##*::}.out" 2>&1 || rc=$?
+  assert_rc "$exporter reports partial export" 1 "$rc"
+done
 assert_eq "partial failed export keeps the bd task" \
   "$(tw "$SAN/home" "$SAN/taskdata" +bd status:pending count)" 1
 assert_eq "partial failed export keeps the maybe task" \
@@ -536,10 +556,12 @@ assert_eq "partial failed export keeps the new share task" \
 say "phase 13: failed final note write keeps maybe tasks"
 
 mkdir "$SAN/home/Notes/random/Maybe.md.tmp.2"
+rc=0
 env -i HOME="$SAN/home" TASKDATA="$SAN/taskdata" WORKTIME_DIR="$SAN/wt" QUICKLOG_HEADLESS=1 \
   PATH="$SAN/binA:$CHILD_PATH" "$REAL_FISH" --no-config -c \
   "source '$TASKWARRIOR_FISH'; taskwarrior::export::maybe" \
-  >"$SAN/phase13.out" 2>"$SAN/phase13.err"
+  >"$SAN/phase13.out" 2>"$SAN/phase13.err" || rc=$?
+assert_rc "failed final maybe note write reports failure" 1 "$rc"
 assert_eq "maybe task survives a failed final note write" \
   "$(tw "$SAN/home" "$SAN/taskdata" +maybe status:pending count)" 1
 assert_not_contains "Maybe.md remains unchanged after final write failure" \

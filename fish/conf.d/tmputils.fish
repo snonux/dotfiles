@@ -108,10 +108,14 @@ function tmputils::clean
 
     set -l old_dir "$TMPUTILS_DIR/OLD"
     mkdir -p $old_dir
+    or return 1
 
     set -l datestamp (date +%Y%m%d)
+    or return 1
     set -l threshold 31
     set -l now (date +%s)
+    or return 1
+    set -l failed 0
 
     for folder in $TMPUTILS_DIR/*
         # Skip the OLD directory itself and non-directories
@@ -121,9 +125,20 @@ function tmputils::clean
         # Find the most recently modified file inside the folder (including subdirs)
         set -l newest
         if test (uname) = Darwin
-            set newest (find "$folder" -type f -exec stat -f %m {} + 2>/dev/null | sort -rn | head -1)
+            set newest (find "$folder" -type f -exec stat -f %m {} + 2>/dev/null | sort -rn | sed -n '1p')
         else
-            set newest (find "$folder" -type f -printf '%T@\n' 2>/dev/null | sort -rn | head -1)
+            set newest (find "$folder" -type f -printf '%T@\n' 2>/dev/null | sort -rn | sed -n '1p')
+        end
+        set -l scan_statuses $pipestatus
+        set -l scan_failed 0
+        for pipe_status in $scan_statuses
+            if test $pipe_status -ne 0
+                set scan_failed 1
+            end
+        end
+        if test $scan_failed -ne 0
+            set failed 1
+            continue
         end
 
         # Determine mtime: newest file, or folder mtime if empty
@@ -137,18 +152,25 @@ function tmputils::clean
         # Skip if we couldn't determine mtime
         if test -z "$mtime"
             echo "tmputils::clean: skipping $folder (could not read mtime)"
+            set failed 1
             continue
         end
 
         set -l age_days (math \( $now - $mtime \) / 86400)
+        if test $status -ne 0
+            set failed 1
+            continue
+        end
 
         if test -n "$age_days"; and test "$age_days" -ge $threshold
             set -l basename (basename "$folder")
             set -l dest "$old_dir/$basename.$datestamp"
             echo "Moving $folder -> $dest (stale $age_days days)"
             mv "$folder" "$dest"
+            or set failed 1
         end
     end
+    return $failed
 end
 
 tmpdir::make adhoc

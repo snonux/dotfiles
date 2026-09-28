@@ -87,31 +87,83 @@ function worktime::supersync_sync
         return 1
     end
     cd $WORKTIME_DIR
+    or return 1
+    set -l failed 0
 
     if test (count $argv) -gt 0 -a $argv[1] = sync_quotes
         if test -d ~/Notes/HabitsAndQuotes
-            echo "" >work-wisdoms.md.tmp
-            for notes in ~/Notes/random/{Productivity,Mentoring}.md
-                grep '^\* ' $notes >>work-wisdoms.md.tmp
+            set -l quote_failed 0
+            set -l quote_tmp_dir (mktemp -d .worktime-quotes.XXXXXX)
+            if test $status -ne 0
+                set quote_failed 1
+            else
+                echo "" >"$quote_tmp_dir/wisdom-source"
+                or set quote_failed 1
+                for notes in ~/Notes/random/{Productivity,Mentoring}.md
+                    grep '^\* ' $notes >>"$quote_tmp_dir/wisdom-source"
+                    if test $status -gt 1
+                        set quote_failed 1
+                    end
+                end
+                sort -u "$quote_tmp_dir/wisdom-source" >"$quote_tmp_dir/wisdom"
+                or set quote_failed 1
+                grep '^\* ' ~/Notes/random/Exercise.md >"$quote_tmp_dir/exercises"
+                if test $status -gt 1
+                    set quote_failed 1
+                end
+                if test $quote_failed -eq 0
+                    mv "$quote_tmp_dir/wisdom" work-wisdoms.md
+                    or set quote_failed 1
+                    if test $quote_failed -eq 0
+                        mv "$quote_tmp_dir/exercises" exercises.md
+                        or set quote_failed 1
+                    end
+                end
+                rm -f "$quote_tmp_dir/wisdom-source" "$quote_tmp_dir/wisdom" "$quote_tmp_dir/exercises"
+                or set quote_failed 1
+                rmdir "$quote_tmp_dir"
+                or set quote_failed 1
             end
-            sort -u work-wisdoms.md.tmp >work-wisdoms.md
-            rm work-wisdoms.md.tmp
-            git add work-wisdoms.md
-            grep '^\* ' ~/Notes/random/Exercise.md >exercises.md
-            git add exercises.md
+            if test $quote_failed -ne 0
+                set failed 1
+            else
+                git add work-wisdoms.md exercises.md
+                or set failed 1
+            end
         end
     end
 
-    find . -name '*.txt' -exec git add {} \;
-    find . -name '*.json' -exec git add {} \;
-    find . -name '*.csv' -exec git add {} \;
-    find . -name '*.jsonl' -exec git add {} \;
-    git commit -a -m sync
+    find . -name '*.txt' -exec git add {} +
+    or set failed 1
+    find . -name '*.json' -exec git add {} +
+    or set failed 1
+    find . -name '*.csv' -exec git add {} +
+    or set failed 1
+    find . -name '*.jsonl' -exec git add {} +
+    or set failed 1
+    if test $failed -eq 0
+        git diff --quiet HEAD
+        set -l diff_status $status
+        if test $diff_status -eq 1
+            git commit -a -m sync
+            or set failed 1
+        else if test $diff_status -gt 1
+            set failed 1
+        end
 
-    git pull origin master
-    git push origin master
+        if test $failed -eq 0
+            if git pull origin master
+                git push origin master
+                or set failed 1
+            else
+                set failed 1
+            end
+        end
+    end
 
     cd -
+    or set failed 1
+    return $failed
 end
 
 # uprecords collect/import helpers live in the (private) worktime repo so that
@@ -122,13 +174,26 @@ if test -f $WORKTIME_DIR/scripts/uprecords-sync.fish
 end
 
 function worktime::supersync
+    set -l failed 0
+    set -l first_sync_failed 0
     worktime::supersync_sync sync_quotes
+    if test $status -ne 0
+        set failed 1
+        set first_sync_failed 1
+    end
     taskwarrior::invoke
+    or set failed 1
     if functions -q worktime::uprecords::darwin::collect
         worktime::uprecords::darwin::collect
+        or set failed 1
         worktime::uprecords::darwin::import
+        or set failed 1
     end
-    worktime::supersync_sync no_sync_quotes
+    if test $first_sync_failed -eq 0
+        worktime::supersync_sync no_sync_quotes
+        or set failed 1
+    end
+    return $failed
 end
 
 function worktime::wisdom_reminder

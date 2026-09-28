@@ -2,17 +2,27 @@ set -x SUPERSYNC_STAMP_FILE ~/.supersync.last
 
 function supersync::gitsyncer
     set enable_file ~/.gitsyncer_enable
-    set now (date +%s)
-    set weekly_interval (math 7 \* 24 \* 60 \* 60)
 
     if not test -f $enable_file
         # echo Gitsyncer is not enabled
-        return
+        return 0
     end
 
+    set now (date +%s)
+    or return 1
+    set weekly_interval (math 7 \* 24 \* 60 \* 60)
+    or return 1
     set last_run (cat $enable_file)
-    if test (math $now - $last_run) -lt $weekly_interval
-        return
+    or return 1
+    if test -z "$last_run"
+        set last_run 0
+    else if not string match -qr '^[0-9]+$' -- "$last_run"
+        return 1
+    end
+    set -l elapsed (math $now - $last_run)
+    or return 1
+    if test $elapsed -lt $weekly_interval
+        return 0
     end
 
     test -f ~/go/bin/gitsyncer; or return 1
@@ -33,7 +43,7 @@ function supersync::prompts
     else if test -d ~/git/helpers/prompts
         set prompts_dir ~/git/helpers/prompts
     else
-        return
+        return 0
     end
 
     git -C $prompts_dir add -A -- '*.md'; or return 1
@@ -66,24 +76,38 @@ function supersync
         return
     end
 
+    set -l failed 0
+
     worktime::supersync
+    or set failed 1
     supersync::prompts
+    or set failed 1
 
     if test -f ~/.gos_enable
         if test -f ~/go/bin/gos
             # Go social media tool
             ~/go/bin/gos
+            or set failed 1
         end
         if test -f ~/go/bin/snonux
             snonux::sync
+            or set failed 1
         end
     end
 
     supersync::gitsyncer
+    or set failed 1
     tmputils::clean
+    or set failed 1
     update::tools
+    or set failed 1
+
+    if test $failed -ne 0
+        return 1
+    end
 
     date +%s >$SUPERSYNC_STAMP_FILE.tmp
+    or return 1
     mv $SUPERSYNC_STAMP_FILE.tmp $SUPERSYNC_STAMP_FILE
 end
 
