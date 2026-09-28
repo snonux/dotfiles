@@ -15,12 +15,10 @@ function supersync::gitsyncer
         return
     end
 
-    if test -f ~/go/bin/gitsyncer
-        ~/go/bin/gitsyncer sync bidirectional --backup --auto-create-releases --create-repos --throttle && ~/go/bin/gitsyncer showcase
-    end
-    if test $status -eq 0
-        echo $now >$enable_file
-    end
+    test -f ~/go/bin/gitsyncer; or return 1
+    ~/go/bin/gitsyncer sync bidirectional --backup --auto-create-releases --create-repos --throttle; or return 1
+    ~/go/bin/gitsyncer showcase; or return 1
+    echo $now >$enable_file
 end
 
 function supersync::prompts
