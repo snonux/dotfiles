@@ -68,7 +68,7 @@ end
 function tmpgrep
     set -l name $argv[1]
     set -e argv[1]
-    tmcpat $name | grep $argv
+    tmpcat $name | grep $argv
 end
 
 function tmpfile
