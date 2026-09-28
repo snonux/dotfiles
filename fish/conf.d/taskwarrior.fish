@@ -404,12 +404,38 @@ function _taskwarrior::archive_uuids
     test -n "$TASKDATA"; and set data_dir $TASKDATA
     set -l db $data_dir/taskchampion.sqlite3
 
+    set -l tmp (mktemp "$outfile.XXXXXX"); or return 1
+    set -l expected (count $uuids)
     set -l in_list (string join "','" $uuids)
-    sqlite3 $db "SELECT json_group_array(json(data)) FROM tasks WHERE uuid IN ('$in_list');" >$outfile
+    if not sqlite3 $db "
+        SELECT json_group_array(json(data)) FROM tasks
+        WHERE uuid IN ('$in_list')
+        HAVING COUNT(*) = $expected;
+    " >$tmp
+        rm -f $tmp
+        return 1
+    end
+    if not test -s $tmp
+        rm -f $tmp
+        return 1
+    end
+    # Validate the bytes written, including short writes and malformed JSON.
+    set -l tmp_sql (string replace -a "'" "''" -- $tmp)
+    set -l archived_count (sqlite3 :memory: "SELECT json_array_length(readfile('$tmp_sql'));")
+    if test $status -ne 0; or test "$archived_count" != "$expected"
+        rm -f $tmp
+        return 1
+    end
+    # Hard-link creation fails if another cleanup already published this name.
+    if not ln $tmp $outfile
+        rm -f $tmp
+        return 1
+    end
+    rm -f $tmp; or return 1
 end
 
 # Called from taskwarrior::invoke (hence supersync): delete completed and purge
-# deleted older than 180 days in one shot. Agent completed are archived first.
+# deleted older than 180 days. Completed +agent tasks are archived before deletion.
 function taskwarrior::cleanup
     set -l days 180
     set -l data_dir $HOME/.task
@@ -417,19 +443,56 @@ function taskwarrior::cleanup
     set -l agent_history_dir $data_dir/AgentsHistory
 
     set -l agent (_taskwarrior::old_uuids completed end 100000 $days agent)
+    if test $status -ne 0
+        echo "taskwarrior::cleanup: unable to find old +agent tasks; skipping cleanup" >&2
+        return 1
+    end
+    # The UUID query has a limit; never delete tasks it did not select.
+    set -l agent_count (_taskwarrior::old_count completed end $days agent)
+    if test $status -ne 0; or test "$agent_count" != (count $agent)
+        echo "taskwarrior::cleanup: old +agent task count differs from selected UUIDs; skipping cleanup" >&2
+        return 1
+    end
     if test (count $agent) -gt 0
-        test -d $agent_history_dir; or mkdir -p $agent_history_dir
-        set -l agent_export "$agent_history_dir/tw-agent-export-"(date +%Y%m%d-%H%M%S)".json"
+        if not test -d $agent_history_dir
+            mkdir -p $agent_history_dir; or return 1
+        end
+        set -l agent_export "$agent_history_dir/tw-agent-export-"(date +%Y%m%d-%H%M%S)"-$fish_pid-"(builtin random 1 999999)".json"
         echo "taskwarrior::cleanup: archiving "(count $agent)" +agent → $agent_export"
-        _taskwarrior::archive_uuids $agent_export $agent
+        if not _taskwarrior::archive_uuids $agent_export $agent
+            echo "taskwarrior::cleanup: archive failed; skipping cleanup" >&2
+            return 1
+        end
     end
 
     set -l n (_taskwarrior::old_count completed end $days)
-    if test $n -gt 0
-        echo "taskwarrior::cleanup: deleting $n completed ≥{$days}d"
-        yes | task rc.gc=0 rc.verbose:nothing status:completed end.before:today-"$days"days delete
-    else
+    if test $status -ne 0
+        echo "taskwarrior::cleanup: unable to count old completed tasks; skipping cleanup" >&2
+        return 1
+    end
+    if test $n -eq 0
         echo "taskwarrior::cleanup: no completed ≥{$days}d"
+    else
+        # New +agent tasks can become eligible after the archive query. The
+        # broad filter therefore excludes them; archived UUIDs are explicit.
+        if test $n -gt $agent_count
+            echo "taskwarrior::cleanup: deleting old completed -agent tasks"
+            task rc.confirmation=off rc.gc=0 rc.verbose:nothing \
+                status:completed end.before:today-"$days"days -agent delete
+            or return 1
+        end
+        set -l offset 1
+        while test $offset -le $agent_count
+            set -l last (math $offset + 199)
+            if test $last -gt $agent_count
+                set last $agent_count
+            end
+            task rc.confirmation=off rc.gc=0 rc.verbose:nothing \
+                $agent[$offset..$last] status:completed \
+                end.before:today-"$days"days +agent delete
+            or return 1
+            set offset (math $last + 1)
+        end
     end
 
     set -l n (_taskwarrior::old_count deleted modified $days)
