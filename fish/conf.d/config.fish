@@ -4,8 +4,14 @@ if command -q fzf
 	fzf --fish | source
 end
 
-# Add paths to PATH
-set -U fish_user_paths ~/bin ~/scripts ~/go/bin ~/.cargo/bin ~/.local/bin ~/flutter/bin $fish_user_paths
+# Keep our paths first, preserving the order of other paths already added by fish.
+set -l user_paths ~/bin ~/scripts ~/go/bin ~/.cargo/bin ~/.local/bin ~/flutter/bin
+for path in $fish_user_paths
+    if not contains -- $path $user_paths
+        set -a user_paths $path
+    end
+end
+set -U fish_user_paths $user_paths
 
 if command -q -v doas >/dev/null
     abbr -a s doas
