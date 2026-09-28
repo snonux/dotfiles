@@ -20,6 +20,8 @@
 #   3. The importer's glob (tw-<label>-export-*.json) still finds the new
 #      filenames, imports the tasks and removes the files — but only after a
 #      successful import; a malformed file must survive for a later retry.
+#   4. Repeated bd exports preserve the compacted note. A failed source read
+#      or an installed note missing an exported entry must keep the task.
 #
 # Safety properties of this harness:
 #   * Every `task` and `fish` invocation runs via env -i with HOME, TASKDATA
@@ -394,6 +396,67 @@ assert_rc "export::bd success run" 0 "$rc"
 assert_contains "dumi compacted" \
   "$(cat "$SAN/home/Notes/Bulgarian/bd-compacted.txt")" "dumi edno"
 assert_eq "+bd dumi deleted after successful export" \
+  "$(tw "$SAN/home" "$SAN/taskdata" +bd status:pending count)" 0
+
+BD_NOTE="$SAN/home/Notes/Bulgarian/bd-compacted.txt"
+tw "$SAN/home" "$SAN/taskdata" add +bd "dumi dve" >/dev/null
+rc=0
+run_fish "$SAN/home" "$SAN/taskdata" "$SAN/wt" "$SAN/binA" \
+  "taskwarrior::export::bd" >"$SAN/phase9-rerun.out" 2>&1 || rc=$?
+assert_rc "export::bd rerun" 0 "$rc"
+assert_exists "compacted note survives rerun" "$BD_NOTE"
+assert_eq "rerun retains old and new dumi" \
+  "$(cat "$BD_NOTE")" $'dumi dve\ndumi edno'
+assert_eq "rerun removes dated source files" \
+  "$(find "$SAN/home/Notes/Bulgarian" -name 'bd-[0-9]*.txt' | wc -l | tr -d ' ')" 0
+assert_eq "rerun deletes exported task" \
+  "$(tw "$SAN/home" "$SAN/taskdata" +bd status:pending count)" 0
+
+# Simulate cat printing the new source and then failing before the old note.
+# sort still exits successfully; the pipeline must not install that partial note.
+tw "$SAN/home" "$SAN/taskdata" add +bd "dumi tri" >/dev/null
+rc=0
+run_fish "$SAN/home" "$SAN/taskdata" "$SAN/wt" "$SAN/binA" \
+  "function cat; command cat \$argv[1]; return 1; end; taskwarrior::export::bd" \
+  >"$SAN/phase9-cat-fail.out" 2>&1 || rc=$?
+assert_rc "export::bd failed source read run" 0 "$rc"
+assert_eq "failed source read preserves compacted note" \
+  "$(cat "$BD_NOTE")" $'dumi dve\ndumi edno'
+assert_eq "failed source read keeps exported task" \
+  "$(tw "$SAN/home" "$SAN/taskdata" +bd status:pending count)" 1
+assert_eq "failed source read keeps dated source" \
+  "$(find "$SAN/home/Notes/Bulgarian" -name 'bd-[0-9]*.txt' | wc -l | tr -d ' ')" 1
+
+rc=0
+run_fish "$SAN/home" "$SAN/taskdata" "$SAN/wt" "$SAN/binA" \
+  "taskwarrior::export::bd" >"$SAN/phase9-retry.out" 2>&1 || rc=$?
+assert_rc "export::bd retry after failed read" 0 "$rc"
+assert_eq "retry restores all dumi" \
+  "$(cat "$BD_NOTE")" $'dumi dve\ndumi edno\ndumi tri'
+assert_eq "retry deletes exported task" \
+  "$(tw "$SAN/home" "$SAN/taskdata" +bd status:pending count)" 0
+
+# Make mv return success after installing an incomplete note. The verification
+# must retain the dated source and task for a later retry.
+cp "$BD_NOTE" "$SAN/bd-before-corruption.txt"
+tw "$SAN/home" "$SAN/taskdata" add +bd "dumi chetiri" >/dev/null
+rc=0
+run_fish "$SAN/home" "$SAN/taskdata" "$SAN/wt" "$SAN/binA" \
+  "function mv; command mv \$argv; if string match -q '*/bd-compacted.txt' -- \$argv[-1]; printf '%s\\n' 'truncated' >\$argv[-1]; end; end; taskwarrior::export::bd" \
+  >"$SAN/phase9-incomplete.out" 2>&1 || rc=$?
+assert_rc "export::bd incomplete note run" 0 "$rc"
+assert_eq "incomplete installed note keeps exported task" \
+  "$(tw "$SAN/home" "$SAN/taskdata" +bd status:pending count)" 1
+assert_eq "incomplete installed note keeps dated source" \
+  "$(find "$SAN/home/Notes/Bulgarian" -name 'bd-[0-9]*.txt' | wc -l | tr -d ' ')" 1
+cp "$SAN/bd-before-corruption.txt" "$BD_NOTE"
+rc=0
+run_fish "$SAN/home" "$SAN/taskdata" "$SAN/wt" "$SAN/binA" \
+  "taskwarrior::export::bd" >"$SAN/phase9-incomplete-retry.out" 2>&1 || rc=$?
+assert_rc "export::bd retry after incomplete note" 0 "$rc"
+assert_eq "retry after incomplete note preserves all entries" \
+  "$(cat "$BD_NOTE")" $'dumi chetiri\ndumi dve\ndumi edno\ndumi tri'
+assert_eq "retry after incomplete note deletes task" \
   "$(tw "$SAN/home" "$SAN/taskdata" +bd status:pending count)" 0
 
 # --- phase 10: export::add guards the delete ---------------------------------

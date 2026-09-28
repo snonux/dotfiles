@@ -106,15 +106,38 @@ function taskwarrior::export::bd
             touch $outfile
         end
         set -l compact_tmp ~/Notes/Bulgarian/compact-(date +%s).tmp
-        set -l final_tmp ~/Notes/Bulgarian/bd-compacted.txt.tmp
-        # Expand the source names before installing the replacement so the
-        # cleanup cannot remove the new bd-compacted.txt.
-        set -l source_files ~/Notes/Bulgarian/bd-*.txt
-        if cat $source_files | sort -u >$compact_tmp; and sort -u $compact_tmp >$final_tmp; and test -s $final_tmp; and mv $final_tmp ~/Notes/Bulgarian/bd-compacted.txt
-            rm $source_files $compact_tmp
+        set -l compacted_note ~/Notes/Bulgarian/bd-compacted.txt
+        set -l final_tmp $compacted_note.tmp
+        set -l source_files
+        for source_file in ~/Notes/Bulgarian/bd-*.txt
+            if test "$source_file" != "$compacted_note"
+                set -a source_files $source_file
+            end
+        end
+        # Keep the previous compacted note as input, but never remove it with
+        # the dated source files after installing its replacement.
+        set -l compact_inputs $source_files
+        if test -f $compacted_note
+            set -a compact_inputs $compacted_note
+        end
+        cat $compact_inputs | sort -u >$compact_tmp
+        set -l compact_status $pipestatus
+        if test $compact_status[1] -eq 0; and test $compact_status[2] -eq 0; and sort -u $compact_tmp >$final_tmp; and test -s $final_tmp; and mv $final_tmp $compacted_note
+            set -l exported_entries_present 1
             if test $should_delete -eq 1
-                for uuid in $uuids
-                    yes | task "$uuid" delete
+                for entry in $entries
+                    if not grep -Fqx -- "$entry" $compacted_note
+                        set exported_entries_present 0
+                        break
+                    end
+                end
+            end
+            if test -f $compacted_note; and test $exported_entries_present -eq 1
+                rm $source_files $compact_tmp
+                if test $should_delete -eq 1
+                    for uuid in $uuids
+                        yes | task "$uuid" delete
+                    end
                 end
             end
         else if test -f $outfile; and not test -s $outfile
