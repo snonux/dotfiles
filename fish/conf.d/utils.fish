@@ -57,33 +57,67 @@ function random
     sleep $random
 end
 
+function _dedup_file --argument-names file keep_backup
+    # Keep the output beside the source so the final move stays on one filesystem.
+    # collect keeps embedded newlines while removing mktemp's final newline.
+    set -l output (sudo mktemp -- "$file.dedup.XXXXXX" | string collect)
+    or return 1
+    if not sudo cp -p -- $file $output
+        sudo rm -f -- $output
+        return 1
+    end
+
+    awk '{ if (line[$0] != 42) { print $0 }; line[$0] = 42; }' $file | sudo tee -- $output >/dev/null
+    set -l conversion_status $pipestatus
+    if test $conversion_status[1] -ne 0; or test $conversion_status[2] -ne 0
+        sudo rm -f -- $output
+        return 1
+    end
+
+    # A unique backup makes every run recoverable, including reruns with old backups.
+    set -l backup (sudo mktemp -- "$file.dedupbak.XXXXXX" | string collect)
+    or begin
+        sudo rm -f -- $output
+        return 1
+    end
+    if not sudo cp -Pp -- $file $backup
+        sudo rm -f -- $output $backup
+        return 1
+    end
+
+    if not sudo mv -- $output $file
+        sudo rm -f -- $output
+        return 1
+    end
+
+    wc -l -- $file $backup
+    if test $keep_backup = yes
+        # gzip refuses symlinks; retain the link to the original target.
+        if not test -L $backup
+            sudo gzip --best -- $backup &
+        end
+    else
+        sudo rm -v -- $backup
+        or return 1
+    end
+    return 0
+end
+
 function dedup
     set -l file $argv[1]
-    if test -z $file
+    if test -z "$file"
         awk '{ if (line[$0] != 42) { print $0 }; line[$0] = 42; }'
     else
-        awk '{ if (line[$0] != 42) { print $0 }; line[$0] = 42; }' $file | sudo tee $file.dedup >/dev/null
-        if test ! -f $file.dedupbak
-            sudo mv $file $file.dedupbak
-        end
-        sudo mv $file.dedup $file
-        wc -l $file $file.dedupbak
-        sudo gzip --best $file.dedupbak &
+        _dedup_file $file yes
     end
 end
 
 function dedup_no_bak
     set -l file $argv[1]
-    if test -z $file
+    if test -z "$file"
         awk '{ if (line[$0] != 42) { print $0 }; line[$0] = 42; }'
     else
-        awk '{ if (line[$0] != 42) { print $0 }; line[$0] = 42; }' $file | sudo tee $file.dedup >/dev/null
-        if test ! -f $file.dedupbak
-            sudo mv $file $file.dedupbak
-        end
-        sudo mv $file.dedup $file
-        wc -l $file $file.dedupbak
-        sudo rm -v $file.dedupbak &
+        _dedup_file $file no
     end
 end
 

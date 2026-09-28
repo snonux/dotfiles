@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+# Exercise the fish dedup helpers without invoking real sudo.
+set -euo pipefail
+
+repo=$(cd "$(dirname "$0")/.." && pwd)
+sandbox=$(mktemp -d)
+trap 'rm -rf "$sandbox"' EXIT
+mkdir "$sandbox/bin"
+
+cat > "$sandbox/bin/sudo" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+case "${FAIL_STAGE:-}:$1" in
+    tee:tee)
+        printf 'partial\n' > "$3"
+        exit 17
+        ;;
+    output_cp:cp)
+        [[ $5 == *.dedup.* ]] && exit 18
+        ;;
+    backup_cp:cp)
+        [[ $5 == *.dedupbak.* ]] && exit 19
+        ;;
+    mv:mv)
+        exit 20
+        ;;
+    gzip:gzip)
+        exit 21
+        ;;
+esac
+exec "$@"
+EOF
+cat > "$sandbox/bin/awk" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ ${FAIL_STAGE:-} == awk ]]; then
+    printf 'partial\n'
+    exit 22
+fi
+exec /usr/bin/awk "$@"
+EOF
+chmod +x "$sandbox/bin/sudo" "$sandbox/bin/awk"
+export PATH="$sandbox/bin:$PATH"
+export DEDUP_UTILS="$repo/fish/conf.d/utils.fish"
+export TEST_FILE="$sandbox"/$'line\nname with spaces'
+shopt -s nullglob
+
+run_dedup() {
+    # shellcheck disable=SC2016 # Variables are expanded by fish.
+    fish --no-config -c 'source $DEDUP_UTILS; dedup $TEST_FILE; set -l rc $status; wait; exit $rc'
+}
+
+run_no_backup() {
+    # shellcheck disable=SC2016 # Variables are expanded by fish.
+    fish --no-config -c 'source $DEDUP_UTILS; dedup_no_bak $TEST_FILE; set -l rc $status; wait; exit $rc'
+}
+
+assert_no_output() {
+    local outputs=("$TEST_FILE".dedup.*)
+    ((${#outputs[@]} == 0))
+}
+
+printf 'alpha\nbeta\nalpha\n' > "$TEST_FILE"
+chmod 640 "$TEST_FILE"
+cp "$TEST_FILE" "$sandbox/original"
+original_metadata=$(stat -c '%a:%u:%g' "$TEST_FILE")
+
+for stage in output_cp awk tee backup_cp mv; do
+    if FAIL_STAGE=$stage run_dedup > /dev/null 2>&1; then
+        printf 'unexpected success at %s\n' "$stage" >&2
+        exit 1
+    fi
+    cmp "$TEST_FILE" "$sandbox/original"
+    assert_no_output
+    backups=("$TEST_FILE".dedupbak.*)
+    if [[ $stage == mv ]]; then
+        ((${#backups[@]} == 1))
+        cmp "${backups[0]}" "$sandbox/original"
+    else
+        ((${#backups[@]} == 0))
+    fi
+    printf 'ok: %s failure leaves source intact\n' "$stage"
+done
+
+printf 'older backup\n' > "$TEST_FILE.dedupbak"
+run_dedup > /dev/null
+printf 'alpha\nbeta\n' > "$sandbox/expected"
+cmp "$TEST_FILE" "$sandbox/expected"
+[[ $(stat -c '%a:%u:%g' "$TEST_FILE") == "$original_metadata" ]]
+cmp "$TEST_FILE.dedupbak" <(printf 'older backup\n')
+backups=("$TEST_FILE".dedupbak.*.gz)
+((${#backups[@]} == 1))
+cmp <(gzip -cd -- "${backups[0]}") "$sandbox/original"
+assert_no_output
+printf 'ok: newline path, metadata, and old backup\n'
+
+printf 'alpha\nbeta\nalpha\ngamma\n' > "$TEST_FILE"
+cp "$TEST_FILE" "$sandbox/second-original"
+run_dedup > /dev/null
+printf 'alpha\nbeta\ngamma\n' > "$sandbox/expected"
+cmp "$TEST_FILE" "$sandbox/expected"
+[[ $(stat -c '%a:%u:%g' "$TEST_FILE") == "$original_metadata" ]]
+backups=("$TEST_FILE".dedupbak.*.gz)
+((${#backups[@]} == 2))
+found_second=no
+for backup in "${backups[@]}"; do
+    if cmp -s <(gzip -cd -- "$backup") "$sandbox/second-original"; then
+        found_second=yes
+    fi
+done
+[[ $found_second == yes ]]
+printf 'ok: rerun retains a fresh backup\n'
+
+run_no_backup > /dev/null
+backups=("$TEST_FILE".dedupbak.*)
+((${#backups[@]} == 3))
+printf 'ok: no-backup variant cleans its temporary backup\n'
+
+export TEST_FILE="$sandbox"/$'gzip\nfailure'
+printf 'alpha\nalpha\n' > "$TEST_FILE"
+if ! FAIL_STAGE=gzip run_dedup > /dev/null 2>&1; then
+    printf 'gzip failure should leave a usable plain backup\n' >&2
+    exit 1
+fi
+backups=("$TEST_FILE".dedupbak.*)
+((${#backups[@]} == 1))
+cmp "${backups[0]}" <(printf 'alpha\nalpha\n')
+cmp "$TEST_FILE" <(printf 'alpha\n')
+printf 'ok: compression failure retains plain backup\n'
+
+printf 'alpha\nalpha\n' > "$sandbox/target.txt"
+export TEST_FILE="$sandbox"/$'symlink\nname'
+ln -s target.txt "$TEST_FILE"
+run_dedup > /dev/null
+[[ ! -L $TEST_FILE ]]
+cmp "$TEST_FILE" <(printf 'alpha\n')
+cmp "$sandbox/target.txt" <(printf 'alpha\nalpha\n')
+backups=("$TEST_FILE".dedupbak.*)
+((${#backups[@]} == 1))
+[[ -L ${backups[0]} ]]
+[[ $(readlink "${backups[0]}") == target.txt ]]
+printf 'ok: backup preserves original symlink\n'
+
+rm "$TEST_FILE"
+ln -s target.txt "$TEST_FILE"
+run_no_backup > /dev/null
+backups=("$TEST_FILE".dedupbak.*)
+((${#backups[@]} == 1))
+printf 'ok: no-backup symlink run removes only its backup\n'
+
+# shellcheck disable=SC2016 # Variables are expanded by fish.
+actual=$(printf 'a\nb\na\n' | fish --no-config -c 'source $DEDUP_UTILS; dedup')
+[[ $actual == $'a\nb' ]]
+# shellcheck disable=SC2016 # Variables are expanded by fish.
+actual=$(printf 'a\nb\na\n' | fish --no-config -c 'source $DEDUP_UTILS; dedup_no_bak')
+[[ $actual == $'a\nb' ]]
+printf 'ok: both stdin variants\n'
