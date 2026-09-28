@@ -623,6 +623,12 @@ function taskwarrior::random_quote
         return
     end
 
+    # Ensure there is always at least one +maybe task pending, even when the
+    # ordinary +random slots are full.
+    if test (task status:pending +maybe count) -eq 0
+        _taskwarrior::fill_random_slot "$random_dir/Maybe.md"
+    end
+
     # Check how many pending +random task slots are still open
     set -l slots (taskwarrior::random_slots_left)
     if test $slots -le 0
@@ -639,11 +645,6 @@ function taskwarrior::random_quote
     for i in (seq $slots)
         set -l file $md_files[(builtin random 1 (count $md_files))]
         _taskwarrior::fill_random_slot $file
-    end
-
-    # Ensure there is always at least one +maybe task pending
-    if test (task status:pending +maybe count) -eq 0
-        _taskwarrior::fill_random_slot "$HOME/Notes/random/Maybe.md"
     end
 end
 
