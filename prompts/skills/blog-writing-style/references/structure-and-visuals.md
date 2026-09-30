@@ -54,6 +54,10 @@ follow the post from top to bottom.
   minutes" vs a doc saying 5), measure it and show a phase-by-phase breakdown
   (from logs), ideally with a timeline chart. Explain what each phase actually
   does, in plain words.
+- When explaining how a tool behaves, check its source code, config and logs
+  instead of trusting the UI label or general knowledge (e.g. a "medium"
+  reasoning level that the tool actually sends as a plain on/off flag).
+  These surprises are often the most interesting part of a post.
 - Show examples of hidden things the reader never sees (e.g. a real system
   prompt excerpt) instead of only describing them.
 - Check the arithmetic in cost/performance sections (monthly totals, per-token
