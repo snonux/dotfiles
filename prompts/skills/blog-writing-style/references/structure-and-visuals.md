@@ -50,6 +50,12 @@ follow the post from top to bottom.
 - Prefer real captured data over made-up examples. If a protocol example can
   be captured for real (e.g. an actual API request/response), use the real one
   and say so ("the real, trimmed response").
+- When the author's experience and the docs disagree (e.g. "it takes ~10
+  minutes" vs a doc saying 5), measure it and show a phase-by-phase breakdown
+  (from logs), ideally with a timeline chart. Explain what each phase actually
+  does, in plain words.
+- Show examples of hidden things the reader never sees (e.g. a real system
+  prompt excerpt) instead of only describing them.
 - Check the arithmetic in cost/performance sections (monthly totals, per-token
   math, percentages), and make sure conclusions in the wrap-up don't
   contradict the numbers earlier in the post.
