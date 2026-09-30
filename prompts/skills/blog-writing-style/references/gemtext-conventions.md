@@ -62,6 +62,12 @@ On `--generate`, Gemtexter expands it into the `## Table of Contents` heading pl
 
 - Store images in a subfolder under the gemfeed (e.g. `gemfeed/slug-name/`).
   Reference them as `=> ./slug-name/filename.jpg Description`.
+- The folder name must be the post's `.gmi.tpl` file stem without the date
+  and without `DRAFT-`: `2026-06-01-gt-calculator.gmi.tpl` →
+  `gt-calculator/`, `DRAFT-running-my-own-llms-for-coding.gmi.tpl` →
+  `running-my-own-llms-for-coding/`. That way it doesn't change when a draft
+  gets published. If the slug changes, rename the folder with `git mv` and
+  update every `=> ./old-folder/` link in the post.
 - Resize large images for web (longest side ~1200px, JPEG quality 85) so the
   post stays fast to load.
 - **Image density.** Prose-heavy posts with long `##` sections benefit from at
