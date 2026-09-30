@@ -21,6 +21,7 @@ Detailed reference documentation is in the `references/` subfolder:
 
 - [Signs of AI Writing](references/signs-of-ai-writing.md) — the deep, general-purpose reference based on Wikipedia's "Signs of AI writing" page (WikiProject AI Cleanup). Voice calibration, personality/soul injection, the 29 numbered AI patterns (content, language, style, communication, filler/hedging) with before/after examples, the full worked example, and the standard process/output format. Use this when you need the exhaustive pattern catalog.
 - [Patterns & Rewrite Examples](references/patterns-and-examples.md) — the foo.zone-focused working set: the LLM tells to hunt for (opening structures, corporate/marketing language, hedging, over-explanation, formal transitions, passive constructions, third-person distance), the extra tells from the 2026 retrospective audit (series-opener puffery, fake-casual register, em-dash/"actually" density, label-colon bullets, Markdown leftovers, report skeletons, agent-report prose, explainer paragraphs under links, release-note justification tails, leaked-artifact and cross-reference errors), and concrete before/after rewrite pairs.
+- [Structure, Readability & Visuals](references/structure-and-visuals.md) — section order so the reader can follow along, short bullets with details in sub-sections, explaining jargon, SVG diagrams over ASCII boxes, text output vs TUI screenshots, and a headless screenshot recipe.
 - [Gemtext Authoring Conventions](references/gemtext-conventions.md) — shared foo.zone gemtext rules (file rules, format constraints, post structure, TOC, links, images/diagrams, multi-part series). Used by this skill, `gemtexter`'s compose-blog-post reference, and `update-blog-post`.
 
 ## Target Files
@@ -96,13 +97,26 @@ shared foo.zone conventions in
 [references/gemtext-conventions.md](references/gemtext-conventions.md) (file
 rules, format constraints, TOC, links, images/diagrams).
 
+### 5a. Structure, Readability and Visuals
+
+A human has to be able to read the post top to bottom:
+
+- Order the sections so each one builds on the previous one. Explain a concept before it's used, and fix stale "above/below" references after reordering.
+- Keep bullet points short (one or two sentences). Move longer explanations into a `###` sub-section right after the list.
+- Define jargon and abbreviations on first use.
+- Prefer real SVG diagrams over ASCII box diagrams and text tables.
+- Keep plain command output as text. Use real screenshots only for TUIs and colored dashboards.
+
+Details, the headless screenshot recipe and examples are in
+[references/structure-and-visuals.md](references/structure-and-visuals.md).
+
 ### 6. Preserve What Works
 
 Do NOT change:
 - Technical accuracy
 - Code blocks and commands
 - Links and URLs
-- ASCII art
+- ASCII art (decorative pictures; explanatory box diagrams may become SVGs, see 5a)
 - The core information being conveyed
 - Personal anecdotes that already sound human
 - Direct quotes from sources (only rewrite your own commentary)
