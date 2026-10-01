@@ -33,8 +33,8 @@ function update::tools
     set -a status_files "$status_dir/goimports"
 
     for prog in hexai hexai-lsp-server hexai-tmux-action hexai-mcp-server ask
-        if not test -x /home/paul/go/bin/$prog
-            echo "Skipping $prog (no binary in /home/paul/go/bin)"
+        if not test -x $HOME/go/bin/$prog
+            echo "Skipping $prog (no binary in $HOME/go/bin)"
             continue
         end
         echo "Installing/updating $prog from github.com/snonux/hexai/cmd/$prog@latest"
@@ -44,8 +44,8 @@ function update::tools
     end
 
     for prog in tasksamurai timesamurai gt loadbars foostore gonf
-        if not test -x /home/paul/go/bin/$prog
-            echo "Skipping $prog (no binary in /home/paul/go/bin)"
+        if not test -x $HOME/go/bin/$prog
+            echo "Skipping $prog (no binary in $HOME/go/bin)"
             continue
         end
         echo "Installing/updating $prog from github.com/snonux/$prog/cmd/$prog@latest"
