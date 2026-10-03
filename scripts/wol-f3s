@@ -390,6 +390,9 @@ main() {
     local host_shutdown_failed=0
     local pi_shutdown_failed=0
     local machine_shutdown_failed=0
+    # Set when the all-path wake continues past a WoL failure so the final
+    # banner reports partial/failure instead of unconditional success.
+    local -i wake_failed=0
 
     case "$ACTION" in
         f0)
@@ -410,7 +413,6 @@ main() {
             # WoL failures must not skip remaining hosts or the unmute step
             # (pre-set -e behaviour). Helpers still print clear errors and
             # return non-zero; we only suppress abort here.
-            local -i wake_failed=0
             wake "f0" "$F0_MAC" || wake_failed=1
             wake "f1" "$F1_MAC" || wake_failed=1
             wake "f2" "$F2_MAC" || wake_failed=1
@@ -507,6 +509,11 @@ main() {
     esac
 
     echo ""
+    if (( wake_failed != 0 )); then
+        echo "⚠️  WoL incomplete — at least one packet failed to send."
+        echo "  Check which hosts came up, then try: ssh paul@192.168.1.130"
+        exit 1
+    fi
     echo "✓ WoL packets sent. Machines should boot in a few seconds."
     echo "  Wait ~30 seconds, then try: ssh paul@192.168.1.130"
 }

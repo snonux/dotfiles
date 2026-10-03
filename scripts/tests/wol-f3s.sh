@@ -40,17 +40,34 @@ fi
 
 # n33 / m33 ops semantics: mute must not abort privileged shutdown; all-path
 # wake failures must not skip remaining wakes / unmute.
-grep -Eq 'mute_gogios \|\| true' "$WOL_F3S" \
-    || fail "shutdown paths must keep mute_gogios || true"
+# Strip comments so a doc line alone cannot satisfy the guard.
+code_no_comments="$(sed -E 's/[[:space:]]+#.*//' "$WOL_F3S")"
+# Real call sites in both shutdown and shutdown-all (not comment-only).
+shutdown_mute="$(awk '
+    /^[[:space:]]*shutdown\|poweroff\|down\)/ { inblk=1; next }
+    inblk && /^[[:space:]]*shutdown-/ { exit }
+    inblk && /^[[:space:]]*[^#]/ { print }
+' "$WOL_F3S" | sed -E 's/[[:space:]]+#.*//')"
+grep -Eq '^[[:space:]]*mute_gogios[[:space:]]*\|\|[[:space:]]*true[[:space:]]*$' \
+    <<<"$shutdown_mute" \
+    || fail "shutdown path must call mute_gogios || true (not comment-only)"
+shutdown_all_mute="$(awk '
+    /^[[:space:]]*shutdown-all\)/ { inblk=1; next }
+    inblk && /^[[:space:]]*\*\)/ { exit }
+    inblk && /^[[:space:]]*[^#]/ { print }
+' "$WOL_F3S" | sed -E 's/[[:space:]]+#.*//')"
+grep -Eq '^[[:space:]]*mute_gogios[[:space:]]*\|\|[[:space:]]*true[[:space:]]*$' \
+    <<<"$shutdown_all_mute" \
+    || fail "shutdown-all path must call mute_gogios || true (not comment-only)"
 # All-path tracks wake_failed rather than bare || true; either is fine as long
 # as a failed wake does not abort before later wakes / unmute.
-grep -Eq 'wake "f0".*(\|\| true|\|\| wake_failed=1)' "$WOL_F3S" \
+grep -Eq 'wake "f0".*(\|\| true|\|\| wake_failed=1)' <<<"$code_no_comments" \
     || fail "all-path wake f0 must not abort on failure"
-grep -Eq 'wake "f1".*(\|\| true|\|\| wake_failed=1)' "$WOL_F3S" \
+grep -Eq 'wake "f1".*(\|\| true|\|\| wake_failed=1)' <<<"$code_no_comments" \
     || fail "all-path wake f1 must not abort on failure"
-grep -Eq 'wake "f2".*(\|\| true|\|\| wake_failed=1)' "$WOL_F3S" \
+grep -Eq 'wake "f2".*(\|\| true|\|\| wake_failed=1)' <<<"$code_no_comments" \
     || fail "all-path wake f2 must not abort on failure"
-grep -Eq 'unmute_gogios \|\| true' "$WOL_F3S" \
+grep -Eq 'unmute_gogios[[:space:]]*\|\|[[:space:]]*true' <<<"$code_no_comments" \
     || fail "all-path must keep unmute_gogios || true"
 
 # Single-host wake must still abort on failure (no || true / wake_failed).
@@ -70,8 +87,16 @@ grep -Fq 'Failed to send WoL packet' "$WOL_F3S" \
     || fail "wake missing clear failure message"
 grep -Fq 'Failed to un-mute Gogios' "$WOL_F3S" \
     || fail "unmute_gogios missing clear failure message"
-grep -Fq 'BatchMode=yes' "$WOL_F3S" \
-    || fail "mute/unmute SSH should use BatchMode + ConnectTimeout"
+# mute/unmute SSH must use BatchMode and a short ConnectTimeout together.
+grep -E 'BatchMode=yes.*ConnectTimeout=5|ConnectTimeout=5.*BatchMode=yes' \
+    "$WOL_F3S" | grep -Eq 'BatchMode=yes' \
+    || fail "mute/unmute SSH should use BatchMode=yes and ConnectTimeout=5"
+# Explicit ConnectTimeout assert (value used by mute/unmute/shutdown SSH).
+grep -Fq 'ConnectTimeout=5' "$WOL_F3S" \
+    || fail "SSH helpers must set ConnectTimeout=5"
+# Partial WoL on all-path must not print the unconditional success banner alone.
+grep -Fq 'WoL incomplete' "$WOL_F3S" \
+    || fail "all-path must report WoL incomplete when wake_failed"
 
 # Fixture passwd: local-account layout used on Fedora earth / NetBSD Pis.
 # Includes empty-home, truncated, and no-trailing-NL rows for rejection /
@@ -247,6 +272,56 @@ mapfile -t ssh_targets <"$SSH_LOG"
 [[ "${ssh_targets[1]}" == *fishfinger* ]] \
     || fail "second mute target unexpected: ${ssh_targets[1]@Q}"
 
+# Fail-first gateway ordering: first gateway fails, second still attempted.
+cat >"$FAKE_BIN/ssh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+log="${SSH_LOG:?}"
+target=""
+for arg in "$@"; do
+    case "$arg" in
+        rex@*) target="${arg#rex@}" ;;
+    esac
+done
+printf '%s\n' "$target" >>"$log"
+if [[ "$target" == *blowfish* ]]; then
+    exit 1
+fi
+exit 0
+EOF
+chmod +x "$FAKE_BIN/ssh"
+: >"$SSH_LOG"
+mute_ff_out="$(mute_gogios 2>&1)" && mute_ff_ec=0 || mute_ff_ec=$?
+(( mute_ff_ec != 0 )) || fail "mute_gogios should fail when first gateway fails"
+grep -Fq 'Failed to mute Gogios' <<<"$mute_ff_out" \
+    || fail "fail-first mute missing failure text: ${mute_ff_out@Q}"
+mapfile -t ssh_targets <"$SSH_LOG"
+(( ${#ssh_targets[@]} == 2 )) \
+    || fail "fail-first mute attempted ${#ssh_targets[@]} gateway(s), want 2"
+[[ "${ssh_targets[0]}" == *blowfish* ]] \
+    || fail "fail-first first target unexpected: ${ssh_targets[0]@Q}"
+[[ "${ssh_targets[1]}" == *fishfinger* ]] \
+    || fail "fail-first second target unexpected: ${ssh_targets[1]@Q}"
+
+# Restore second-gateway-fails ssh for later unmute helper check.
+cat >"$FAKE_BIN/ssh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+log="${SSH_LOG:?}"
+target=""
+for arg in "$@"; do
+    case "$arg" in
+        rex@*) target="${arg#rex@}" ;;
+    esac
+done
+printf '%s\n' "$target" >>"$log"
+if [[ "$target" == *fishfinger* ]]; then
+    exit 1
+fi
+exit 0
+EOF
+chmod +x "$FAKE_BIN/ssh"
+
 # wake: clear failure message + non-zero on wol failure.
 wake_out="$(wake "f0" "aa:bb:cc:dd:ee:ff" 2>&1)" && wake_ec=0 || wake_ec=$?
 (( wake_ec != 0 )) || fail "wake should return non-zero when wol fails"
@@ -274,5 +349,83 @@ grep -Fq 'Failed to un-mute Gogios' <<<"$unmute_out" \
 mapfile -t ssh_targets <"$SSH_LOG"
 (( ${#ssh_targets[@]} == 2 )) \
     || fail "unmute_gogios attempted ${#ssh_targets[@]} gateway(s), want 2"
+
+# --- n33: behavioural main-path ops semantics with fakes ---
+declare -r MAIN_SHUTDOWN_LOG="$TEST_ROOT/main-shutdown.log"
+declare -r MAIN_WAKE_LOG="$TEST_ROOT/main-wake.log"
+declare -r MAIN_UNMUTE_LOG="$TEST_ROOT/main-unmute.log"
+: >"$MAIN_SHUTDOWN_LOG"
+: >"$MAIN_WAKE_LOG"
+: >"$MAIN_UNMUTE_LOG"
+
+# Mute failure must not abort privileged shutdown: still reaches host shutdown.
+umount_nfs_mounts() { return 0; }
+shelly_set() { return 0; }
+shutdown_bhyve_host() {
+    printf '%s\n' "$1" >>"$MAIN_SHUTDOWN_LOG"
+    return 0
+}
+# Fail-first mute (blowfish fails) via existing GOGIOS_GATEWAYS + ssh fake below.
+cat >"$FAKE_BIN/ssh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+log="${SSH_LOG:?}"
+target=""
+for arg in "$@"; do
+    case "$arg" in
+        rex@*) target="${arg#rex@}" ;;
+    esac
+done
+printf '%s\n' "$target" >>"$log"
+if [[ "$target" == *blowfish* ]]; then
+    exit 1
+fi
+exit 0
+EOF
+chmod +x "$FAKE_BIN/ssh"
+: >"$SSH_LOG"
+: >"$MAIN_SHUTDOWN_LOG"
+main_shut_out="$(main shutdown 2>&1)" && main_shut_ec=0 || main_shut_ec=$?
+(( main_shut_ec == 0 )) || fail "main shutdown exited $main_shut_ec after mute failure: ${main_shut_out@Q}"
+mapfile -t shut_hosts <"$MAIN_SHUTDOWN_LOG"
+(( ${#shut_hosts[@]} == 3 )) \
+    || fail "mute failure skipped host shutdown; got ${#shut_hosts[@]} host(s)"
+[[ "${shut_hosts[0]}" == f0 && "${shut_hosts[1]}" == f1 && "${shut_hosts[2]}" == f2 ]] \
+    || fail "shutdown host order unexpected: ${shut_hosts[*]@Q}"
+# Mute still tried both gateways before continuing.
+mapfile -t ssh_targets <"$SSH_LOG"
+(( ${#ssh_targets[@]} == 2 )) \
+    || fail "main shutdown mute attempted ${#ssh_targets[@]} gateway(s), want 2"
+
+# f0 wake failure must still run f1/f2 + unmute; no unconditional success banner.
+wake() {
+    local name=$1
+    local mac=$2
+    printf '%s\n' "$name" >>"$MAIN_WAKE_LOG"
+    if [[ "$name" == f0 ]]; then
+        echo "  ✗ Failed to send WoL packet to $name ($mac)" >&2
+        return 1
+    fi
+    echo "  ✓ WoL packet sent to $name"
+    return 0
+}
+unmute_gogios() {
+    printf 'unmuted\n' >>"$MAIN_UNMUTE_LOG"
+    return 1
+}
+: >"$MAIN_WAKE_LOG"
+: >"$MAIN_UNMUTE_LOG"
+main_wake_out="$(main all 2>&1)" && main_wake_ec=0 || main_wake_ec=$?
+(( main_wake_ec != 0 )) || fail "main all should exit non-zero when a wake fails"
+grep -Fq 'WoL incomplete' <<<"$main_wake_out" \
+    || fail "main all missing incomplete summary: ${main_wake_out@Q}"
+grep -Fq 'WoL packets sent. Machines should boot' <<<"$main_wake_out" \
+    && fail "main all printed unconditional success after wake failure"
+mapfile -t wake_hosts <"$MAIN_WAKE_LOG"
+(( ${#wake_hosts[@]} == 3 )) \
+    || fail "f0 wake failure skipped later wakes; got ${#wake_hosts[@]} wake(s)"
+[[ "${wake_hosts[0]}" == f0 && "${wake_hosts[1]}" == f1 && "${wake_hosts[2]}" == f2 ]] \
+    || fail "wake host order unexpected: ${wake_hosts[*]@Q}"
+[[ -s "$MAIN_UNMUTE_LOG" ]] || fail "f0 wake failure skipped unmute_gogios"
 
 printf 'wol-f3s test: ok\n'
