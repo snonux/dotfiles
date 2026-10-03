@@ -1089,4 +1089,5 @@ if [[ $FAILURES -eq 0 ]]; then
   echo "ALL PHASES PASSED"
 else
   echo "$FAILURES assertion(s) FAILED"
+  exit 1
 fi

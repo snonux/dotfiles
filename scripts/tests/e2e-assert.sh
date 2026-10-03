@@ -25,9 +25,24 @@ bash -n "$QUICKLOG_E2E" || die "bash -n quicklog-drain-e2e failed"
 bash -n "$TW_E2E" || die "bash -n taskwarrior-export-e2e failed"
 shellcheck -x "$LIB" || die "shellcheck lib failed"
 
+# Real source line required (shellcheck source= directive alone must not pass).
+_sources_e2e_assert() {
+    grep -qE '^[[:space:]]*source[[:space:]].*lib/e2e-assert\.sh' "$1"
+}
+
+fixture_comment_only="$TEST_ROOT/comment-only-harness"
+cat >"$fixture_comment_only" <<'EOF'
+#!/usr/bin/env bash
+# shellcheck source=scripts/lib/e2e-assert.sh
+echo hello
+EOF
+if _sources_e2e_assert "$fixture_comment_only"; then
+    die "comment-only fixture incorrectly passed structural source check"
+fi
+
 # Harnesses must source the shared lib and must not redefine the assert family.
 for harness in "$QUICKLOG_E2E" "$TW_E2E"; do
-    grep -q 'lib/e2e-assert\.sh' "$harness" \
+    _sources_e2e_assert "$harness" \
         || die "$(basename "$harness") does not source lib/e2e-assert.sh"
     if grep -nE '^(say|fail|assert_rc|assert_rc_nonzero|assert_eq|assert_contains|assert_not_contains|assert_exists|assert_missing)\(\)' \
         "$harness"; then
@@ -106,10 +121,14 @@ grep -Fq "expected a nonzero exit code" "$TEST_ROOT/err" \
 assert_contains "missing needle" "hay" "needle" \
     >"$TEST_ROOT/out" 2>"$TEST_ROOT/err" || true
 [[ "$FAILURES" -eq 4 ]] || die "assert_contains fail FAILURES=$FAILURES"
+grep -Fq "e2e-assert-test: FAIL: missing needle: 'hay' does not contain 'needle'" \
+    "$TEST_ROOT/err" || die "assert_contains fail msg: $(cat "$TEST_ROOT/err")"
 
 assert_not_contains "has needle" "haystack" "hay" \
     >"$TEST_ROOT/out" 2>"$TEST_ROOT/err" || true
 [[ "$FAILURES" -eq 5 ]] || die "assert_not_contains fail FAILURES=$FAILURES"
+grep -Fq "e2e-assert-test: FAIL: has needle: 'haystack' unexpectedly contains 'hay'" \
+    "$TEST_ROOT/err" || die "assert_not_contains fail msg: $(cat "$TEST_ROOT/err")"
 
 assert_exists "gone" "$TEST_ROOT/absent" >"$TEST_ROOT/out" 2>"$TEST_ROOT/err" || true
 [[ "$FAILURES" -eq 6 ]] || die "assert_exists fail FAILURES=$FAILURES"
