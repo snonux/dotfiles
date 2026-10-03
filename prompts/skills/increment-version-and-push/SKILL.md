@@ -1,12 +1,13 @@
 ---
 name: increment-version-and-push
-description: Increment the project version, update the F-Droid changelog if the project has one, tag it in git, commit, and push.
+description: Increment the project version, update the F-Droid changelog if the project has one, tag it in git, commit, push, and run mage install when available.
 ---
 
 # Increment version and push
 
 Increment the version of the project, update the F-Droid "What's new" changelog
-if applicable, tag it in git, commit, and push.
+if applicable, tag it in git, commit, push, and install via Mage when the
+project defines an `install` target.
 
 ## When to Use
 
@@ -29,6 +30,36 @@ if applicable, tag it in git, commit, and push.
 - Update the F-Droid changelog if applicable (see below) before committing.
 - Commit the version change (and the changelog, in the same commit), create a
   git tag matching the new version, and push both the commit and the tag.
+- After the version has been incremented (so the working tree / tagged commit
+  embeds the new version), run **`mage install`** when the project supports it
+  (see below). Do this after the version files are updated; prefer after the
+  commit and tag so the installed binary matches the release, and before or
+  after push — push failure must not skip a successful local install.
+
+## Mage install (optional)
+
+Applies when the project root has a Magefile (`Magefile.go` or `magefile.go`)
+**and** an `install` target. Skip this section entirely otherwise.
+
+Detect the target (either is enough):
+
+- `mage -l` lists a target named `install` (mage prints names in lowercase), or
+- the Magefile defines `func Install(...)` (Go export; mage exposes it as
+  `install`).
+
+If present, run from the project root:
+
+```sh
+mage install
+```
+
+- Requires `mage` on `PATH`. If `mage` is missing, report that and skip — do
+  not invent a `go install` substitute unless the project's AGENTS.md /
+  README says to.
+- Fail the skill if `mage install` exits non-zero (the release push may
+  already have succeeded; surface the install error clearly).
+- Do not invent other Mage targets (`build`, `devInstall`, etc.) here — only
+  `install`.
 
 ## F-Droid changelog
 
