@@ -28,10 +28,24 @@ grep -Eq '^[[:space:]]*source[[:space:]].*lib/immich\.sh' "$IMMICH_UPLOAD" \
     || fail "immich-upload must source lib/immich.sh"
 grep -q 'detect_immich_url' "$IMMICH_UPLOAD" \
     || fail "upload must call detect_immich_url"
-grep -q 'curl_immich' "$IMMICH_UPLOAD" \
-    || fail "upload must use curl_immich"
 grep -q '_account_api_key' "$IMMICH_UPLOAD" \
     || fail "upload must load key via _account_api_key"
+# r33/q33 resilience: timeouts live in lib; upload must call curl_immich
+# with -f + the shared timeout constants (parity with export guards).
+grep -q 'CURL_PING_TIMEOUT' "$IMMICH_LIB" \
+    || fail "missing CURL_PING_TIMEOUT in lib"
+grep -q 'CURL_SEARCH_TIMEOUT' "$IMMICH_LIB" \
+    || fail "missing CURL_SEARCH_TIMEOUT in lib"
+grep -q 'CURL_DOWNLOAD_TIMEOUT' "$IMMICH_LIB" \
+    || fail "missing CURL_DOWNLOAD_TIMEOUT in lib"
+# shellcheck disable=SC2016  # intentional literal $CURL_* in grep
+grep -Eq 'curl_immich -f "\$CURL_SEARCH_TIMEOUT"' "$IMMICH_UPLOAD" \
+    || fail "bulk-check missing curl_immich -f CURL_SEARCH_TIMEOUT"
+# Asset upload inspects HTTP status (200/201), so -f is not used there;
+# still require the shared download timeout via curl_immich.
+# shellcheck disable=SC2016
+grep -Eq 'curl_immich "\$CURL_DOWNLOAD_TIMEOUT"' "$IMMICH_UPLOAD" \
+    || fail "asset upload missing curl_immich CURL_DOWNLOAD_TIMEOUT"
 
 # Structural guards: no raw printf JSON, no embedded resp path, no swallowed parse.
 # shellcheck disable=SC2016
