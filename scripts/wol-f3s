@@ -1,6 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Wake-on-LAN and shutdown script for f3s hosts (f0, f1, f2, f3)
 # and optional shutdown for Raspberry Pi nodes (pi0–pi3)
+
+set -euo pipefail
 #
 # Before any shutdown of f3s Beelink hosts (f0/f1/f2/f3), this script will
 # attempt to umount all NFS filesystems currently mounted on this machine
@@ -54,16 +56,52 @@ PI3_IP="192.168.1.128"
 # run elevated. When elevated, $HOME becomes root's home, where ~/.shelly_plug
 # does not exist — so resolve the file relative to the invoking user's home
 # ($SUDO_USER under sudo on Linux, $DOAS_USER under doas on NetBSD Pis),
-# falling back to $HOME otherwise. Uses ~-expansion (portable) rather than
-# getent, which does not exist on NetBSD.
+# falling back to $HOME otherwise.
+#
+# Home resolution must not use eval (a crafted SUDO_USER/DOAS_USER could run
+# arbitrary code as the elevated helper). getent is also avoided: NetBSD Pis
+# historically lack it. Instead, validate the username and read the home
+# directory from /etc/passwd, which holds local accounts on the hosts this
+# script targets (Fedora "earth" and the NetBSD Pis). Override via
+# _PASSWD_FILE for tests.
 SHELLY_IP="192.168.1.28"
-_shelly_user="${SUDO_USER:-${DOAS_USER:-}}"
-if [[ -n "$_shelly_user" ]]; then
-    _shelly_home="$(eval echo "~${_shelly_user}")"
-    SHELLY_PASS_FILE="${_shelly_home:-$HOME}/.shelly_plug"
-else
-    SHELLY_PASS_FILE="${HOME}/.shelly_plug"
-fi
+_PASSWD_FILE="${_PASSWD_FILE:-/etc/passwd}"
+
+# _user_home_from_passwd USER — print USER's home from $_PASSWD_FILE.
+# Username must match [[:alnum:]_-]+; returns 1 if invalid or unknown.
+_user_home_from_passwd() {
+    local -r user="$1"
+    local name home
+
+    [[ "$user" =~ ^[[:alnum:]_-]+$ ]] || return 1
+
+    while IFS=: read -r name _ _ _ _ home _; do
+        if [[ "$name" == "$user" ]]; then
+            [[ -n "$home" ]] || return 1
+            printf '%s\n' "$home"
+            return 0
+        fi
+    done <"$_PASSWD_FILE"
+    return 1
+}
+
+# _shelly_pass_file — path to the invoking user's ~/.shelly_plug, or $HOME's.
+_shelly_pass_file() {
+    local user="${SUDO_USER:-${DOAS_USER:-}}"
+    local home=""
+
+    if [[ -n "$user" ]]; then
+        home="$(_user_home_from_passwd "$user")" || home=""
+    fi
+
+    if [[ -n "$home" ]]; then
+        printf '%s\n' "${home}/.shelly_plug"
+    else
+        printf '%s\n' "${HOME}/.shelly_plug"
+    fi
+}
+
+SHELLY_PASS_FILE="$(_shelly_pass_file)"
 
 # SSH user
 SSH_USER="paul"
@@ -305,114 +343,123 @@ shutdown_host() {
     fi
 }
 
-ACTION="${1:-all}"
+main() {
+    local ACTION="${1:-all}"
+    local host_shutdown_failed=0
+    local pi_shutdown_failed=0
+    local machine_shutdown_failed=0
 
-case "$ACTION" in
-    f0)
-        wake "f0" "$F0_MAC"
-        ;;
-    f1)
-        wake "f1" "$F1_MAC"
-        ;;
-    f2)
-        wake "f2" "$F2_MAC"
-        ;;
-    f3)
-        wake "f3" "$F3_MAC"
-        ;;
-    all|"")
-        # Power on the rack fans before booting the hosts.
-        shelly_set "true" || exit 1
-        wake "f0" "$F0_MAC"
-        wake "f1" "$F1_MAC"
-        wake "f2" "$F2_MAC"
-        # Counterpart to the mute in the shutdown path below. Only the "all"
-        # wake clears it: waking a single host would un-mute alerts for the
-        # others that are still down.
-        unmute_gogios || true
-        ;;
-    shutdown|poweroff|down)
-        # Umount local NFS filesystems first; abort if any are stuck.
-        # The NFS mounts on earth tunnel through stunnel to the f3s CARP VIP,
-        # so they will hang or corrupt if the servers go down while mounted.
-        echo "Checking for locally mounted NFS filesystems..."
-        umount_nfs_mounts || exit 1
-        # Mute Gogios monitoring alerts on both OpenBSD gateways; the wake
-        # path clears the marker again once the k3s nodes are back.
-        mute_gogios
-        host_shutdown_failed=0
-        shutdown_bhyve_host "f0" "$F0_IP" || host_shutdown_failed=1
-        shutdown_bhyve_host "f1" "$F1_IP" || host_shutdown_failed=1
-        shutdown_bhyve_host "f2" "$F2_IP" || host_shutdown_failed=1
-        if [[ $host_shutdown_failed -ne 0 ]]; then
-            echo "✗ At least one Beelink did not complete shutdown; leaving rack fans on."
+    case "$ACTION" in
+        f0)
+            wake "f0" "$F0_MAC"
+            ;;
+        f1)
+            wake "f1" "$F1_MAC"
+            ;;
+        f2)
+            wake "f2" "$F2_MAC"
+            ;;
+        f3)
+            wake "f3" "$F3_MAC"
+            ;;
+        all|"")
+            # Power on the rack fans before booting the hosts.
+            shelly_set "true" || exit 1
+            wake "f0" "$F0_MAC"
+            wake "f1" "$F1_MAC"
+            wake "f2" "$F2_MAC"
+            # Counterpart to the mute in the shutdown path below. Only the "all"
+            # wake clears it: waking a single host would un-mute alerts for the
+            # others that are still down.
+            unmute_gogios || true
+            ;;
+        shutdown|poweroff|down)
+            # Umount local NFS filesystems first; abort if any are stuck.
+            # The NFS mounts on earth tunnel through stunnel to the f3s CARP VIP,
+            # so they will hang or corrupt if the servers go down while mounted.
+            echo "Checking for locally mounted NFS filesystems..."
+            umount_nfs_mounts || exit 1
+            # Mute Gogios monitoring alerts on both OpenBSD gateways; the wake
+            # path clears the marker again once the k3s nodes are back.
+            mute_gogios
+            host_shutdown_failed=0
+            shutdown_bhyve_host "f0" "$F0_IP" || host_shutdown_failed=1
+            shutdown_bhyve_host "f1" "$F1_IP" || host_shutdown_failed=1
+            shutdown_bhyve_host "f2" "$F2_IP" || host_shutdown_failed=1
+            if [[ $host_shutdown_failed -ne 0 ]]; then
+                echo "✗ At least one Beelink did not complete shutdown; leaving rack fans on."
+                exit 1
+            fi
+            # Power off the rack fans once all hosts are shutting down.
+            shelly_set "false" || exit 1
+            echo ""
+            echo "✓ Shutdown commands sent to all Beelinks."
+            exit 0
+            ;;
+        shutdown-f3|poweroff-f3|down-f3)
+            # Umount local NFS filesystems first; abort if any are stuck.
+            # f3 does not host the NFS CARP VIP (that is f0/f1), but umounting
+            # first is still the safe default to avoid stale state.
+            echo "Checking for locally mounted NFS filesystems..."
+            umount_nfs_mounts || exit 1
+            shutdown_bhyve_host "f3" "$F3_IP" || exit 1
+            echo ""
+            echo "✓ Shutdown command sent to f3."
+            exit 0
+            ;;
+        shutdown-pis)
+            # Raspberry Pis do not serve NFS, so no umount check is needed here.
+            pi_shutdown_failed=0
+            shutdown_host "pi0" "$PI0_IP" || pi_shutdown_failed=1
+            shutdown_host "pi1" "$PI1_IP" || pi_shutdown_failed=1
+            shutdown_host "pi2" "$PI2_IP" || pi_shutdown_failed=1
+            shutdown_host "pi3" "$PI3_IP" || pi_shutdown_failed=1
+            if [[ $pi_shutdown_failed -ne 0 ]]; then
+                echo "✗ At least one Pi did not accept its shutdown command."
+                exit 1
+            fi
+            echo ""
+            echo "✓ Shutdown commands sent to all Pis."
+            exit 0
+            ;;
+        shutdown-all)
+            # Umount local NFS filesystems first; abort if any are stuck.
+            # The NFS mounts on earth tunnel through stunnel to the f3s CARP VIP,
+            # so they will hang or corrupt if the servers go down while mounted.
+            echo "Checking for locally mounted NFS filesystems..."
+            umount_nfs_mounts || exit 1
+            # Mute Gogios monitoring alerts on both OpenBSD gateways; the wake
+            # path clears the marker again once the k3s nodes are back.
+            mute_gogios
+            machine_shutdown_failed=0
+            shutdown_bhyve_host "f0" "$F0_IP" || machine_shutdown_failed=1
+            shutdown_bhyve_host "f1" "$F1_IP" || machine_shutdown_failed=1
+            shutdown_bhyve_host "f2" "$F2_IP" || machine_shutdown_failed=1
+            shutdown_host "pi0" "$PI0_IP" || machine_shutdown_failed=1
+            shutdown_host "pi1" "$PI1_IP" || machine_shutdown_failed=1
+            shutdown_host "pi2" "$PI2_IP" || machine_shutdown_failed=1
+            shutdown_host "pi3" "$PI3_IP" || machine_shutdown_failed=1
+            if [[ $machine_shutdown_failed -ne 0 ]]; then
+                echo "✗ At least one machine did not accept shutdown; leaving rack fans on."
+                exit 1
+            fi
+            # Power off the rack fans once all hosts are shutting down.
+            shelly_set "false" || exit 1
+            echo ""
+            echo "✓ Shutdown commands sent to all machines."
+            exit 0
+            ;;
+        *)
+            echo "Usage: $0 [f0|f1|f2|f3|all|shutdown|shutdown-f3|shutdown-pis|shutdown-all]"
             exit 1
-        fi
-        # Power off the rack fans once all hosts are shutting down.
-        shelly_set "false" || exit 1
-        echo ""
-        echo "✓ Shutdown commands sent to all Beelinks."
-        exit 0
-        ;;
-    shutdown-f3|poweroff-f3|down-f3)
-        # Umount local NFS filesystems first; abort if any are stuck.
-        # f3 does not host the NFS CARP VIP (that is f0/f1), but umounting
-        # first is still the safe default to avoid stale state.
-        echo "Checking for locally mounted NFS filesystems..."
-        umount_nfs_mounts || exit 1
-        shutdown_bhyve_host "f3" "$F3_IP" || exit 1
-        echo ""
-        echo "✓ Shutdown command sent to f3."
-        exit 0
-        ;;
-    shutdown-pis)
-        # Raspberry Pis do not serve NFS, so no umount check is needed here.
-        pi_shutdown_failed=0
-        shutdown_host "pi0" "$PI0_IP" || pi_shutdown_failed=1
-        shutdown_host "pi1" "$PI1_IP" || pi_shutdown_failed=1
-        shutdown_host "pi2" "$PI2_IP" || pi_shutdown_failed=1
-        shutdown_host "pi3" "$PI3_IP" || pi_shutdown_failed=1
-        if [[ $pi_shutdown_failed -ne 0 ]]; then
-            echo "✗ At least one Pi did not accept its shutdown command."
-            exit 1
-        fi
-        echo ""
-        echo "✓ Shutdown commands sent to all Pis."
-        exit 0
-        ;;
-    shutdown-all)
-        # Umount local NFS filesystems first; abort if any are stuck.
-        # The NFS mounts on earth tunnel through stunnel to the f3s CARP VIP,
-        # so they will hang or corrupt if the servers go down while mounted.
-        echo "Checking for locally mounted NFS filesystems..."
-        umount_nfs_mounts || exit 1
-        # Mute Gogios monitoring alerts on both OpenBSD gateways; the wake
-        # path clears the marker again once the k3s nodes are back.
-        mute_gogios
-        machine_shutdown_failed=0
-        shutdown_bhyve_host "f0" "$F0_IP" || machine_shutdown_failed=1
-        shutdown_bhyve_host "f1" "$F1_IP" || machine_shutdown_failed=1
-        shutdown_bhyve_host "f2" "$F2_IP" || machine_shutdown_failed=1
-        shutdown_host "pi0" "$PI0_IP" || machine_shutdown_failed=1
-        shutdown_host "pi1" "$PI1_IP" || machine_shutdown_failed=1
-        shutdown_host "pi2" "$PI2_IP" || machine_shutdown_failed=1
-        shutdown_host "pi3" "$PI3_IP" || machine_shutdown_failed=1
-        if [[ $machine_shutdown_failed -ne 0 ]]; then
-            echo "✗ At least one machine did not accept shutdown; leaving rack fans on."
-            exit 1
-        fi
-        # Power off the rack fans once all hosts are shutting down.
-        shelly_set "false" || exit 1
-        echo ""
-        echo "✓ Shutdown commands sent to all machines."
-        exit 0
-        ;;
-    *)
-        echo "Usage: $0 [f0|f1|f2|f3|all|shutdown|shutdown-f3|shutdown-pis|shutdown-all]"
-        exit 1
-        ;;
-esac
+            ;;
+    esac
 
-echo ""
-echo "✓ WoL packets sent. Machines should boot in a few seconds."
-echo "  Wait ~30 seconds, then try: ssh paul@192.168.1.130"
+    echo ""
+    echo "✓ WoL packets sent. Machines should boot in a few seconds."
+    echo "  Wait ~30 seconds, then try: ssh paul@192.168.1.130"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi
