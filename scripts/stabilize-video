@@ -238,20 +238,29 @@ main() {
   done
 
   # Verify outputs decode cleanly and report size reduction.
+  # Probe/decode failures must not abort under set -e before we discard a
+  # bad final — otherwise junk remains and callers see a false success.
   echo ""
   echo "==> Verify"
   local src_h out_h dur
+  local -i verify_fail=0 probe_rc decode_rc
   for src in "${todo[@]}"; do
     base=$(_base "$src")
     out=$(_outfor "$src")
     trf=$(_trf_for "$src")
     src_h=$(du -h "$src" | cut -f1)
     out_h=$(du -h "$out" | cut -f1)
+    set +e
     dur=$(ffprobe -v error -show_entries format=duration \
-      -of csv=p=0 "$out")
-    if ! ffmpeg -v error -i "$out" -f null - 2>&1; then
+      -of csv=p=0 "$out" 2>/dev/null)
+    probe_rc=$?
+    ffmpeg -v error -i "$out" -f null - >/dev/null 2>&1
+    decode_rc=$?
+    set -e
+    if ((probe_rc != 0 || decode_rc != 0)); then
       printf '  %-28s %s -> %s  DECODE ERROR\n' "$base" "$src_h" "$out_h" >&2
       rm -f -- "$out"
+      ((++verify_fail))
       continue
     fi
     if [[ ! -f "$trf" ]]; then
@@ -268,6 +277,10 @@ main() {
   done
 
   echo ""
+  if ((verify_fail > 0)); then
+    echo "stabilize-video: verify failed for $verify_fail clip(s)" >&2
+    exit 1
+  fi
   echo "stabilize-video: done"
 }
 

@@ -24,6 +24,9 @@ mkdir -p "$sandbox/bin" "$sandbox/a" "$sandbox/b" \
 # STAB_FAKE_RM_TRF_AFTER_PASS2=1 — after a successful pass 2, delete the
 # TRF that was just consumed so main's verify sees decode-OK + missing TRF.
 # STAB_FAKE_FAIL_PASS2=1 — write a corrupt partial then exit 1 (mid-encode).
+# STAB_FAKE_PASS2_BAD_FINAL=1 — pass 2 exits 0 but writes undecodable bytes
+# (verify-time DECODE ERROR path after successful rename).
+# STAB_FAKE_FFPROBE_FAIL=1 — ffprobe exits 1 (verify must still rm bad out).
 
 cat > "$sandbox/bin/ffmpeg" <<'EOF'
 #!/usr/bin/env bash
@@ -89,6 +92,12 @@ if [[ "$vf" == *vidstabtransform=* ]]; then
     printf 'pass2fail\t%s\t%s\t%s\n' "$src" "$trf" "$out" >> "$log"
     exit 1
   fi
+  # Pass 2 "succeeds" but final is undecodable (no OUT_FOR= marker).
+  if [[ "${STAB_FAKE_PASS2_BAD_FINAL:-}" == 1 ]]; then
+    printf 'CORRUPT_FINAL\n' > "$out"
+    printf 'pass2bad\t%s\t%s\t%s\n' "$src" "$trf" "$out" >> "$log"
+    exit 0
+  fi
   {
     echo "OUT_FOR=$src"
     echo "USED_TRF=$trf"
@@ -109,6 +118,9 @@ EOF
 cat > "$sandbox/bin/ffprobe" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ "${STAB_FAKE_FFPROBE_FAIL:-}" == 1 ]]; then
+  exit 1
+fi
 echo 1.23
 EOF
 
@@ -417,6 +429,105 @@ grep -q '^OUT_FOR=' "$sandbox/corrupt/stabilised-clip.mp4" || {
   exit 1
 }
 printf 'ok: negative — undecodable leftover discarded and retried\n'
+
+# --- d33: verify-time undecodable after pass2 success (DECODE ERROR) ------
+# pass2 exits 0 and renames .partial → final, but final is undecodable.
+# Verify must DECODE ERROR, rm the final (this assertion fails if that rm
+# is deleted), exit non-zero, keep source, and allow a clean retry.
+mkdir -p "$sandbox/badfinal"
+printf 'badfinal-src\n' > "$sandbox/badfinal/clip.MOV"
+rm -f -- "$sandbox/badfinal/stabilised-clip.mp4" \
+  "$sandbox/badfinal/stabilised-clip.mp4.partial"
+: > "$STAB_FAKE_LOG"
+export STAB_FAKE_PASS2_BAD_FINAL=1
+set +e
+"$script" "$sandbox/badfinal/clip.MOV" \
+  >"$sandbox/badfinal.out" 2>"$sandbox/badfinal.err"
+badfinal_rc=$?
+set -e
+unset STAB_FAKE_PASS2_BAD_FINAL
+if ((badfinal_rc == 0)); then
+  echo "FAIL: expected non-zero exit on verify-time DECODE ERROR" >&2
+  cat "$sandbox/badfinal.out" "$sandbox/badfinal.err" >&2
+  exit 1
+fi
+grep -q 'DECODE ERROR' "$sandbox/badfinal.err" \
+  || grep -q 'DECODE ERROR' "$sandbox/badfinal.out" || {
+  echo "FAIL: missing DECODE ERROR message for bad final" >&2
+  cat "$sandbox/badfinal.out" "$sandbox/badfinal.err" >&2
+  exit 1
+}
+grep -q 'verify failed' "$sandbox/badfinal.err" || {
+  echo "FAIL: missing verify-failed summary on bad final" >&2
+  cat "$sandbox/badfinal.err" >&2
+  exit 1
+}
+if [[ ! -f "$sandbox/badfinal/clip.MOV" ]]; then
+  echo "FAIL: verify DECODE ERROR deleted source" >&2
+  exit 1
+fi
+if [[ -e "$sandbox/badfinal/stabilised-clip.mp4" ]]; then
+  echo "FAIL: verify DECODE ERROR left final (rm missing?)" >&2
+  exit 1
+fi
+if [[ -e "$sandbox/badfinal/stabilised-clip.mp4.partial" ]]; then
+  echo "FAIL: verify DECODE ERROR left .partial behind" >&2
+  exit 1
+fi
+printf 'ok: negative — verify-time bad final DECODE ERROR + rm + exit 1\n'
+
+: > "$STAB_FAKE_LOG"
+"$script" "$sandbox/badfinal/clip.MOV" \
+  >"$sandbox/badfinal-retry.out" 2>"$sandbox/badfinal-retry.err" || {
+  echo "FAIL: retry after verify DECODE ERROR exited $?" >&2
+  cat "$sandbox/badfinal-retry.out" "$sandbox/badfinal-retry.err" >&2
+  exit 1
+}
+if [[ -e "$sandbox/badfinal/clip.MOV" ]]; then
+  echo "FAIL: retry after DECODE ERROR did not delete source" >&2
+  exit 1
+fi
+grep -q '^OUT_FOR=' "$sandbox/badfinal/stabilised-clip.mp4" || {
+  echo "FAIL: retry after DECODE ERROR did not rewrite final" >&2
+  exit 1
+}
+printf 'ok: retry after verify-time DECODE ERROR succeeds\n'
+
+# --- d33: ffprobe failure at verify still discards final ------------------
+# Isolates set -e + ffprobe: decode may succeed (OUT_FOR present) but
+# ffprobe exits 1 — must still DECODE ERROR, rm final, exit non-zero.
+mkdir -p "$sandbox/probefail"
+printf 'probe-src\n' > "$sandbox/probefail/clip.MOV"
+rm -f -- "$sandbox/probefail/stabilised-clip.mp4" \
+  "$sandbox/probefail/stabilised-clip.mp4.partial"
+: > "$STAB_FAKE_LOG"
+export STAB_FAKE_FFPROBE_FAIL=1
+set +e
+"$script" "$sandbox/probefail/clip.MOV" \
+  >"$sandbox/probefail.out" 2>"$sandbox/probefail.err"
+probefail_rc=$?
+set -e
+unset STAB_FAKE_FFPROBE_FAIL
+if ((probefail_rc == 0)); then
+  echo "FAIL: expected non-zero exit when ffprobe fails at verify" >&2
+  cat "$sandbox/probefail.out" "$sandbox/probefail.err" >&2
+  exit 1
+fi
+grep -q 'DECODE ERROR' "$sandbox/probefail.err" \
+  || grep -q 'DECODE ERROR' "$sandbox/probefail.out" || {
+  echo "FAIL: missing DECODE ERROR when ffprobe fails" >&2
+  cat "$sandbox/probefail.out" "$sandbox/probefail.err" >&2
+  exit 1
+}
+if [[ ! -f "$sandbox/probefail/clip.MOV" ]]; then
+  echo "FAIL: ffprobe-fail verify deleted source" >&2
+  exit 1
+fi
+if [[ -e "$sandbox/probefail/stabilised-clip.mp4" ]]; then
+  echo "FAIL: ffprobe-fail left final (set -e skipped rm?)" >&2
+  exit 1
+fi
+printf 'ok: negative — ffprobe fail at verify discards final + exit 1\n'
 
 # --- d33: decodable existing output still skips ---------------------------
 printf 'should-not-touch\n' > "$sandbox/corrupt/clip.MOV"
