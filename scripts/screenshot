@@ -4,20 +4,50 @@ set -euo pipefail
 
 screenshot::usage() {
     cat >&2 <<'EOF'
-Usage: screenshot [full|screen|gui] [output-path]
+Usage: screenshot [-c|--clipboard] [full|screen|gui] [output-path]
 
   full    all monitors (default)
   screen  monitor containing the cursor
   gui     interactive region / window pick
 
+  -c, --clipboard  also copy the image to the clipboard (paste into
+                   Telegram etc.); the file is still saved
+
 Default output: ~/Pictures/Screenshot-YYYYMMDD-HHMMSS.png
 EOF
 }
 
+# Put the saved PNG on the clipboard as image data (not as a path), so apps
+# like Telegram accept it on paste. We copy the file ourselves instead of
+# using flameshot's own -c: flameshot only owns the clipboard while its
+# process lives, which is unreliable on GNOME Wayland, whereas wl-copy forks
+# a holder that keeps serving the image.
+screenshot::to_clipboard() {
+    local -r file=$1
+
+    if [[ -n "${WAYLAND_DISPLAY:-}" ]] && command -v wl-copy >/dev/null; then
+        # stdout is detached so the forked holder does not keep a caller's
+        # $(screenshot -c) pipe open forever.
+        wl-copy --type image/png < "$file" >/dev/null
+    elif command -v xclip >/dev/null; then
+        xclip -selection clipboard -t image/png -i "$file" >/dev/null
+    else
+        echo 'screenshot: no clipboard tool found (need wl-copy or xclip)' >&2
+        return 1
+    fi
+}
+
 screenshot::main() {
     local mode=full
+    local clipboard=no
     local out
     local -a cmd
+
+    # The clipboard flag comes first so the mode/output-path parsing below
+    # stays positional.
+    case "${1:-}" in
+        -c|--clipboard) clipboard=yes; shift ;;
+    esac
 
     case "${1:-}" in
         -h|--help) screenshot::usage; return 0 ;;
@@ -45,6 +75,17 @@ screenshot::main() {
     esac
 
     "${cmd[@]}"
+
+    # flameshot gui exits 0 without writing anything when the selection is
+    # aborted; there is nothing to copy or report then.
+    if [[ ! -s "$out" ]]; then
+        echo 'screenshot: nothing captured' >&2
+        return 1
+    fi
+
+    if [[ "$clipboard" == yes ]]; then
+        screenshot::to_clipboard "$out"
+    fi
     printf '%s\n' "$out"
 }
 
