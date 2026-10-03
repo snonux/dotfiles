@@ -331,9 +331,10 @@ end
 # per-status .json files in $WORKTIME_DIR, then deletes the exported tasks. The
 # tag name doubles as the file label (tw-<tag>-export-<ts>-<host>-<status>.json)
 # so the importer can match the files again by tag name or, for host-routed tags
-# like "rocky" and "zen", by hostname. The <host> segment keeps same-second
-# exports from different hosts (this dir is git-synced) from clobbering each
-# other's files. See _taskwarrior::import_label for the matching side.
+# like "earth", "rocky", and "zen", by hostname. The <host> segment keeps
+# same-second exports from different hosts (this dir is git-synced) from
+# clobbering each other's files. See _taskwarrior::import_label for the
+# matching side.
 function _taskwarrior::export_tag
     set -l tag $argv[1]
     set -l ts $argv[2]
@@ -401,12 +402,12 @@ function taskwarrior::export
     set -l failed 0
 
     # Export this host's outgoing work/personal tag plus the host-routed
-    # +rocky and +zen tasks. Each tag is exported under its own name as the
-    # file label; +rocky and +zen are exported on every host so the rocky VM
-    # and the zen laptop can import them via their hostnames. A task tagged
-    # with several routing tags (e.g. +zen +work) is exported once under the
-    # first matching label in the loop order and relays from there.
-    for tag in $TASK_EXPORT_TAG rocky zen
+    # +earth, +rocky, and +zen tasks. Each tag is exported under its own name
+    # as the file label; those host tags are exported on every host so earth,
+    # the rocky VM, and the zen laptop can import them via their hostnames. A
+    # task tagged with several routing tags (e.g. +zen +work) is exported once
+    # under the first matching label in the loop order and relays from there.
+    for tag in $TASK_EXPORT_TAG earth rocky zen
         _taskwarrior::export_tag $tag $ts
         or set failed 1
     end
@@ -427,10 +428,10 @@ function taskwarrior::import
     set -l failed 0
 
     # Import files labelled with this host's incoming work/personal tag, plus
-    # files labelled with this host's name. The +rocky exports are labelled
-    # "rocky", so the rocky host imports them through the hostname match while
-    # other hosts leave them in place for the rocky VM to pick up; the same
-    # hostname match delivers the "zen" exports to the zen laptop.
+    # files labelled with this host's name. The +earth / +rocky / +zen exports
+    # are labelled with those hostnames, so only the matching host imports
+    # them; other hosts leave the files in place for the destination to pick
+    # up.
     for label in $TASK_IMPORT_TAG (hostname)
         _taskwarrior::import_label $label
         or set failed 1
@@ -624,9 +625,21 @@ end
 
 function taskwarrior::unscheduled
     # _ids can emit a trailing empty line; skip empty values to avoid a no-filter modify
-    set -l ids (task status:pending -unsched -nosched -meeting -track -tr due: _ids)
-    or return 1
     set -l failed 0
+
+    # +auto tasks without due/scheduled get a fixed due in 6 days (eligible for
+    # next-auto-task's 7-day window). Exclude them from the random assignment below.
+    set -l auto_ids (task +auto status:pending due: scheduled: _ids)
+    or return 1
+    for id in $auto_ids
+        test -n "$id"; or continue
+        timeout 5s task modify "$id" due:6d &>/dev/null
+        or set failed 1
+    end
+
+    # Non-auto: random due in 0..42 days
+    set -l ids (task status:pending -auto -unsched -nosched -meeting -track -tr due: _ids)
+    or return 1
     for id in $ids
         test -n "$id"; or continue
         # echo "timeout 5s task modify $id due:(builtin random 0 30)d"

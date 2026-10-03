@@ -38,7 +38,20 @@ function task
     switch "$MOCK_MODE"
         case unscheduled
             if test "$argv[-1]" = _ids
+                # Auto due path: empty so this test covers the random non-auto loop
+                if contains -- +auto $argv
+                    return 0
+                end
                 printf '%s\n' bad good
+                return 0
+            end
+        case unscheduled_auto
+            if test "$argv[-1]" = _ids
+                if contains -- +auto $argv
+                    printf '%s\n' abad agood
+                    return 0
+                end
+                # No non-auto ids — exercise only the auto due:6d path
                 return 0
             end
         case gos
@@ -104,9 +117,13 @@ function task
 end
 
 function timeout
+    # argv: 5s task modify <id> due:<Nd>
     echo "$argv[4]" >>"$MODIFY_LOG"
-    if test "$argv[4]" = bad -a "$MOCK_FAIL_FIRST" = 1
-        return 7
+    echo "$argv[5]" >>"$MODIFY_LOG"
+    if test "$MOCK_FAIL_FIRST" = 1
+        if contains -- "$argv[4]" bad abad
+            return 7
+        end
     end
     return 0
 end
@@ -114,11 +131,39 @@ end
 set -g MOCK_MODE unscheduled
 taskwarrior::unscheduled
 and fail "failed first due-date modify reported success"
-test (string join , (cat "$MODIFY_LOG")) = bad,good
-or fail "failed due-date modify skipped the later task"
+# log is id,due,id,due — due is random 0..42d; only check ids in odd positions
+set -l mod_ids
+for line in (cat "$MODIFY_LOG")
+    if string match -qr '^[0-9]+d$' -- "$line"
+        continue
+    end
+    # due:Nd lines from argv[5]
+    if string match -q 'due:*' -- "$line"
+        continue
+    end
+    set -a mod_ids $line
+end
+test (string join , $mod_ids) = bad,good
+or fail "failed due-date modify skipped the later task: "(string join , $mod_ids)
 set -g MOCK_FAIL_FIRST 0
+: >"$MODIFY_LOG"
 taskwarrior::unscheduled
 or fail "successful due-date modifies failed"
+
+# +auto undated/unscheduled path stamps due:6d before the random non-auto loop
+set -g MOCK_MODE unscheduled_auto
+set -g MOCK_FAIL_FIRST 1
+: >"$MODIFY_LOG"
+taskwarrior::unscheduled
+and fail "failed first auto due-date modify reported success"
+test (string join , (cat "$MODIFY_LOG")) = abad,due:6d,agood,due:6d
+or fail "failed auto due-date modify skipped later task or wrong due: "(string join , (cat "$MODIFY_LOG"))
+set -g MOCK_FAIL_FIRST 0
+: >"$MODIFY_LOG"
+taskwarrior::unscheduled
+or fail "successful auto due-date modifies failed"
+test (string join , (cat "$MODIFY_LOG")) = abad,due:6d,agood,due:6d
+or fail "auto due path did not stamp due:6d on both ids: "(string join , (cat "$MODIFY_LOG"))
 
 set -g MOCK_MODE gos
 set -g MOCK_FAIL_FIRST 1

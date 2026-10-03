@@ -264,7 +264,8 @@ set -gx TEST_FAIL rocky
 : >"$TEST_CALLS"
 taskwarrior::export >/dev/null
 and fail "failed early task export reported success"
-test (count (cat "$TEST_CALLS")) -eq 7
+# work/personal + earth + rocky + zen + bd + maybe + wins + add
+test (count (cat "$TEST_CALLS")) -eq 8
 or fail "failed task export skipped a later export"
 
 function _taskwarrior::import_label

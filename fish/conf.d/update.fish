@@ -73,8 +73,8 @@ function update::tools
         # # doas npm uninstall -g @google/gemini-cli
         # doas npm install -g @google/gemini-cli
 
-        echo "Installing/updating @sourcegraph/amp globally"
-        doas npm install -g @ampcode/cli
+        echo "Installing/updating @ampcode/cli via yarn"
+        yarn global add @ampcode/cli
         or set failed 1
 
         # echo "Installing/updating opencode-ai globally via npm"
