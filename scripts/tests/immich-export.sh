@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Path-safety checks for scripts/immich-export originalFileName handling (243).
+# Path-safety and unique-naming checks for scripts/immich-export (243, g33).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -39,6 +39,10 @@ if grep -E '\$dest\.tmp|"\$\{dest\}\.tmp"|dest="\$\{?account_dir' "$IMMICH_EXPOR
 fi
 grep -q '_safe_export_filename' "$IMMICH_EXPORT" \
     || fail "missing _safe_export_filename helper"
+grep -q '_safe_asset_id' "$IMMICH_EXPORT" \
+    || fail "missing _safe_asset_id helper"
+grep -q '_unique_export_basename' "$IMMICH_EXPORT" \
+    || fail "missing _unique_export_basename helper"
 grep -q '_path_is_under' "$IMMICH_EXPORT" \
     || fail "missing _path_is_under containment helper"
 grep -q 'mktemp' "$IMMICH_EXPORT" \
@@ -50,6 +54,11 @@ grep -q 'BASH_SOURCE' "$IMMICH_EXPORT" \
 # Must not wipe real exports named *.tmp
 if grep -E -- 'find .* -name ["'\'']\*\.tmp' "$IMMICH_EXPORT" | grep -q .; then
     fail "stale cleanup still uses find -name '*.tmp'"
+fi
+# Dest must use uniquified name, not sanitized basename alone.
+# shellcheck disable=SC2016
+if grep -Eq 'dest="\$\{?account_dir\}/\$\{?safe\}"' "$IMMICH_EXPORT"; then
+    fail "dest still joins sanitized basename without asset-id uniquify"
 fi
 
 # Source helpers only (main is gated on BASH_SOURCE).
@@ -79,6 +88,21 @@ for bad in '' '/' '/tmp/pwned.jpg' '..' '.' 'foo/..' '../..' '/' \
     $'has\ttab.jpg' $'has\nnewline.jpg' $'has\rcarriage.jpg'; do
     if _safe_export_filename "$bad" >/dev/null 2>&1; then
         fail "accepted unsafe originalFileName: ${bad@Q}"
+    fi
+done
+
+# --- Unit: unique basename prefixes asset id ---
+got=$(_unique_export_basename 'id-a' 'same.jpg') \
+    || fail "unique basename rejected for id-a/same.jpg"
+[[ "$got" == 'id-a_same.jpg' ]] || fail "unique got=${got@Q}"
+
+# --- Negative unit: unsafe asset ids ---
+for bad_id in '' '/' '/tmp/x' '..' '.' $'has\tid' $'has\nid' 'a/b'; do
+    if _safe_asset_id "$bad_id" >/dev/null 2>&1; then
+        fail "accepted unsafe asset id: ${bad_id@Q}"
+    fi
+    if _unique_export_basename "$bad_id" 'ok.jpg' >/dev/null 2>&1; then
+        fail "unique basename accepted unsafe asset id: ${bad_id@Q}"
     fi
 done
 
@@ -136,7 +160,11 @@ printf '%s\n' \
     $'id-ok\tnormal.jpg' \
     >"$ASSET_LIST"
 
-rm -f "$ESCAPE_MARKER" "$ACCOUNT_DIR/escape.jpg" "$ACCOUNT_DIR/normal.jpg"
+rm -f "$ESCAPE_MARKER" \
+    "$ACCOUNT_DIR/id-trav_escape.jpg" \
+    "$ACCOUNT_DIR/id-ok_normal.jpg" \
+    "$ACCOUNT_DIR/escape.jpg" \
+    "$ACCOUNT_DIR/normal.jpg"
 rm -rf "$ACCOUNT_DIR/tmp"
 
 download_assets 'fake-key' "$ACCOUNT_DIR" "$ASSET_LIST" \
@@ -145,16 +173,18 @@ download_assets 'fake-key' "$ACCOUNT_DIR" "$ASSET_LIST" \
 
 [[ ! -e "$ESCAPE_MARKER" ]] \
     || fail "path traversal wrote outside account_dir: $ESCAPE_MARKER"
-[[ -f "$ACCOUNT_DIR/escape.jpg" ]] \
-    || fail "basename traversal name not written inside account_dir"
-[[ -f "$ACCOUNT_DIR/normal.jpg" ]] \
-    || fail "normal.jpg not downloaded"
+[[ -f "$ACCOUNT_DIR/id-trav_escape.jpg" ]] \
+    || fail "basename traversal name not written as unique dest inside account_dir"
+[[ -f "$ACCOUNT_DIR/id-ok_normal.jpg" ]] \
+    || fail "id-ok_normal.jpg not downloaded"
 # Absolute names must be refused (never joined; naive join would create
 # account_dir/tmp/pwned.jpg because bash string concat keeps the prefix).
 [[ ! -e "$ACCOUNT_DIR/tmp/pwned.jpg" ]] \
     || fail "absolute originalFileName was joined under account_dir"
 [[ ! -e "$ACCOUNT_DIR/pwned.jpg" ]] \
     || fail "absolute-path asset was written under account_dir"
+[[ ! -e "$ACCOUNT_DIR/id-abs_pwned.jpg" ]] \
+    || fail "absolute-path asset was uniquified/written under account_dir"
 
 grep -q 'refusing unsafe originalFileName' "$TEST_ROOT/err" \
     || fail "expected refuse message for unsafe names missing"
@@ -175,13 +205,16 @@ outs=$(wc -l <"$CURL_SPY_LOG.outs")
     || fail "expected exactly 2 curl -o writes, got $outs"
 
 # Resolved dest for traversal must stay under ACCOUNT_DIR.
-escape_real=$(cd "$(dirname "$ACCOUNT_DIR/escape.jpg")" && pwd -P)
+escape_real=$(cd "$(dirname "$ACCOUNT_DIR/id-trav_escape.jpg")" && pwd -P)
 account_real=$(cd "$ACCOUNT_DIR" && pwd -P)
 [[ "$escape_real" == "$account_real" ]] \
     || fail "escape.jpg parent ${escape_real@Q} != account ${account_real@Q}"
 
 # --- Symlink .tmp write-through: planted dest.tmp must not receive payload ---
-rm -f "$ESCAPE_MARKER" "$ACCOUNT_DIR/planted.jpg" "$ACCOUNT_DIR/planted.jpg.tmp"
+rm -f "$ESCAPE_MARKER" \
+    "$ACCOUNT_DIR/id-plant_planted.jpg" \
+    "$ACCOUNT_DIR/planted.jpg" \
+    "$ACCOUNT_DIR/planted.jpg.tmp"
 : >"$CURL_SPY_LOG"
 : >"${CURL_SPY_LOG}.outs"
 # Classic attack: curl -o "$dest.tmp" follows a symlink outside account_dir.
@@ -192,8 +225,8 @@ download_assets 'fake-key' "$ACCOUNT_DIR" "$ASSET_LIST" \
     || fail "download_assets failed on planted.tmp fixture"
 [[ ! -e "$ESCAPE_MARKER" ]] \
     || fail "payload escaped via planted .tmp symlink to $ESCAPE_MARKER"
-[[ -f "$ACCOUNT_DIR/planted.jpg" ]] \
-    || fail "planted.jpg not written inside account_dir after mktemp download"
+[[ -f "$ACCOUNT_DIR/id-plant_planted.jpg" ]] \
+    || fail "id-plant_planted.jpg not written inside account_dir after mktemp download"
 # Payload must not have followed the symlink (marker absent or empty).
 if [[ -f "$ESCAPE_MARKER" ]]; then
     fail "escape marker file was created via symlink write-through"
@@ -205,34 +238,95 @@ fi
 grep -Eq "out=$ACCOUNT_DIR/\.immich-export\." "$CURL_SPY_LOG.outs" \
     || fail "curl -o was not an .immich-export.* mktemp path"
 
-# --- Same-run collision after basename collapse (g33 residual) ---
-rm -f "$ACCOUNT_DIR/same.jpg"
+# --- g33: distinct IDs sharing sanitized basename both export ---
+rm -f "$ACCOUNT_DIR/same.jpg" \
+    "$ACCOUNT_DIR/id-a_same.jpg" \
+    "$ACCOUNT_DIR/id-b_same.jpg"
 : >"$CURL_SPY_LOG"
 : >"${CURL_SPY_LOG}.outs"
 printf '%s\n' \
     $'id-a\t../same.jpg' \
     $'id-b\tdir/same.jpg' \
     >"$ASSET_LIST"
-set +e
 download_assets 'fake-key' "$ACCOUNT_DIR" "$ASSET_LIST" \
-    >"$TEST_ROOT/out-coll" 2>"$TEST_ROOT/err-coll"
-coll_rc=$?
-set -e
-[[ "$coll_rc" -ne 0 ]] \
-    || fail "same-run basename collision should fail download_assets"
+    >"$TEST_ROOT/out-coll" 2>"$TEST_ROOT/err-coll" \
+    || fail "same-basename distinct IDs should succeed: $(cat "$TEST_ROOT/err-coll")"
+[[ -f "$ACCOUNT_DIR/id-a_same.jpg" ]] \
+    || fail "first colliding basename asset missing: id-a_same.jpg"
+[[ -f "$ACCOUNT_DIR/id-b_same.jpg" ]] \
+    || fail "second colliding basename asset missing: id-b_same.jpg"
+# Must not leave a bare basename-only dest (old incomplete-export scheme).
+[[ ! -e "$ACCOUNT_DIR/same.jpg" ]] \
+    || fail "bare same.jpg should not be written under unique-naming scheme"
+outs=$(wc -l <"$CURL_SPY_LOG.outs")
+[[ "$outs" -eq 2 ]] \
+    || fail "same-basename distinct IDs: expected 2 curl writes, got $outs"
+grep -q 'id-a' "$CURL_SPY_LOG" || fail "curl missing id-a"
+grep -q 'id-b' "$CURL_SPY_LOG" || fail "curl missing id-b"
 grep -q 'destination collision' "$TEST_ROOT/err-coll" \
-    || fail "missing collision error: $(cat "$TEST_ROOT/err-coll")"
-# First wins; second refused — not a silent skip-as-success.
-[[ -f "$ACCOUNT_DIR/same.jpg" ]] \
-    || fail "first colliding asset should still download"
+    && fail "distinct IDs must not report destination collision"
+
+# --- g33: same unique dest already on disk skips only that asset ---
+: >"$CURL_SPY_LOG"
+: >"${CURL_SPY_LOG}.outs"
+printf '%s\n' \
+    $'id-a\t../same.jpg' \
+    $'id-c\tsame.jpg' \
+    >"$ASSET_LIST"
+download_assets 'fake-key' "$ACCOUNT_DIR" "$ASSET_LIST" \
+    >"$TEST_ROOT/out-skip" 2>"$TEST_ROOT/err-skip" \
+    || fail "exists-skip run should succeed: $(cat "$TEST_ROOT/err-skip")"
+grep -q 'skip (exists): id-a_same.jpg' "$TEST_ROOT/out-skip" \
+    || fail "expected skip for existing id-a_same.jpg: $(cat "$TEST_ROOT/out-skip")"
+[[ -f "$ACCOUNT_DIR/id-c_same.jpg" ]] \
+    || fail "id-c_same.jpg should download despite id-a_same.jpg existing"
 outs=$(wc -l <"$CURL_SPY_LOG.outs")
 [[ "$outs" -eq 1 ]] \
-    || fail "collision: expected 1 curl write, got $outs (silent double or none)"
-grep -q 'id-b' "$CURL_SPY_LOG" \
-    && fail "curl must not fetch colliding second asset id-b"
+    || fail "exists-skip: expected 1 curl write (id-c only), got $outs"
+
+# --- g33 negative: duplicate asset id still collides on unique dest ---
+# Same id + basename-collapsing names → identical unique dest.
+rm -f "$ACCOUNT_DIR/id-dup_x.jpg"
+: >"$CURL_SPY_LOG"
+: >"${CURL_SPY_LOG}.outs"
+printf '%s\n' \
+    $'id-dup\tx.jpg' \
+    $'id-dup\tdir/x.jpg' \
+    >"$ASSET_LIST"
+set +e
+download_assets 'fake-key' "$ACCOUNT_DIR" "$ASSET_LIST" \
+    >"$TEST_ROOT/out-dup" 2>"$TEST_ROOT/err-dup"
+dup_rc=$?
+set -e
+[[ "$dup_rc" -ne 0 ]] \
+    || fail "duplicate asset id + same basename should fail download_assets"
+grep -q 'destination collision' "$TEST_ROOT/err-dup" \
+    || fail "missing collision error for duplicate unique dest: $(cat "$TEST_ROOT/err-dup")"
+[[ -f "$ACCOUNT_DIR/id-dup_x.jpg" ]] \
+    || fail "first duplicate-id row should still download"
+outs=$(wc -l <"$CURL_SPY_LOG.outs")
+[[ "$outs" -eq 1 ]] \
+    || fail "duplicate unique dest: expected 1 curl write, got $outs"
+
+# --- Negative: unsafe asset id refused (no curl, no write) ---
+: >"$CURL_SPY_LOG"
+: >"${CURL_SPY_LOG}.outs"
+printf '%s\n' $'../evil\tok.jpg' >"$ASSET_LIST"
+download_assets 'fake-key' "$ACCOUNT_DIR" "$ASSET_LIST" \
+    >"$TEST_ROOT/out-badid" 2>"$TEST_ROOT/err-badid" \
+    || fail "unsafe asset id list should still return 0 (no collision)"
+grep -q 'refusing unsafe asset id' "$TEST_ROOT/err-badid" \
+    || fail "missing unsafe asset id refuse: $(cat "$TEST_ROOT/err-badid")"
+[[ ! -e "$ACCOUNT_DIR/evil_ok.jpg" ]] \
+    || fail "unsafe asset id wrote evil_ok.jpg"
+[[ ! -e "$DEST_PARENT/evil_ok.jpg" ]] \
+    || fail "unsafe asset id escaped via ../evil prefix"
+outs=$(wc -l <"$CURL_SPY_LOG.outs")
+[[ "$outs" -eq 0 ]] \
+    || fail "unsafe asset id must not invoke curl -o"
 
 # --- Containment helper unit ---
-_path_is_under "$ACCOUNT_DIR" "$ACCOUNT_DIR/normal.jpg" \
+_path_is_under "$ACCOUNT_DIR" "$ACCOUNT_DIR/id-ok_normal.jpg" \
     || fail "_path_is_under rejected in-dir path"
 if _path_is_under "$ACCOUNT_DIR" "$DEST_PARENT/escape.jpg" 2>/dev/null; then
     fail "_path_is_under accepted path outside account_dir"

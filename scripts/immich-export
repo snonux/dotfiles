@@ -50,6 +50,34 @@ _safe_export_filename() {
     printf '%s\n' "$base"
 }
 
+# _safe_asset_id RAW — accept a single path component for use in export names.
+# Asset IDs come from Immich (usually UUIDs) but are still untrusted input in
+# the TSV stream; refuse anything that is not one safe component.
+_safe_asset_id() {
+    local -r raw="$1"
+
+    [[ -n "$raw" ]] || return 1
+    [[ "$raw" != /* ]] || return 1
+    case "$raw" in
+        .|..) return 1 ;;
+        *$'\t'*|*$'\n'*|*$'\r'*|*/*) return 1 ;;
+    esac
+
+    printf '%s\n' "$raw"
+}
+
+# _unique_export_basename ASSET_ID SAFE_BASENAME — local name that stays unique
+# across distinct assets even when originalFileName (or its basename) collides.
+_unique_export_basename() {
+    local -r asset_id="$1"
+    local -r safe="$2"
+    local id
+
+    id=$(_safe_asset_id "$asset_id") || return 1
+    [[ -n "$safe" ]] || return 1
+    printf '%s_%s\n' "$id" "$safe"
+}
+
 # _path_is_under DIR CANDIDATE — succeed if CANDIDATE resolves under DIR.
 # Uses physical paths so symlink escapes cannot pass the check.
 _path_is_under() {
@@ -109,8 +137,9 @@ for item in d['assets']['items']:
 }
 
 # Phase 2: download each asset by ID, showing real [X/total] progress.
-# Returns 1 if any same-run destination collision was detected (incomplete
-# export). Full unique naming across collisions is left to task g33.
+# Destinations are {asset_id}_{sanitized_basename} so distinct assets that
+# share originalFileName (or collapse to the same basename) all export.
+# Returns 1 if any same-run destination collision remains (e.g. duplicate id).
 download_assets() {
     local api_key="$1"
     local account_dir="$2"
@@ -134,27 +163,33 @@ download_assets() {
             continue
         fi
 
-        local dest="$account_dir/$safe"
+        local unique
+        if ! unique=$(_unique_export_basename "$asset_id" "$safe"); then
+            ((refused++)) || true
+            echo "    [$n/$total] ERROR: refusing unsafe asset id: ${asset_id@Q}" >&2
+            continue
+        fi
+
+        local dest="$account_dir/$unique"
         if ! _path_is_under "$account_dir" "$dest"; then
             ((refused++)) || true
             echo "    [$n/$total] ERROR: dest escapes account dir: ${dest@Q}" >&2
             continue
         fi
 
-        # Same-run basename collisions (incl. after sanitize collapse): do not
-        # silently skip the second asset as if the export were complete. Unique
-        # naming (asset-id prefix etc.) is g33; here we only refuse clearly.
-        if [[ -n "${run_dest_owners[$safe]+x}" ]]; then
+        # Same-run collision on the final unique name (duplicate asset id in
+        # the list, etc.). Distinct IDs never share a dest after uniquify.
+        if [[ -n "${run_dest_owners[$unique]+x}" ]]; then
             ((collided++)) || true
-            echo "    [$n/$total] ERROR: destination collision for ${safe@Q}: assets ${run_dest_owners[$safe]@Q} and ${asset_id@Q} (see g33)" >&2
+            echo "    [$n/$total] ERROR: destination collision for ${unique@Q}: assets ${run_dest_owners[$unique]@Q} and ${asset_id@Q}" >&2
             continue
         fi
-        run_dest_owners[$safe]="$asset_id"
+        run_dest_owners[$unique]="$asset_id"
 
         if [[ -e "$dest" || -L "$dest" ]]; then
             if [[ -f "$dest" && ! -L "$dest" ]]; then
                 ((skipped++)) || true
-                echo "    [$n/$total] skip (exists): $safe"
+                echo "    [$n/$total] skip (exists): $unique"
                 continue
             fi
             ((refused++)) || true
@@ -191,13 +226,13 @@ download_assets() {
             if ! mv -n -- "$tmp" "$dest"; then
                 rm -f -- "$tmp"
                 ((refused++)) || true
-                echo "    [$n/$total] ERROR: failed to place $safe" >&2
+                echo "    [$n/$total] ERROR: failed to place $unique" >&2
                 continue
             fi
             ((downloaded++)) || true
-            echo "    [$n/$total] downloaded: $safe"
+            echo "    [$n/$total] downloaded: $unique"
         else
-            echo "    [$n/$total] ERROR: failed to download $asset_id ($safe)" >&2
+            echo "    [$n/$total] ERROR: failed to download $asset_id ($unique)" >&2
             rm -f -- "$tmp"
         fi
     done < "$asset_list"
