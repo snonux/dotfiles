@@ -8,7 +8,8 @@
 # d33: mid-encode failure must not leave a final output that forever skips
 # retries (atomic .partial + verify-before-skip), and p33: keep sources by
 # default; delete only with --delete-source after duration/size sanity;
-# inspect-then-delete refuses when source mtime is newer than out.
+# .srcid sidecar + [[ -nt ]] refuse inspect-delete on replaced masters;
+# TOCTOU recheck before rm (sibling encode replace → keep + re-encode).
 set -euo pipefail
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -31,6 +32,9 @@ mkdir -p "$sandbox/bin" "$sandbox/a" "$sandbox/b" \
 # STAB_FAKE_FFPROBE_FAIL=1 — ffprobe exits 1 (verify must still rm bad out).
 # STAB_FAKE_SRC_DURATION / STAB_FAKE_OUT_DURATION — ffprobe duration values
 # (defaults 1.23; empty/N/A/0 allowed when set) for delete-source sanity.
+# STAB_FAKE_REPLACE_SRC / STAB_FAKE_REPLACE_WITH / STAB_FAKE_REPLACE_ONCE —
+# during pass 2, once, overwrite REPLACE_SRC with REPLACE_WITH and touch
+# the ONCE marker (TOCTOU sibling hook).
 
 cat > "$sandbox/bin/ffmpeg" <<'EOF'
 #!/usr/bin/env bash
@@ -89,6 +93,13 @@ if [[ "$vf" == *vidstabtransform=* ]]; then
   if [[ ! -f "$trf" ]]; then
     echo "fake-ffmpeg: missing trf $trf for $src" >&2
     exit 1
+  fi
+  # TOCTOU hook: replace a sibling source once (STAB_FAKE_REPLACE_ONCE marker).
+  if [[ -n "${STAB_FAKE_REPLACE_SRC:-}" && -n "${STAB_FAKE_REPLACE_WITH:-}" \
+    && -n "${STAB_FAKE_REPLACE_ONCE:-}" && ! -f "$STAB_FAKE_REPLACE_ONCE" ]]; then
+    printf '%s\n' "$STAB_FAKE_REPLACE_WITH" > "$STAB_FAKE_REPLACE_SRC"
+    : > "$STAB_FAKE_REPLACE_ONCE"
+    printf 'replace\t%s\n' "$STAB_FAKE_REPLACE_SRC" >> "$log"
   fi
   # Mid-encode crash: leave corrupt bytes at the encode target (.partial).
   if [[ "${STAB_FAKE_FAIL_PASS2:-}" == 1 ]]; then
@@ -641,11 +652,12 @@ fi
 printf 'ok: negative — ffprobe fail at verify discards final + exit 1\n'
 
 # --- d33: decodable existing output still skips ---------------------------
-# Pin source mtime ≤ out so the stale-out / newer-source guard does not
-# force a re-encode (that path is covered separately under p33).
+# Align source mtime to out and refresh .srcid so identity/stale guards
+# do not force a re-encode (those paths are covered separately under p33).
 printf 'should-not-touch\n' > "$sandbox/corrupt/clip.MOV"
-out_m=$(stat -c '%Y' -- "$sandbox/corrupt/stabilised-clip.mp4")
-touch -d "@$out_m" -- "$sandbox/corrupt/clip.MOV"
+touch -r "$sandbox/corrupt/stabilised-clip.mp4" -- "$sandbox/corrupt/clip.MOV"
+stat -c '%s %.9Y %i' -- "$sandbox/corrupt/clip.MOV" \
+  >"$sandbox/corrupt/stabilised-clip.mp4.srcid"
 : > "$STAB_FAKE_LOG"
 "$script" "$sandbox/corrupt/clip.MOV" \
   >"$sandbox/skip.out" 2>"$sandbox/skip.err" || {
@@ -820,10 +832,46 @@ then
 fi
 printf 'ok: negative — invalid DELETE_MIN_DUR_RATIO refuses delete\n'
 
+# Invalid DELETE_MIN_SIZE_RATIO must also fail closed.
+mkdir -p "$sandbox/badsizeratio"
+printf 'badsizeratio-src\n' > "$sandbox/badsizeratio/clip.MOV"
+rm -f -- "$sandbox/badsizeratio/stabilised-clip.mp4"
+: > "$STAB_FAKE_LOG"
+export DELETE_MIN_SIZE_RATIO=bogus
+set +e
+"$script" --delete-source "$sandbox/badsizeratio/clip.MOV" \
+  >"$sandbox/badsizeratio.out" 2>"$sandbox/badsizeratio.err"
+badsizeratio_rc=$?
+set -e
+unset DELETE_MIN_SIZE_RATIO
+DELETE_MIN_SIZE_RATIO=0.01
+if ((badsizeratio_rc != 0)); then
+  echo "FAIL: bad-size-ratio run exited $badsizeratio_rc (want 0 + keep)" >&2
+  cat "$sandbox/badsizeratio.out" "$sandbox/badsizeratio.err" >&2
+  exit 1
+fi
+if [[ ! -f "$sandbox/badsizeratio/clip.MOV" ]]; then
+  echo "FAIL: bad-size-ratio deleted source" >&2
+  exit 1
+fi
+grep -q 'invalid' "$sandbox/badsizeratio.err" \
+  || grep -q 'invalid' "$sandbox/badsizeratio.out" || {
+  echo "FAIL: expected invalid-size-ratio sanity message" >&2
+  cat "$sandbox/badsizeratio.out" "$sandbox/badsizeratio.err" >&2
+  exit 1
+}
+if grep -q 'deleted source:' "$sandbox/badsizeratio.out" \
+  "$sandbox/badsizeratio.err"; then
+  echo "FAIL: reported delete with invalid DELETE_MIN_SIZE_RATIO" >&2
+  exit 1
+fi
+printf 'ok: negative — invalid DELETE_MIN_SIZE_RATIO refuses delete\n'
+
 # --- p33: keep-default then --delete-source cleans source (no re-encode) -
 mkdir -p "$sandbox/keepdel"
 printf 'keepdel-src\n' > "$sandbox/keepdel/clip.MOV"
-rm -f -- "$sandbox/keepdel/stabilised-clip.mp4"
+rm -f -- "$sandbox/keepdel/stabilised-clip.mp4" \
+  "$sandbox/keepdel/stabilised-clip.mp4.srcid"
 : > "$STAB_FAKE_LOG"
 "$script" "$sandbox/keepdel/clip.MOV" \
   >"$sandbox/keepdel1.out" 2>"$sandbox/keepdel1.err" || {
@@ -839,9 +887,11 @@ if [[ ! -f "$sandbox/keepdel/stabilised-clip.mp4" ]]; then
   echo "FAIL: keep-default prelude missing output" >&2
   exit 1
 fi
-# Ensure source is not newer than out (same-second write races).
-out_m=$(stat -c '%Y' -- "$sandbox/keepdel/stabilised-clip.mp4")
-touch -d "@$out_m" -- "$sandbox/keepdel/clip.MOV"
+if [[ ! -f "$sandbox/keepdel/stabilised-clip.mp4.srcid" ]]; then
+  echo "FAIL: keep-default prelude missing .srcid sidecar" >&2
+  exit 1
+fi
+# Out is newer than source after encode; .srcid matches — no touch needed.
 : > "$STAB_FAKE_LOG"
 "$script" --delete-source "$sandbox/keepdel/clip.MOV" \
   >"$sandbox/keepdel2.out" 2>"$sandbox/keepdel2.err" || {
@@ -954,12 +1004,150 @@ grep -q $'^pass2\t'"$sandbox/staleout/clip.MOV"$'\t' "$STAB_FAKE_LOG" || {
 }
 printf 'ok: newer source vs stale out re-encodes under --delete-source\n'
 
-# --- unit: _partial_for / _output_decodes / _parse_cli --------------------
+# --- p33: same whole-second content replace must not inspect-delete -------
+# Whole-second %Y equality is not enough: replace content, pin equal
+# seconds on src+out; .srcid size mismatch must force re-encode.
+mkdir -p "$sandbox/samesec"
+printf 'samesec-old\n' > "$sandbox/samesec/clip.MOV"
+rm -f -- "$sandbox/samesec/stabilised-clip.mp4" \
+  "$sandbox/samesec/stabilised-clip.mp4.srcid"
+: > "$STAB_FAKE_LOG"
+"$script" "$sandbox/samesec/clip.MOV" \
+  >"$sandbox/samesec1.out" 2>"$sandbox/samesec1.err" || {
+  echo "FAIL: samesec keep-default exited $?" >&2
+  cat "$sandbox/samesec1.out" "$sandbox/samesec1.err" >&2
+  exit 1
+}
+[[ -f "$sandbox/samesec/stabilised-clip.mp4.srcid" ]] || {
+  echo "FAIL: samesec missing .srcid after keep-default" >&2
+  exit 1
+}
+t=$(stat -c '%Y' -- "$sandbox/samesec/stabilised-clip.mp4")
+printf 'samesec-REPLACED-same-second\n' > "$sandbox/samesec/clip.MOV"
+touch -d "@$t" -- "$sandbox/samesec/clip.MOV" \
+  "$sandbox/samesec/stabilised-clip.mp4"
+# Stale .srcid still has old size — must not inspect-then-delete.
+: > "$STAB_FAKE_LOG"
+"$script" --delete-source "$sandbox/samesec/clip.MOV" \
+  >"$sandbox/samesec2.out" 2>"$sandbox/samesec2.err" || {
+  echo "FAIL: samesec --delete-source exited $?" >&2
+  cat "$sandbox/samesec2.out" "$sandbox/samesec2.err" >&2
+  exit 1
+}
+if grep -q 'inspect-then-delete' "$sandbox/samesec2.out" \
+  "$sandbox/samesec2.err"; then
+  echo "FAIL: same-second replace took inspect-then-delete" >&2
+  cat "$sandbox/samesec2.out" "$sandbox/samesec2.err" >&2
+  exit 1
+fi
+grep -q 're-encode (source identity mismatch)' "$sandbox/samesec2.out" \
+  || grep -q 're-encode (source identity mismatch)' "$sandbox/samesec2.err" \
+  || grep -q 're-encode (source newer than out)' "$sandbox/samesec2.out" \
+  || grep -q 're-encode (source newer than out)' "$sandbox/samesec2.err" || {
+  echo "FAIL: expected re-encode for same-second content replace" >&2
+  cat "$sandbox/samesec2.out" "$sandbox/samesec2.err" >&2
+  exit 1
+}
+if ! grep -q $'^pass2\t' "$STAB_FAKE_LOG"; then
+  echo "FAIL: same-second replace did not re-encode" >&2
+  cat "$STAB_FAKE_LOG" >&2
+  exit 1
+fi
+if [[ -e "$sandbox/samesec/clip.MOV" ]]; then
+  echo "FAIL: same-second re-encode left source (want delete after OK)" >&2
+  exit 1
+fi
+printf 'ok: same-second content replace re-encodes (not inspect-delete)\n'
+
+# --- p33: TOCTOU — replace during sibling encode → keep + re-encode -------
+# A needs re-encode (no .srcid); B is inspect-then-delete. During A's pass2,
+# replace B's master; B must refuse delete and late-re-encode.
+mkdir -p "$sandbox/toctou/a" "$sandbox/toctou/b"
+printf 'toctou-a\n' > "$sandbox/toctou/a/clip.MOV"
+printf 'toctou-b\n' > "$sandbox/toctou/b/clip.MOV"
+rm -f -- "$sandbox/toctou/a/stabilised-clip.mp4" \
+  "$sandbox/toctou/a/stabilised-clip.mp4.srcid" \
+  "$sandbox/toctou/b/stabilised-clip.mp4" \
+  "$sandbox/toctou/b/stabilised-clip.mp4.srcid"
+: > "$STAB_FAKE_LOG"
+"$script" "$sandbox/toctou/a/clip.MOV" "$sandbox/toctou/b/clip.MOV" \
+  >"$sandbox/toctou1.out" 2>"$sandbox/toctou1.err" || {
+  echo "FAIL: toctou keep-default exited $?" >&2
+  cat "$sandbox/toctou1.out" "$sandbox/toctou1.err" >&2
+  exit 1
+}
+# Force A into todo; keep B as inspect-then-delete candidate.
+rm -f -- "$sandbox/toctou/a/stabilised-clip.mp4.srcid"
+touch -r "$sandbox/toctou/b/stabilised-clip.mp4" -- "$sandbox/toctou/b/clip.MOV"
+stat -c '%s %.9Y %i' -- "$sandbox/toctou/b/clip.MOV" \
+  >"$sandbox/toctou/b/stabilised-clip.mp4.srcid"
+: > "$STAB_FAKE_LOG"
+export STAB_FAKE_REPLACE_SRC="$sandbox/toctou/b/clip.MOV"
+export STAB_FAKE_REPLACE_WITH='toctou-b-REPLACED-during-sibling-encode'
+export STAB_FAKE_REPLACE_ONCE="$sandbox/toctou.replace-once"
+rm -f -- "$STAB_FAKE_REPLACE_ONCE"
+"$script" --delete-source \
+  "$sandbox/toctou/a/clip.MOV" "$sandbox/toctou/b/clip.MOV" \
+  >"$sandbox/toctou2.out" 2>"$sandbox/toctou2.err" || {
+  echo "FAIL: toctou --delete-source exited $?" >&2
+  cat "$sandbox/toctou2.out" "$sandbox/toctou2.err" >&2
+  exit 1
+}
+unset STAB_FAKE_REPLACE_SRC STAB_FAKE_REPLACE_WITH STAB_FAKE_REPLACE_ONCE
+grep -q $'^replace\t' "$STAB_FAKE_LOG" || {
+  echo "FAIL: sibling encode did not trigger replace hook" >&2
+  cat "$STAB_FAKE_LOG" >&2
+  exit 1
+}
+grep -q 'queue re-encode' "$sandbox/toctou2.out" \
+  || grep -q 'queue re-encode' "$sandbox/toctou2.err" || {
+  echo "FAIL: expected TOCTOU queue re-encode for replaced sibling" >&2
+  cat "$sandbox/toctou2.out" "$sandbox/toctou2.err" >&2
+  exit 1
+}
+grep -q 'Late re-encode' "$sandbox/toctou2.out" \
+  || grep -q 'Late re-encode' "$sandbox/toctou2.err" || {
+  echo "FAIL: expected late re-encode section" >&2
+  cat "$sandbox/toctou2.out" "$sandbox/toctou2.err" >&2
+  exit 1
+}
+# B must have been re-encoded after replace (pass2 for B after replace).
+mapfile -t toctou_pass2 < <(awk -F'\t' '$1=="pass2"{print $2}' "$STAB_FAKE_LOG")
+b_encoded=no
+for p2src in "${toctou_pass2[@]}"; do
+  if [[ "$p2src" == "$sandbox/toctou/b/clip.MOV" ]]; then
+    b_encoded=yes
+  fi
+done
+if [[ "$b_encoded" != yes ]]; then
+  echo "FAIL: replaced sibling B was not re-encoded" >&2
+  cat "$STAB_FAKE_LOG" >&2
+  exit 1
+fi
+if [[ -e "$sandbox/toctou/b/clip.MOV" ]]; then
+  echo "FAIL: TOCTOU path left B source (want delete after late encode)" >&2
+  cat "$sandbox/toctou2.out" "$sandbox/toctou2.err" >&2
+  exit 1
+fi
+if [[ -e "$sandbox/toctou/a/clip.MOV" ]]; then
+  echo "FAIL: TOCTOU path left A source after --delete-source" >&2
+  exit 1
+fi
+grep -q '^OUT_FOR=' "$sandbox/toctou/b/stabilised-clip.mp4" || {
+  echo "FAIL: B out missing after late re-encode" >&2
+  exit 1
+}
+printf 'ok: TOCTOU sibling replace → keep + late re-encode + delete\n'
+
+# --- unit: _partial_for / _output_decodes / _parse_cli / srcid ------------
 # shellcheck source=scripts/stabilize-video
 source "$script"
 partial_path=$(_partial_for "$sandbox/corrupt/stabilised-clip.mp4")
 assert_eq "_partial_for suffix" \
   "$sandbox/corrupt/stabilised-clip.mp4.partial" "$partial_path"
+assert_eq "_srcid_for suffix" \
+  "$sandbox/corrupt/stabilised-clip.mp4.srcid" \
+  "$(_srcid_for "$sandbox/corrupt/stabilised-clip.mp4")"
 if ! _output_decodes "$sandbox/corrupt/stabilised-clip.mp4"; then
   echo "FAIL: _output_decodes rejected known-good encode marker" >&2
   exit 1
@@ -1000,7 +1188,23 @@ _source_newer_than_out "$sandbox/mtime-src" "$sandbox/mtime-out" || {
   echo "FAIL: _source_newer_than_out false when src newer" >&2
   exit 1
 }
-printf 'ok: unit — _partial_for + _output_decodes + _parse_cli + mtime\n'
+printf 'id-src\n' > "$sandbox/id-src"
+printf 'OUT_FOR=x\n' > "$sandbox/id-out.mp4"
+_write_srcid "$sandbox/id-src" "$sandbox/id-out.mp4"
+_srcid_matches "$sandbox/id-src" "$sandbox/id-out.mp4" || {
+  echo "FAIL: _srcid_matches false right after _write_srcid" >&2
+  exit 1
+}
+printf 'id-src-changed\n' > "$sandbox/id-src"
+if _srcid_matches "$sandbox/id-src" "$sandbox/id-out.mp4"; then
+  echo "FAIL: _srcid_matches true after content replace" >&2
+  exit 1
+fi
+_out_stale_for_source "$sandbox/id-src" "$sandbox/id-out.mp4" || {
+  echo "FAIL: _out_stale_for_source false after identity mismatch" >&2
+  exit 1
+}
+printf 'ok: unit — helpers + [[ -nt ]] + .srcid identity\n'
 
 # --- syntax / shellcheck --------------------------------------------------
 bash -n "$script"
