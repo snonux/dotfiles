@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Convenience entry: live Garage S3 smoke for Quicklog drain e2e.
+set -uo pipefail
+exec -a quicklog-drain-e2e \
+  "$(cd "$(dirname "$0")" && pwd)/run" live-s3 "$@"

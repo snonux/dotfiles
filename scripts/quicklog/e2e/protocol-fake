@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Convenience entry: protocol-fake / no-S3 Quicklog drain e2e phases.
+set -uo pipefail
+exec -a quicklog-drain-e2e \
+  "$(cd "$(dirname "$0")" && pwd)/run" protocol-fake "$@"

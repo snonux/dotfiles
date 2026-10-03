@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# End-to-end test for the Quicklog S3 → taskwarrior direct-import pipeline.
+#
+# Lives beside the code under test (scripts/quicklog-drain) under
+# scripts/quicklog/e2e/. Split into protocol-fake (no S3) vs live-S3 smoke so
+# the oversized production-touching harness is no longer a flat scripts/ blob.
+#
+# Modes:
+#   all            Full suite (default): live preflight → parser → live S3 →
+#                  protocol-fake → isolation. Same coverage as the former
+#                  scripts/quicklog-drain-e2e monolith.
+#   protocol-fake  Sandbox + fish parser + fake-dart protocol failures only
+#                  (no Garage, no timer, no real-HOME fingerprints).
+#   live-s3        Live Garage smoke + isolation (skips parser / protocol-fake).
+#
+# Usage (from the dotfiles repo, or with QUICKLOG_E2E_DOTFILES pointing at it):
+#   ./scripts/quicklog-drain-e2e                 # thin wrapper → all
+#   ./scripts/quicklog/e2e/run [all|protocol-fake|live-s3]
+#   ./scripts/quicklog/e2e/protocol-fake          # convenience entry
+#   ./scripts/quicklog/e2e/live-s3                # convenience entry
+#
+# Exit status: 0 = all phases passed; 1 = at least one assertion failed
+# (cleanup and timer restoration happen regardless).
+
+set -uo pipefail
+
+PROGRAM=${0##*/}
+FAILURES=0
+SAN=""
+TIMER_WAS_ACTIVE=false
+TEST_KEYS=()
+REAL_HOME="$HOME"
+CREDS="${QUICKLOG_CREDS:-$HOME/.config/garage/quicklog.env}"
+REPO="${QUICKLOG_REPO:-$HOME/git/quicklog}"
+DART="${QUICKLOG_DART:-$HOME/flutter/bin/dart}"
+DOTFILES="${QUICKLOG_E2E_DOTFILES:-}"
+REAL_TASK=/usr/bin/task
+CHILD_PATH="/usr/local/bin:/usr/bin:/bin"
+
+_E2E_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=scripts/quicklog/e2e/common.sh
+source "$_E2E_DIR/common.sh"
+
+MODE="${1:-all}"
+case "$MODE" in
+  all | protocol-fake | live-s3) ;;
+  -h | --help)
+    sed -n '2,22p' "$0" | sed 's/^# \?//'
+    exit 0
+    ;;
+  *)
+    echo "$PROGRAM: unknown mode '$MODE' (want all|protocol-fake|live-s3)" >&2
+    exit 1
+    ;;
+esac
+
+trap cleanup EXIT
+
+case "$MODE" in
+  all | live-s3)
+    ql_e2e::load_creds
+    # shellcheck source=scripts/quicklog/e2e/preflight-live.sh
+    source "$_E2E_DIR/preflight-live.sh"
+    ql_e2e::build_sandbox
+    if [[ "$MODE" == all ]]; then
+      # shellcheck source=scripts/quicklog/e2e/parser-local.sh
+      source "$_E2E_DIR/parser-local.sh"
+    fi
+    # shellcheck source=scripts/quicklog/e2e/live-s3.sh
+    source "$_E2E_DIR/live-s3.sh"
+    if [[ "$MODE" == all ]]; then
+      # shellcheck source=scripts/quicklog/e2e/protocol-fake.sh
+      source "$_E2E_DIR/protocol-fake.sh"
+    fi
+    # shellcheck source=scripts/quicklog/e2e/isolation.sh
+    source "$_E2E_DIR/isolation.sh"
+    ;;
+  protocol-fake)
+    # Creds file must exist: the wrapper still receives QUICKLOG_CREDS even when
+    # QUICKLOG_DART points at the fake emitter.
+    [[ -r "$CREDS" ]] || { echo "$PROGRAM: missing $CREDS" >&2; exit 1; }
+    ql_e2e::load_creds
+    ql_e2e::require_tools fish jq flock timeout pgrep
+    [[ -x "$REAL_TASK" ]] || { echo "$PROGRAM: missing $REAL_TASK" >&2; exit 1; }
+    ql_e2e::build_sandbox
+    # shellcheck source=scripts/quicklog/e2e/parser-local.sh
+    source "$_E2E_DIR/parser-local.sh"
+    # Fresh sandbox DB before protocol phases (same wipe live suite does after
+    # phase 2) so counts stay exact for the fake-emitter scenarios.
+    rm -rf "$SAN/taskdata"
+    mkdir -p "$SAN/taskdata"
+    # shellcheck source=scripts/quicklog/e2e/protocol-fake.sh
+    source "$_E2E_DIR/protocol-fake.sh"
+    ;;
+esac
+
+echo
+if [[ $FAILURES -eq 0 ]]; then
+  echo "ALL PHASES PASSED"
+else
+  echo "$FAILURES assertion(s) FAILED"
+  exit 1
+fi

@@ -5,7 +5,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 declare -r SCRIPT_DIR
 declare -r LIB="${SCRIPT_DIR}/../lib/e2e-assert.sh"
-declare -r QUICKLOG_E2E="${SCRIPT_DIR}/../quicklog-drain-e2e"
+declare -r QUICKLOG_E2E_WRAPPER="${SCRIPT_DIR}/../quicklog-drain-e2e"
+declare -r QUICKLOG_E2E_COMMON="${SCRIPT_DIR}/../quicklog/e2e/common.sh"
+declare -r QUICKLOG_E2E_RUN="${SCRIPT_DIR}/../quicklog/e2e/run"
 declare -r TW_E2E="${SCRIPT_DIR}/../taskwarrior-export-e2e"
 TEST_ROOT="$(mktemp -d)"
 declare -r TEST_ROOT
@@ -21,7 +23,9 @@ die() {
 }
 
 bash -n "$LIB" || die "bash -n lib failed"
-bash -n "$QUICKLOG_E2E" || die "bash -n quicklog-drain-e2e failed"
+bash -n "$QUICKLOG_E2E_WRAPPER" || die "bash -n quicklog-drain-e2e wrapper failed"
+bash -n "$QUICKLOG_E2E_COMMON" || die "bash -n quicklog e2e common.sh failed"
+bash -n "$QUICKLOG_E2E_RUN" || die "bash -n quicklog e2e run failed"
 bash -n "$TW_E2E" || die "bash -n taskwarrior-export-e2e failed"
 shellcheck -x "$LIB" || die "shellcheck lib failed"
 
@@ -40,8 +44,9 @@ if _sources_e2e_assert "$fixture_comment_only"; then
     die "comment-only fixture incorrectly passed structural source check"
 fi
 
-# Harnesses must source the shared lib and must not redefine the assert family.
-for harness in "$QUICKLOG_E2E" "$TW_E2E"; do
+# Harnesses must source the shared lib (quicklog via common.sh) and must not
+# redefine the assert family.
+for harness in "$QUICKLOG_E2E_COMMON" "$TW_E2E"; do
     _sources_e2e_assert "$harness" \
         || die "$(basename "$harness") does not source lib/e2e-assert.sh"
     if grep -nE '^(say|fail|assert_rc|assert_rc_nonzero|assert_eq|assert_contains|assert_not_contains|assert_exists|assert_missing)\(\)' \
@@ -49,6 +54,13 @@ for harness in "$QUICKLOG_E2E" "$TW_E2E"; do
         die "$(basename "$harness") still defines local assert helpers"
     fi
 done
+
+# Thin wrapper must exec the co-located runner (not hold the suite itself).
+grep -q 'quicklog/e2e/run' "$QUICKLOG_E2E_WRAPPER" \
+    || die "quicklog-drain-e2e wrapper does not exec quicklog/e2e/run"
+if grep -qE '^(say|fail|assert_eq)\(\)' "$QUICKLOG_E2E_WRAPPER"; then
+    die "quicklog-drain-e2e wrapper still contains harness body"
+fi
 
 # --- Behavioural checks (source in a clean namespace) -----------------------
 
