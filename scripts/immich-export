@@ -50,24 +50,25 @@ _safe_export_filename() {
     printf '%s\n' "$base"
 }
 
-# _safe_asset_id RAW — accept a single path component for use in export names.
-# Asset IDs come from Immich (usually UUIDs) but are still untrusted input in
-# the TSV stream; refuse anything that is not one safe component.
+# _safe_asset_id RAW — accept an Immich asset id for use in export names.
+# Allowlist standard UUID form only. That keeps {id}_{basename} injective:
+# UUIDs contain no '_', so the id is always the fixed UUID prefix before the
+# first '_' and cannot ambiguously recombine with basename segments
+# (e.g. ab+c_d vs ab_c+d). Also refuse path/control characters.
 _safe_asset_id() {
     local -r raw="$1"
 
     [[ -n "$raw" ]] || return 1
-    [[ "$raw" != /* ]] || return 1
-    case "$raw" in
-        .|..) return 1 ;;
-        *$'\t'*|*$'\n'*|*$'\r'*|*/*) return 1 ;;
-    esac
+    # UUID: 8-4-4-4-12 hex (any version). No other shapes.
+    [[ "$raw" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] \
+        || return 1
 
     printf '%s\n' "$raw"
 }
 
 # _unique_export_basename ASSET_ID SAFE_BASENAME — local name that stays unique
 # across distinct assets even when originalFileName (or its basename) collides.
+# Layout: {uuid}_{sanitized_basename}. Injective because uuid has no '_'.
 _unique_export_basename() {
     local -r asset_id="$1"
     local -r safe="$2"
@@ -137,9 +138,10 @@ for item in d['assets']['items']:
 }
 
 # Phase 2: download each asset by ID, showing real [X/total] progress.
-# Destinations are {asset_id}_{sanitized_basename} so distinct assets that
-# share originalFileName (or collapse to the same basename) all export.
-# Returns 1 if any same-run destination collision remains (e.g. duplicate id).
+# Destinations are {uuid}_{sanitized_basename} so distinct assets that share
+# originalFileName (or collapse to the same basename) all export. UUID
+# allowlisting keeps that join injective. Returns 1 on same-run duplicate
+# asset id or destination collision.
 download_assets() {
     local api_key="$1"
     local account_dir="$2"
@@ -151,6 +153,7 @@ download_assets() {
     local -i refused=0
     local -i collided=0
     local -i n=0
+    declare -A run_seen_ids=()
     declare -A run_dest_owners=()
 
     while IFS=$'\t' read -r asset_id filename; do
@@ -177,8 +180,16 @@ download_assets() {
             continue
         fi
 
-        # Same-run collision on the final unique name (duplicate asset id in
-        # the list, etc.). Distinct IDs never share a dest after uniquify.
+        # Same asset id twice in one run (even with different basenames) is a
+        # corrupt/duplicated discover stream — refuse clearly by id, not dest.
+        if [[ -n "${run_seen_ids[$asset_id]+x}" ]]; then
+            ((collided++)) || true
+            echo "    [$n/$total] ERROR: duplicate asset id ${asset_id@Q} (earlier basename ${run_seen_ids[$asset_id]@Q}, this ${safe@Q})" >&2
+            continue
+        fi
+        run_seen_ids[$asset_id]="$safe"
+
+        # Defense in depth: final unique name should be unique once ids are.
         if [[ -n "${run_dest_owners[$unique]+x}" ]]; then
             ((collided++)) || true
             echo "    [$n/$total] ERROR: destination collision for ${unique@Q}: assets ${run_dest_owners[$unique]@Q} and ${asset_id@Q}" >&2
@@ -237,7 +248,7 @@ download_assets() {
         fi
     done < "$asset_list"
 
-    echo "    Done: $downloaded downloaded, $skipped skipped (already exist), $refused refused (unsafe name), $collided collisions (same-run dest)"
+    echo "    Done: $downloaded downloaded, $skipped skipped (already exist), $refused refused (unsafe/invalid input), $collided collisions (duplicate id/dest)"
     ((collided == 0))
 }
 
