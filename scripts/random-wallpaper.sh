@@ -9,19 +9,25 @@ if [[ ! -d "$WALLPAPER_DIR" ]]; then
     exit 1
 fi
 
-# Pick a random image file (common extensions). Use -print0 + mapfile so
-# spaces in paths are safe and pipefail is not tripped by head closing early.
-mapfile -d '' -t images < <(
-    find "$WALLPAPER_DIR" -maxdepth 1 -type f \
-        \( \
-        -iname '*.jpg' -o \
-        -iname '*.jpeg' -o \
-        -iname '*.png' -o \
-        -iname '*.bmp' -o \
-        -iname '*.webp' -o \
-        -iname '*.gif' \
-        \) -print0
-)
+# Pick a random image file (common extensions). Null-delimited find into a
+# temp file so find failures fail closed under set -e (process substitution
+# would mask them). mapfile keeps spaces-in-path safe without head/SIGPIPE.
+image_list="$(mktemp)"
+trap 'rm -f "$image_list"' EXIT
+
+find "$WALLPAPER_DIR" -maxdepth 1 -type f \
+    \( \
+    -iname '*.jpg' -o \
+    -iname '*.jpeg' -o \
+    -iname '*.png' -o \
+    -iname '*.bmp' -o \
+    -iname '*.webp' -o \
+    -iname '*.gif' \
+    \) -print0 >"$image_list"
+
+mapfile -d '' -t images <"$image_list"
+rm -f "$image_list"
+trap - EXIT
 
 if ((${#images[@]} == 0)); then
     printf 'No images found in %s\n' "$WALLPAPER_DIR" >&2

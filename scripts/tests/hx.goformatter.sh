@@ -61,7 +61,10 @@ exit 0
 EOF
 chmod +x "$TEST_ROOT/bin/goimports" "$TEST_ROOT/bin/gofumpt"
 
-out="$(printf 'ok\n' | PATH="$TEST_ROOT/bin:$PATH" "$TARGET")"
-[[ "$out" == $'ok' ]] || fail "unexpected formatter output: ${out@Q}"
+# Write to files so trailing newlines are not stripped by $(...).
+printf 'ok\n' | PATH="$TEST_ROOT/bin:$PATH" "$TARGET" >"$TEST_ROOT/out"
+printf 'ok\n' >"$TEST_ROOT/expected"
+cmp -s "$TEST_ROOT/out" "$TEST_ROOT/expected" \
+    || fail "unexpected formatter output: $(cat -A "$TEST_ROOT/out")"
 
 printf 'hx.goformatter tests passed\n'
