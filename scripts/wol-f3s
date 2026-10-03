@@ -133,11 +133,30 @@ GOGIOS_GATEWAYS=(blowfish.buetow.org fishfinger.buetow.org)
 # How long to wait for the k3s nodes before giving up on un-muting.
 GOGIOS_UNMUTE_TIMEOUT=600
 
+# mute_gogios places the mute marker on every Gogios gateway.
+# Tries all gateways even if one fails (partial mute is better than none).
+# Returns non-zero if any SSH failed — callers that must not abort shutdown
+# should use: mute_gogios || true
 mute_gogios() {
     local gw
+    local -i failed=0
+
     for gw in "${GOGIOS_GATEWAYS[@]}"; do
-        ssh "${SSH_OPTIONS[@]}" "rex@$gw" touch "$GOGIOS_MUTE_FILE"
+        echo "Muting Gogios on $gw..."
+        if ssh "${SSH_OPTIONS[@]}" -o BatchMode=yes -o ConnectTimeout=5 \
+            "rex@$gw" touch "$GOGIOS_MUTE_FILE"; then
+            echo "  ✓ Mute marker set on $gw"
+        else
+            echo "  ✗ Failed to mute Gogios on $gw (SSH unreachable or rejected)" >&2
+            failed=1
+        fi
     done
+
+    if (( failed != 0 )); then
+        echo "✗ Gogios mute incomplete — at least one gateway failed." >&2
+        return 1
+    fi
+    return 0
 }
 
 # unmute_gogios waits for all three k3s nodes to answer before removing the
@@ -163,9 +182,23 @@ unmute_gogios() {
         return 1
     fi
 
+    local -i unmute_failed=0
     for gw in "${GOGIOS_GATEWAYS[@]}"; do
-        ssh "${SSH_OPTIONS[@]}" "rex@$gw" rm -f "$GOGIOS_MUTE_FILE"
+        echo "Un-muting Gogios on $gw..."
+        if ssh "${SSH_OPTIONS[@]}" -o BatchMode=yes -o ConnectTimeout=5 \
+            "rex@$gw" rm -f "$GOGIOS_MUTE_FILE"; then
+            echo "  ✓ Mute marker cleared on $gw"
+        else
+            echo "  ✗ Failed to un-mute Gogios on $gw (SSH unreachable or rejected)" >&2
+            unmute_failed=1
+        fi
     done
+
+    if (( unmute_failed != 0 )); then
+        echo "✗ Gogios un-mute incomplete — clear by hand:" >&2
+        echo "    ssh rex@<gateway> rm -f $GOGIOS_MUTE_FILE" >&2
+        return 1
+    fi
     echo "✓ Gogios monitoring un-muted."
 }
 
@@ -174,12 +207,18 @@ wake() {
     local mac=$2
 
     if [[ "$mac" == "XX:XX:XX:XX:XX:XX" ]]; then
-        echo "⚠️  $name MAC address not configured yet"
+        echo "⚠️  $name MAC address not configured yet" >&2
         return 1
     fi
 
     echo "Sending WoL packet to $name ($mac)..."
-    wol -i "$BROADCAST" "$mac"
+    if wol -i "$BROADCAST" "$mac"; then
+        echo "  ✓ WoL packet sent to $name"
+        return 0
+    fi
+
+    echo "  ✗ Failed to send WoL packet to $name ($mac)" >&2
+    return 1
 }
 
 # shelly_set turns the rack-fan Shelly plug on or off.
@@ -369,10 +408,15 @@ main() {
             # Power on the rack fans before booting the hosts.
             shelly_set "true" || exit 1
             # WoL failures must not skip remaining hosts or the unmute step
-            # (pre-set -e behaviour).
-            wake "f0" "$F0_MAC" || true
-            wake "f1" "$F1_MAC" || true
-            wake "f2" "$F2_MAC" || true
+            # (pre-set -e behaviour). Helpers still print clear errors and
+            # return non-zero; we only suppress abort here.
+            local -i wake_failed=0
+            wake "f0" "$F0_MAC" || wake_failed=1
+            wake "f1" "$F1_MAC" || wake_failed=1
+            wake "f2" "$F2_MAC" || wake_failed=1
+            if (( wake_failed != 0 )); then
+                echo "⚠️  At least one WoL send failed; continuing with un-mute." >&2
+            fi
             # Counterpart to the mute in the shutdown path below. Only the "all"
             # wake clears it: waking a single host would un-mute alerts for the
             # others that are still down.
@@ -384,7 +428,8 @@ main() {
             # so they will hang or corrupt if the servers go down while mounted.
             echo "Checking for locally mounted NFS filesystems..."
             umount_nfs_mounts || exit 1
-            # Mute Gogios on both gateways. Best-effort: a gateway mute failure
+            # Mute Gogios on both gateways. Best-effort: mute_gogios reports
+            # clear per-gateway SSH errors and returns non-zero on failure, but
             # must not abort the privileged host shutdown (pre-set -e behaviour).
             mute_gogios || true
             host_shutdown_failed=0
@@ -433,7 +478,8 @@ main() {
             # so they will hang or corrupt if the servers go down while mounted.
             echo "Checking for locally mounted NFS filesystems..."
             umount_nfs_mounts || exit 1
-            # Mute Gogios on both gateways. Best-effort: a gateway mute failure
+            # Mute Gogios on both gateways. Best-effort: mute_gogios reports
+            # clear per-gateway SSH errors and returns non-zero on failure, but
             # must not abort the privileged host shutdown (pre-set -e behaviour).
             mute_gogios || true
             machine_shutdown_failed=0
