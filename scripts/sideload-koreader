@@ -22,6 +22,8 @@ cleanup() {
 declare -r APK="$1"
 
 command -v adb >/dev/null 2>&1 || die 'adb is not installed'
+# Quote for ShellCheck/hygiene and to avoid [ -f $APK ]-style misuse if
+# this check is ever rewritten with [. Bash [[ does not word-split here.
 [[ -f "$APK" ]] || die "APK not found: $APK"
 
 adb get-state >/dev/null 2>&1 \

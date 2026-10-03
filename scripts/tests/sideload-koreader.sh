@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 # Checks for scripts/sideload-koreader APK path quoting (task l33).
+#
+# Quoting on [[ -f "$APK" ]] is required hygiene (ShellCheck SC2086, consistent
+# path handling, and prevention of future [ -f $APK ] misuse). Bash [[ does not
+# word-split or pathname-expand the unquoted operand the way [ does, so this
+# suite does not claim a bash [[ word-split failure for spaced paths.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -110,33 +115,9 @@ if grep -Eq 'declare -r APK=\$1' "$SIDELOAD"; then
     fail 'pre-fix unquoted declare -r APK=$1 still present'
 fi
 
-# --- Negative repro: word-splitting [ -f ] fails on spaces (class of bug) ---
 declare -r SPACE_APK="$TEST_ROOT/dir with spaces/KOReader release.apk"
 mkdir -p "$(dirname "$SPACE_APK")"
 : >"$SPACE_APK"
-# shellcheck disable=SC2086 # intentional unquoted repro of the old bug class
-set +e
-[ -f $SPACE_APK ] 2>/dev/null
-space_rc=$?
-set -e
-((space_rc != 0)) \
-    || fail "buggy [ -f \$path ] unexpectedly succeeded for spaced path"
-[ -f "$SPACE_APK" ] \
-    || fail "quoted [ -f \"\$path\" ] failed for existing spaced path"
-
-# --- Negative repro: unquoted [[ -f ]] fails when a glob matches many files ---
-declare -r GLOB_DIR="$TEST_ROOT/globdir"
-mkdir -p "$GLOB_DIR"
-: >"$GLOB_DIR/a1.apk"
-: >"$GLOB_DIR/a2.apk"
-declare -r MULTI_GLOB="$GLOB_DIR/a*.apk"
-# shellcheck disable=SC2086 # intentional unquoted repro of the old bug
-set +e
-[[ -f $MULTI_GLOB ]]
-multi_rc=$?
-set -e
-((multi_rc != 0)) \
-    || fail "buggy unquoted [[ -f \$glob ]] unexpectedly succeeded"
 
 # --- Negative: missing APK fail-closed ---
 reset_calls
