@@ -5,7 +5,7 @@ if command -q fzf
 end
 
 # Keep our paths first, preserving the order of other paths already added by fish.
-set -l user_paths ~/bin ~/scripts ~/go/bin ~/.cargo/bin ~/.local/bin ~/flutter/bin
+set -l user_paths ~/bin ~/scripts ~/go/bin ~/.cargo/bin ~/.local/bin ~/.yarn/bin ~/flutter/bin
 for path in $fish_user_paths
     if not contains -- $path $user_paths
         set -a user_paths $path
