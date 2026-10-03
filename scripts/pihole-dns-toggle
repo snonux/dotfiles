@@ -108,9 +108,15 @@ main() {
         exit 1
     fi
 
-    # Get active connections
-    mapfile -t CONNECTIONS < <(get_active_connections)
-    
+    # Active connections into a temp file so nmcli failures fail closed under
+    # set -e (process substitution would mask them).
+    connections_list="$(mktemp)"
+    trap 'rm -f "$connections_list"' EXIT
+    get_active_connections >"$connections_list"
+    mapfile -t CONNECTIONS <"$connections_list"
+    rm -f "$connections_list"
+    trap - EXIT
+
     if [[ "${#CONNECTIONS[@]}" -eq 0 ]]; then
         echo -e "${RED}Error: No active network connection found${NC}"
         exit 1

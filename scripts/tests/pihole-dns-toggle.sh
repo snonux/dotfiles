@@ -36,6 +36,13 @@ if code_lines | grep -Eq '^set -e$'; then
     fail "still uses bare set -e"
 fi
 
+# Fail-closed nmcli: temp file + mapfile, not process-sub (masks failures).
+code_lines | grep -Fq 'mktemp' \
+    || fail "missing mktemp for active-connections list"
+if code_lines | grep -Eq '<[[:space:]]*<\('; then
+    fail "active connections still use process substitution (masks nmcli failures)"
+fi
+
 # set -u / mock nmcli smoke: exercise status path without real NetworkManager.
 mkdir -p "$TEST_ROOT/bin"
 cat >"$TEST_ROOT/bin/nmcli" <<'EOF'
@@ -95,6 +102,37 @@ grep -Eq 'DISABLED|ENABLED' "$TEST_ROOT/status.out" \
     || fail "status output missing ENABLED/DISABLED"
 grep -Fq 'connection show --active' "$NMCLI_LOG" \
     || fail "mock nmcli was not asked for active connections"
+
+# nmcli failure must fail closed — not become "No active network connection"
+# with a successful (or empty-list) path.
+cat >"$TEST_ROOT/bin/nmcli" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >>"${NMCLI_LOG:?}"
+# Fail the active-connections listing (same argv shape as the script).
+if [[ "$1" == -t ]]; then
+    printf 'nmcli mock: simulated failure\n' >&2
+    exit 42
+fi
+printf 'nmcli mock: unhandled args: %s\n' "$*" >&2
+exit 99
+EOF
+chmod +x "$TEST_ROOT/bin/nmcli"
+
+: >"$NMCLI_LOG"
+set +e
+PATH="$TEST_ROOT/bin:/usr/bin:/bin" NMCLI_LOG="$NMCLI_LOG" \
+    "$TARGET" status >"$TEST_ROOT/fail.out" 2>"$TEST_ROOT/fail.err"
+fail_status=$?
+set -e
+((fail_status != 0)) \
+    || fail "nmcli failure exited 0 (should fail closed)"
+if grep -Fq 'No active network connection found' \
+    "$TEST_ROOT/fail.out" "$TEST_ROOT/fail.err"; then
+    fail "nmcli failure misreported as 'No active network connection found'"
+fi
+grep -Fq 'connection show --active' "$NMCLI_LOG" \
+    || fail "failing mock nmcli was not asked for active connections"
 
 # Unbound-variable smoke: script already runs under set -u; a clean status
 # exit means no unbound refs on the exercised path.
