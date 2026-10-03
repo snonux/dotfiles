@@ -18,7 +18,10 @@
 # `2 Home,groceries buy milk` (due in 2 days, project home, tag groceries).
 # A capitalized first token of the tag field is a project name, the
 # remaining comma-separated tokens are tags, and everything after the tag
-# field is the task description.
+# field is the task description. The tag field must start with a letter and
+# only contain [A-Za-z0-9_,-]; a leading URL or other punctuation-led word
+# (e.g. `https://foo.zone/...` when sharing a link) is the description, not
+# a tag.
 #
 # Retry semantics (both sources): a line that fails transiently (task add
 # error) is never consumed — the S3 note stays in the bucket, the local file
@@ -97,34 +100,47 @@ function _taskwarrior::quicklog_import_line --description 'Import one Quicklog n
         return 2
     end
 
-    # Next token is the tag/project field; advance idx past it
+    # Next token is the prospective tag/project field. A tag field must start
+    # with a letter and contain only letters, digits, underscore, hyphen and
+    # commas (e.g. Home,groceries or bar,baz). Anything else — notably a URL
+    # like https://foo.zone/... when sharing a link as the whole note — is the
+    # start of the free-text description, not a tag.
     set -l tag_field "$tokens[$idx]"
-    set idx (math "$idx + 1")
-
-    # Split the tag field on commas first, then inspect the first element.
-    # A capital first letter on the first element signals a project name;
-    # any remaining comma-separated elements become plain tags.
-    # e.g. "Foo,bar,baz" → project=foo, tags=(bar baz)
-    # e.g. "bar,baz"     → project="",  tags=(bar baz)
-    set -l tag_parts (string split ',' -- "$tag_field")
     set -l project ""
-    set -l tags
-    if string match -qr '^[A-Z]' -- "$tag_parts[1]"
-        set project (string lower -- "$tag_parts[1]")
-        test (count $tag_parts) -gt 1; and set tags (string lower -- $tag_parts[2..-1])
-    else
-        set tags (string lower -- $tag_parts)
-    end
-
-    # Drop empty tag tokens (e.g. "Foo,,bar") so they cannot reach task add
     set -l clean_tags
-    for tag in $tags
-        test -n "$tag"; and set -a clean_tags "$tag"
-    end
-
-    # Everything from idx onward is the free-text description
     set -l description ""
-    if test $idx -le (count $tokens)
+    set -l tag_field_ok 0
+    if string match -qr '^[A-Za-z]' -- "$tag_field"; and not string match -qr '[^A-Za-z0-9_,-]' -- "$tag_field"
+        set tag_field_ok 1
+    end
+    if test $tag_field_ok -eq 1
+        set idx (math "$idx + 1")
+
+        # Split the tag field on commas first, then inspect the first element.
+        # A capital first letter on the first element signals a project name;
+        # any remaining comma-separated elements become plain tags.
+        # e.g. "Foo,bar,baz" → project=foo, tags=(bar baz)
+        # e.g. "bar,baz"     → project="",  tags=(bar baz)
+        set -l tag_parts (string split ',' -- "$tag_field")
+        set -l tags
+        if string match -qr '^[A-Z]' -- "$tag_parts[1]"
+            set project (string lower -- "$tag_parts[1]")
+            test (count $tag_parts) -gt 1; and set tags (string lower -- $tag_parts[2..-1])
+        else
+            set tags (string lower -- $tag_parts)
+        end
+
+        # Drop empty tag tokens (e.g. "Foo,,bar") so they cannot reach task add
+        for tag in $tags
+            test -n "$tag"; and set -a clean_tags "$tag"
+        end
+
+        # Everything from idx onward is the free-text description
+        if test $idx -le (count $tokens)
+            set description (string join ' ' -- $tokens[$idx..-1])
+        end
+    else
+        # URL-only / punctuation-led notes: whole remainder is the description
         set description (string join ' ' -- $tokens[$idx..-1])
     end
     test -n "$description"; or begin

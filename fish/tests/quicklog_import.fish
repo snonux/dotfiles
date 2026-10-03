@@ -90,4 +90,53 @@ or fail "stdin import did not deduplicate new descriptions"
 set -q __quicklog_pending
 and fail "successful import left a pending-task cache"
 
+# URL-first / non-tag leading words must become the description, not a tag.
+: >"$TASK_CALLS"
+set -g EXPORT_MODE success
+printf '%s\n' \
+    'https://foo.zone/post' \
+    'https://foo.zone/a read later' \
+    '2 https://example.com/x' \
+    'Home https://foo.zone/keep-project' \
+    'home,groceries https://foo.zone/with-tags' \
+    '#hashtag only text' \
+    'https://foo.zone/' \
+    | taskwarrior::quicklog_import_content >/dev/null 2>/dev/null
+or fail "URL-variant stdin import failed"
+
+set -l calls (cat "$TASK_CALLS")
+test (count $calls) -eq 7
+or fail "URL-variant import expected 7 adds, got "(count $calls)
+
+string match -q '*-- https://foo.zone/post' -- $calls[1]
+or fail "bare URL became a tag or lost description: $calls[1]"
+string match -q '*+https*' -- $calls[1]
+and fail "bare URL was added as a tag: $calls[1]"
+
+string match -q '*-- https://foo.zone/a read later' -- $calls[2]
+or fail "URL+text description wrong: $calls[2]"
+
+string match -q '*due:2d*' -- $calls[3]
+or fail "due+URL lost due: $calls[3]"
+string match -q '*-- https://example.com/x' -- $calls[3]
+or fail "due+URL description wrong: $calls[3]"
+
+string match -q '*project:home*' -- $calls[4]
+or fail "Project+URL lost project: $calls[4]"
+string match -q '*-- https://foo.zone/keep-project' -- $calls[4]
+or fail "Project+URL description wrong: $calls[4]"
+
+string match -q '*+home*' -- $calls[5]; or fail "tags+URL lost home tag: $calls[5]"
+string match -q '*+groceries*' -- $calls[5]; or fail "tags+URL lost groceries tag: $calls[5]"
+string match -q '*-- https://foo.zone/with-tags' -- $calls[5]
+or fail "tags+URL description wrong: $calls[5]"
+
+string match -q '*-- #hashtag only text' -- $calls[6]
+or fail "hash-led note description wrong: $calls[6]"
+string match -q '*+#hashtag*' -- $calls[6]
+and fail "hash-led note became a tag: $calls[6]"
+
+string match -q '*-- https://foo.zone/' -- $calls[7]
+or fail "URL-only trailing slash description wrong: $calls[7]"
+
 echo 'quicklog_import: ok'
