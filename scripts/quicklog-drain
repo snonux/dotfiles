@@ -75,7 +75,10 @@ declare -r CREDS="${QUICKLOG_CREDS:-$HOME/.config/garage/quicklog.env}"
 declare -r REPO="${QUICKLOG_REPO:-$HOME/git/quicklog}"
 declare -r DART="${QUICKLOG_DART:-$HOME/flutter/bin/dart}"
 declare -r FISH_CONF_DIR="${QUICKLOG_FISH_CONF_DIR:-$HOME/.config/fish/conf.d}"
-FISH_BIN="$(command -v fish)"
+# command -v fails when fish is absent; keep set -e from aborting before
+# check_prerequisites can report a clear error (also lets unit tests source
+# this file without fish on PATH).
+FISH_BIN="$(command -v fish || true)"
 readonly FISH_BIN
 declare -r LOCK="${XDG_RUNTIME_DIR:-/tmp}/quicklog-drain.lock"
 declare -r CHILD_PATH="/usr/local/bin:/usr/bin:/bin"
