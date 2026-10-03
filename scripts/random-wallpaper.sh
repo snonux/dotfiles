@@ -1,28 +1,34 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Randomly sets a GNOME desktop wallpaper from image files in a given directory.
+set -euo pipefail
 
 WALLPAPER_DIR="$HOME/Pictures/Pixel7ProDCIM/Irregular Ninja/irregular.ninja"
 
-if [ ! -d "$WALLPAPER_DIR" ]; then
+if [[ ! -d "$WALLPAPER_DIR" ]]; then
     printf 'Directory not found: %s\n' "$WALLPAPER_DIR" >&2
     exit 1
 fi
 
-# Pick a random image file (common extensions)
-IMAGE=$(find "$WALLPAPER_DIR" -maxdepth 1 -type f \
-    \( \
-    -iname '*.jpg' -o \
-    -iname '*.jpeg' -o \
-    -iname '*.png' -o \
-    -iname '*.bmp' -o \
-    -iname '*.webp' -o \
-    -iname '*.gif' \
-    \) | sort -R | head -n 1)
+# Pick a random image file (common extensions). Use -print0 + mapfile so
+# spaces in paths are safe and pipefail is not tripped by head closing early.
+mapfile -d '' -t images < <(
+    find "$WALLPAPER_DIR" -maxdepth 1 -type f \
+        \( \
+        -iname '*.jpg' -o \
+        -iname '*.jpeg' -o \
+        -iname '*.png' -o \
+        -iname '*.bmp' -o \
+        -iname '*.webp' -o \
+        -iname '*.gif' \
+        \) -print0
+)
 
-if [ -z "$IMAGE" ]; then
+if ((${#images[@]} == 0)); then
     printf 'No images found in %s\n' "$WALLPAPER_DIR" >&2
     exit 1
 fi
+
+IMAGE="${images[RANDOM % ${#images[@]}]}"
 
 # GNOME Shell caches wallpaper textures keyed by URI.
 # If the path is always the same, Shell won't reload even when the file
@@ -35,9 +41,14 @@ CLEAN_PATH="$CLEAN_DIR/$UNIQUE.jpg"
 mkdir -p "$CLEAN_DIR"
 cp "$IMAGE" "$CLEAN_PATH"
 
-# Clean up old copies to avoid filling the directory
-# Keep the last 5 wallpapers around
-ls -1t "$CLEAN_DIR"/random-wallpaper-*.jpg 2> /dev/null | sed -n '6,$p' | xargs -r rm -f
+# Clean up old copies to avoid filling the directory.
+# Keep the last 5 wallpapers around (newest by mtime).
+find "$CLEAN_DIR" -maxdepth 1 -type f -name 'random-wallpaper-*.jpg' \
+    -printf '%T@ %p\0' \
+    | sort -z -rn \
+    | sed -z -n '6,$p' \
+    | cut -z -d' ' -f2- \
+    | xargs -0 -r rm -f
 
 # dconf-service on Fedora 50 has a bug where gsettings set keeps changes in
 # memory but never syncs them to the on-disk database.  GNOME Shell reads
