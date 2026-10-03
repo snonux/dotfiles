@@ -2,14 +2,21 @@
 # Sync selected local directories to a remote tempbackup via rsync.
 #
 # Usage:
-#   temp-backup [-n] [-d DEST] [--delete] [DIR ...]
+#   temp-backup [-n] [-d DEST] [--delete] [--] [DIR ...]
 #   temp-backup -h
 #
 # Defaults (no DIR args): Notes + Documents under $HOME.
 #
 # Destination (remote base, sources land in DEST/<basename>):
-#   BACKUP_DEST env, or -d DEST, else ${TEMP_BACKUP_HOST:-f0.wg0}:tempbackup
-#   Empty and CHANGEME_* destinations are refused.
+#   TEMP_BACKUP_DEST env, or -d DEST, else
+#   ${TEMP_BACKUP_HOST:-f0.wg0}:tempbackup
+#   Empty, CHANGEME_*, and host:/ (empty or root-only path) are refused.
+#
+# Note: does NOT read home-backup's BACKUP_DEST. An ambient BACKUP_DEST for
+# home-backup must not retarget this script; use TEMP_BACKUP_DEST or -d.
+#
+# Sources that begin with '-' must be passed after '--', e.g.:
+#   temp-backup -- -dashy
 #
 # Safety policy (differs from home-backup on purpose):
 #   --delete is opt-in. home-backup always mirrors with --delete; this script
@@ -19,8 +26,9 @@ set -euo pipefail
 
 declare -r PROGRAM=${0##*/}
 
-# Prefer BACKUP_DEST; else host:tempbackup from TEMP_BACKUP_HOST (compat).
-declare DEST="${BACKUP_DEST:-${TEMP_BACKUP_HOST:-f0.wg0}:tempbackup}"
+# Prefer TEMP_BACKUP_DEST; else host:tempbackup from TEMP_BACKUP_HOST.
+# Intentionally ignores BACKUP_DEST (home-backup) to avoid silent retarget.
+declare DEST="${TEMP_BACKUP_DEST:-${TEMP_BACKUP_HOST:-f0.wg0}:tempbackup}"
 declare DRY_RUN=""
 declare DO_DELETE="no"
 
@@ -34,20 +42,24 @@ error() {
 
 usage() {
     cat <<EOF
-Usage: $PROGRAM [-n] [-d DEST] [--delete] [DIR ...]
+Usage: $PROGRAM [-n] [-d DEST] [--delete] [--] [DIR ...]
 
   -n           Dry run (show what would be transferred, transfer nothing)
-  -d DEST      Remote base destination (host:path), overrides BACKUP_DEST
+  -d DEST      Remote base destination (host:path), overrides TEMP_BACKUP_DEST
   --delete     Opt-in: remove remote files that no longer exist locally
+  --           End of options; following args are sources (needed for
+               relative paths that start with '-', e.g. -- -dashy)
   -h, --help   Show this help
 
 Without DIR arguments, backs up:
   \$HOME/Syncthing/Notes/
   \$HOME/Documents/
 
-Destination may also be set via BACKUP_DEST. If unset, defaults to
-\${TEMP_BACKUP_HOST:-f0.wg0}:tempbackup. Empty and CHANGEME_* values
-are refused.
+Destination may also be set via TEMP_BACKUP_DEST. If unset, defaults to
+\${TEMP_BACKUP_HOST:-f0.wg0}:tempbackup. Empty, CHANGEME_*, and
+host:/ (empty or root-only path after host:) are refused.
+
+This script does not use BACKUP_DEST (that is home-backup's variable).
 
 Unlike home-backup (always --delete), this script requires --delete
 explicitly before any destructive remote pruning.
@@ -77,6 +89,26 @@ _normalize_source() {
     printf '%s\n' "$src"
 }
 
+_validate_dest() {
+    local -r dest="$1"
+    if [[ -z "$dest" || "$dest" == CHANGEME_* ]]; then
+        error "No backup destination set."
+        error "Set TEMP_BACKUP_DEST, pass -d host:path, or edit DEST in $PROGRAM."
+        exit 1
+    fi
+    if [[ "$dest" != *:* ]]; then
+        error "Destination must be host:path (got: $dest)."
+        exit 1
+    fi
+    # Path after the last ':' (rsync user@host:path / host:path).
+    local -r remote_path="${dest##*:}"
+    # Refuse empty (host:) and root-only (host:/, host://, …).
+    if [[ -z "$remote_path" || -z "${remote_path//\/}" ]]; then
+        error "Destination path after host: is empty or root-only: $dest"
+        exit 1
+    fi
+}
+
 _validate_sources() {
     local -n _dirs="$1"
     local dir resolved
@@ -100,6 +132,21 @@ _validate_sources() {
         # Validate remote leaf early (before any --delete rsync).
         _remote_basename "$dir" >/dev/null
     done
+}
+
+_log_run_plan() {
+    log "Destination: $DEST"
+    if [[ -n "$DRY_RUN" ]]; then
+        log "Mode:        DRY RUN (no data transferred)"
+    else
+        log "Mode:        LIVE"
+    fi
+    if [[ "$DO_DELETE" == yes ]]; then
+        log "Delete:      yes (--delete)"
+    else
+        log "Delete:      no (pass --delete to prune remote)"
+    fi
+    log ""
 }
 
 main() {
@@ -145,11 +192,7 @@ main() {
         esac
     done
 
-    if [[ -z "$DEST" || "$DEST" == CHANGEME_* ]]; then
-        error "No backup destination set."
-        error "Set BACKUP_DEST, pass -d host:path, or edit DEST in $PROGRAM."
-        exit 1
-    fi
+    _validate_dest "$DEST"
 
     if ((${#dirs[@]} == 0)); then
         dirs=(
@@ -159,6 +202,7 @@ main() {
     fi
 
     _validate_sources dirs
+    _log_run_plan
 
     local dir remote_name source_path
     local -a rsync_args

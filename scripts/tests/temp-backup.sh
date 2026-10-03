@@ -56,6 +56,7 @@ export PATH="$TEST_ROOT/bin:$PATH"
 export HOME="$TEST_ROOT/home"
 export TEMP_BACKUP_HOST='mock.host'
 unset BACKUP_DEST || true
+unset TEMP_BACKUP_DEST || true
 export RSYNC_CALL_DIR="$TEST_ROOT/calls"
 
 reset_calls() {
@@ -145,8 +146,12 @@ fi
 if grep -Eq 'rsync[[:space:]]+-av[[:space:]]+--delete' "$TEMP_BACKUP"; then
     fail "always-on rsync --delete still present (want opt-in)"
 fi
-grep -Fq 'BACKUP_DEST' "$TEMP_BACKUP" || fail "missing BACKUP_DEST support"
+grep -Fq 'TEMP_BACKUP_DEST' "$TEMP_BACKUP" || fail "missing TEMP_BACKUP_DEST support"
 grep -Fq 'CHANGEME_' "$TEMP_BACKUP" || fail "missing CHANGEME_ dest refusal"
+# Must not silently prefer home-backup's BACKUP_DEST for the default DEST.
+if grep -Eq 'DEST=.*\$\{?BACKUP_DEST' "$TEMP_BACKUP"; then
+    fail "DEST still prefers BACKUP_DEST (home-backup footgun)"
+fi
 
 # --- Positive: default dirs — no --delete unless requested ---
 mkdir -p "$HOME/Syncthing/Notes" "$HOME/Documents"
@@ -154,7 +159,7 @@ mkdir -p "$HOME/Syncthing/Notes" "$HOME/Documents"
 : >"$HOME/Documents/doc.txt"
 
 reset_calls
-"$TEMP_BACKUP" || fail "default run failed"
+"$TEMP_BACKUP" >"$TEST_ROOT/out_default" || fail "default run failed"
 [[ "$(call_count)" -eq 2 ]] || fail "expected 2 rsync calls, got $(call_count)"
 assert_rsync_shape 0 \
     "$HOME/Syncthing/Notes/" \
@@ -164,10 +169,16 @@ assert_rsync_shape 1 \
     "$HOME/Documents/" \
     "mock.host:tempbackup/Documents" \
     no
+grep -Fq 'Destination: mock.host:tempbackup' "$TEST_ROOT/out_default" \
+    || fail "missing DEST log: $(cat "$TEST_ROOT/out_default")"
+grep -Fq 'Mode:        LIVE' "$TEST_ROOT/out_default" \
+    || fail "missing LIVE mode log: $(cat "$TEST_ROOT/out_default")"
+grep -Fq 'Delete:      no' "$TEST_ROOT/out_default" \
+    || fail "missing delete=no log: $(cat "$TEST_ROOT/out_default")"
 
 # --- Positive: --delete opt-in ---
 reset_calls
-"$TEMP_BACKUP" --delete || fail "--delete run failed"
+"$TEMP_BACKUP" --delete >"$TEST_ROOT/out_delete" || fail "--delete run failed"
 [[ "$(call_count)" -eq 2 ]] || fail "expected 2 rsync calls with --delete"
 assert_rsync_shape 0 \
     "$HOME/Syncthing/Notes/" \
@@ -177,16 +188,20 @@ assert_rsync_shape 1 \
     "$HOME/Documents/" \
     "mock.host:tempbackup/Documents" \
     yes
+grep -Fq 'Delete:      yes' "$TEST_ROOT/out_delete" \
+    || fail "missing delete=yes log: $(cat "$TEST_ROOT/out_delete")"
 
 # --- Positive: -n dry-run ---
 reset_calls
-"$TEMP_BACKUP" -n "$HOME/Documents/" || fail "dry-run failed"
+"$TEMP_BACKUP" -n "$HOME/Documents/" >"$TEST_ROOT/out_dry" || fail "dry-run failed"
 [[ "$(call_count)" -eq 1 ]] || fail "expected 1 dry-run rsync call"
 assert_rsync_shape 0 \
     "$HOME/Documents/" \
     "mock.host:tempbackup/Documents" \
     no \
     yes
+grep -Fq 'DRY RUN' "$TEST_ROOT/out_dry" \
+    || fail "missing dry-run mode log: $(cat "$TEST_ROOT/out_dry")"
 
 # --- Positive: -n --delete together ---
 reset_calls
@@ -197,23 +212,33 @@ assert_rsync_shape 0 \
     yes \
     yes
 
-# --- Positive: BACKUP_DEST overrides host default ---
+# --- Positive: TEMP_BACKUP_DEST overrides host default ---
 reset_calls
-BACKUP_DEST='other.host:/backup/base' "$TEMP_BACKUP" "$HOME/Documents/" \
-    || fail "BACKUP_DEST run failed"
+TEMP_BACKUP_DEST='other.host:/backup/base' "$TEMP_BACKUP" "$HOME/Documents/" \
+    || fail "TEMP_BACKUP_DEST run failed"
 assert_rsync_shape 0 \
     "$HOME/Documents/" \
     "other.host:/backup/base/Documents" \
     no
 
-# --- Positive: -d overrides BACKUP_DEST ---
+# --- Positive: -d overrides TEMP_BACKUP_DEST ---
 reset_calls
-BACKUP_DEST='ignored.host:/ignored' \
+TEMP_BACKUP_DEST='ignored.host:/ignored' \
     "$TEMP_BACKUP" -d 'flag.host:/via-flag' "$HOME/Documents/" \
     || fail "-d run failed"
 assert_rsync_shape 0 \
     "$HOME/Documents/" \
     "flag.host:/via-flag/Documents" \
+    no
+
+# --- Positive: ambient home-backup BACKUP_DEST must NOT retarget ---
+reset_calls
+BACKUP_DEST='home-backup.host:/earth-backup' \
+    "$TEMP_BACKUP" "$HOME/Documents/" \
+    || fail "ambient BACKUP_DEST run failed"
+assert_rsync_shape 0 \
+    "$HOME/Documents/" \
+    "mock.host:tempbackup/Documents" \
     no
 
 # --- Positive: trailing slash on DEST base is normalized ---
@@ -252,18 +277,54 @@ assert_rsync_shape 0 \
     "mock.host:tempbackup/dir with spaces and \$HOME" \
     no
 
-# --- Positive: leading-dash dirname via basename -- ---
+# --- Positive: absolute leading-dash dirname via basename -- ---
 declare -r DASH_DIR="$TEST_ROOT/-dashy"
 mkdir -p "$DASH_DIR"
 : >"$DASH_DIR/file.txt"
 
 reset_calls
-"$TEMP_BACKUP" "$DASH_DIR" || fail "leading-dash run failed"
+"$TEMP_BACKUP" "$DASH_DIR" || fail "leading-dash absolute run failed"
 [[ "$(call_count)" -eq 1 ]] || fail "expected 1 rsync call for dash dir"
 assert_rsync_shape 0 \
     "${DASH_DIR}/" \
     "mock.host:tempbackup/-dashy" \
     no
+
+# --- Positive: relative leading-dash source requires -- ---
+declare -r REL_DASH_PARENT="$TEST_ROOT/reldash"
+mkdir -p "$REL_DASH_PARENT/-dashy"
+: >"$REL_DASH_PARENT/-dashy/file.txt"
+reset_calls
+(
+    cd "$REL_DASH_PARENT" || exit 1
+    "$TEMP_BACKUP" -- -dashy
+) || fail "relative -dashy via -- failed"
+[[ "$(call_count)" -eq 1 ]] || fail "expected 1 rsync for relative -dashy"
+assert_rsync_shape 0 \
+    '-dashy/' \
+    "mock.host:tempbackup/-dashy" \
+    no
+
+# --- Negative: relative leading-dash without -- is Unknown option ---
+reset_calls
+(
+    cd "$REL_DASH_PARENT" || exit 1
+    if "$TEMP_BACKUP" -dashy 2>"$TEST_ROOT/err_reldash"; then
+        fail "relative -dashy without -- succeeded"
+    fi
+    grep -qi 'Unknown option' "$TEST_ROOT/err_reldash" \
+        || fail "relative -dashy error unclear: $(cat "$TEST_ROOT/err_reldash")"
+)
+[[ "$(call_count)" -eq 0 ]] || fail "rsync ran for relative -dashy without --"
+
+# --- Negative: -d without value ---
+reset_calls
+if "$TEMP_BACKUP" -d 2>"$TEST_ROOT/err_d_missing"; then
+    fail "-d without value succeeded"
+fi
+grep -qi 'requires an argument' "$TEST_ROOT/err_d_missing" \
+    || fail "-d missing-arg error unclear: $(cat "$TEST_ROOT/err_d_missing")"
+[[ "$(call_count)" -eq 0 ]] || fail "rsync ran for -d without value"
 
 # --- Negative: empty -d dest refused (no rsync) ---
 reset_calls
@@ -276,13 +337,33 @@ grep -qi 'No backup destination' "$TEST_ROOT/err_empty_dest" \
 
 # --- Negative: CHANGEME_* dest refused ---
 reset_calls
-if BACKUP_DEST='CHANGEME_replace_me' \
+if TEMP_BACKUP_DEST='CHANGEME_replace_me' \
     "$TEMP_BACKUP" "$HOME/Documents/" 2>"$TEST_ROOT/err_changeme"; then
     fail "CHANGEME dest succeeded"
 fi
 grep -qi 'No backup destination' "$TEST_ROOT/err_changeme" \
     || fail "CHANGEME error unclear: $(cat "$TEST_ROOT/err_changeme")"
 [[ "$(call_count)" -eq 0 ]] || fail "rsync ran with CHANGEME destination"
+
+# --- Negative: host: empty path refused ---
+reset_calls
+if "$TEMP_BACKUP" -d 'evil.host:' "$HOME/Documents/" \
+    2>"$TEST_ROOT/err_host_empty"; then
+    fail "host: empty path succeeded"
+fi
+grep -qi 'empty or root-only' "$TEST_ROOT/err_host_empty" \
+    || fail "host: empty error unclear: $(cat "$TEST_ROOT/err_host_empty")"
+[[ "$(call_count)" -eq 0 ]] || fail "rsync ran for host: empty path"
+
+# --- Negative: host:/ root-only path refused ---
+reset_calls
+if "$TEMP_BACKUP" -d 'evil.host:/' "$HOME/Documents/" \
+    2>"$TEST_ROOT/err_host_root"; then
+    fail "host:/ root path succeeded"
+fi
+grep -qi 'empty or root-only' "$TEST_ROOT/err_host_root" \
+    || fail "host:/ error unclear: $(cat "$TEST_ROOT/err_host_root")"
+[[ "$(call_count)" -eq 0 ]] || fail "rsync ran for host:/ root path"
 
 # --- Negative: unknown option ---
 reset_calls
@@ -399,6 +480,25 @@ fi
 [[ "$(call_count)" -eq 1 ]] \
     || fail "errexit broken: expected 1 rsync call, got $(call_count)"
 
+# --- Negative: errexit with --delete also stops further syncs ---
+reset_calls
+export RSYNC_FAIL_ON=0
+if "$TEMP_BACKUP" --delete "$ERR1" "$ERR2" 2>"$TEST_ROOT/err_rsync_del"; then
+    fail "expected failure when mock rsync exits non-zero with --delete"
+fi
+[[ "$(call_count)" -eq 1 ]] \
+    || fail "errexit+--delete broken: expected 1 call, got $(call_count)"
+declare -a del_argv=()
+read_call_argv 0 del_argv
+declare -i saw_delete=0
+declare -i i
+for ((i = 0; i < ${#del_argv[@]}; i++)); do
+    if [[ "${del_argv[i]}" == --delete ]]; then
+        saw_delete=1
+    fi
+done
+((saw_delete == 1)) || fail "errexit+--delete call missing --delete flag"
+
 # --- Negative: unquoted rsync form word-splits (documents the bug) ---
 declare -r SPLIT_DIR="$TEST_ROOT/split me"
 mkdir -p "$SPLIT_DIR"
@@ -410,7 +510,6 @@ rsync -av --delete $SPLIT_DIR \
 declare -a buggy_argv=()
 read_call_argv 0 buggy_argv
 declare -i saw_split=0
-declare -i i
 for ((i = 0; i < ${#buggy_argv[@]}; i++)); do
     if [[ "${buggy_argv[i]}" == "$TEST_ROOT/split" ]]; then
         saw_split=1
