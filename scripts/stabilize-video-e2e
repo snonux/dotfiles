@@ -29,7 +29,7 @@ mkdir -p "$sandbox/bin" "$sandbox/a" "$sandbox/b" \
 # (verify-time DECODE ERROR path after successful rename).
 # STAB_FAKE_FFPROBE_FAIL=1 — ffprobe exits 1 (verify must still rm bad out).
 # STAB_FAKE_SRC_DURATION / STAB_FAKE_OUT_DURATION — ffprobe duration values
-# (defaults 1.23) for delete-source sanity checks.
+# (defaults 1.23; empty/N/A/0 allowed when set) for delete-source sanity.
 
 cat > "$sandbox/bin/ffmpeg" <<'EOF'
 #!/usr/bin/env bash
@@ -126,10 +126,11 @@ if [[ "${STAB_FAKE_FFPROBE_FAIL:-}" == 1 ]]; then
 fi
 path=${*: -1}
 # Encoded outputs carry OUT_FOR=; sources do not.
+# ${VAR-default} (no colon) preserves an explicitly empty duration.
 if [[ -f "$path" ]] && grep -q '^OUT_FOR=' "$path" 2>/dev/null; then
-  echo "${STAB_FAKE_OUT_DURATION:-1.23}"
+  printf '%s\n' "${STAB_FAKE_OUT_DURATION-1.23}"
 else
-  echo "${STAB_FAKE_SRC_DURATION:-1.23}"
+  printf '%s\n' "${STAB_FAKE_SRC_DURATION-1.23}"
 fi
 EOF
 
@@ -312,7 +313,8 @@ printf 'ok: negative — unknown option aborts, source kept\n'
 
 # --- main/CLI: same-realpath collision abort (duplicate args) -------------
 # Exercises _assert_unique_trfs through main. Removing that call from main
-# must make this test fail (stabilize would proceed and delete the source).
+# must make this test fail (stabilize would proceed past the uniqueness
+# gate; default still keeps the source — assert no output was written).
 printf 'dup-src\n' > "$sandbox/real/clip.MOV"
 : > "$STAB_FAKE_LOG"
 set +e
@@ -729,6 +731,145 @@ then
 fi
 printf 'ok: negative — size sanity blocks --delete-source\n'
 
+# --- p33 negative: non-numeric / N/A / zero / empty duration refuse -------
+# Fail closed: awk would treat N/A as 0 and previously allow delete.
+_refuse_bad_duration() {
+  local -r label=$1 src_dur=$2 out_dur=$3
+  local dir="$sandbox/baddur-$label"
+  mkdir -p "$dir"
+  printf 'baddur-%s\n' "$label" > "$dir/clip.MOV"
+  rm -f -- "$dir/stabilised-clip.mp4"
+  : > "$STAB_FAKE_LOG"
+  export STAB_FAKE_SRC_DURATION="$src_dur"
+  export STAB_FAKE_OUT_DURATION="$out_dur"
+  set +e
+  "$script" --delete-source "$dir/clip.MOV" \
+    >"$dir/run.out" 2>"$dir/run.err"
+  local rc=$?
+  set -e
+  unset STAB_FAKE_SRC_DURATION STAB_FAKE_OUT_DURATION
+  if ((rc != 0)); then
+    echo "FAIL: bad-duration ($label) exited $rc (want 0 + keep)" >&2
+    cat "$dir/run.out" "$dir/run.err" >&2
+    exit 1
+  fi
+  if [[ ! -f "$dir/clip.MOV" ]]; then
+    echo "FAIL: bad-duration ($label) deleted source" >&2
+    cat "$dir/run.out" "$dir/run.err" >&2
+    exit 1
+  fi
+  grep -q 'sanity check failed (duration' "$dir/run.err" \
+    || grep -q 'sanity check failed (duration' "$dir/run.out" || {
+    echo "FAIL: bad-duration ($label) missing sanity message" >&2
+    cat "$dir/run.out" "$dir/run.err" >&2
+    exit 1
+  }
+  if grep -q 'deleted source:' "$dir/run.out" "$dir/run.err"; then
+    echo "FAIL: bad-duration ($label) reported delete" >&2
+    exit 1
+  fi
+  printf 'ok: negative — duration %s refuses --delete-source\n' "$label"
+}
+_refuse_bad_duration na-out 10 N/A
+_refuse_bad_duration na-src N/A 10
+_refuse_bad_duration zero-out 10 0
+_refuse_bad_duration zero-src 0 10
+_refuse_bad_duration empty-out 10 ''
+_refuse_bad_duration empty-src '' 10
+_refuse_bad_duration junk-out 10 not-a-number
+
+# Invalid / empty DELETE_MIN_*_RATIO must also fail closed.
+mkdir -p "$sandbox/badratio"
+printf 'badratio-src\n' > "$sandbox/badratio/clip.MOV"
+rm -f -- "$sandbox/badratio/stabilised-clip.mp4"
+: > "$STAB_FAKE_LOG"
+export DELETE_MIN_DUR_RATIO=bogus
+set +e
+"$script" --delete-source "$sandbox/badratio/clip.MOV" \
+  >"$sandbox/badratio.out" 2>"$sandbox/badratio.err"
+badratio_rc=$?
+set -e
+unset DELETE_MIN_DUR_RATIO
+# Restore defaults used by the script when sourced later.
+DELETE_MIN_DUR_RATIO=0.5
+DELETE_MIN_SIZE_RATIO=0.01
+if ((badratio_rc != 0)); then
+  echo "FAIL: bad-ratio run exited $badratio_rc (want 0 + keep)" >&2
+  cat "$sandbox/badratio.out" "$sandbox/badratio.err" >&2
+  exit 1
+fi
+if [[ ! -f "$sandbox/badratio/clip.MOV" ]]; then
+  echo "FAIL: bad-ratio deleted source" >&2
+  exit 1
+fi
+grep -q 'invalid' "$sandbox/badratio.err" \
+  || grep -q 'invalid' "$sandbox/badratio.out" || {
+  echo "FAIL: expected invalid-ratio sanity message" >&2
+  cat "$sandbox/badratio.out" "$sandbox/badratio.err" >&2
+  exit 1
+}
+if grep -q 'deleted source:' "$sandbox/badratio.out" "$sandbox/badratio.err"
+then
+  echo "FAIL: reported delete with invalid DELETE_MIN_DUR_RATIO" >&2
+  exit 1
+fi
+printf 'ok: negative — invalid DELETE_MIN_DUR_RATIO refuses delete\n'
+
+# --- p33: keep-default then --delete-source cleans source (no re-encode) -
+mkdir -p "$sandbox/keepdel"
+printf 'keepdel-src\n' > "$sandbox/keepdel/clip.MOV"
+rm -f -- "$sandbox/keepdel/stabilised-clip.mp4"
+: > "$STAB_FAKE_LOG"
+"$script" "$sandbox/keepdel/clip.MOV" \
+  >"$sandbox/keepdel1.out" 2>"$sandbox/keepdel1.err" || {
+  echo "FAIL: keep-default prelude exited $?" >&2
+  cat "$sandbox/keepdel1.out" "$sandbox/keepdel1.err" >&2
+  exit 1
+}
+if [[ ! -f "$sandbox/keepdel/clip.MOV" ]]; then
+  echo "FAIL: keep-default prelude deleted source" >&2
+  exit 1
+fi
+if [[ ! -f "$sandbox/keepdel/stabilised-clip.mp4" ]]; then
+  echo "FAIL: keep-default prelude missing output" >&2
+  exit 1
+fi
+: > "$STAB_FAKE_LOG"
+"$script" --delete-source "$sandbox/keepdel/clip.MOV" \
+  >"$sandbox/keepdel2.out" 2>"$sandbox/keepdel2.err" || {
+  echo "FAIL: keep-then-delete exited $?" >&2
+  cat "$sandbox/keepdel2.out" "$sandbox/keepdel2.err" >&2
+  exit 1
+}
+grep -q 'inspect-then-delete' "$sandbox/keepdel2.out" \
+  || grep -q 'inspect-then-delete' "$sandbox/keepdel2.err" || {
+  echo "FAIL: expected inspect-then-delete path" >&2
+  cat "$sandbox/keepdel2.out" "$sandbox/keepdel2.err" >&2
+  exit 1
+}
+if grep -q $'^pass1\t' "$STAB_FAKE_LOG" || grep -q $'^pass2\t' "$STAB_FAKE_LOG"
+then
+  echo "FAIL: keep-then-delete re-encoded instead of inspect-only" >&2
+  cat "$STAB_FAKE_LOG" >&2
+  exit 1
+fi
+if [[ -e "$sandbox/keepdel/clip.MOV" ]]; then
+  echo "FAIL: keep-then-delete left source in place" >&2
+  cat "$sandbox/keepdel2.out" "$sandbox/keepdel2.err" >&2
+  exit 1
+fi
+if [[ ! -f "$sandbox/keepdel/stabilised-clip.mp4" ]]; then
+  echo "FAIL: keep-then-delete removed stabilized output" >&2
+  exit 1
+fi
+grep -q 'deleted source:' "$sandbox/keepdel2.out" \
+  || grep -q 'deleted source:' "$sandbox/keepdel2.err" || {
+  echo "FAIL: expected deleted-source message on inspect-then-delete" >&2
+  cat "$sandbox/keepdel2.out" "$sandbox/keepdel2.err" >&2
+  exit 1
+}
+printf 'ok: keep-then --delete-source cleans source without re-encode\n'
+
 # --- unit: _partial_for / _output_decodes / _parse_cli --------------------
 # shellcheck source=scripts/stabilize-video
 source "$script"
@@ -753,7 +894,16 @@ assert_eq "DELETE_SOURCE after --delete-source" yes "$DELETE_SOURCE"
 assert_eq "_cli_paths[0]" "$sandbox/a/clip.MOV" "${_cli_paths[0]}"
 _parse_cli "$sandbox/b/clip.MOV"
 assert_eq "DELETE_SOURCE default" no "$DELETE_SOURCE"
-printf 'ok: unit — _partial_for + _output_decodes + _parse_cli\n'
+_is_positive_number 1.23 || {
+  echo "FAIL: _is_positive_number rejected 1.23" >&2
+  exit 1
+}
+if _is_positive_number N/A || _is_positive_number 0 || _is_positive_number '' \
+  || _is_positive_number -1 || _is_positive_number bogus; then
+  echo "FAIL: _is_positive_number accepted non-positive/non-numeric" >&2
+  exit 1
+fi
+printf 'ok: unit — _partial_for + _output_decodes + _parse_cli + numbers\n'
 
 # --- syntax / shellcheck --------------------------------------------------
 bash -n "$script"

@@ -16,12 +16,20 @@
 # leftovers are discarded and retried.
 #
 # Sources are kept by default (POLA: stabilize must not destroy masters).
-# Pass --delete-source to remove the original after decode-OK, TRF still
-# present, and a duration/size sanity check. Missing-TRF refuse-delete is
-# presence / defense-in-depth only: it checks that the expected TRF path
-# still exists before rm, not that TRF contents bind to the source
-# (content-identity). Unique keys + _assert_unique_trfs are what prevent
-# wrong-transform collisions.
+# Pass --delete-source to remove the original after decode-OK and a
+# duration/size sanity check (ratios must be positive numbers; non-numeric,
+# empty, N/A, or ≤0 durations fail closed — refuse delete).
+#
+# Delete policy:
+#   • Fresh encode in this run: also require the ephemeral pass1 TRF path
+#     still present (presence / defense-in-depth only — not content↔source
+#     binding). Unique keys + _assert_unique_trfs prevent wrong-transform
+#     collisions.
+#   • Inspect-then-delete: if --delete-source and a decodable stabilised-*
+#     already exists from a prior keep-default run, re-verify decode +
+#     duration/size sanity and may rm the source without re-encoding.
+#     The live TRF gate is skipped here — that TRF lived only in a prior
+#     process's temp dir and cannot be required on a later cleanup pass.
 
 set -euo pipefail
 
@@ -162,12 +170,30 @@ _probe_duration() {
     -of csv=p=0 "$path" 2>/dev/null
 }
 
+# True when $1 is a finite positive decimal (rejects empty, N/A, 0, signs).
+_is_positive_number() {
+  local -r v="$1"
+  [[ "$v" =~ ^[0-9]+([.][0-9]+)?$|^[.][0-9]+$ ]] || return 1
+  awk -v n="$v" 'BEGIN { exit !(n > 0) }'
+}
+
 # True when out looks sane vs src (duration + size) before deleting source.
+# Fail closed: non-numeric / empty / N/A / ≤0 durations, or invalid/empty
+# DELETE_MIN_*_RATIO env, must refuse delete (never treat as OK).
 _delete_sanity_ok() {
   local -r src="$1" out="$2"
   local src_dur out_dur
   local -i src_bytes out_bytes
   local src_rc=0 out_rc=0
+
+  if ! _is_positive_number "$DELETE_MIN_DUR_RATIO" \
+    || ! _is_positive_number "$DELETE_MIN_SIZE_RATIO"; then
+    echo "stabilize-video: sanity check failed (invalid" \
+      "DELETE_MIN_DUR_RATIO='${DELETE_MIN_DUR_RATIO}' or" \
+      "DELETE_MIN_SIZE_RATIO='${DELETE_MIN_SIZE_RATIO}')" \
+      "for $src — keeping source" >&2
+    return 1
+  fi
 
   set +e
   src_dur=$(_probe_duration "$src")
@@ -176,15 +202,17 @@ _delete_sanity_ok() {
   out_rc=$?
   set -e
   if ((src_rc != 0 || out_rc != 0)) \
-    || [[ -z "$src_dur" || -z "$out_dur" ]]; then
-    echo "stabilize-video: sanity check failed (duration probe)" \
+    || ! _is_positive_number "$src_dur" \
+    || ! _is_positive_number "$out_dur"; then
+    echo "stabilize-video: sanity check failed (duration probe:" \
+      "src=${src_dur:-<empty>} out=${out_dur:-<empty>})" \
       "for $src — keeping source" >&2
     return 1
   fi
 
   # awk: out_dur < src_dur * ratio → refuse (handles floats).
   if awk -v o="$out_dur" -v s="$src_dur" -v r="$DELETE_MIN_DUR_RATIO" \
-    'BEGIN { exit !(s > 0 && o < s * r) }'; then
+    'BEGIN { exit !(o < s * r) }'; then
     echo "stabilize-video: sanity check failed (duration" \
       "${out_dur}s < ${DELETE_MIN_DUR_RATIO}× ${src_dur}s)" \
       "for $src — keeping source" >&2
@@ -228,7 +256,9 @@ Usage: stabilize-video [--delete-source] [DIR|FILE ...]
 
 Stabilize .MOV clips to stabilised-<base>.mp4 next to each source.
 Sources are kept by default. Pass --delete-source to remove originals
-after a successful verify (decode OK, TRF present, duration/size sane).
+after decode OK + duration/size sanity (fresh encodes also require the
+live pass1 TRF). If a decodable output already exists, --delete-source
+inspects it and may delete the source without re-encoding (no TRF gate).
 EOF
         exit 0
         ;;
@@ -260,9 +290,11 @@ main() {
   echo "  quality: $QUALITY (vaapi: $_vaapi_ok)"
   echo "  delete : $DELETE_SOURCE"
 
-  # Build the work list. Skip only decodable finals; drop stale partials
-  # and undecodable leftovers so a failed prior run can retry.
+  # Build the work list. Skip only decodable finals (unless
+  # --delete-source → inspect-then-delete); drop stale partials and
+  # undecodable leftovers so a failed prior run can retry.
   local -a todo=()
+  local -a delete_only=()
   trf_dir=$(mktemp -d -t stabilize-video.XXXXXX)
   trap '[[ -n "$trf_dir" ]] && rm -rf "$trf_dir"' EXIT
 
@@ -273,7 +305,12 @@ main() {
     rm -f -- "$partial"
     if [[ -f "$out" ]]; then
       if _output_decodes "$out"; then
-        echo "  skip (exists): $out"
+        if [[ "$DELETE_SOURCE" == yes && -f "$src" ]]; then
+          echo "  inspect-then-delete: $out"
+          delete_only+=("$src")
+        else
+          echo "  skip (exists): $out"
+        fi
         continue
       fi
       echo "  discard (undecodable): $out"
@@ -282,103 +319,144 @@ main() {
     todo+=("$src")
   done
 
-  if [[ ${#todo[@]} -eq 0 ]]; then
+  if [[ ${#todo[@]} -eq 0 && ${#delete_only[@]} -eq 0 ]]; then
     echo "stabilize-video: nothing to do (all outputs present)" >&2
     exit 0
   fi
 
-  _assert_unique_trfs "${todo[@]}" || exit 1
-
-  # Pass 1 — parallel motion detection.
-  echo ""
-  echo "==> Pass 1: motion detection"
   local pids=() base trf
-  for src in "${todo[@]}"; do
-    base=$(_base "$src")
-    trf=$(_trf_for "$src")
-    echo "  [P1] $src"
-    _pass1 "$src" "$trf" | sed "s/^/    [$base P1] /" &
-    pids+=("$!")
-  done
   local fail=0
   local pid
-  for pid in "${pids[@]}"; do
-    wait "$pid" || ((++fail))
-  done
-  if ((fail > 0)); then
-    echo "stabilize-video: pass 1 failed for $fail clip(s)" >&2
-    exit 1
-  fi
-
-  # Pass 2 — serial stabilize + encode to .partial, then atomic rename.
-  echo ""
-  echo "==> Pass 2: stabilize + encode ($(_vaapi_label))"
   local -i enc_rc
-  for src in "${todo[@]}"; do
-    base=$(_base "$src")
-    trf=$(_trf_for "$src")
-    out=$(_outfor "$src")
-    partial=$(_partial_for "$out")
-    echo "  [P2] $src -> $out"
-    rm -f -- "$partial"
-    set +e
-    _pass2 "$src" "$trf" "$partial" \
-      | tail -3 \
-      | sed "s/^/    [$base P2] /"
-    enc_rc=${PIPESTATUS[0]}
-    set -e
-    if ((enc_rc != 0)); then
-      rm -f -- "$partial"
-      echo "stabilize-video: pass 2 failed for $src" >&2
-      exit 1
-    fi
-    mv -f -- "$partial" "$out"
-  done
-
-  # Verify outputs decode cleanly and report size reduction.
-  # Probe/decode failures must not abort under set -e before we discard a
-  # bad final — otherwise junk remains and callers see a false success.
-  echo ""
-  echo "==> Verify"
   local src_h out_h dur
   local -i verify_fail=0 probe_rc decode_rc
-  for src in "${todo[@]}"; do
-    base=$(_base "$src")
-    out=$(_outfor "$src")
-    trf=$(_trf_for "$src")
-    src_h=$(du -h "$src" | cut -f1)
-    out_h=$(du -h "$out" | cut -f1)
-    set +e
-    dur=$(_probe_duration "$out")
-    probe_rc=$?
-    ffmpeg -v error -i "$out" -f null - >/dev/null 2>&1
-    decode_rc=$?
-    set -e
-    if ((probe_rc != 0 || decode_rc != 0)); then
-      printf '  %-28s %s -> %s  DECODE ERROR\n' "$base" "$src_h" "$out_h" >&2
-      rm -f -- "$out"
-      ((++verify_fail))
-      continue
+
+  if [[ ${#todo[@]} -gt 0 ]]; then
+    _assert_unique_trfs "${todo[@]}" || exit 1
+
+    # Pass 1 — parallel motion detection.
+    echo ""
+    echo "==> Pass 1: motion detection"
+    for src in "${todo[@]}"; do
+      base=$(_base "$src")
+      trf=$(_trf_for "$src")
+      echo "  [P1] $src"
+      _pass1 "$src" "$trf" | sed "s/^/    [$base P1] /" &
+      pids+=("$!")
+    done
+    for pid in "${pids[@]}"; do
+      wait "$pid" || ((++fail))
+    done
+    if ((fail > 0)); then
+      echo "stabilize-video: pass 1 failed for $fail clip(s)" >&2
+      exit 1
     fi
-    if [[ ! -f "$trf" ]]; then
-      # Presence check only (defense-in-depth): TRF path gone after a
-      # decode-OK output — do not claim content↔source binding here.
-      printf '  %-28s %s -> %s  (%ss, decode OK; missing TRF — keeping source)\n' \
-        "$base" "$src_h" "$out_h" "$dur" >&2
-      continue
-    fi
-    printf '  %-28s %s -> %s  (%ss, decode OK)\n' \
-      "$base" "$src_h" "$out_h" "$dur"
-    if [[ "$DELETE_SOURCE" != yes ]]; then
-      echo "    keeping source (default; pass --delete-source to remove)"
-      continue
-    fi
-    if ! _delete_sanity_ok "$src" "$out"; then
-      continue
-    fi
-    rm -f -- "$src"
-    echo "    deleted source: $src"
-  done
+
+    # Pass 2 — serial stabilize + encode to .partial, then atomic rename.
+    echo ""
+    echo "==> Pass 2: stabilize + encode ($(_vaapi_label))"
+    for src in "${todo[@]}"; do
+      base=$(_base "$src")
+      trf=$(_trf_for "$src")
+      out=$(_outfor "$src")
+      partial=$(_partial_for "$out")
+      echo "  [P2] $src -> $out"
+      rm -f -- "$partial"
+      set +e
+      _pass2 "$src" "$trf" "$partial" \
+        | tail -3 \
+        | sed "s/^/    [$base P2] /"
+      enc_rc=${PIPESTATUS[0]}
+      set -e
+      if ((enc_rc != 0)); then
+        rm -f -- "$partial"
+        echo "stabilize-video: pass 2 failed for $src" >&2
+        exit 1
+      fi
+      mv -f -- "$partial" "$out"
+    done
+
+    # Verify fresh encodes decode cleanly; TRF presence gates delete.
+    # Probe/decode failures must not abort under set -e before we discard
+    # a bad final — otherwise junk remains and callers see false success.
+    echo ""
+    echo "==> Verify"
+    for src in "${todo[@]}"; do
+      base=$(_base "$src")
+      out=$(_outfor "$src")
+      trf=$(_trf_for "$src")
+      src_h=$(du -h "$src" | cut -f1)
+      out_h=$(du -h "$out" | cut -f1)
+      set +e
+      dur=$(_probe_duration "$out")
+      probe_rc=$?
+      ffmpeg -v error -i "$out" -f null - >/dev/null 2>&1
+      decode_rc=$?
+      set -e
+      if ((probe_rc != 0 || decode_rc != 0)); then
+        printf '  %-28s %s -> %s  DECODE ERROR\n' \
+          "$base" "$src_h" "$out_h" >&2
+        rm -f -- "$out"
+        ((++verify_fail))
+        continue
+      fi
+      if [[ ! -f "$trf" ]]; then
+        # Presence check only (defense-in-depth): TRF path gone after a
+        # decode-OK output — do not claim content↔source binding here.
+        printf '  %-28s %s -> %s  (%ss, decode OK; missing TRF — keeping source)\n' \
+          "$base" "$src_h" "$out_h" "$dur" >&2
+        continue
+      fi
+      printf '  %-28s %s -> %s  (%ss, decode OK)\n' \
+        "$base" "$src_h" "$out_h" "$dur"
+      if [[ "$DELETE_SOURCE" != yes ]]; then
+        echo "    keeping source (default; pass --delete-source to remove)"
+        continue
+      fi
+      if ! _delete_sanity_ok "$src" "$out"; then
+        continue
+      fi
+      rm -f -- "$src"
+      echo "    deleted source: $src"
+    done
+  fi
+
+  # Inspect-then-delete: prior keep-default left a good out + source.
+  # No live TRF from this run — require decode + duration/size only.
+  if [[ ${#delete_only[@]} -gt 0 ]]; then
+    echo ""
+    echo "==> Inspect-then-delete (existing output, --delete-source)"
+    for src in "${delete_only[@]}"; do
+      base=$(_base "$src")
+      out=$(_outfor "$src")
+      if [[ ! -f "$src" ]]; then
+        echo "  skip (source already gone): $src"
+        continue
+      fi
+      src_h=$(du -h "$src" | cut -f1)
+      out_h=$(du -h "$out" | cut -f1)
+      set +e
+      dur=$(_probe_duration "$out")
+      probe_rc=$?
+      ffmpeg -v error -i "$out" -f null - >/dev/null 2>&1
+      decode_rc=$?
+      set -e
+      if ((probe_rc != 0 || decode_rc != 0)); then
+        printf '  %-28s %s -> %s  DECODE ERROR — keeping source\n' \
+          "$base" "$src_h" "$out_h" >&2
+        # Do not rm a previously skip-worthy final here; only refuse delete.
+        ((++verify_fail))
+        continue
+      fi
+      printf '  %-28s %s -> %s  (%ss, decode OK; no TRF gate)\n' \
+        "$base" "$src_h" "$out_h" "$dur"
+      if ! _delete_sanity_ok "$src" "$out"; then
+        continue
+      fi
+      rm -f -- "$src"
+      echo "    deleted source: $src"
+    done
+  fi
 
   echo ""
   if ((verify_fail > 0)); then
