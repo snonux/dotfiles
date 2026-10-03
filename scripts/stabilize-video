@@ -52,6 +52,7 @@ DELETE_SOURCE=no                  # yes only with --delete-source
 DELETE_MIN_DUR_RATIO="${DELETE_MIN_DUR_RATIO:-0.5}"
 # Refuse delete when out size < this fraction of source size.
 DELETE_MIN_SIZE_RATIO="${DELETE_MIN_SIZE_RATIO:-0.01}"
+# Cap concurrent pass-1 ffmpeg jobs (CPU/RAM). Override with PASS1_MAX_JOBS.
 
 # Display label (basename without .MOV). Not used for TRF identity.
 _base() { basename "${1%.MOV}"; }
@@ -173,7 +174,19 @@ _collect_mov_files() {
   fi
 }
 
-# Pass 1: motion detection (all clips in parallel — CPU-bound, read-only).
+# Max concurrent pass-1 jobs: PASS1_MAX_JOBS if a positive int, else nproc (or 4).
+_pass1_max_jobs() {
+  local -i n=0
+  if [[ "${PASS1_MAX_JOBS:-}" =~ ^[1-9][0-9]*$ ]]; then
+    n=$PASS1_MAX_JOBS
+  else
+    n=$(nproc 2>/dev/null || echo 4)
+    ((n < 1)) && n=1
+  fi
+  printf '%s\n' "$n"
+}
+
+# Pass 1: motion detection (throttled parallel — CPU-bound, read-only).
 _pass1() {
   local src="$1" trf="$2"
   ffmpeg -y -i "$src" \
@@ -291,27 +304,30 @@ _delete_sanity_ok() {
 _encode_verify_delete() {
   local -n _evd_todo=$1
   local -n _evd_verify_fail=$2
-  local -a pids=()
   local -A encode_fp=()
   local src base trf out partial sid cur_fp
-  local fail=0 pid
-  local -i enc_rc probe_rc decode_rc
+  local fail=0
+  local -i enc_rc probe_rc decode_rc max_jobs
   local src_h out_h dur
 
   [[ ${#_evd_todo[@]} -gt 0 ]] || return 0
   _assert_unique_trfs "${_evd_todo[@]}" || return 1
 
+  max_jobs=$(_pass1_max_jobs)
   echo ""
-  echo "==> Pass 1: motion detection"
+  echo "==> Pass 1: motion detection (up to ${max_jobs} parallel)"
   for src in "${_evd_todo[@]}"; do
+    # Cap CPU/RAM: wait -n frees a slot before launching the next _pass1.
+    while (( $(jobs -rp | wc -l) >= max_jobs )); do
+      wait -n || ((++fail))
+    done
     base=$(_base "$src")
     trf=$(_trf_for "$src")
     echo "  [P1] $src"
     _pass1 "$src" "$trf" | sed "s/^/    [$base P1] /" &
-    pids+=("$!")
   done
-  for pid in "${pids[@]}"; do
-    wait "$pid" || ((++fail))
+  while (( $(jobs -rp | wc -l) > 0 )); do
+    wait -n || ((++fail))
   done
   if ((fail > 0)); then
     echo "stabilize-video: pass 1 failed for $fail clip(s)" >&2

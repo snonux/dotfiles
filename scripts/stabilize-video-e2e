@@ -6,11 +6,12 @@
 # with spaces, main/CLI same-realpath collision abort, missing-TRF
 # refuse-delete (presence / defense-in-depth — not content-identity),
 # d33: mid-encode failure must not leave a final output that forever skips
-# retries (atomic .partial + verify-before-skip), and p33: keep sources by
+# retries (atomic .partial + verify-before-skip), p33: keep sources by
 # default; delete only with --delete-source after duration/size sanity;
 # .srcid (size+sha256) + [[ -nt ]] refuse inspect-delete on replaced masters
 # (incl. same-size/mtime/inode in-place replace); .srcid only after TRF gate;
-# TOCTOU recheck before rm (sibling encode replace → keep + re-encode).
+# TOCTOU recheck before rm (sibling encode replace → keep + re-encode),
+# and y33: pass-1 ffmpeg jobs throttled to PASS1_MAX_JOBS / nproc.
 set -euo pipefail
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -36,6 +37,9 @@ mkdir -p "$sandbox/bin" "$sandbox/a" "$sandbox/b" \
 # STAB_FAKE_REPLACE_SRC / STAB_FAKE_REPLACE_WITH / STAB_FAKE_REPLACE_ONCE —
 # during pass 2, once, overwrite REPLACE_SRC with REPLACE_WITH and touch
 # the ONCE marker (TOCTOU sibling hook).
+# STAB_FAKE_PASS1_SLEEP — seconds to hold each pass-1 slot (concurrency test).
+# STAB_FAKE_PASS1_ACTIVE / STAB_FAKE_PASS1_PEAK — flock-guarded counters for
+# live / peak concurrent pass-1 ffmpeg processes (y33 throttle).
 
 cat > "$sandbox/bin/ffmpeg" <<'EOF'
 #!/usr/bin/env bash
@@ -71,6 +75,28 @@ if [[ "$vf" == *vidstabdetect=* ]]; then
   trf=${vf#*result=}
   trf=${trf%%,*}
   trf=${trf%%:*}
+  # Optional hold + peak concurrency tracking for PASS1_MAX_JOBS tests.
+  if [[ -n "${STAB_FAKE_PASS1_SLEEP:-}" \
+    && -n "${STAB_FAKE_PASS1_ACTIVE:-}" \
+    && -n "${STAB_FAKE_PASS1_PEAK:-}" ]]; then
+    lock=${STAB_FAKE_PASS1_ACTIVE}.lock
+    (
+      flock 9
+      cur=$(<"${STAB_FAKE_PASS1_ACTIVE}")
+      cur=$((cur + 1))
+      printf '%s\n' "$cur" >"${STAB_FAKE_PASS1_ACTIVE}"
+      peak=$(<"${STAB_FAKE_PASS1_PEAK}")
+      if ((cur > peak)); then
+        printf '%s\n' "$cur" >"${STAB_FAKE_PASS1_PEAK}"
+      fi
+    ) 9>"$lock"
+    sleep "${STAB_FAKE_PASS1_SLEEP}"
+    (
+      flock 9
+      cur=$(<"${STAB_FAKE_PASS1_ACTIVE}")
+      printf '%s\n' "$((cur - 1))" >"${STAB_FAKE_PASS1_ACTIVE}"
+    ) 9>"$lock"
+  fi
   printf 'TRF_FOR=%s\n' "$src" > "$trf"
   printf 'pass1\t%s\t%s\n' "$src" "$trf" >> "$log"
   exit 0
@@ -1264,6 +1290,61 @@ grep -q '^OUT_FOR=' "$sandbox/toctou/b/stabilised-clip.mp4" || {
 }
 printf 'ok: TOCTOU sibling replace → keep + late re-encode + delete\n'
 
+# --- y33: pass-1 concurrency capped by PASS1_MAX_JOBS --------------------
+mkdir -p "$sandbox/throttle"
+for i in 1 2 3 4; do
+  printf 'clip-%s\n' "$i" > "$sandbox/throttle/c${i}.MOV"
+done
+: > "$STAB_FAKE_LOG"
+export STAB_FAKE_PASS1_ACTIVE="$sandbox/throttle.active"
+export STAB_FAKE_PASS1_PEAK="$sandbox/throttle.peak"
+export STAB_FAKE_PASS1_SLEEP=0.35
+printf '0\n' > "$STAB_FAKE_PASS1_ACTIVE"
+printf '0\n' > "$STAB_FAKE_PASS1_PEAK"
+export PASS1_MAX_JOBS=2
+"$script" "$sandbox/throttle" \
+  >"$sandbox/throttle.out" 2>"$sandbox/throttle.err" || {
+  echo "FAIL: throttle run exited $?" >&2
+  cat "$sandbox/throttle.out" "$sandbox/throttle.err" >&2
+  exit 1
+}
+unset STAB_FAKE_PASS1_SLEEP STAB_FAKE_PASS1_ACTIVE STAB_FAKE_PASS1_PEAK
+unset PASS1_MAX_JOBS
+peak=$(<"$sandbox/throttle.peak")
+active=$(<"$sandbox/throttle.active")
+if ((peak > 2)); then
+  echo "FAIL: pass1 peak concurrency ${peak} > PASS1_MAX_JOBS=2" >&2
+  cat "$sandbox/throttle.out" "$sandbox/throttle.err" >&2
+  exit 1
+fi
+if ((peak < 2)); then
+  echo "FAIL: pass1 peak concurrency ${peak} < 2 (throttle too serial?)" >&2
+  cat "$sandbox/throttle.out" "$sandbox/throttle.err" >&2
+  exit 1
+fi
+if ((active != 0)); then
+  echo "FAIL: pass1 active counter not drained (got ${active})" >&2
+  exit 1
+fi
+pass1_n=$(awk -F'\t' '$1=="pass1"{c++} END{print c+0}' "$STAB_FAKE_LOG")
+assert_eq "throttle pass1 count" 4 "$pass1_n"
+grep -q 'up to 2 parallel' "$sandbox/throttle.out" || {
+  echo "FAIL: missing pass1 parallel cap message" >&2
+  cat "$sandbox/throttle.out" >&2
+  exit 1
+}
+for i in 1 2 3 4; do
+  [[ -f "$sandbox/throttle/stabilised-c${i}.mp4" ]] || {
+    echo "FAIL: throttle missing out for c${i}.MOV" >&2
+    exit 1
+  }
+  [[ -f "$sandbox/throttle/c${i}.MOV" ]] || {
+    echo "FAIL: throttle deleted source c${i}.MOV (want keep)" >&2
+    exit 1
+  }
+done
+printf 'ok: y33 pass1 throttle peak=%s under PASS1_MAX_JOBS=2\n' "$peak"
+
 # --- unit: _partial_for / _output_decodes / _parse_cli / srcid ------------
 # shellcheck source=scripts/stabilize-video
 source "$script"
@@ -1342,7 +1423,18 @@ fp=$(_src_fingerprint "$sandbox/id-src")
   echo "FAIL: fingerprint not 'size sha256': $fp" >&2
   exit 1
 }
-printf 'ok: unit — helpers + [[ -nt ]] + .srcid content hash\n'
+PASS1_MAX_JOBS=3
+assert_eq "_pass1_max_jobs override" 3 "$(_pass1_max_jobs)"
+PASS1_MAX_JOBS=0
+nproc_fallback=$(_pass1_max_jobs)
+[[ "$nproc_fallback" =~ ^[1-9][0-9]*$ ]] || {
+  echo "FAIL: _pass1_max_jobs bad fallback for PASS1_MAX_JOBS=0: $nproc_fallback" >&2
+  exit 1
+}
+PASS1_MAX_JOBS=bogus
+assert_eq "_pass1_max_jobs ignores bogus" "$nproc_fallback" "$(_pass1_max_jobs)"
+unset PASS1_MAX_JOBS
+printf 'ok: unit — helpers + [[ -nt ]] + .srcid content hash + pass1 max jobs\n'
 
 # --- syntax / shellcheck --------------------------------------------------
 bash -n "$script"
