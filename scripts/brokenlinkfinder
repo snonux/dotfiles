@@ -5,21 +5,49 @@ require 'net/http'
 require 'uri'
 require 'set'
 
-# Resolve href against a page URL (root-relative, ./, and absolute).
-# Returns nil when href is not a usable URI.
+# True for http and https URIs (URI::HTTPS < URI::HTTP).
+def http_uri?(uri)
+  uri.is_a?(URI::HTTP)
+end
+
+# Resolve href against a page URL (root-relative, path-relative, protocol-relative, absolute).
+# Returns nil when href is not a usable http(s) URI.
 def resolve_url(base_url, href)
-  URI.join(base_url, href).to_s
+  uri = URI.join(base_url, href)
+  return nil unless http_uri?(uri)
+
+  uri.to_s
 rescue URI::InvalidURIError, ArgumentError
   nil
 end
 
-# True when href targets the same site (path-relative or matching host).
-def internal_link?(href, domain)
-  return true if href.start_with?('/') || href.start_with?('./')
+# True when url is http(s) and its host matches domain (case-insensitive).
+def same_http_host?(url, domain)
+  uri = URI(url)
+  return false unless http_uri?(uri)
+  return false if uri.host.nil? || domain.nil?
 
-  URI(href).host == domain
+  uri.host.casecmp?(domain)
 rescue URI::InvalidURIError, ArgumentError
   false
+end
+
+# True when href resolves against base_url to an http(s) URL on domain.
+# Classification happens after resolve so filter and check stay consistent
+# (protocol-relative //evil.com is external; bare/../ relatives are internal).
+def internal_link?(href, domain, base_url)
+  resolved = resolve_url(base_url, href)
+  return false if resolved.nil?
+
+  same_http_host?(resolved, domain)
+end
+
+# Resolved http(s) same-host URLs that will be checked (deduplicated, order preserved).
+def urls_to_check(base_url, domain, hrefs)
+  hrefs.filter_map do |href|
+    full = resolve_url(base_url, href)
+    full if full && same_http_host?(full, domain)
+  end.uniq
 end
 
 # Fetch and return HTML body for a successful response, else nil.
@@ -32,11 +60,12 @@ rescue StandardError => e
 end
 
 # Collect broken internal links found on the page at url.
+# Always returns a Set (empty on fetch failure) so callers can iterate safely.
 def check_links(url, domain)
   require 'nokogiri'
 
   html = fetch_html(url)
-  return unless html
+  return Set.new unless html
 
   checked = Set.new
   broken = Set.new
@@ -44,12 +73,11 @@ def check_links(url, domain)
   document = Nokogiri::HTML(html)
   links = document.css('a').map { |link| link['href'] }.compact
 
-  internal_links = links.select { |link| internal_link?(link, domain) }
-  puts "Internal links: #{internal_links}"
+  to_check = urls_to_check(url, domain, links)
+  puts "Internal links: #{to_check}"
 
-  internal_links.uniq.each do |link|
-    full_url = resolve_url(url, link)
-    next if full_url.nil? || checked.include?(full_url)
+  to_check.each do |full_url|
+    next if checked.include?(full_url)
 
     broken << full_url unless check_link(full_url)
     checked << full_url
