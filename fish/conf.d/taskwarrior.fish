@@ -537,8 +537,18 @@ function _taskwarrior::archive_uuids
     rm -f $tmp; or return 1
 end
 
+# Run a bulk task command without any prompt. rc.confirmation=off alone is not
+# enough: once a command touches rc.bulk (default 3) or more tasks, Taskwarrior
+# asks per task (yes/no/all/quit) regardless. rc.bulk=0 means "no bulk limit",
+# so cleanup stays unattended however many tasks are due.
+function _taskwarrior::unattended
+    task rc.confirmation=off rc.bulk=0 rc.gc=0 rc.verbose:nothing $argv
+end
+
 # Called from taskwarrior::invoke (hence supersync): delete completed and purge
 # deleted older than 180 days. Completed +agent tasks are archived before deletion.
+# All destructive calls go through _taskwarrior::unattended so supersync never
+# blocks on a confirmation prompt.
 function taskwarrior::cleanup
     set -l days 180
     set -l data_dir $HOME/.task
@@ -580,7 +590,7 @@ function taskwarrior::cleanup
         # broad filter therefore excludes them; archived UUIDs are explicit.
         if test $n -gt $agent_count
             echo "taskwarrior::cleanup: deleting old completed -agent tasks"
-            task rc.confirmation=off rc.gc=0 rc.verbose:nothing \
+            _taskwarrior::unattended \
                 status:completed end.before:today-"$days"days -agent delete
             or return 1
         end
@@ -590,7 +600,7 @@ function taskwarrior::cleanup
             if test $last -gt $agent_count
                 set last $agent_count
             end
-            task rc.confirmation=off rc.gc=0 rc.verbose:nothing \
+            _taskwarrior::unattended \
                 $agent[$offset..$last] status:completed \
                 end.before:today-"$days"days +agent delete
             or return 1
@@ -605,7 +615,7 @@ function taskwarrior::cleanup
     end
     if test $n -gt 0
         echo "taskwarrior::cleanup: purging $n deleted ≥{$days}d"
-        task rc.confirmation=off rc.gc=0 rc.verbose:nothing \
+        _taskwarrior::unattended \
             status:deleted modified.before:today-"$days"days purge
     else
         echo "taskwarrior::cleanup: no deleted ≥{$days}d"
