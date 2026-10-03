@@ -54,6 +54,17 @@ fail! "resolve //evil => #{evil.inspect}" unless evil == 'https://evil.com/path'
   fail! "resolve_url(#{bad.inspect}) => #{got.inspect}, want nil" unless got.nil?
 end
 
+# Malformed mailto: raises URI::InvalidComponentError (URI::Error, not InvalidURIError).
+malformed_mailto = %w[mailto:x mailto: mailto:not-an-email mailto:a@b@c]
+malformed_mailto.each do |bad|
+  begin
+    got = resolve_url(base, bad)
+  rescue StandardError => e
+    fail! "resolve_url(#{bad.inspect}) raised #{e.class}: #{e.message}"
+  end
+  fail! "resolve_url(#{bad.inspect}) => #{got.inspect}, want nil" unless got.nil?
+end
+
 # --- Negative: invalid hrefs must not raise; resolve returns nil --------------
 [' ', 'http://[', "\n", '::'].each do |bad|
   begin
@@ -89,7 +100,7 @@ end
   fail! "internal_link?(#{link.inspect}) should be false" if internal_link?(link, domain, base)
 end
 
-[' ', 'http://[', '::'].each do |bad|
+([' ', 'http://[', '::'] + malformed_mailto).each do |bad|
   begin
     got = internal_link?(bad, domain, base)
   rescue StandardError => e
@@ -124,6 +135,15 @@ want_selected = [
   'https://EXAMPLE.COM/case'
 ]
 fail! "urls_to_check => #{selected.inspect}, want #{want_selected.inspect}" unless selected == want_selected
+
+# Malformed mailto must not raise in urls_to_check; /foo still selected when mixed in.
+mixed_bad_mailto = malformed_mailto + ['/foo', 'mailto:x@y.com']
+begin
+  mixed_selected = urls_to_check(base, domain, mixed_bad_mailto)
+rescue StandardError => e
+  fail! "urls_to_check with malformed mailto raised #{e.class}: #{e.message}"
+end
+fail! "mixed mailto scan must still include /foo" unless mixed_selected == ['https://example.com/foo']
 
 # Every selected URL must be internal; nothing external slips through.
 selected.each do |u|

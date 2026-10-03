@@ -17,7 +17,7 @@ def resolve_url(base_url, href)
   return nil unless http_uri?(uri)
 
   uri.to_s
-rescue URI::InvalidURIError, ArgumentError
+rescue URI::Error, ArgumentError
   nil
 end
 
@@ -28,7 +28,7 @@ def same_http_host?(url, domain)
   return false if uri.host.nil? || domain.nil?
 
   uri.host.casecmp?(domain)
-rescue URI::InvalidURIError, ArgumentError
+rescue URI::Error, ArgumentError
   false
 end
 
