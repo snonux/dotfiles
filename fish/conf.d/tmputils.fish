@@ -177,5 +177,6 @@ tmpdir::make adhoc
 
 abbr -a cdtmp "cd $TMPUTILS_DIR"
 abbr -a tmpn tmpnew
+abbr -a tpnew tmpnew
 abbr -a temp tmpnew
 abbr -a tmp tmpnew
