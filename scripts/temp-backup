@@ -18,6 +18,28 @@ else
     )
 fi
 
+# Remote leaf name under tempbackup/; never allow empty / . / .. (dest escape).
+_remote_basename() {
+    local -r src="$1"
+    local name
+    name="$(basename -- "$src")"
+    if [[ -z "$name" || "$name" == '.' || "$name" == '..' ]]; then
+        printf 'temp-backup: refused remote basename %q for source: %s\n' \
+            "$name" "$src" >&2
+        exit 1
+    fi
+    printf '%s\n' "$name"
+}
+
+# Trailing slash on source syncs contents into the remote basename dir.
+_normalize_source() {
+    local src="$1"
+    if [[ "$src" != */ ]]; then
+        src="${src}/"
+    fi
+    printf '%s\n' "$src"
+}
+
 for dir in "${dirs[@]}"; do
     if [[ ! -e "$dir" ]]; then
         printf 'temp-backup: source does not exist: %s\n' "$dir" >&2
@@ -27,13 +49,22 @@ for dir in "${dirs[@]}"; do
         printf 'temp-backup: source is not a directory: %s\n' "$dir" >&2
         exit 1
     fi
+    # Reject filesystem root (would mirror / into remote tempbackup).
+    if [[ "$(cd -- "$dir" && pwd -P)" == / ]]; then
+        printf 'temp-backup: refusing filesystem root as source: %s\n' \
+            "$dir" >&2
+        exit 1
+    fi
+    # Validate remote leaf early (before any --delete rsync).
+    _remote_basename "$dir" >/dev/null
 done
 
 declare -r remote_host="${TEMP_BACKUP_HOST:-f0.wg0}"
 
 for dir in "${dirs[@]}"; do
-    # Trailing slash on source syncs contents into remote basename dir.
+    remote_name="$(_remote_basename "$dir")"
+    source_path="$(_normalize_source "$dir")"
     rsync -av --delete -- \
-        "$dir" \
-        "${remote_host}:tempbackup/$(basename "$dir")"
+        "$source_path" \
+        "${remote_host}:tempbackup/${remote_name}"
 done
