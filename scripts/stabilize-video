@@ -52,7 +52,6 @@ DELETE_SOURCE=no                  # yes only with --delete-source
 DELETE_MIN_DUR_RATIO="${DELETE_MIN_DUR_RATIO:-0.5}"
 # Refuse delete when out size < this fraction of source size.
 DELETE_MIN_SIZE_RATIO="${DELETE_MIN_SIZE_RATIO:-0.01}"
-# Cap concurrent pass-1 ffmpeg jobs (CPU/RAM). Override with PASS1_MAX_JOBS.
 
 # Display label (basename without .MOV). Not used for TRF identity.
 _base() { basename "${1%.MOV}"; }
@@ -314,20 +313,29 @@ _encode_verify_delete() {
   _assert_unique_trfs "${_evd_todo[@]}" || return 1
 
   max_jobs=$(_pass1_max_jobs)
+  local -a pass1_pids=()
   echo ""
   echo "==> Pass 1: motion detection (up to ${max_jobs} parallel)"
   for src in "${_evd_todo[@]}"; do
     # Cap CPU/RAM: wait -n frees a slot before launching the next _pass1.
+    # Do not tally failures here — jobs -rp misses finished-but-unreaped
+    # children; the pid loop below reaps every job exactly once.
     while (( $(jobs -rp | wc -l) >= max_jobs )); do
-      wait -n || ((++fail))
+      wait -n || true
     done
     base=$(_base "$src")
     trf=$(_trf_for "$src")
     echo "  [P1] $src"
-    _pass1 "$src" "$trf" | sed "s/^/    [$base P1] /" &
+    # Subshell so $! is the job whose status includes pipefail (not only sed).
+    (
+      set -o pipefail
+      _pass1 "$src" "$trf" | sed "s/^/    [$base P1] /"
+    ) &
+    pass1_pids+=("$!")
   done
-  while (( $(jobs -rp | wc -l) > 0 )); do
-    wait -n || ((++fail))
+  local pid
+  for pid in "${pass1_pids[@]}"; do
+    wait "$pid" || ((++fail))
   done
   if ((fail > 0)); then
     echo "stabilize-video: pass 1 failed for $fail clip(s)" >&2

@@ -97,6 +97,11 @@ if [[ "$vf" == *vidstabdetect=* ]]; then
       printf '%s\n' "$((cur - 1))" >"${STAB_FAKE_PASS1_ACTIVE}"
     ) 9>"$lock"
   fi
+  # STAB_FAKE_PASS1_FAIL=1 — exit non-zero after the slot hold (y33 failure drain).
+  if [[ "${STAB_FAKE_PASS1_FAIL:-}" == 1 ]]; then
+    printf 'pass1fail\t%s\t%s\n' "$src" "$trf" >> "$log"
+    exit 1
+  fi
   printf 'TRF_FOR=%s\n' "$src" > "$trf"
   printf 'pass1\t%s\t%s\n' "$src" "$trf" >> "$log"
   exit 0
@@ -1344,6 +1349,54 @@ for i in 1 2 3 4; do
   }
 done
 printf 'ok: y33 pass1 throttle peak=%s under PASS1_MAX_JOBS=2\n' "$peak"
+
+# --- y33: pass-1 failures under throttle must abort (no silent proceed) ---
+mkdir -p "$sandbox/p1fail"
+for i in 1 2 3; do
+  printf 'p1fail-%s\n' "$i" > "$sandbox/p1fail/c${i}.MOV"
+done
+: > "$STAB_FAKE_LOG"
+export PASS1_MAX_JOBS=2
+export STAB_FAKE_PASS1_FAIL=1
+export STAB_FAKE_PASS1_SLEEP=0.15
+export STAB_FAKE_PASS1_ACTIVE="$sandbox/p1fail.active"
+export STAB_FAKE_PASS1_PEAK="$sandbox/p1fail.peak"
+printf '0\n' > "$STAB_FAKE_PASS1_ACTIVE"
+printf '0\n' > "$STAB_FAKE_PASS1_PEAK"
+set +e
+"$script" "$sandbox/p1fail" \
+  >"$sandbox/p1fail.out" 2>"$sandbox/p1fail.err"
+p1fail_rc=$?
+set -e
+unset STAB_FAKE_PASS1_FAIL STAB_FAKE_PASS1_SLEEP
+unset STAB_FAKE_PASS1_ACTIVE STAB_FAKE_PASS1_PEAK
+unset PASS1_MAX_JOBS
+if ((p1fail_rc == 0)); then
+  echo "FAIL: expected non-zero exit when pass-1 fails under throttle" >&2
+  cat "$sandbox/p1fail.out" "$sandbox/p1fail.err" >&2
+  exit 1
+fi
+grep -q 'pass 1 failed' "$sandbox/p1fail.err" || {
+  echo "FAIL: missing pass-1-failed message under throttle" >&2
+  cat "$sandbox/p1fail.err" >&2
+  exit 1
+}
+if grep -q $'^pass2\t' "$STAB_FAKE_LOG"; then
+  echo "FAIL: pass-2 ran after pass-1 failures (fail count dropped?)" >&2
+  cat "$STAB_FAKE_LOG" >&2
+  exit 1
+fi
+for i in 1 2 3; do
+  [[ -f "$sandbox/p1fail/c${i}.MOV" ]] || {
+    echo "FAIL: pass1-fail run deleted source c${i}.MOV" >&2
+    exit 1
+  }
+  if [[ -e "$sandbox/p1fail/stabilised-c${i}.mp4" ]]; then
+    echo "FAIL: pass1-fail left final for c${i}.MOV" >&2
+    exit 1
+  fi
+done
+printf 'ok: y33 negative — pass1 failures under throttle abort before pass2\n'
 
 # --- unit: _partial_for / _output_decodes / _parse_cli / srcid ------------
 # shellcheck source=scripts/stabilize-video
