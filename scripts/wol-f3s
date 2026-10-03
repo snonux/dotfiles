@@ -109,7 +109,9 @@ SHELLY_PASS_FILE="$(_shelly_pass_file)"
 # SSH user
 SSH_USER="paul"
 # Pinned host keys for power-control SSH. StrictHostKeyChecking=yes rejects
-# unknown and changed keys (MITM protection stays on). Override
+# unknown and changed keys (MITM protection stays on). UserKnownHostsFile is
+# the pin; GlobalKnownHostsFile=/dev/null ignores the system store so a
+# poisoned /etc/ssh/ssh_known_hosts cannot satisfy verification. Override
 # _WOL_F3S_KNOWN_HOSTS in tests. After intentional key rotation, update the
 # pin file via supervised ssh-keyscan — do not weaken checking.
 _WOL_F3S_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -117,6 +119,7 @@ _WOL_F3S_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SSH_OPTIONS=(
     -o StrictHostKeyChecking=yes
     -o UserKnownHostsFile="${_WOL_F3S_KNOWN_HOSTS}"
+    -o GlobalKnownHostsFile=/dev/null
     -o LogLevel=ERROR
 )
 

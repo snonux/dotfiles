@@ -95,16 +95,22 @@ grep -Eq '_WOL_F3S_KNOWN_HOSTS:=.*/wol-f3s\.known_hosts' <<<"$ssh_opts_code" \
 grep -Eq 'UserKnownHostsFile=\$\{_WOL_F3S_KNOWN_HOSTS\}|UserKnownHostsFile="\$\{_WOL_F3S_KNOWN_HOSTS\}"' \
     <<<"$ssh_opts_code" \
     || fail "SSH options must pin UserKnownHostsFile via _WOL_F3S_KNOWN_HOSTS"
+# Ignore the system known_hosts store so a poisoned GlobalKnownHostsFile
+# cannot satisfy StrictHostKeyChecking against our pin.
+grep -Fq 'GlobalKnownHostsFile=/dev/null' <<<"$ssh_opts_code" \
+    || fail "SSH options must set GlobalKnownHostsFile=/dev/null"
 # Pin file must cover Beelinks, Pis, and Gogios gateways (port 2).
+# Gateway asserts require a real key line (leading [host]:2 + whitespace),
+# not a comment that merely mentions the hostname string.
 for host in 192.168.1.130 192.168.1.131 192.168.1.132 192.168.1.133 \
     192.168.1.125 192.168.1.126 192.168.1.127 192.168.1.128; do
     grep -Eq "^${host//./\\.}[[:space:]]" "$WOL_KNOWN_HOSTS" \
         || fail "known_hosts missing host key for $host"
 done
-grep -Fq '[blowfish.buetow.org]:2' "$WOL_KNOWN_HOSTS" \
-    || fail "known_hosts missing blowfish gateway key"
-grep -Fq '[fishfinger.buetow.org]:2' "$WOL_KNOWN_HOSTS" \
-    || fail "known_hosts missing fishfinger gateway key"
+grep -Eq '^\[blowfish\.buetow\.org\]:2[[:space:]]' "$WOL_KNOWN_HOSTS" \
+    || fail "known_hosts missing blowfish gateway key line"
+grep -Eq '^\[fishfinger\.buetow\.org\]:2[[:space:]]' "$WOL_KNOWN_HOSTS" \
+    || fail "known_hosts missing fishfinger gateway key line"
 
 # Single-host wake must still abort on failure (no || true / wake_failed).
 single_wake_block="$(awk '
@@ -395,13 +401,30 @@ declare -r MAIN_UNMUTE_LOG="$TEST_ROOT/main-unmute.log"
 : >"$MAIN_UNMUTE_LOG"
 
 # Mute failure must not abort privileged shutdown: still reaches host shutdown.
+# Track Pi / Shelly side effects so plain "shutdown" never touches Pis or fans
+# incorrectly, and a host failure leaves fans on.
+declare -r MAIN_PI_LOG="$TEST_ROOT/main-pi.log"
+declare -r SHELLY_FALSE_LOG="$TEST_ROOT/shelly-false.log"
+: >"$MAIN_PI_LOG"
+: >"$SHELLY_FALSE_LOG"
 umount_nfs_mounts() { return 0; }
-shelly_set() { return 0; }
+shelly_set() {
+    if [[ "$1" == "false" ]]; then
+        printf 'false\n' >>"$SHELLY_FALSE_LOG"
+    fi
+    return 0
+}
 shutdown_bhyve_host() {
     printf '%s\n' "$1" >>"$MAIN_SHUTDOWN_LOG"
     return 0
 }
+# Direct stub: plain shutdown must never call shutdown_host (Pis).
+shutdown_host() {
+    printf '%s\n' "$1" >>"$MAIN_PI_LOG"
+    return 0
+}
 # Fail-first mute (blowfish fails) via existing GOGIOS_GATEWAYS + ssh fake below.
+# Log every ssh destination (not only rex@) so Pi SSH would be visible.
 cat >"$FAKE_BIN/ssh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -409,7 +432,7 @@ log="${SSH_LOG:?}"
 target=""
 for arg in "$@"; do
     case "$arg" in
-        rex@*) target="${arg#rex@}" ;;
+        *@*) target="$arg" ;;
     esac
 done
 printf '%s\n' "$target" >>"$log"
@@ -421,6 +444,8 @@ EOF
 chmod +x "$FAKE_BIN/ssh"
 : >"$SSH_LOG"
 : >"$MAIN_SHUTDOWN_LOG"
+: >"$MAIN_PI_LOG"
+: >"$SHELLY_FALSE_LOG"
 main_shut_out="$(main shutdown 2>&1)" && main_shut_ec=0 || main_shut_ec=$?
 (( main_shut_ec == 0 )) || fail "main shutdown exited $main_shut_ec after mute failure: ${main_shut_out@Q}"
 mapfile -t shut_hosts <"$MAIN_SHUTDOWN_LOG"
@@ -432,18 +457,56 @@ mapfile -t shut_hosts <"$MAIN_SHUTDOWN_LOG"
 mapfile -t ssh_targets <"$SSH_LOG"
 (( ${#ssh_targets[@]} == 2 )) \
     || fail "main shutdown mute attempted ${#ssh_targets[@]} gateway(s), want 2"
+[[ ! -s "$MAIN_PI_LOG" ]] \
+    || fail "main shutdown called shutdown_host (Pis): $(tr '\n' ' ' <"$MAIN_PI_LOG")"
+# No SSH to Pi IPs on plain shutdown (direct, not only via count==2).
+for pi_ip in 192.168.1.125 192.168.1.126 192.168.1.127 192.168.1.128; do
+    grep -Fq "$pi_ip" "$SSH_LOG" \
+        && fail "main shutdown SSHed to Pi $pi_ip: $(tr '\n' ' ' <"$SSH_LOG")"
+done
 grep -Fq 'Shutdown commands sent to all Beelinks' <<<"$main_shut_out" \
     || fail "main shutdown missing Beelink success banner: ${main_shut_out@Q}"
+[[ -s "$SHELLY_FALSE_LOG" ]] \
+    || fail "main shutdown success must call shelly_set false"
+
+# w33: host shutdown failure must leave rack fans on (no shelly_set false).
+# Mutation removing the failed!=0 early-return in shutdown_fleet must fail here.
+shutdown_bhyve_host() {
+    printf '%s\n' "$1" >>"$MAIN_SHUTDOWN_LOG"
+    if [[ "$1" == f1 ]]; then
+        echo "  ✗ Failed to shut down $1 (unreachable or a VM remained running)"
+        return 1
+    fi
+    return 0
+}
+: >"$SSH_LOG"
+: >"$MAIN_SHUTDOWN_LOG"
+: >"$MAIN_PI_LOG"
+: >"$SHELLY_FALSE_LOG"
+main_fans_out="$(main shutdown 2>&1)" && main_fans_ec=0 || main_fans_ec=$?
+(( main_fans_ec != 0 )) \
+    || fail "main shutdown should fail when a Beelink shutdown fails: ${main_fans_out@Q}"
+[[ ! -s "$SHELLY_FALSE_LOG" ]] \
+    || fail "shelly_set false ran despite host shutdown failure (fans-on-failure)"
+grep -Fq 'leaving rack fans on' <<<"$main_fans_out" \
+    || fail "host failure missing fans-on message: ${main_fans_out@Q}"
+mapfile -t shut_hosts <"$MAIN_SHUTDOWN_LOG"
+(( ${#shut_hosts[@]} == 3 )) \
+    || fail "partial Beelink failure skipped later hosts; got ${#shut_hosts[@]} host(s)"
+[[ ! -s "$MAIN_PI_LOG" ]] \
+    || fail "failed main shutdown called shutdown_host: $(tr '\n' ' ' <"$MAIN_PI_LOG")"
+
+# Restore succeeding Beelink stub for shutdown-all.
+shutdown_bhyve_host() {
+    printf '%s\n' "$1" >>"$MAIN_SHUTDOWN_LOG"
+    return 0
+}
 
 # w33: shutdown-all shares shutdown_fleet --with-pis (mute || true + Pis).
-declare -r MAIN_PI_LOG="$TEST_ROOT/main-pi.log"
 : >"$MAIN_PI_LOG"
 : >"$MAIN_SHUTDOWN_LOG"
 : >"$SSH_LOG"
-shutdown_host() {
-    printf '%s\n' "$1" >>"$MAIN_PI_LOG"
-    return 0
-}
+: >"$SHELLY_FALSE_LOG"
 main_all_shut_out="$(main shutdown-all 2>&1)" && main_all_shut_ec=0 || main_all_shut_ec=$?
 (( main_all_shut_ec == 0 )) \
     || fail "main shutdown-all exited $main_all_shut_ec after mute failure: ${main_all_shut_out@Q}"
@@ -460,6 +523,8 @@ mapfile -t ssh_targets <"$SSH_LOG"
     || fail "main shutdown-all mute attempted ${#ssh_targets[@]} gateway(s), want 2"
 grep -Fq 'Shutdown commands sent to all machines' <<<"$main_all_shut_out" \
     || fail "main shutdown-all missing machines banner: ${main_all_shut_out@Q}"
+[[ -s "$SHELLY_FALSE_LOG" ]] \
+    || fail "shutdown-all success must call shelly_set false"
 
 # f0 wake failure must still run f1/f2 + unmute; no unconditional success banner.
 wake() {
