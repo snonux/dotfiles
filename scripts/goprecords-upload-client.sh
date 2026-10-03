@@ -4,11 +4,19 @@ set -eu
 
 GOPRECORDS_BASE_URL="${GOPRECORDS_BASE_URL:-https://goprecords.f3s.buetow.org}"
 # Bound hung TCP/HTTP so cron/systemd units cannot stall forever (v33).
+#
+# Wall-clock budget (defaults):
+#   Per attempt: connect <= CONNECT_TIMEOUT (10s), whole transfer <= MAX_TIME (60s).
+#   Retries: up to CURL_RETRIES (2) extra attempts, delaying CURL_RETRY_DELAY (1s)
+#   between them; --retry-max-time (180s) caps the entire retry budget so the
+#   worst-case hang is ~RETRY_MAX_TIME (+ small curl overhead), not
+#   (RETRIES+1)*MAX_TIME unbounded growth.
 GOPRECORDS_CONNECT_TIMEOUT="${GOPRECORDS_CONNECT_TIMEOUT:-10}"
 GOPRECORDS_MAX_TIME="${GOPRECORDS_MAX_TIME:-60}"
 # Bounded retries for transient curl failures (timeouts, 408/429/5xx).
 GOPRECORDS_CURL_RETRIES="${GOPRECORDS_CURL_RETRIES:-2}"
 GOPRECORDS_CURL_RETRY_DELAY="${GOPRECORDS_CURL_RETRY_DELAY:-1}"
+GOPRECORDS_CURL_RETRY_MAX_TIME="${GOPRECORDS_CURL_RETRY_MAX_TIME:-180}"
 
 _default_token_file() {
 	if [ "$(id -u)" = "0" ]; then
@@ -31,6 +39,7 @@ upload() {
 		--max-time "${GOPRECORDS_MAX_TIME}" \
 		--retry "${GOPRECORDS_CURL_RETRIES}" \
 		--retry-delay "${GOPRECORDS_CURL_RETRY_DELAY}" \
+		--retry-max-time "${GOPRECORDS_CURL_RETRY_MAX_TIME}" \
 		-X PUT --data-binary "@${file}" \
 		-H "Authorization: Bearer ${TOKEN}" \
 		"${GOPRECORDS_BASE_URL}/upload/${GOPRECORDS_HOST}/${kind}"
@@ -108,8 +117,16 @@ _main() {
 	fi
 }
 
-# Library mode for tests: GOPRECORDS_UPLOAD_LIB=yes . ./goprecords-upload-client.sh
-# (Basename gating is unsafe — scripts/tests/ shares this name.)
-if [ "${GOPRECORDS_UPLOAD_LIB:-no}" != "yes" ]; then
+# Library mode for tests only when *sourced* under bash with
+# GOPRECORDS_UPLOAD_LIB=yes. Executing this script always runs _main
+# (cron/systemd-safe): LIB=yes must not become a silent success no-op
+# (v33 review follow-up). Basename gating is unsafe — scripts/tests/ shares
+# this name.
+# shellcheck disable=SC3028,SC3054
+if [ -n "${BASH_VERSION:-}" ] \
+	&& [ "${BASH_SOURCE[0]}" != "$0" ] \
+	&& [ "${GOPRECORDS_UPLOAD_LIB:-no}" = "yes" ]; then
+	:
+else
 	_main "$@"
 fi
