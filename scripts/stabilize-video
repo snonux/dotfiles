@@ -7,19 +7,21 @@
 #   stabilize-video [DIR]                 # stabilize all *.MOV in DIR
 #   stabilize-video ~/Videos              # specify a directory
 #   stabilize-video clip1.MOV clip2.MOV   # or pass explicit files
+#   stabilize-video --delete-source ...   # also remove originals after OK
 #
 # Outputs are written next to each source as `stabilised-<base>.mp4`.
 # Encode writes `stabilised-<base>.mp4.partial` first and renames only on
 # success, so a mid-encode crash cannot leave a final path that forever
 # skips retries. Skip-if-exists requires a decodable output; undecodable
 # leftovers are discarded and retried.
-# On successful stabilization (output decodes OK and the per-source TRF
-# file is still present) the original .MOV is deleted.
 #
-# Missing-TRF refuse-delete is presence / defense-in-depth only: it checks
-# that the expected TRF path still exists before rm, not that TRF contents
-# bind to the source (content-identity). Unique keys + _assert_unique_trfs
-# are what prevent wrong-transform collisions.
+# Sources are kept by default (POLA: stabilize must not destroy masters).
+# Pass --delete-source to remove the original after decode-OK, TRF still
+# present, and a duration/size sanity check. Missing-TRF refuse-delete is
+# presence / defense-in-depth only: it checks that the expected TRF path
+# still exists before rm, not that TRF contents bind to the source
+# (content-identity). Unique keys + _assert_unique_trfs are what prevent
+# wrong-transform collisions.
 
 set -euo pipefail
 
@@ -29,6 +31,11 @@ QUALITY="${QUALITY:-34}"          # HEVC CQP quality (higher = smaller)
 SHAKINESS="${SHAKINESS:-5}"       # vidstab shakiness 1..10
 ACCURACY="${ACCURACY:-15}"        # vidstab accuracy 1..15
 UNSHARP="unsharp=5:5:0.8:3:3:0.4"
+DELETE_SOURCE=no                  # yes only with --delete-source
+# Refuse delete when out duration < this fraction of source duration.
+DELETE_MIN_DUR_RATIO="${DELETE_MIN_DUR_RATIO:-0.5}"
+# Refuse delete when out size < this fraction of source size.
+DELETE_MIN_SIZE_RATIO="${DELETE_MIN_SIZE_RATIO:-0.01}"
 
 # Display label (basename without .MOV). Not used for TRF identity.
 _base() { basename "${1%.MOV}"; }
@@ -148,8 +155,98 @@ _assert_unique_trfs() {
   done
 }
 
+# Probe media duration in seconds; empty + non-zero status on failure.
+_probe_duration() {
+  local -r path="$1"
+  ffprobe -v error -show_entries format=duration \
+    -of csv=p=0 "$path" 2>/dev/null
+}
+
+# True when out looks sane vs src (duration + size) before deleting source.
+_delete_sanity_ok() {
+  local -r src="$1" out="$2"
+  local src_dur out_dur
+  local -i src_bytes out_bytes
+  local src_rc=0 out_rc=0
+
+  set +e
+  src_dur=$(_probe_duration "$src")
+  src_rc=$?
+  out_dur=$(_probe_duration "$out")
+  out_rc=$?
+  set -e
+  if ((src_rc != 0 || out_rc != 0)) \
+    || [[ -z "$src_dur" || -z "$out_dur" ]]; then
+    echo "stabilize-video: sanity check failed (duration probe)" \
+      "for $src — keeping source" >&2
+    return 1
+  fi
+
+  # awk: out_dur < src_dur * ratio → refuse (handles floats).
+  if awk -v o="$out_dur" -v s="$src_dur" -v r="$DELETE_MIN_DUR_RATIO" \
+    'BEGIN { exit !(s > 0 && o < s * r) }'; then
+    echo "stabilize-video: sanity check failed (duration" \
+      "${out_dur}s < ${DELETE_MIN_DUR_RATIO}× ${src_dur}s)" \
+      "for $src — keeping source" >&2
+    return 1
+  fi
+
+  src_bytes=$(stat -c '%s' -- "$src")
+  out_bytes=$(stat -c '%s' -- "$out")
+  if ((src_bytes > 0)) \
+    && awk -v o="$out_bytes" -v s="$src_bytes" \
+      -v r="$DELETE_MIN_SIZE_RATIO" \
+      'BEGIN { exit !(o < s * r) }'; then
+    echo "stabilize-video: sanity check failed (size" \
+      "${out_bytes}B < ${DELETE_MIN_SIZE_RATIO}× ${src_bytes}B)" \
+      "for $src — keeping source" >&2
+    return 1
+  fi
+  return 0
+}
+
+# Strip flags; set DELETE_SOURCE; remaining paths go to _cli_paths.
+_parse_cli() {
+  DELETE_SOURCE=no
+  _cli_paths=()
+  local arg saw_dd=no
+  for arg in "$@"; do
+    if [[ "$saw_dd" == yes ]]; then
+      _cli_paths+=("$arg")
+      continue
+    fi
+    case "$arg" in
+      --)
+        saw_dd=yes
+        ;;
+      --delete-source)
+        DELETE_SOURCE=yes
+        ;;
+      -h|--help)
+        cat <<'EOF'
+Usage: stabilize-video [--delete-source] [DIR|FILE ...]
+
+Stabilize .MOV clips to stabilised-<base>.mp4 next to each source.
+Sources are kept by default. Pass --delete-source to remove originals
+after a successful verify (decode OK, TRF present, duration/size sane).
+EOF
+        exit 0
+        ;;
+      -*)
+        echo "stabilize-video: unknown option: $arg" >&2
+        echo "Try 'stabilize-video --help' for usage." >&2
+        return 1
+        ;;
+      *)
+        _cli_paths+=("$arg")
+        ;;
+    esac
+  done
+}
+
 main() {
-  _collect_mov_files "$@" || exit 1
+  _parse_cli "$@" || exit 1
+  _collect_mov_files "${_cli_paths[@]+"${_cli_paths[@]}"}" || exit 1
 
   if [[ ${#_mov_files[@]} -eq 0 ]]; then
     echo "stabilize-video: no .MOV files found" >&2
@@ -161,6 +258,7 @@ main() {
   echo "stabilize-video: ${#_mov_files[@]} clip(s) to process"
   echo "  device : $VADEVICE"
   echo "  quality: $QUALITY (vaapi: $_vaapi_ok)"
+  echo "  delete : $DELETE_SOURCE"
 
   # Build the work list. Skip only decodable finals; drop stale partials
   # and undecodable leftovers so a failed prior run can retry.
@@ -251,8 +349,7 @@ main() {
     src_h=$(du -h "$src" | cut -f1)
     out_h=$(du -h "$out" | cut -f1)
     set +e
-    dur=$(ffprobe -v error -show_entries format=duration \
-      -of csv=p=0 "$out" 2>/dev/null)
+    dur=$(_probe_duration "$out")
     probe_rc=$?
     ffmpeg -v error -i "$out" -f null - >/dev/null 2>&1
     decode_rc=$?
@@ -272,6 +369,13 @@ main() {
     fi
     printf '  %-28s %s -> %s  (%ss, decode OK)\n' \
       "$base" "$src_h" "$out_h" "$dur"
+    if [[ "$DELETE_SOURCE" != yes ]]; then
+      echo "    keeping source (default; pass --delete-source to remove)"
+      continue
+    fi
+    if ! _delete_sanity_ok "$src" "$out"; then
+      continue
+    fi
     rm -f -- "$src"
     echo "    deleted source: $src"
   done

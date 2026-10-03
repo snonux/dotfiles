@@ -2,11 +2,12 @@
 # Exercise stabilize-video without real ffmpeg / GPU work.
 #
 # Covers the c33 failure mode: same basename in different directories must
-# not share a .trf (wrong stabilize → delete originals). Also covers paths
+# not share a .trf (wrong stabilize → wrong transform). Also covers paths
 # with spaces, main/CLI same-realpath collision abort, missing-TRF
-# refuse-delete (presence / defense-in-depth — not content-identity), and
+# refuse-delete (presence / defense-in-depth — not content-identity),
 # d33: mid-encode failure must not leave a final output that forever skips
-# retries (atomic .partial + verify-before-skip).
+# retries (atomic .partial + verify-before-skip), and p33: keep sources by
+# default; delete only with --delete-source after duration/size sanity.
 set -euo pipefail
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -27,6 +28,8 @@ mkdir -p "$sandbox/bin" "$sandbox/a" "$sandbox/b" \
 # STAB_FAKE_PASS2_BAD_FINAL=1 — pass 2 exits 0 but writes undecodable bytes
 # (verify-time DECODE ERROR path after successful rename).
 # STAB_FAKE_FFPROBE_FAIL=1 — ffprobe exits 1 (verify must still rm bad out).
+# STAB_FAKE_SRC_DURATION / STAB_FAKE_OUT_DURATION — ffprobe duration values
+# (defaults 1.23) for delete-source sanity checks.
 
 cat > "$sandbox/bin/ffmpeg" <<'EOF'
 #!/usr/bin/env bash
@@ -121,7 +124,13 @@ set -euo pipefail
 if [[ "${STAB_FAKE_FFPROBE_FAIL:-}" == 1 ]]; then
   exit 1
 fi
-echo 1.23
+path=${*: -1}
+# Encoded outputs carry OUT_FOR=; sources do not.
+if [[ -f "$path" ]] && grep -q '^OUT_FOR=' "$path" 2>/dev/null; then
+  echo "${STAB_FAKE_OUT_DURATION:-1.23}"
+else
+  echo "${STAB_FAKE_SRC_DURATION:-1.23}"
+fi
 EOF
 
 chmod +x "$sandbox/bin/ffmpeg" "$sandbox/bin/ffprobe"
@@ -211,9 +220,9 @@ for dir in a b "dir with spaces"; do
   trf_for=$(grep '^TRF_FOR=' "$out" | cut -d= -f2-)
   out_for=$(grep '^OUT_FOR=' "$out" | cut -d= -f2-)
   expected_src="$sandbox/$dir/clip.MOV"
-  # Source should have been deleted after decode-OK + TRF present.
-  if [[ -e "$expected_src" ]]; then
-    echo "FAIL: source still present after success: $expected_src" >&2
+  # p33: default keeps masters even after decode-OK + TRF present.
+  if [[ ! -f "$expected_src" ]]; then
+    echo "FAIL: source deleted by default (want keep): $expected_src" >&2
     exit 1
   fi
   assert_eq "$dir OUT_FOR" "$expected_src" "$out_for"
@@ -222,8 +231,19 @@ for dir in a b "dir with spaces"; do
     echo "FAIL: empty USED_TRF in $out" >&2
     exit 1
   }
-  printf 'ok: e2e correct TRF + delete for %s\n' "$dir"
+  printf 'ok: e2e correct TRF + keep-default for %s\n' "$dir"
 done
+grep -q 'keeping source (default' "$sandbox/run.out" \
+  || grep -q 'keeping source (default' "$sandbox/run.err" || {
+  echo "FAIL: expected keeping-source default message" >&2
+  cat "$sandbox/run.out" "$sandbox/run.err" >&2
+  exit 1
+}
+if grep -q 'deleted source:' "$sandbox/run.out" "$sandbox/run.err"; then
+  echo "FAIL: default run reported source delete" >&2
+  exit 1
+fi
+printf 'ok: e2e default run keeps sources (p33)\n'
 
 # Distinct TRF paths actually used in the fake log (tab-separated).
 mapfile -t trf_paths < <(awk -F'\t' '$1=="pass1"{print $3}' "$STAB_FAKE_LOG" | sort -u)
@@ -233,6 +253,62 @@ if ((${#trf_paths[@]} != 3)); then
   exit 1
 fi
 printf 'ok: e2e used 3 distinct TRF files for 3 same-basename clips\n'
+
+# --- p33: --delete-source removes originals after decode-OK + TRF --------
+mkdir -p "$sandbox/del"
+printf 'del-src\n' > "$sandbox/del/clip.MOV"
+rm -f -- "$sandbox/del/stabilised-clip.mp4"
+: > "$STAB_FAKE_LOG"
+"$script" --delete-source "$sandbox/del/clip.MOV" \
+  >"$sandbox/del.out" 2>"$sandbox/del.err" || {
+  echo "FAIL: --delete-source run exited $?" >&2
+  cat "$sandbox/del.out" "$sandbox/del.err" >&2
+  exit 1
+}
+if [[ -e "$sandbox/del/clip.MOV" ]]; then
+  echo "FAIL: --delete-source left source in place" >&2
+  cat "$sandbox/del.out" "$sandbox/del.err" >&2
+  exit 1
+fi
+if [[ ! -f "$sandbox/del/stabilised-clip.mp4" ]]; then
+  echo "FAIL: --delete-source missing stabilized output" >&2
+  exit 1
+fi
+grep -q 'deleted source:' "$sandbox/del.out" \
+  || grep -q 'deleted source:' "$sandbox/del.err" || {
+  echo "FAIL: expected deleted-source message with --delete-source" >&2
+  cat "$sandbox/del.out" "$sandbox/del.err" >&2
+  exit 1
+}
+printf 'ok: --delete-source removes original after success\n'
+
+# --- p33 negative: unknown option aborts before work --------------------
+printf 'opt-src\n' > "$sandbox/del/clip.MOV"
+rm -f -- "$sandbox/del/stabilised-clip.mp4"
+: > "$STAB_FAKE_LOG"
+set +e
+"$script" --not-a-real-flag "$sandbox/del/clip.MOV" \
+  >"$sandbox/badopt.out" 2>"$sandbox/badopt.err"
+badopt_rc=$?
+set -e
+if ((badopt_rc == 0)); then
+  echo "FAIL: unknown option should exit non-zero" >&2
+  exit 1
+fi
+grep -q 'unknown option' "$sandbox/badopt.err" || {
+  echo "FAIL: missing unknown-option message" >&2
+  cat "$sandbox/badopt.err" >&2
+  exit 1
+}
+if [[ ! -f "$sandbox/del/clip.MOV" ]]; then
+  echo "FAIL: unknown-option run deleted source" >&2
+  exit 1
+fi
+if [[ -e "$sandbox/del/stabilised-clip.mp4" ]]; then
+  echo "FAIL: unknown-option run wrote output" >&2
+  exit 1
+fi
+printf 'ok: negative — unknown option aborts, source kept\n'
 
 # --- main/CLI: same-realpath collision abort (duplicate args) -------------
 # Exercises _assert_unique_trfs through main. Removing that call from main
@@ -338,6 +414,38 @@ if grep -q 'deleted source:' "$sandbox/miss.out" "$sandbox/miss.err"; then
 fi
 printf 'ok: main — missing TRF after decode-OK keeps source (presence)\n'
 
+# Same presence guard must refuse delete even with --delete-source.
+rm -f -- "$sandbox/a/stabilised-clip.mp4"
+printf 'keep-me-flag\n' > "$sandbox/a/clip.MOV"
+: > "$STAB_FAKE_LOG"
+export STAB_FAKE_RM_TRF_AFTER_PASS2=1
+set +e
+"$script" --delete-source "$sandbox/a/clip.MOV" \
+  >"$sandbox/miss2.out" 2>"$sandbox/miss2.err"
+miss2_rc=$?
+set -e
+unset STAB_FAKE_RM_TRF_AFTER_PASS2
+if ((miss2_rc != 0)); then
+  echo "FAIL: missing-TRF + --delete-source exited $miss2_rc" >&2
+  cat "$sandbox/miss2.out" "$sandbox/miss2.err" >&2
+  exit 1
+fi
+if [[ ! -f "$sandbox/a/clip.MOV" ]]; then
+  echo "FAIL: --delete-source deleted source despite missing TRF" >&2
+  exit 1
+fi
+grep -q 'missing TRF — keeping source' "$sandbox/miss2.err" \
+  || grep -q 'missing TRF — keeping source' "$sandbox/miss2.out" || {
+  echo "FAIL: expected keeping-source message for missing TRF + flag" >&2
+  cat "$sandbox/miss2.out" "$sandbox/miss2.err" >&2
+  exit 1
+}
+if grep -q 'deleted source:' "$sandbox/miss2.out" "$sandbox/miss2.err"; then
+  echo "FAIL: --delete-source reported delete when TRF missing" >&2
+  exit 1
+fi
+printf 'ok: negative — missing TRF refuses --delete-source\n'
+
 # --- d33: mid-encode fail must not leave a final skip-forever output ------
 mkdir -p "$sandbox/fail"
 printf 'fail-src\n' > "$sandbox/fail/clip.MOV"
@@ -375,7 +483,7 @@ grep -q 'pass 2 failed' "$sandbox/fail.err" || {
 }
 printf 'ok: negative — mid-encode fail leaves no final/partial\n'
 
-# Retry after failure must succeed (not permanently skipped).
+# Retry after failure must succeed (not permanently skipped); keep source.
 : > "$STAB_FAKE_LOG"
 "$script" "$sandbox/fail/clip.MOV" \
   >"$sandbox/retry.out" 2>"$sandbox/retry.err" || {
@@ -383,8 +491,8 @@ printf 'ok: negative — mid-encode fail leaves no final/partial\n'
   cat "$sandbox/retry.out" "$sandbox/retry.err" >&2
   exit 1
 }
-if [[ -e "$sandbox/fail/clip.MOV" ]]; then
-  echo "FAIL: retry did not delete source after success" >&2
+if [[ ! -f "$sandbox/fail/clip.MOV" ]]; then
+  echo "FAIL: retry deleted source by default (want keep)" >&2
   exit 1
 fi
 if [[ ! -f "$sandbox/fail/stabilised-clip.mp4" ]]; then
@@ -396,7 +504,7 @@ if [[ -e "$sandbox/fail/stabilised-clip.mp4.partial" ]]; then
   exit 1
 fi
 grep -q '^OUT_FOR=' "$sandbox/fail/stabilised-clip.mp4"
-printf 'ok: retry after mid-encode fail succeeds\n'
+printf 'ok: retry after mid-encode fail succeeds (source kept)\n'
 
 # --- d33: undecodable leftover is discarded and retried (not skipped) -----
 mkdir -p "$sandbox/corrupt"
@@ -420,8 +528,8 @@ if grep -q 'skip (exists)' "$sandbox/corrupt.out" "$sandbox/corrupt.err"; then
   echo "FAIL: skipped undecodable leftover instead of retrying" >&2
   exit 1
 fi
-if [[ -e "$sandbox/corrupt/clip.MOV" ]]; then
-  echo "FAIL: source kept after re-stabilize of undecodable leftover" >&2
+if [[ ! -f "$sandbox/corrupt/clip.MOV" ]]; then
+  echo "FAIL: re-stabilize deleted source by default (want keep)" >&2
   exit 1
 fi
 grep -q '^OUT_FOR=' "$sandbox/corrupt/stabilised-clip.mp4" || {
@@ -483,15 +591,15 @@ printf 'ok: negative — verify-time bad final DECODE ERROR + rm + exit 1\n'
   cat "$sandbox/badfinal-retry.out" "$sandbox/badfinal-retry.err" >&2
   exit 1
 }
-if [[ -e "$sandbox/badfinal/clip.MOV" ]]; then
-  echo "FAIL: retry after DECODE ERROR did not delete source" >&2
+if [[ ! -f "$sandbox/badfinal/clip.MOV" ]]; then
+  echo "FAIL: retry after DECODE ERROR deleted source by default" >&2
   exit 1
 fi
 grep -q '^OUT_FOR=' "$sandbox/badfinal/stabilised-clip.mp4" || {
   echo "FAIL: retry after DECODE ERROR did not rewrite final" >&2
   exit 1
 }
-printf 'ok: retry after verify-time DECODE ERROR succeeds\n'
+printf 'ok: retry after verify-time DECODE ERROR succeeds (source kept)\n'
 
 # --- d33: ffprobe failure at verify still discards final ------------------
 # Isolates set -e + ffprobe: decode may succeed (OUT_FOR present) but
@@ -555,7 +663,73 @@ if grep -q $'^pass2\t' "$STAB_FAKE_LOG"; then
 fi
 printf 'ok: decodable existing output still skipped\n'
 
-# --- unit: _partial_for / _output_decodes helpers -------------------------
+# --- p33 negative: --delete-source refuses short-duration output ----------
+mkdir -p "$sandbox/shortdur"
+printf 'short-src\n' > "$sandbox/shortdur/clip.MOV"
+rm -f -- "$sandbox/shortdur/stabilised-clip.mp4"
+: > "$STAB_FAKE_LOG"
+export STAB_FAKE_SRC_DURATION=10
+export STAB_FAKE_OUT_DURATION=1
+set +e
+"$script" --delete-source "$sandbox/shortdur/clip.MOV" \
+  >"$sandbox/shortdur.out" 2>"$sandbox/shortdur.err"
+shortdur_rc=$?
+set -e
+unset STAB_FAKE_SRC_DURATION STAB_FAKE_OUT_DURATION
+if ((shortdur_rc != 0)); then
+  echo "FAIL: short-duration run exited $shortdur_rc (want 0 + keep)" >&2
+  cat "$sandbox/shortdur.out" "$sandbox/shortdur.err" >&2
+  exit 1
+fi
+if [[ ! -f "$sandbox/shortdur/clip.MOV" ]]; then
+  echo "FAIL: short-duration sanity deleted source" >&2
+  cat "$sandbox/shortdur.out" "$sandbox/shortdur.err" >&2
+  exit 1
+fi
+grep -q 'sanity check failed (duration' "$sandbox/shortdur.err" \
+  || grep -q 'sanity check failed (duration' "$sandbox/shortdur.out" || {
+  echo "FAIL: expected duration sanity-failure message" >&2
+  cat "$sandbox/shortdur.out" "$sandbox/shortdur.err" >&2
+  exit 1
+}
+if grep -q 'deleted source:' "$sandbox/shortdur.out" "$sandbox/shortdur.err"
+then
+  echo "FAIL: reported delete after duration sanity failure" >&2
+  exit 1
+fi
+printf 'ok: negative — duration sanity blocks --delete-source\n'
+
+# --- p33 negative: --delete-source refuses tiny output vs large source ----
+mkdir -p "$sandbox/tinysize"
+# Large source so out_bytes < DELETE_MIN_SIZE_RATIO * src_bytes.
+dd if=/dev/zero of="$sandbox/tinysize/clip.MOV" bs=1024 count=100 status=none
+rm -f -- "$sandbox/tinysize/stabilised-clip.mp4"
+: > "$STAB_FAKE_LOG"
+"$script" --delete-source "$sandbox/tinysize/clip.MOV" \
+  >"$sandbox/tinysize.out" 2>"$sandbox/tinysize.err" || {
+  echo "FAIL: tiny-size run exited $?" >&2
+  cat "$sandbox/tinysize.out" "$sandbox/tinysize.err" >&2
+  exit 1
+}
+if [[ ! -f "$sandbox/tinysize/clip.MOV" ]]; then
+  echo "FAIL: tiny-size sanity deleted source" >&2
+  cat "$sandbox/tinysize.out" "$sandbox/tinysize.err" >&2
+  exit 1
+fi
+grep -q 'sanity check failed (size' "$sandbox/tinysize.err" \
+  || grep -q 'sanity check failed (size' "$sandbox/tinysize.out" || {
+  echo "FAIL: expected size sanity-failure message" >&2
+  cat "$sandbox/tinysize.out" "$sandbox/tinysize.err" >&2
+  exit 1
+}
+if grep -q 'deleted source:' "$sandbox/tinysize.out" "$sandbox/tinysize.err"
+then
+  echo "FAIL: reported delete after size sanity failure" >&2
+  exit 1
+fi
+printf 'ok: negative — size sanity blocks --delete-source\n'
+
+# --- unit: _partial_for / _output_decodes / _parse_cli --------------------
 # shellcheck source=scripts/stabilize-video
 source "$script"
 partial_path=$(_partial_for "$sandbox/corrupt/stabilised-clip.mp4")
@@ -574,7 +748,12 @@ if _output_decodes "$sandbox/does-not-exist.mp4"; then
   echo "FAIL: _output_decodes accepted missing path" >&2
   exit 1
 fi
-printf 'ok: unit — _partial_for + _output_decodes\n'
+_parse_cli --delete-source "$sandbox/a/clip.MOV"
+assert_eq "DELETE_SOURCE after --delete-source" yes "$DELETE_SOURCE"
+assert_eq "_cli_paths[0]" "$sandbox/a/clip.MOV" "${_cli_paths[0]}"
+_parse_cli "$sandbox/b/clip.MOV"
+assert_eq "DELETE_SOURCE default" no "$DELETE_SOURCE"
+printf 'ok: unit — _partial_for + _output_decodes + _parse_cli\n'
 
 # --- syntax / shellcheck --------------------------------------------------
 bash -n "$script"
