@@ -96,9 +96,13 @@ func (HomeTasks) Agents() {
 //
 // SyncDir of scripts/* copies regular files by basename and skips
 // directories, so nested production helpers under scripts/quicklog/ are
-// installed explicitly (e2e stays repo-only).
+// installed explicitly. The quicklog e2e tree stays repo-only: SyncDir
+// would still copy the thin scripts/quicklog-drain-e2e wrapper (which
+// execs a sibling quicklog/e2e/run that is never installed), so NoFile
+// removes that PATH entry after the sync.
 func (HomeTasks) Scripts() {
 	SyncDir(DestHome("scripts"), paths.Dot("scripts/*"), WithFileMode(0o750), WithPrune)
+	NoFile(DestHome("scripts/quicklog-drain-e2e"))
 	// Parent dir: atomicfile.Write CreateTemp's in the destination parent
 	// and does not MkdirAll (same pattern as Pipewire).
 	Dir(DestHome("scripts/quicklog"), WithMode(0o750))

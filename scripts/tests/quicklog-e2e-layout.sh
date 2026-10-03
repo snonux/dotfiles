@@ -86,14 +86,17 @@ if ! awk '
         if (!scripts_dir) exit 1
         scripts_install=1
     }
+    in_scripts && /NoFile\(DestHome\("scripts\/quicklog-drain-e2e"\)/ {
+        scripts_nofile=1
+    }
     in_systemd && /Dir\(DestHome\("scripts\/quicklog"\)/ { systemd_dir=1 }
     in_systemd && /InstallFile\(DestHome\("scripts\/quicklog\/drain"\)/ {
         if (!systemd_dir) exit 1
         systemd_install=1
     }
-    END { exit (scripts_install && systemd_install) ? 0 : 1 }
+    END { exit (scripts_install && systemd_install && scripts_nofile) ? 0 : 1 }
 ' "$GONF_HOME"; then
-    die "gonf must Dir(scripts/quicklog) before InstallFile drain in Scripts and SystemdUser"
+    die "gonf must Dir(scripts/quicklog) before InstallFile drain in Scripts and SystemdUser, and NoFile quicklog-drain-e2e after SyncDir"
 fi
 
 # common.sh must source shared asserts; phase bodies must not redefine them.
