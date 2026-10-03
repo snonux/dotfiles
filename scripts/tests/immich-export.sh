@@ -103,6 +103,11 @@ grep -q -- '--dest' "$IMMICH_EXPORT" \
     || fail "missing --dest CLI flag"
 grep -q -- '--account' "$IMMICH_EXPORT" \
     || fail "missing --account CLI flag"
+grep -q '_safe_account_name' "$IMMICH_EXPORT" \
+    || fail "missing _safe_account_name allowlist helper"
+# shellcheck disable=SC2016
+grep -Eq '\[\^A-Za-z0-9_-\]\+|\[A-Za-z0-9_-\]\+' "$IMMICH_EXPORT" \
+    || fail "missing account name allowlist character class"
 # Must not wipe real exports named *.tmp
 if grep -E -- 'find .* -name ["'\'']\*\.tmp' "$IMMICH_EXPORT" | grep -q .; then
     fail "stale cleanup still uses find -name '*.tmp'"
@@ -680,5 +685,280 @@ grep -q -- '--dest' "$TEST_ROOT/out-help" \
     || fail "--help missing --dest"
 grep -q -- '--account' "$TEST_ROOT/out-help" \
     || fail "--help missing --account"
+
+# --- q33 P0: account allowlist unit ---
+got=$(_safe_account_name 'paul') || fail "plain account rejected"
+[[ "$got" == 'paul' ]] || fail "plain account got=${got@Q}"
+got=$(_safe_account_name 'albena_2') || fail "underscore account rejected"
+[[ "$got" == 'albena_2' ]] || fail "underscore account got=${got@Q}"
+got=$(_safe_account_name 'A-Z9') || fail "alnum-hyphen account rejected"
+[[ "$got" == 'A-Z9' ]] || fail "alnum-hyphen got=${got@Q}"
+for bad_acct in '' '.' '..' '../elsewhere' 'foo/bar' '/abs' \
+    'has space' $'has\ttab' 'evil;rm' 'a.b' '~paul'; do
+    if _safe_account_name "$bad_acct" >/dev/null 2>&1; then
+        fail "accepted unsafe account name: ${bad_acct@Q}"
+    fi
+done
+
+# --- q33 P0: --account path escape rejected before DEST/key use ---
+set +e
+"$IMMICH_EXPORT" --account '../elsewhere' --dest "$TEST_ROOT/acct-escape" \
+    >/dev/null 2>"$TEST_ROOT/err-acct-escape"
+acct_esc_rc=$?
+set -e
+[[ "$acct_esc_rc" -ne 0 ]] \
+    || fail "--account ../elsewhere should be rejected"
+grep -qi 'invalid account' "$TEST_ROOT/err-acct-escape" \
+    || fail "missing invalid-account message: $(cat "$TEST_ROOT/err-acct-escape")"
+[[ ! -e "$TEST_ROOT/elsewhere" ]] \
+    || fail "--account ../elsewhere created escape path"
+[[ ! -d "$TEST_ROOT/acct-escape/../elsewhere" ]] \
+    || fail "--account ../elsewhere created DEST escape dir"
+
+# --- q33 P1: missing flag arguments die ---
+for flag in --dest --after --before --account --lan-url --public-url; do
+    set +e
+    "$IMMICH_EXPORT" "$flag" >/dev/null 2>"$TEST_ROOT/err-missing-arg"
+    miss_rc=$?
+    set -e
+    [[ "$miss_rc" -ne 0 ]] \
+        || fail "$flag without argument should die"
+    grep -Eqi 'requires|argument' "$TEST_ROOT/err-missing-arg" \
+        || fail "$flag missing-arg message wrong: $(cat "$TEST_ROOT/err-missing-arg")"
+done
+
+# --- q33 P2: discover_assets curl spy requires -m (and search timeout) ---
+: >"$CURL_SPY_LOG"
+cat >"$TEST_ROOT/bin/curl" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+log="$CURL_SPY_LOG"
+has_m=0
+m_val=""
+printf '%s\n' "$*" >>"$log"
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -m) has_m=1; m_val="$2"; shift 2 ;;
+        -o|-H|-d|-X|-w|--connect-timeout) shift 2 ;;
+        -sf|-s|-f|-L|-sL) shift ;;
+        http://*|https://*) shift ;;
+        *) shift ;;
+    esac
+done
+[[ "$has_m" -eq 1 ]] || { echo "curl spy: missing -m timeout" >&2; exit 2; }
+printf 'm=%s\n' "$m_val" >>"${log}.mvals"
+# One page of search results, no nextPage.
+cat <<'JSON'
+{"assets":{"items":[{"id":"44444444-4444-4444-4444-444444444444","originalFileName":"disc.jpg"}],"nextPage":null}}
+JSON
+EOF
+chmod +x "$TEST_ROOT/bin/curl"
+IMMICH_URL='http://immich.discover.test'
+DATE_AFTER='2021-01-01T00:00:00.000Z'
+DATE_BEFORE='2021-02-01T00:00:00.000Z'
+discover_assets 'fake-key' >"$TEST_ROOT/out-discover" 2>"$TEST_ROOT/err-discover" \
+    || fail "discover_assets failed: $(cat "$TEST_ROOT/err-discover")"
+grep -q "${ID_OK}"$'\tdisc.jpg' "$TEST_ROOT/out-discover" \
+    || fail "discover_assets missing asset line: $(cat "$TEST_ROOT/out-discover")"
+grep -q 'search/metadata' "$CURL_SPY_LOG" \
+    || fail "discover_assets did not hit search/metadata"
+grep -q "m=${CURL_SEARCH_TIMEOUT}" "$CURL_SPY_LOG.mvals" \
+    || fail "discover_assets curl -m != CURL_SEARCH_TIMEOUT: $(cat "$CURL_SPY_LOG.mvals")"
+# Spy rejects missing -m: call raw curl without -m must fail.
+set +e
+"$TEST_ROOT/bin/curl" -sf -X POST 'http://x/api/search/metadata' >/dev/null 2>&1
+spy_nom_rc=$?
+set -e
+[[ "$spy_nom_rc" -ne 0 ]] \
+    || fail "curl spy should fail when -m is absent"
+
+# --- q33 P1: CLI flags override env (dest/dates/account/urls) via main ---
+declare -r CLI_DEST="$TEST_ROOT/cli-dest"
+declare -r CLI_HOME="$TEST_ROOT/cli-home"
+mkdir -p "$CLI_HOME"
+printf 'cli-key\n' >"$CLI_HOME/.immich_cliacct_key"
+: >"$CURL_SPY_LOG"
+: >"${CURL_SPY_LOG}.outs"
+: >"${CURL_SPY_LOG}.mvals"
+cat >"$TEST_ROOT/bin/curl" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+log="$CURL_SPY_LOG"
+out=""
+url=""
+body=""
+has_m=0
+m_val=""
+printf '%s\n' "$*" >>"$log"
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -o) out="$2"; shift 2 ;;
+        -m) has_m=1; m_val="$2"; shift 2 ;;
+        -d) body="$2"; shift 2 ;;
+        -H|-X|-w|--connect-timeout) shift 2 ;;
+        -sf|-s|-f|-L|-sL) shift ;;
+        http://*|https://*) url="$1"; shift ;;
+        *) shift ;;
+    esac
+done
+[[ "$has_m" -eq 1 ]] || { echo "curl spy: missing -m timeout" >&2; exit 2; }
+printf 'm=%s url=%s\n' "$m_val" "$url" >>"${log}.mvals"
+case "$url" in
+    *cli-lan.example*/api/server/ping)
+        printf '200'
+        exit 0
+        ;;
+    *cli-public.example*/api/server/ping)
+        # Should not be preferred when LAN works.
+        printf '200'
+        exit 0
+        ;;
+    *env-lan.example*|*env-public.example*)
+        echo "env URL used instead of CLI: $url" >&2
+        exit 1
+        ;;
+    */api/search/metadata)
+        printf 'body=%s\n' "$body" >>"${log}.bodies"
+        cat <<'JSON'
+{"assets":{"items":[{"id":"44444444-4444-4444-4444-444444444444","originalFileName":"cli.jpg"}],"nextPage":null}}
+JSON
+        exit 0
+        ;;
+    */api/assets/*/original)
+        [[ -n "$out" ]] || exit 1
+        printf 'out=%s url=%s\n' "$out" "$url" >>"${log}.outs"
+        printf 'payload\n' >"$out"
+        exit 0
+        ;;
+    *)
+        echo "unexpected url: $url" >&2
+        exit 1
+        ;;
+esac
+EOF
+chmod +x "$TEST_ROOT/bin/curl"
+set +e
+HOME="$CLI_HOME" \
+IMMICH_EXPORT_DEST="$TEST_ROOT/env-should-not-win" \
+IMMICH_EXPORT_AFTER='1999-01-01T00:00:00.000Z' \
+IMMICH_EXPORT_BEFORE='1999-02-01T00:00:00.000Z' \
+IMMICH_LAN_URL='http://env-lan.example' \
+IMMICH_PUBLIC_URL='https://env-public.example' \
+"$IMMICH_EXPORT" \
+    --dest "$CLI_DEST" \
+    --after '2022-03-01T00:00:00.000Z' \
+    --before '2022-04-01T00:00:00.000Z' \
+    --account 'cliacct' \
+    --lan-url 'http://cli-lan.example' \
+    --public-url 'https://cli-public.example' \
+    >"$TEST_ROOT/out-cli-override" 2>"$TEST_ROOT/err-cli-override"
+cli_ov_rc=$?
+set -e
+[[ "$cli_ov_rc" -eq 0 ]] \
+    || fail "CLI override main should succeed: $(cat "$TEST_ROOT/err-cli-override")"
+[[ -d "$CLI_DEST/cliacct" ]] \
+    || fail "--dest/--account did not create CLI dest account dir"
+[[ ! -d "$TEST_ROOT/env-should-not-win" ]] \
+    || fail "env DEST was used instead of --dest"
+[[ -f "$CLI_DEST/cliacct/${ID_OK}_cli.jpg" ]] \
+    || fail "CLI export missing downloaded asset"
+grep -q 'cli-lan.example' "$CURL_SPY_LOG" \
+    || fail "--lan-url not used for ping: $(cat "$CURL_SPY_LOG")"
+if grep -q 'env-lan.example\|env-public.example' "$CURL_SPY_LOG"; then
+    fail "env URLs used despite CLI overrides"
+fi
+grep -q '2022-03-01T00:00:00.000Z' "$CURL_SPY_LOG.bodies" \
+    || fail "--after not in search body: $(cat "$CURL_SPY_LOG.bodies")"
+grep -q '2022-04-01T00:00:00.000Z' "$CURL_SPY_LOG.bodies" \
+    || fail "--before not in search body: $(cat "$CURL_SPY_LOG.bodies")"
+if grep -q '1999-01-01\|1999-02-01' "$CURL_SPY_LOG.bodies"; then
+    fail "env after/before used despite CLI overrides"
+fi
+grep -q 'Using LAN ingress' "$TEST_ROOT/out-cli-override" \
+    || fail "detect_immich_url LAN message missing (CLI override run)"
+
+# --- q33 P1 E2E main: ping OK → search one asset → download fails → exit ≠ 0 ---
+declare -r E2E_DEST="$TEST_ROOT/e2e-dest"
+declare -r E2E_HOME="$TEST_ROOT/e2e-home"
+mkdir -p "$E2E_HOME"
+printf 'e2e-key\n' >"$E2E_HOME/.immich_e2euser_key"
+: >"$CURL_SPY_LOG"
+: >"${CURL_SPY_LOG}.outs"
+cat >"$TEST_ROOT/bin/curl" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+log="$CURL_SPY_LOG"
+out=""
+url=""
+has_m=0
+printf '%s\n' "$*" >>"$log"
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -o) out="$2"; shift 2 ;;
+        -m) has_m=1; shift 2 ;;
+        -H|-d|-X|-w|--connect-timeout) shift 2 ;;
+        -sf|-s|-f|-L|-sL) shift ;;
+        http://*|https://*) url="$1"; shift ;;
+        *) shift ;;
+    esac
+done
+[[ "$has_m" -eq 1 ]] || { echo "curl spy: missing -m timeout" >&2; exit 2; }
+case "$url" in
+    */api/server/ping)
+        printf '200'
+        exit 0
+        ;;
+    */api/search/metadata)
+        cat <<'JSON'
+{"assets":{"items":[{"id":"eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee","originalFileName":"e2e-fail.jpg"}],"nextPage":null}}
+JSON
+        exit 0
+        ;;
+    */api/assets/*/original)
+        [[ -n "$out" ]] || exit 1
+        printf 'out=%s url=%s\n' "$out" "$url" >>"${log}.outs"
+        # Download fails after ping+search succeeded.
+        exit 22
+        ;;
+    *)
+        echo "unexpected url: $url" >&2
+        exit 1
+        ;;
+esac
+EOF
+chmod +x "$TEST_ROOT/bin/curl"
+set +e
+HOME="$E2E_HOME" \
+"$IMMICH_EXPORT" \
+    --dest "$E2E_DEST" \
+    --account 'e2euser' \
+    --lan-url 'http://e2e-lan.example' \
+    --public-url 'https://e2e-public.example' \
+    --after '2023-01-01T00:00:00.000Z' \
+    --before '2023-02-01T00:00:00.000Z' \
+    >"$TEST_ROOT/out-e2e" 2>"$TEST_ROOT/err-e2e"
+e2e_rc=$?
+set -e
+[[ "$e2e_rc" -ne 0 ]] \
+    || fail "E2E main download failure should exit non-zero"
+grep -q 'export failed for account' "$TEST_ROOT/err-e2e" \
+    || fail "missing account-failure message: $(cat "$TEST_ROOT/err-e2e")"
+grep -q 'Export finished with failures' "$TEST_ROOT/err-e2e" \
+    || fail "missing export-finished-with-failures die: $(cat "$TEST_ROOT/err-e2e")"
+grep -q 'failed to download' "$TEST_ROOT/err-e2e" \
+    || fail "missing per-asset download error: $(cat "$TEST_ROOT/err-e2e")"
+grep -q 'api/server/ping' "$CURL_SPY_LOG" \
+    || fail "E2E did not call detect_immich_url ping"
+grep -q 'search/metadata' "$CURL_SPY_LOG" \
+    || fail "E2E did not search for assets"
+grep -q '/original' "$CURL_SPY_LOG" \
+    || fail "E2E did not attempt download"
+[[ ! -e "$E2E_DEST/e2euser/${ID_FAIL}_e2e-fail.jpg" ]] \
+    || fail "E2E failed download left destination file"
+# Prefer LAN when ping OK — detect_immich_url must set IMMICH_URL from LAN.
+grep -q 'e2e-lan.example' "$CURL_SPY_LOG" \
+    || fail "E2E ping/download did not use --lan-url"
+grep -q 'Using LAN ingress' "$TEST_ROOT/out-e2e" \
+    || fail "E2E missing detect_immich_url LAN message: $(cat "$TEST_ROOT/out-e2e")"
 
 printf 'immich-export test: ok\n'

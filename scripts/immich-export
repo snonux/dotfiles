@@ -318,7 +318,9 @@ download_assets() {
 }
 
 download_assets_for_account() {
-    local account="$1"
+    local account
+    account=$(_safe_account_name "$1") \
+        || die "Invalid account name: ${1@Q} (allowed: [A-Za-z0-9_-]+)"
     local api_key="$2"
     local account_dir="$DEST_DIR/$account"
     mkdir -p "$account_dir"
@@ -356,9 +358,27 @@ download_assets_for_account() {
     return "$dl_rc"
 }
 
+# _safe_account_name RAW — allowlist a single path-safe account label used under
+# DEST_DIR and in ~/.immich_<name>_key. Reject path escape (../elsewhere),
+# absolute paths, empty, and any character outside [A-Za-z0-9_-].
+_safe_account_name() {
+    local -r raw="$1"
+
+    [[ -n "$raw" ]] || return 1
+    [[ "$raw" =~ ^[A-Za-z0-9_-]+$ ]] || return 1
+    # Defense: allowlist already excludes '/', '.', but keep explicit bans.
+    case "$raw" in
+        .|..|*"/"*|*"\\"*) return 1 ;;
+    esac
+
+    printf '%s\n' "$raw"
+}
+
 # Load API key for an account name from ~/.immich_<name>_key.
 _account_api_key() {
-    local -r account="$1"
+    local account
+    account=$(_safe_account_name "$1") \
+        || die "Invalid account name: ${1@Q} (allowed: [A-Za-z0-9_-]+)"
     local -r key_file="$HOME/.immich_${account}_key"
 
     [[ -f "$key_file" ]] || die "API key file not found: $key_file"
@@ -390,7 +410,10 @@ main() {
                 ;;
             --account)
                 [[ $# -ge 2 ]] || die "--account requires a name argument"
-                accounts+=("$2")
+                local acct
+                acct=$(_safe_account_name "$2") \
+                    || die "Invalid account name: ${2@Q} (allowed: [A-Za-z0-9_-]+)"
+                accounts+=("$acct")
                 shift 2
                 ;;
             --lan-url)
@@ -417,12 +440,18 @@ main() {
         accounts=(paul albena)
     fi
 
+    # Re-validate defaults too (defense in depth if defaults ever change).
+    local account
+    for account in "${accounts[@]}"; do
+        _safe_account_name "$account" >/dev/null \
+            || die "Invalid account name: ${account@Q} (allowed: [A-Za-z0-9_-]+)"
+    done
+
     detect_immich_url
 
     mkdir -p "$DEST_DIR"
 
     local -i account_failures=0
-    local account
     for account in "${accounts[@]}"; do
         if ! download_assets_for_account "$account" "$(_account_api_key "$account")"; then
             ((account_failures++)) || true
