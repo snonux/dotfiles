@@ -212,7 +212,7 @@ printf '%s\n' "${basenames[@]}" | grep -qxF 'plain.md' || {
 rm -rf "$list_tmp"
 ((rc == 0)) || die "null-safe object listing regression"
 
-# shellcheck the runner (sourced libs via -x)
+# Run ShellCheck on the runner (sourced libs via -x).
 shellcheck -x "$E2E_DIR/run" || die "shellcheck run failed"
 shellcheck -x "$E2E_WRAPPER" || die "shellcheck e2e wrapper failed"
 shellcheck -x "$DRAIN_WRAPPER" || die "shellcheck drain wrapper failed"
