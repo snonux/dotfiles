@@ -89,6 +89,86 @@ file_timestamps() {
     echo "$modified"
 }
 
+# Escape a path for curl -F quoted-filename syntax: field=@"path"
+# Backslashes and double quotes must be escaped inside the quotes.
+_curl_escape_form_path() {
+    local path="$1"
+    path=${path//\\/\\\\}
+    path=${path//\"/\\\"}
+    printf '%s' "$path"
+}
+
+# Build a curl -F file-field argument with quoted path (and optional
+# form filename). Commas/semicolons in the path then stay inside quotes
+# and are not treated as multipart separators.
+_curl_form_file_field() {
+    local -r field="$1"
+    local -r path="$2"
+    local -r name="${3:-}"
+    local escaped_path escaped_name
+    escaped_path=$(_curl_escape_form_path "$path")
+    if [[ -n "$name" ]]; then
+        escaped_name=$(_curl_escape_form_path "$name")
+        printf '%s=@"%s";filename="%s"' "$field" "$escaped_path" "$escaped_name"
+    else
+        printf '%s=@"%s"' "$field" "$escaped_path"
+    fi
+}
+
+# stdin: checksum<TAB>path lines → stdout: Immich bulk-upload-check JSON.
+# Paths are encoded with json.dumps (never printf into JSON).
+_build_bulk_check_json() {
+    python3 -c '
+import json
+import sys
+
+assets = []
+for raw in sys.stdin:
+    line = raw.rstrip("\n")
+    if not line:
+        continue
+    checksum, path = line.split("\t", 1)
+    assets.append({"id": path, "checksum": checksum})
+json.dump({"assets": assets}, sys.stdout, separators=(",", ":"))
+sys.stdout.write("\n")
+'
+}
+
+# Parse bulk-upload-check response; print duplicate asset ids (one per line).
+# Fails loud on invalid JSON or a missing/non-list results field.
+_duplicate_ids_from_response() {
+    local -r resp_file="$1"
+    python3 -c '
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as fh:
+    data = json.load(fh)
+if not isinstance(data, dict):
+    raise SystemExit(
+        "bulk-upload-check response is not a JSON object"
+    )
+results = data.get("results")
+if results is None:
+    raise SystemExit("bulk-upload-check response missing results")
+if not isinstance(results, list):
+    raise SystemExit("bulk-upload-check results is not a list")
+for item in results:
+    if not isinstance(item, dict):
+        raise SystemExit(
+            "bulk-upload-check result entry is not an object"
+        )
+    if item.get("action") == "reject" and item.get("reason") == "duplicate":
+        asset_id = item.get("id")
+        if asset_id is None:
+            raise SystemExit(
+                "duplicate result missing id"
+            )
+        print(asset_id)
+' "$resp_file"
+}
+
 # ------------------------------------------------------------------
 # Upload a single file
 # ------------------------------------------------------------------
@@ -109,9 +189,11 @@ upload_file() {
 
     info "Uploading: $filename"
 
-    local response tmpfile
+    local tmpfile form_asset
     tmpfile=$(mktemp)
-    trap "rm -f $tmpfile" RETURN
+    trap 'rm -f "$tmpfile"' RETURN
+
+    form_asset=$(_curl_form_file_field assetData "$file" "$filename")
 
     # Immich 3.x dropped the deviceAssetId/deviceId columns (migration
     # DropDeviceIdAndDeviceAssetId). The /api/assets endpoint still tolerates
@@ -123,10 +205,9 @@ upload_file() {
     http_code=$(curl -s -o "$tmpfile" -w '%{http_code}' -X POST \
         -H "x-api-key: $api_key" \
         -H "x-immich-checksum: $checksum" \
-        -F "assetData=@$file" \
-        -F "fileCreatedAt=$fileCreatedAt" \
-        -F "fileModifiedAt=$fileModifiedAt" \
-        -F "filename=$filename" \
+        -F "$form_asset" \
+        --form-string "fileCreatedAt=$fileCreatedAt" \
+        --form-string "fileModifiedAt=$fileModifiedAt" \
         "$IMMICH_URL/api/assets" 2>/dev/null) || { http_code="000"; }
 
     if [[ "$http_code" == "200" ]]; then
@@ -154,8 +235,8 @@ bulk_upload() {
     local total missing_count
     total=$(wc -l < "$files_list")
 
-    # Compute SHA1 for each file and build the bulk check JSON
-    local check_json tmp_json tmp_missing
+    # Compute SHA1 for each file and build checksum<TAB>path records
+    local tmp_json tmp_missing
     tmp_json=$(mktemp)
     tmp_missing=$(mktemp)
 
@@ -166,17 +247,8 @@ bulk_upload() {
         printf '%s\t%s\n' "$checksum" "$file" >> "$tmp_json"
     done < "$files_list"
 
-    # Build the bulk-upload-check JSON
-    {
-        echo '{"assets":['
-        local first=1
-        while IFS=$'\t' read -r checksum file; do
-            [[ "$first" -eq 1 ]] || echo ','
-            printf '{"id":"%s","checksum":"%s"}' "$file" "$checksum"
-            first=0
-        done < "$tmp_json"
-        echo ']}'
-    } > "$tmp_json.json"
+    # Build the bulk-upload-check JSON via json.dumps (safe for " \ etc.)
+    _build_bulk_check_json < "$tmp_json" > "$tmp_json.json"
 
     info "Checking for duplicates on server..."
     local response
@@ -190,18 +262,9 @@ bulk_upload() {
     # Response: { "results": [{ "id": "...", "action": "reject", "reason": "duplicate", ... }] }
     local resp_file
     resp_file=$(mktemp)
-    echo "$response" > "$resp_file"
-    python3 -c "
-import json, sys
-try:
-    with open('$resp_file') as f:
-        d = json.load(f)
-    for r in d.get('results', []):
-        if r.get('action') == 'reject' and r.get('reason') == 'duplicate':
-            print(r['id'])
-except Exception:
-    pass
-" > "$tmp_missing.exists"
+    printf '%s\n' "$response" > "$resp_file"
+    _duplicate_ids_from_response "$resp_file" > "$tmp_missing.exists" \
+        || die "failed to parse bulk-upload-check response"
     rm -f "$resp_file"
 
     # Build the missing files list
@@ -271,7 +334,7 @@ main() {
         # Directory: collect image files recursively
         local files_list
         files_list=$(mktemp)
-        trap "rm -f $files_list" EXIT
+        trap 'rm -f "$files_list"' EXIT
 
         info "Scanning directory: $src"
         find "$src" -type f -regextype posix-extended -iregex ".*$IMAGE_EXTENSIONS" -print > "$files_list"
@@ -290,4 +353,6 @@ main() {
     fi
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi
