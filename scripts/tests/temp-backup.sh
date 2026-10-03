@@ -227,6 +227,27 @@ grep -qi 'refusing filesystem root' "$TEST_ROOT/err_root" \
     || fail "root error unclear: $(cat "$TEST_ROOT/err_root")"
 [[ "$(call_count)" -eq 0 ]] || fail "rsync ran for filesystem root"
 
+# --- Negative: refuse // (POSIX: pwd -P may stay //; basename leaf /) ---
+# Without this, rsync --delete -- // host:tempbackup// can wipe remote root.
+reset_calls
+if "$TEMP_BACKUP" // 2>"$TEST_ROOT/err_dblslash"; then
+    fail "double-slash root source succeeded"
+fi
+grep -Eqi 'refusing filesystem root|refused remote basename' \
+    "$TEST_ROOT/err_dblslash" \
+    || fail "// root error unclear: $(cat "$TEST_ROOT/err_dblslash")"
+[[ "$(call_count)" -eq 0 ]] || fail "rsync ran for // root (tempbackup// wipe)"
+
+# --- Negative: refuse /// (collapses to root on most systems) ---
+reset_calls
+if "$TEMP_BACKUP" /// 2>"$TEST_ROOT/err_tripleslash"; then
+    fail "triple-slash root source succeeded"
+fi
+grep -Eqi 'refusing filesystem root|refused remote basename' \
+    "$TEST_ROOT/err_tripleslash" \
+    || fail "/// root error unclear: $(cat "$TEST_ROOT/err_tripleslash")"
+[[ "$(call_count)" -eq 0 ]] || fail "rsync ran for /// root"
+
 # --- Negative: empty remote basename fail-closed (mock basename) ---
 declare -r EMPTY_BASE_DIR="$TEST_ROOT/empty-base-dir"
 mkdir -p "$EMPTY_BASE_DIR"

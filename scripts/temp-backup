@@ -18,12 +18,13 @@ else
     )
 fi
 
-# Remote leaf name under tempbackup/; never allow empty / . / .. (dest escape).
+# Remote leaf name under tempbackup/; never allow empty, ., .., or /
+# (dest escape: basename -- // is /, which would yield tempbackup//).
 _remote_basename() {
     local -r src="$1"
     local name
     name="$(basename -- "$src")"
-    if [[ -z "$name" || "$name" == '.' || "$name" == '..' ]]; then
+    if [[ -z "$name" || "$name" == '.' || "$name" == '..' || "$name" == / ]]; then
         printf 'temp-backup: refused remote basename %q for source: %s\n' \
             "$name" "$src" >&2
         exit 1
@@ -49,8 +50,10 @@ for dir in "${dirs[@]}"; do
         printf 'temp-backup: source is not a directory: %s\n' "$dir" >&2
         exit 1
     fi
-    # Reject filesystem root (would mirror / into remote tempbackup).
-    if [[ "$(cd -- "$dir" && pwd -P)" == / ]]; then
+    # Reject filesystem root. On Linux, cd // && pwd -P can print //
+    # (POSIX quirk), so == / alone misses it; any all-slashes path is root.
+    resolved="$(cd -- "$dir" && pwd -P)"
+    if [[ -z "${resolved//\/}" ]]; then
         printf 'temp-backup: refusing filesystem root as source: %s\n' \
             "$dir" >&2
         exit 1
