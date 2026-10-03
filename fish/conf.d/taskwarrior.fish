@@ -401,13 +401,18 @@ function taskwarrior::export
     or return 1
     set -l failed 0
 
-    # Export this host's outgoing work/personal tag plus the host-routed
-    # +earth, +rocky, and +zen tasks. Each tag is exported under its own name
-    # as the file label; those host tags are exported on every host so earth,
-    # the rocky VM, and the zen laptop can import them via their hostnames. A
-    # task tagged with several routing tags (e.g. +zen +work) is exported once
-    # under the first matching label in the loop order and relays from there.
+    # Export this host's outgoing work/personal tag plus host-routed +earth,
+    # +rocky, and +zen tasks — except this host's own name. Local +$hostname
+    # tasks already live here; exporting them would delete them and only have
+    # the same host re-import the files. Other hosts still export those tags
+    # so this machine can import them via hostname. A task tagged with several
+    # routing tags (e.g. +zen +work) is exported once under the first matching
+    # label in the loop order and relays from there.
+    set -l host (hostname)
     for tag in $TASK_EXPORT_TAG earth rocky zen
+        if test "$tag" = "$host"
+            continue
+        end
         _taskwarrior::export_tag $tag $ts
         or set failed 1
     end

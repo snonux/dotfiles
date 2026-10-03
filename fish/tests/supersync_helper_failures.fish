@@ -260,6 +260,11 @@ end
 function taskwarrior::export::add
     record_task_step add
 end
+# Pin hostname so the local-host skip does not drop rocky from this failure
+# propagation check (would otherwise depend on the machine running the test).
+function hostname
+    echo testhost
+end
 set -gx TEST_FAIL rocky
 : >"$TEST_CALLS"
 taskwarrior::export >/dev/null
@@ -267,6 +272,22 @@ and fail "failed early task export reported success"
 # work/personal + earth + rocky + zen + bd + maybe + wins + add
 test (count (cat "$TEST_CALLS")) -eq 8
 or fail "failed task export skipped a later export"
+
+# Skip exporting the routing tag that matches this host — those tasks stay local.
+function hostname
+    echo rocky
+end
+: >"$TEST_CALLS"
+set -e TEST_FAIL
+taskwarrior::export >/dev/null
+or fail "export with local-host skip reported failure"
+test (count (cat "$TEST_CALLS")) -eq 7
+or fail "local-host skip left unexpected export count: "(count (cat "$TEST_CALLS"))
+contains rocky (cat "$TEST_CALLS")
+and fail "exported +rocky while hostname is rocky"
+contains earth (cat "$TEST_CALLS")
+or fail "local-host skip also dropped +earth"
+functions -e hostname
 
 function _taskwarrior::import_label
     record_task_step $argv[1]
