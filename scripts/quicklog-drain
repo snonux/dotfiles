@@ -95,6 +95,16 @@ error() {
   printf '%s: %s\n' "$PROGRAM" "$*" >&2
 }
 
+# _emit_ack KEY OK — write one compact JSON-lines ack to stdout.
+# KEY may contain quotes, backslashes, or newlines; OK is a JSON boolean
+# literal (true|false). Built with jq so the Dart side can parse and match
+# keys without protocol desync.
+_emit_ack() {
+  local -r key="$1"
+  local -r ok="$2"
+  jq -nc --arg key "$key" --argjson ok "$ok" '{key:$key,ok:$ok}'
+}
+
 usage() {
   cat >&2 <<EOF
 Usage: $PROGRAM [--dry-run] [--limit N] [--only KEYS]
@@ -263,16 +273,16 @@ import_notes() {
       # Not a protocol line: ack with a mismatched key so the Dart side
       # treats it as a desync and aborts instead of deleting anything.
       error "malformed stream line; aborting to resync"
-      printf '{"key":"","ok":false}\n' >&"${DARTPROC[1]}"
+      _emit_ack "" false >&"${DARTPROC[1]}"
       continue
     fi
 
     if printf '%s\n' "$content" | run_fish_import; then
-      printf '{"key":"%s","ok":true}\n' "$key" >&"${DARTPROC[1]}"
+      _emit_ack "$key" true >&"${DARTPROC[1]}"
       imported=$((imported + 1))
       echo "$PROGRAM: imported $key"
     else
-      printf '{"key":"%s","ok":false}\n' "$key" >&"${DARTPROC[1]}"
+      _emit_ack "$key" false >&"${DARTPROC[1]}"
       kept=$((kept + 1))
       error "import failed for $key — kept for retry"
     fi
@@ -388,4 +398,6 @@ main() {
   import_notes "$limit" "$only"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi
