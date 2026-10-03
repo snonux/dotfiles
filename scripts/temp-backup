@@ -1,7 +1,39 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
+# Mirror selected local directories to a remote tempbackup via rsync --delete.
+#
+# Usage:
+#   temp-backup                  # Notes + Documents (defaults)
+#   temp-backup DIR [DIR ...]    # Explicit source directories
+#
+# Override remote host with TEMP_BACKUP_HOST (default: f0.wg0).
+set -euo pipefail
 
-set -x
+declare -a dirs
+if (($# > 0)); then
+    dirs=("$@")
+else
+    dirs=(
+        "${HOME}/Syncthing/Notes/"
+        "${HOME}/Documents/"
+    )
+fi
 
-for dir in ~/Syncthing/Notes/ ~/Documents/; do 
-	rsync -av --delete $dir f0.wg0:tempbackup/$(basename $dir)
+for dir in "${dirs[@]}"; do
+    if [[ ! -e "$dir" ]]; then
+        printf 'temp-backup: source does not exist: %s\n' "$dir" >&2
+        exit 1
+    fi
+    if [[ ! -d "$dir" ]]; then
+        printf 'temp-backup: source is not a directory: %s\n' "$dir" >&2
+        exit 1
+    fi
+done
+
+declare -r remote_host="${TEMP_BACKUP_HOST:-f0.wg0}"
+
+for dir in "${dirs[@]}"; do
+    # Trailing slash on source syncs contents into remote basename dir.
+    rsync -av --delete -- \
+        "$dir" \
+        "${remote_host}:tempbackup/$(basename "$dir")"
 done
