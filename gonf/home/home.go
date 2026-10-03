@@ -99,6 +99,9 @@ func (HomeTasks) Agents() {
 // installed explicitly (e2e stays repo-only).
 func (HomeTasks) Scripts() {
 	SyncDir(DestHome("scripts"), paths.Dot("scripts/*"), WithFileMode(0o750), WithPrune)
+	// Parent dir: atomicfile.Write CreateTemp's in the destination parent
+	// and does not MkdirAll (same pattern as Pipewire).
+	Dir(DestHome("scripts/quicklog"), WithMode(0o750))
 	InstallFile(DestHome("scripts/quicklog/drain"), paths.Dot("scripts/quicklog/drain"), WithMode(0o750))
 }
 
@@ -234,6 +237,8 @@ func (HomeTasks) SystemdUser() {
 		quicklogDrain := InstallFile(DestHome("scripts/quicklog-drain"), paths.Dot("scripts/quicklog-drain"), WithMode(0o750))
 		// Nested impl: SyncDir(scripts/*) skips directories; timer must not
 		// activate until both the thin wrapper and scripts/quicklog/drain exist.
+		// Dir first: atomicfile CreateTemp needs the parent (Pipewire pattern).
+		Dir(DestHome("scripts/quicklog"), WithMode(0o750))
 		quicklogDrainImpl := InstallFile(DestHome("scripts/quicklog/drain"), paths.Dot("scripts/quicklog/drain"), WithMode(0o750))
 		// Only the unit files fan into the reload; the quicklog-drain script
 		// is an ordering dependency of its timer, so editing it does not reload.

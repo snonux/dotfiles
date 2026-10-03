@@ -71,11 +71,30 @@ else
     die "PROGRAM=quicklog-drain not inside WRAPPER_ENV array"
 fi
 
-# gonf SyncDir(scripts/*) skips directories; nested drain must be InstallFile'd.
+# gonf SyncDir(scripts/*) skips directories; nested drain needs Dir then InstallFile
+# (atomicfile.Write CreateTemp's in the parent and does not MkdirAll).
 GONF_HOME="${SCRIPT_DIR}/../../gonf/home/home.go"
 [[ -f "$GONF_HOME" ]] || die "missing gonf home.go for deploy check"
-grep -q 'scripts/quicklog/drain' "$GONF_HOME" \
-    || die "gonf home.go missing InstallFile for scripts/quicklog/drain"
+# Each InstallFile(scripts/quicklog/drain) must be preceded by Dir(scripts/quicklog)
+# in the same task body (Scripts + SystemdUser) — not a mere path grep.
+if ! awk '
+    /func \(HomeTasks\) Scripts\(\)/ { in_scripts=1; in_systemd=0 }
+    /func \(HomeTasks\) SystemdUser\(\)/ { in_systemd=1; in_scripts=0 }
+    /^func / && !/Scripts\(\)/ && !/SystemdUser\(\)/ { in_scripts=0; in_systemd=0 }
+    in_scripts && /Dir\(DestHome\("scripts\/quicklog"\)/ { scripts_dir=1 }
+    in_scripts && /InstallFile\(DestHome\("scripts\/quicklog\/drain"\)/ {
+        if (!scripts_dir) exit 1
+        scripts_install=1
+    }
+    in_systemd && /Dir\(DestHome\("scripts\/quicklog"\)/ { systemd_dir=1 }
+    in_systemd && /InstallFile\(DestHome\("scripts\/quicklog\/drain"\)/ {
+        if (!systemd_dir) exit 1
+        systemd_install=1
+    }
+    END { exit (scripts_install && systemd_install) ? 0 : 1 }
+' "$GONF_HOME"; then
+    die "gonf must Dir(scripts/quicklog) before InstallFile drain in Scripts and SystemdUser"
+fi
 
 # common.sh must source shared asserts; phase bodies must not redefine them.
 grep -qE '^[[:space:]]*source[[:space:]].*lib/e2e-assert\.sh' \
