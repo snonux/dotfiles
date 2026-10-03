@@ -3,11 +3,17 @@
 # and optional shutdown for Raspberry Pi nodes (pi0–pi3)
 
 set -euo pipefail
+
+_WOL_F3S_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=lib/f3s-hosts.sh
+source "${_WOL_F3S_DIR}/lib/f3s-hosts.sh"
+
 #
 # Before any shutdown of f3s Beelink hosts (f0/f1/f2/f3), this script will
 # attempt to umount all NFS filesystems currently mounted on this machine
 # (earth). NFS mounts here are tunnelled via stunnel (127.0.0.1:2323 →
-# 192.168.1.138:2323 CARP VIP on f0/f1). If any NFS mount is active and
+# CARP VIP on f0/f1). If any NFS mount is active and
 # cannot be umounted, the shutdown is aborted to prevent data loss or a
 # hung filesystem.
 #
@@ -21,31 +27,29 @@ set -euo pipefail
 #   wol-f3s shutdown-f3  # Shutdown only f3
 #   wol-f3s shutdown-pis # Shutdown all four Raspberry Pis
 #   wol-f3s shutdown-all # Shutdown f0, f1, f2, and Pis
+#
+# Fleet IPs/MACs/roles: scripts/lib/f3s-hosts.sh
 
-# MAC addresses
-F0_MAC="e8:ff:1e:d7:1c:ac"  # f0 (192.168.1.130)
-F1_MAC="e8:ff:1e:d7:1e:44"  # f1 (192.168.1.131)
-F2_MAC="e8:ff:1e:d7:1c:a0"  # f2 (192.168.1.132)
-F3_MAC="e8:ff:1e:d7:f3:d7"  # f3 (192.168.1.133)
-
-# IP addresses
-F0_IP="192.168.1.130"
-F1_IP="192.168.1.131"
-F2_IP="192.168.1.132"
-F3_IP="192.168.1.133"
-
+# Local aliases for the inventory maps (keep call sites readable).
+F0_MAC="${F3S_HOST_MAC[f0]}"
+F1_MAC="${F3S_HOST_MAC[f1]}"
+F2_MAC="${F3S_HOST_MAC[f2]}"
+F3_MAC="${F3S_HOST_MAC[f3]}"
+F0_IP="${F3S_HOST_IP[f0]}"
+F1_IP="${F3S_HOST_IP[f1]}"
+F2_IP="${F3S_HOST_IP[f2]}"
+F3_IP="${F3S_HOST_IP[f3]}"
 # k3s Rocky VMs on f0/f1/f2. Used as the readiness signal when un-muting
 # Gogios: the alerts we mute on shutdown are the Prometheus ones scraped from
 # this cluster, so the cluster being back is what makes them meaningful again.
-R0_IP="192.168.1.120"
-R1_IP="192.168.1.121"
-R2_IP="192.168.1.122"
-
+R0_IP="${F3S_HOST_IP[r0]}"
+R1_IP="${F3S_HOST_IP[r1]}"
+R2_IP="${F3S_HOST_IP[r2]}"
 # Raspberry Pi IP addresses (no WoL support, shutdown only)
-PI0_IP="192.168.1.125"
-PI1_IP="192.168.1.126"
-PI2_IP="192.168.1.127"
-PI3_IP="192.168.1.128"
+PI0_IP="${F3S_HOST_IP[pi0]}"
+PI1_IP="${F3S_HOST_IP[pi1]}"
+PI2_IP="${F3S_HOST_IP[pi2]}"
+PI3_IP="${F3S_HOST_IP[pi3]}"
 
 # Shelly Plug M Gen 3 controlling the rack fans (HTTP RPC API).
 # It is powered on when waking all hosts and powered off when shutting all
@@ -66,7 +70,7 @@ PI3_IP="192.168.1.128"
 # Pis). Username charset is restricted to [[:alnum:]_-]+ — sufficient for
 # those local accounts; exotic NSS names are rejected and fall back to
 # $HOME. Override via _PASSWD_FILE for tests.
-SHELLY_IP="192.168.1.28"
+SHELLY_IP="$F3S_SHELLY_IP"
 _PASSWD_FILE="${_PASSWD_FILE:-/etc/passwd}"
 
 # _user_home_from_passwd USER — print USER's home from $_PASSWD_FILE.
@@ -106,15 +110,14 @@ _shelly_pass_file() {
 
 SHELLY_PASS_FILE="$(_shelly_pass_file)"
 
-# SSH user
-SSH_USER="paul"
+# SSH user (from inventory)
+SSH_USER="$F3S_SSH_USER"
 # Pinned host keys for power-control SSH. StrictHostKeyChecking=yes rejects
 # unknown and changed keys (MITM protection stays on). UserKnownHostsFile is
 # the pin; GlobalKnownHostsFile=/dev/null ignores the system store so a
 # poisoned /etc/ssh/ssh_known_hosts cannot satisfy verification. Override
 # _WOL_F3S_KNOWN_HOSTS in tests. After intentional key rotation, update the
 # pin file via supervised ssh-keyscan — do not weaken checking.
-_WOL_F3S_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${_WOL_F3S_KNOWN_HOSTS:=${_WOL_F3S_DIR}/wol-f3s.known_hosts}"
 SSH_OPTIONS=(
     -o StrictHostKeyChecking=yes
@@ -128,7 +131,7 @@ SSH_OPTIONS=(
 VM_SHUTDOWN_TIMEOUT=240
 
 # Broadcast address for your LAN
-BROADCAST="192.168.1.255"
+BROADCAST="$F3S_LAN_BROADCAST"
 
 # Gogios mute marker. Created on shutdown so the Prometheus-derived checks stay
 # quiet while the cluster is deliberately down. Gogios expires it on its own
@@ -137,7 +140,7 @@ BROADCAST="192.168.1.255"
 # of the day — that hid a two-day audiobookshelf outage in August 2026. So the
 # wake path clears it explicitly instead.
 GOGIOS_MUTE_FILE="/tmp/f3s_taken_down"
-GOGIOS_GATEWAYS=(blowfish.buetow.org fishfinger.buetow.org)
+GOGIOS_GATEWAYS=("${F3S_GOGIOS_GATEWAYS[@]}")
 
 # How long to wait for the k3s nodes before giving up on un-muting.
 GOGIOS_UNMUTE_TIMEOUT=600
@@ -532,11 +535,11 @@ main() {
     echo ""
     if (( wake_failed != 0 )); then
         echo "⚠️  WoL incomplete — at least one packet failed to send."
-        echo "  Check which hosts came up, then try: ssh paul@192.168.1.130"
+        echo "  Check which hosts came up, then try: ssh ${SSH_USER}@${F0_IP}"
         exit 1
     fi
     echo "✓ WoL packets sent. Machines should boot in a few seconds."
-    echo "  Wait ~30 seconds, then try: ssh paul@192.168.1.130"
+    echo "  Wait ~30 seconds, then try: ssh ${SSH_USER}@${F0_IP}"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

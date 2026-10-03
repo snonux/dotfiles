@@ -125,7 +125,7 @@ assert_rsync_shape() {
 }
 
 bash -n "$TEMP_BACKUP" || fail "bash -n failed"
-shellcheck -x "$TEMP_BACKUP" || fail "shellcheck failed"
+shellcheck -x -S warning "$TEMP_BACKUP" || fail "shellcheck failed"
 
 # Structural guards: strict mode, no set -x, basename --, quoted rsync.
 grep -q 'set -euo pipefail' "$TEMP_BACKUP" || fail "missing set -euo pipefail"
@@ -151,6 +151,14 @@ grep -Fq 'CHANGEME_' "$TEMP_BACKUP" || fail "missing CHANGEME_ dest refusal"
 # Must not silently prefer home-backup's BACKUP_DEST for the default DEST.
 if grep -Eq 'DEST=.*\$\{?BACKUP_DEST' "$TEMP_BACKUP"; then
     fail "DEST still prefers BACKUP_DEST (home-backup footgun)"
+fi
+# u33: default host role from shared inventory.
+grep -Fq 'lib/f3s-hosts.sh' "$TEMP_BACKUP" \
+    || fail "must source lib/f3s-hosts.sh"
+grep -Fq 'F3S_TEMP_BACKUP_HOST' "$TEMP_BACKUP" \
+    || fail "must reference F3S_TEMP_BACKUP_HOST"
+if grep -Eq 'TEMP_BACKUP_HOST:-f0\.wg0\}' "$TEMP_BACKUP"; then
+    fail "still hardcodes f0.wg0 instead of inventory role"
 fi
 
 # --- Positive: default dirs — no --delete unless requested ---

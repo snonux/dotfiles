@@ -9,7 +9,8 @@
 #
 # Destination (remote base, sources land in DEST/<basename>):
 #   TEMP_BACKUP_DEST env, or -d DEST, else
-#   ${TEMP_BACKUP_HOST:-f0.wg0}:tempbackup
+#   ${TEMP_BACKUP_HOST:-$F3S_TEMP_BACKUP_HOST}:tempbackup
+#   (F3S_TEMP_BACKUP_HOST from scripts/lib/f3s-hosts.sh, currently f0.wg0)
 #   Empty, CHANGEME_*, and host:/ (empty or root-only path) are refused.
 #
 # Note: does NOT read home-backup's BACKUP_DEST. An ambient BACKUP_DEST for
@@ -26,9 +27,15 @@ set -euo pipefail
 
 declare -r PROGRAM=${0##*/}
 
+_TEMP_BACKUP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=lib/f3s-hosts.sh
+source "${_TEMP_BACKUP_DIR}/lib/f3s-hosts.sh"
+
 # Prefer TEMP_BACKUP_DEST; else host:tempbackup from TEMP_BACKUP_HOST.
-# Intentionally ignores BACKUP_DEST (home-backup) to avoid silent retarget.
-declare DEST="${TEMP_BACKUP_DEST:-${TEMP_BACKUP_HOST:-f0.wg0}:tempbackup}"
+# Default host role is F3S_TEMP_BACKUP_HOST (inventory). Intentionally
+# ignores BACKUP_DEST (home-backup) to avoid silent retarget.
+declare DEST="${TEMP_BACKUP_DEST:-${TEMP_BACKUP_HOST:-${F3S_TEMP_BACKUP_HOST}}:tempbackup}"
 declare DRY_RUN=""
 declare DO_DELETE="no"
 
@@ -56,8 +63,9 @@ Without DIR arguments, backs up:
   \$HOME/Documents/
 
 Destination may also be set via TEMP_BACKUP_DEST. If unset, defaults to
-\${TEMP_BACKUP_HOST:-f0.wg0}:tempbackup. Empty, CHANGEME_*, and
-host:/ (empty or root-only path after host:) are refused.
+\${TEMP_BACKUP_HOST:-\$F3S_TEMP_BACKUP_HOST}:tempbackup (inventory).
+Empty, CHANGEME_*, and host:/ (empty or root-only path after host:)
+are refused.
 
 This script does not use BACKUP_DEST (that is home-backup's variable).
 

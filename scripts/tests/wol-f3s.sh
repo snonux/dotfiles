@@ -102,15 +102,18 @@ grep -Fq 'GlobalKnownHostsFile=/dev/null' <<<"$ssh_opts_code" \
 # Pin file must cover Beelinks, Pis, and Gogios gateways (port 2).
 # Gateway asserts require a real key line (leading [host]:2 + whitespace),
 # not a comment that merely mentions the hostname string.
-for host in 192.168.1.130 192.168.1.131 192.168.1.132 192.168.1.133 \
-    192.168.1.125 192.168.1.126 192.168.1.127 192.168.1.128; do
+# IPs come from the shared inventory so pins track f3s-hosts.sh.
+# shellcheck source=scripts/lib/f3s-hosts.sh
+source "${SCRIPT_DIR}/../lib/f3s-hosts.sh"
+for role in "${F3S_BEELINKS[@]}" "${F3S_PIS[@]}"; do
+    host="${F3S_HOST_IP[$role]}"
     grep -Eq "^${host//./\\.}[[:space:]]" "$WOL_KNOWN_HOSTS" \
-        || fail "known_hosts missing host key for $host"
+        || fail "known_hosts missing host key for $role ($host)"
 done
-grep -Eq '^\[blowfish\.buetow\.org\]:2[[:space:]]' "$WOL_KNOWN_HOSTS" \
-    || fail "known_hosts missing blowfish gateway key line"
-grep -Eq '^\[fishfinger\.buetow\.org\]:2[[:space:]]' "$WOL_KNOWN_HOSTS" \
-    || fail "known_hosts missing fishfinger gateway key line"
+for gw in "${F3S_GOGIOS_GATEWAYS[@]}"; do
+    grep -Eq "^\[${gw//./\\.}\]:2[[:space:]]" "$WOL_KNOWN_HOSTS" \
+        || fail "known_hosts missing gateway key line for $gw"
+done
 
 # Single-host wake must still abort on failure (no || true / wake_failed).
 single_wake_block="$(awk '
@@ -460,9 +463,10 @@ mapfile -t ssh_targets <"$SSH_LOG"
 [[ ! -s "$MAIN_PI_LOG" ]] \
     || fail "main shutdown called shutdown_host (Pis): $(tr '\n' ' ' <"$MAIN_PI_LOG")"
 # No SSH to Pi IPs on plain shutdown (direct, not only via count==2).
-for pi_ip in 192.168.1.125 192.168.1.126 192.168.1.127 192.168.1.128; do
+for pi_role in "${F3S_PIS[@]}"; do
+    pi_ip="${F3S_HOST_IP[$pi_role]}"
     grep -Fq "$pi_ip" "$SSH_LOG" \
-        && fail "main shutdown SSHed to Pi $pi_ip: $(tr '\n' ' ' <"$SSH_LOG")"
+        && fail "main shutdown SSHed to Pi $pi_role ($pi_ip): $(tr '\n' ' ' <"$SSH_LOG")"
 done
 grep -Fq 'Shutdown commands sent to all Beelinks' <<<"$main_shut_out" \
     || fail "main shutdown missing Beelink success banner: ${main_shut_out@Q}"

@@ -3,8 +3,13 @@
 
 set -euo pipefail
 
-# Pi-hole DNS servers on the Raspberry Pi pair, with the router as last-resort fallback.
-PIHOLE_DNS="192.168.1.127 192.168.1.128 192.168.1.101 192.168.1.1"
+_PIHOLE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=lib/f3s-hosts.sh
+source "${_PIHOLE_DIR}/lib/f3s-hosts.sh"
+
+# Pi-hole DNS: pi2/pi3, intermediate fallback, LAN gateway (see f3s-hosts).
+PIHOLE_DNS="$F3S_PIHOLE_DNS"
 
 # Colors for output
 GREEN='\033[0;32m'
