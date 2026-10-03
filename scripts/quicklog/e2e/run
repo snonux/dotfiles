@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # End-to-end test for the Quicklog S3 → taskwarrior direct-import pipeline.
 #
-# Lives beside the code under test (scripts/quicklog-drain) under
+# Lives beside the code under test (scripts/quicklog/drain) under
 # scripts/quicklog/e2e/. Split into protocol-fake (no S3) vs live-S3 smoke so
 # the oversized production-touching harness is no longer a flat scripts/ blob.
 #
@@ -24,7 +24,9 @@
 
 set -uo pipefail
 
-PROGRAM=${0##*/}
+# Thin wrappers export PROGRAM=quicklog-drain-e2e; do not overwrite a useful
+# pre-set (and do not trust $0 — bash ignores exec -a for scripts).
+: "${PROGRAM:=quicklog-drain-e2e}"
 FAILURES=0
 SAN=""
 TIMER_WAS_ACTIVE=false
@@ -65,6 +67,8 @@ case "$MODE" in
     if [[ "$MODE" == all ]]; then
       # shellcheck source=scripts/quicklog/e2e/parser-local.sh
       source "$_E2E_DIR/parser-local.sh"
+      # Cross-phase wipe belongs in run orchestration, not parser-local.
+      ql_e2e::reset_sandbox_taskdata
     fi
     # shellcheck source=scripts/quicklog/e2e/live-s3.sh
     source "$_E2E_DIR/live-s3.sh"
@@ -76,19 +80,21 @@ case "$MODE" in
     source "$_E2E_DIR/isolation.sh"
     ;;
   protocol-fake)
-    # Creds file must exist: the wrapper still receives QUICKLOG_CREDS even when
-    # QUICKLOG_DART points at the fake emitter.
-    [[ -r "$CREDS" ]] || { echo "$PROGRAM: missing $CREDS" >&2; exit 1; }
-    ql_e2e::load_creds
+    # No live Garage: skip load_creds. Drain still sources QUICKLOG_CREDS, so
+    # point at a dummy file (or an explicit override) instead of requiring
+    # live-shaped ~/.config/garage/quicklog.env.
     ql_e2e::require_tools fish jq flock timeout pgrep
     [[ -x "$REAL_TASK" ]] || { echo "$PROGRAM: missing $REAL_TASK" >&2; exit 1; }
     ql_e2e::build_sandbox
+    if [[ -z "${QUICKLOG_CREDS:-}" ]]; then
+      CREDS="$SAN/dummy-creds.env"
+      ql_e2e::write_dummy_creds "$CREDS"
+    else
+      [[ -r "$CREDS" ]] || { echo "$PROGRAM: missing $CREDS" >&2; exit 1; }
+    fi
     # shellcheck source=scripts/quicklog/e2e/parser-local.sh
     source "$_E2E_DIR/parser-local.sh"
-    # Fresh sandbox DB before protocol phases (same wipe live suite does after
-    # phase 2) so counts stay exact for the fake-emitter scenarios.
-    rm -rf "$SAN/taskdata"
-    mkdir -p "$SAN/taskdata"
+    ql_e2e::reset_sandbox_taskdata
     # shellcheck source=scripts/quicklog/e2e/protocol-fake.sh
     source "$_E2E_DIR/protocol-fake.sh"
     ;;

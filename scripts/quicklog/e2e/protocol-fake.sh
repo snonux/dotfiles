@@ -105,7 +105,7 @@ FAKE6B_GOODS=61 # 1 second-line + 60 fakebulk lines
 gen_fake_task "$SAN/bin6b" "second good line" "$SAN/6b-block" "$SAN/6b-tasklog"
 touch "$SAN/6b-block"
 build_wrapper_env "" "$SAN/bin/fakedart" "$SAN/bin6b:$CHILD_PATH"
-env "${WRAPPER_ENV[@]}" "$DOTFILES/scripts/quicklog-drain" --only "$KEY6B1,$KEY6B2" &
+env "${WRAPPER_ENV[@]}" "$DOTFILES/scripts/quicklog/drain" --only "$KEY6B1,$KEY6B2" &
 WPID=$!
 if kill_when_blocked "$WPID" "$SAN/6b-tasklog"; then
   echo "ok: wrapper killed while the import was blocked mid-add"

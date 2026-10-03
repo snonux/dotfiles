@@ -1,0 +1,411 @@
+#!/usr/bin/env bash
+# Import Quicklog notes from Garage S3 directly into taskwarrior.
+#
+# The retired flow drained ql-*.md objects into ~/Notes/Quicklog and left
+# them there for taskwarrior::quicklogger to pick up on the next `ti`. This
+# script skips the filesystem entirely: every note is imported into
+# taskwarrior as part of the drain and only then deleted from the bucket.
+#
+# Deploy ordering (mixed states strand notes): fish/conf.d is deployed as a
+# live symlink (~/.config/fish/conf.d → the dotfiles repo), so fish changes
+# apply immediately, but this wrapper and the systemd units are gonf
+# SyncDir/InstallFile COPIES that only update when `./gonf.sh home` runs.
+# A new wrapper with old deployed fish fails every import (the quicklog
+# functions are missing) and keeps the notes; an old wrapper with new fish
+# stages notes into ~/Notes/Quicklog, which the new quicklogger no longer
+# scans. The import preflight below reports such stranded files — always
+# deploy the fish config and this wrapper together.
+#
+# Import-mode flow:
+#   1. flock serializes concurrent runs (the hourly systemd timer vs. a
+#      manual `ti`). The wait is bounded so an interactive `ti` is never
+#      wedged behind a long timer run: a skipped import retries next hour.
+#   2. `dart pub get` pre-resolves the package so `dart run` cannot print
+#      dependency-resolution noise into the protocol channel.
+#   3. The Dart drain tool (bin/quicklog_drain.dart --import) streams one
+#      JSON object per note to this script and waits for an ack line after
+#      each note. It deletes the remote object only after an ok-ack.
+#   4. Each note's content is piped into a headless fish that sources the
+#      deployed conf.d and runs taskwarrior::quicklog_import_content, so
+#      the note line format lives in exactly one place (fish), shared with
+#      quicklogger's scan of locally created ql-* files.
+#
+# Retry semantics: a note whose import fails (task add error, fish crash,
+# timeout, wrapper kill) is acked failed and stays in the bucket for the
+# next run — a note is only deleted after every line was imported or
+# skipped. Retries are idempotent through pending-description dedup in the
+# fish import: a line whose description is already pending is skipped, so a
+# crash between import and ack re-imports only lines that did not land.
+# The known exception is documented in the Dart tests: a delete that fails
+# after an ok-ack leaves an already-imported note queued, and the next run
+# re-imports it (the dedup then suppresses the duplicate lines). A note
+# that keeps failing for an unknown cause is retried and re-reported in
+# the journal/stderr on every run until it is resolved or removed with
+# `--delete KEY`.
+#
+# Other modes: --dest DIR drains objects into files without importing
+# (legacy manual recovery), --dry-run lists what an import would process,
+# --limit N bounds how many notes are handled per run, --only KEYS drains
+# only the named keys (comma-separated; used by the E2E harness so it can
+# never touch a note created by the phone mid-run).
+#
+# The Garage credentials remain in ~/.config/garage/quicklog.env. They are
+# loaded only for the Dart drain process and are never printed or exported
+# to the surrounding login environment.
+#
+# Environment overrides (used by scripts/quicklog/e2e to sandbox the
+# whole pipeline against a scratch HOME and taskwarrior DB):
+#   QUICKLOG_CREDS         credentials file (default ~/.config/garage/quicklog.env)
+#   QUICKLOG_REPO          Quicklog checkout (default ~/git/quicklog)
+#   QUICKLOG_DART          Dart SDK binary (default ~/flutter/bin/dart)
+#   QUICKLOG_FISH_CONF_DIR fish conf.d to source (default ~/.config/fish/conf.d)
+#   QUICKLOG_FISH_PATH     PATH for the import fish (default: the same
+#                          minimal /usr/local/bin:/usr/bin:/bin; the E2E
+#                          harness prepends a fake `task` so its kill tests
+#                          can block an import at a deterministic moment)
+#   PUB_CACHE              forwarded to pub/dart so a sandboxed HOME can
+#                          still use the warm package cache
+# TASKDATA, when set, is passed through to the import so a sandboxed
+# taskwarrior data directory is honored.
+#
+# Layout: real script is scripts/quicklog/drain; thin scripts/quicklog-drain
+# wrapper preserves CLI/gonf/systemd paths and exports PROGRAM.
+
+set -euo pipefail
+
+# Prefer a useful pre-set (thin wrapper exports quicklog-drain); do not take
+# argv0 from this file's basename ("drain") when invoked via the package path.
+declare -r PROGRAM="${PROGRAM:-quicklog-drain}"
+declare -r CREDS="${QUICKLOG_CREDS:-$HOME/.config/garage/quicklog.env}"
+declare -r REPO="${QUICKLOG_REPO:-$HOME/git/quicklog}"
+declare -r DART="${QUICKLOG_DART:-$HOME/flutter/bin/dart}"
+declare -r FISH_CONF_DIR="${QUICKLOG_FISH_CONF_DIR:-$HOME/.config/fish/conf.d}"
+# command -v fails when fish is absent; keep set -e from aborting before
+# check_prerequisites can report a clear error (also lets unit tests source
+# this file without fish on PATH).
+FISH_BIN="$(command -v fish || true)"
+readonly FISH_BIN
+declare -r LOCK="${XDG_RUNTIME_DIR:-/tmp}/quicklog-drain.lock"
+declare -r CHILD_PATH="/usr/local/bin:/usr/bin:/bin"
+# The import fish runs with this PATH; the QUICKLOG_FISH_PATH override lets
+# the E2E harness inject a fake `task` for its deterministic kill tests.
+declare -r FISH_IMPORT_PATH="${QUICKLOG_FISH_PATH:-$CHILD_PATH}"
+declare -ra REQUIRED_VARS=(
+  GARAGE_ENDPOINT
+  GARAGE_REGION
+  GARAGE_BUCKET
+  GARAGE_ACCESS_KEY_ID
+  GARAGE_SECRET_ACCESS_KEY
+)
+declare -ri IMPORT_TIMEOUT_SECS=300
+
+error() {
+  printf '%s: %s\n' "$PROGRAM" "$*" >&2
+}
+
+# _emit_ack KEY OK — write one compact JSON-lines ack to stdout.
+# KEY may contain quotes, backslashes, or newlines; OK is a JSON boolean
+# literal (true|false). Built with jq so the Dart side can parse and match
+# keys without protocol desync.
+_emit_ack() {
+  local -r key="$1"
+  local -r ok="$2"
+  jq -nc --arg key "$key" --argjson ok "$ok" '{key:$key,ok:$ok}'
+}
+
+usage() {
+  cat >&2 <<EOF
+Usage: $PROGRAM [--dry-run] [--limit N] [--only KEYS]
+       $PROGRAM --dest DIR [--dry-run] [--force] [--limit N] [--only KEYS]
+
+Imports Quicklog notes from Garage S3 directly into taskwarrior (no local
+staging). --dest DIR instead drains objects into files without importing.
+
+Options:
+  --dry-run    report what would be imported (or, with --dest, drained)
+  --limit N    process at most N notes this run (N ≥ 1)
+  --only KEYS  drain only these comma-separated object keys
+  --force      with --dest: overwrite existing local files
+  -h, --help   show this help
+EOF
+}
+
+load_credentials() {
+  if [[ ! -r "$CREDS" ]]; then
+    error "missing $CREDS"
+    return 1
+  fi
+
+  # The private file is POSIX-shell syntax, including defaults and exports.
+  # shellcheck disable=SC1090
+  source "$CREDS"
+}
+
+check_prerequisites() {
+  if [[ ! -d "$REPO" ]]; then
+    error "missing Quicklog repo $REPO"
+    return 1
+  fi
+  if [[ ! -x "$DART" ]]; then
+    error "missing Dart SDK executable $DART"
+    return 1
+  fi
+  if [[ -z "$FISH_BIN" ]]; then
+    error "missing fish executable"
+    return 1
+  fi
+  # The protocol is built on these three; a missing one would only surface
+  # mid-run as a malformed ack or a wedged lock.
+  local tool
+  for tool in jq flock timeout; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      error "missing required tool: $tool"
+      return 1
+    fi
+  done
+  if [[ ! -r "$FISH_CONF_DIR/taskwarrior.fish" || ! -r "$FISH_CONF_DIR/quicklog.fish" ]]; then
+    error "missing fish conf.d in $FISH_CONF_DIR (deploy dotfiles via gonf)"
+    return 1
+  fi
+
+  local name
+  for name in "${REQUIRED_VARS[@]}"; do
+    if [[ -z "${!name:-}" ]]; then
+      error "could not read all values from $CREDS"
+      return 1
+    fi
+  done
+}
+
+# Import-mode preflight: the retired flow staged notes into ~/Notes/Quicklog,
+# which neither the import nor quicklogger scans anymore. Such files are not
+# lost, but they are stranded — report them (the import below still runs) so
+# the operator can move them into ~/Notes, which quicklogger scans.
+report_stranded_staging() {
+  local dir="$HOME/Notes/Quicklog" f
+  [[ -d "$dir" ]] || return 0
+  local -a stranded=()
+  while IFS= read -r f; do
+    stranded+=("$f")
+  done < <(find -L "$dir" -maxdepth 1 -name 'ql-*' -type f 2>/dev/null | sort)
+  ((${#stranded[@]} > 0)) || return 0
+  error "found ${#stranded[@]} stranded note(s) in $dir staged by the retired flow;"
+  error "nothing scans that directory — move them into ~/Notes to import:"
+  printf '  %s\n' "${stranded[@]}" >&2
+}
+
+# Runs the Dart drain tool with a cleaned environment. Credentials are
+# confined to this one process tree; they never leak into the fish/task
+# import below.
+run_dart() {
+  local -a env_args=(
+    env -C "$REPO" -i
+    HOME="$HOME"
+    PATH="$CHILD_PATH"
+    GARAGE_ENDPOINT="$GARAGE_ENDPOINT"
+    GARAGE_REGION="$GARAGE_REGION"
+    GARAGE_BUCKET="$GARAGE_BUCKET"
+    GARAGE_ACCESS_KEY_ID="$GARAGE_ACCESS_KEY_ID"
+    GARAGE_SECRET_ACCESS_KEY="$GARAGE_SECRET_ACCESS_KEY"
+  )
+  if [[ -n "${PUB_CACHE:-}" ]]; then
+    env_args+=("PUB_CACHE=$PUB_CACHE")
+  fi
+  "${env_args[@]}" "$DART" run bin/quicklog_drain.dart "$@"
+}
+
+# Imports one Quicklog note (content on stdin) through the deployed fish
+# functions. Exit 0 = every line imported, skipped as malformed or skipped
+# as an already-pending duplicate; anything else means the note must be
+# kept for retry. QUICKLOG_HEADLESS keeps taskwarrior.fish from defining
+# abbreviations or running the once-a-day due-count check inside this
+# service context.
+run_fish_import() {
+  local -a env_args=(
+    env -i
+    HOME="$HOME"
+    PATH="$FISH_IMPORT_PATH"
+    QUICKLOG_HEADLESS=1
+    QUICKLOG_FISH_CONF_DIR="$FISH_CONF_DIR"
+  )
+  if [[ -n "${TASKDATA:-}" ]]; then
+    env_args+=("TASKDATA=$TASKDATA")
+  fi
+
+  # The fish command is single-quoted on purpose: $QUICKLOG_FISH_CONF_DIR is
+  # expanded by fish from its own environment, not by this shell.
+  # shellcheck disable=SC2016
+  "${env_args[@]}" timeout "$IMPORT_TIMEOUT_SECS" "$FISH_BIN" --no-config -c '
+    source "$QUICKLOG_FISH_CONF_DIR/taskwarrior.fish"
+    source "$QUICKLOG_FISH_CONF_DIR/quicklog.fish"
+    taskwarrior::quicklog_import_content
+  '
+}
+
+# Drains and imports in one lockstep pass (see header). Uses a coprocess so
+# the whole flow is a single Dart run while notes are still imported and
+# deleted strictly one at a time. [$1] is the optional --limit value,
+# [$2] the optional --only key list.
+import_notes() {
+  local limit="${1:-}" only="${2:-}"
+  local -a dart_args=(--import)
+  if [[ -n "$limit" ]]; then
+    dart_args+=(--limit "$limit")
+  fi
+  if [[ -n "$only" ]]; then
+    dart_args+=(--only "$only")
+  fi
+
+  # `dart run` resolves the package on first use and can print resolution
+  # noise ("Resolving dependencies…") to stdout; any stray output on the
+  # protocol channel would desync the JSON-lines stream. Pre-resolve
+  # quietly here (output discarded, failure non-fatal — `dart run` will
+  # surface real errors, and the protocol survives a dead consumer).
+  # PUB_CACHE is forwarded so a sandboxed HOME (the E2E harness) can use
+  # the warm real cache instead of re-downloading every package.
+  local -a pub_args=(env -C "$REPO" -i HOME="$HOME" PATH="$CHILD_PATH")
+  if [[ -n "${PUB_CACHE:-}" ]]; then
+    pub_args+=("PUB_CACHE=$PUB_CACHE")
+  fi
+  "${pub_args[@]}" "$DART" pub get >/dev/null 2>&1 || true
+
+  local imported=0 kept=0 json key content dart_rc=0
+
+  coproc DARTPROC { run_dart "${dart_args[@]}"; }
+
+  while read -r -u "${DARTPROC[0]}" json; do
+    key=$(jq -r '.key // empty' <<<"$json" 2>/dev/null) || key=""
+    content=$(jq -r '.content // empty' <<<"$json" 2>/dev/null) || content=""
+
+    if [[ -z "$key" ]]; then
+      # Not a protocol line: ack with a mismatched key so the Dart side
+      # treats it as a desync and aborts instead of deleting anything.
+      error "malformed stream line; aborting to resync"
+      _emit_ack "" false >&"${DARTPROC[1]}"
+      continue
+    fi
+
+    if printf '%s\n' "$content" | run_fish_import; then
+      _emit_ack "$key" true >&"${DARTPROC[1]}"
+      imported=$((imported + 1))
+      echo "$PROGRAM: imported $key"
+    else
+      _emit_ack "$key" false >&"${DARTPROC[1]}"
+      kept=$((kept + 1))
+      error "import failed for $key — kept for retry"
+    fi
+  done
+
+  wait "$DARTPROC_PID" || dart_rc=$?
+
+  echo "$PROGRAM: imported=$imported kept=$kept dart_rc=$dart_rc"
+  [[ $kept -eq 0 && $dart_rc -eq 0 ]]
+}
+
+main() {
+  local mode=import dest="" dry_run=false force=false limit="" only=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dest)
+        [[ $# -ge 2 ]] || { usage; exit 64; }
+        mode=files
+        dest="$2"
+        shift 2
+        ;;
+      --dest=*)
+        mode=files
+        dest="${1#*=}"
+        shift
+        ;;
+      --dry-run)
+        dry_run=true
+        shift
+        ;;
+      --force)
+        force=true
+        shift
+        ;;
+      --limit)
+        [[ $# -ge 2 && $2 =~ ^[0-9]+$ && $2 -gt 0 ]] || { usage; exit 64; }
+        limit="$2"
+        shift 2
+        ;;
+      --limit=*)
+        [[ "${1#*=}" =~ ^[0-9]+$ && "${1#*=}" -gt 0 ]] || { usage; exit 64; }
+        limit="${1#*=}"
+        shift
+        ;;
+      --only)
+        [[ $# -ge 2 && -n "$2" ]] || { usage; exit 64; }
+        only="$2"
+        shift 2
+        ;;
+      --only=*)
+        [[ -n "${1#*=}" ]] || { usage; exit 64; }
+        only="${1#*=}"
+        shift
+        ;;
+      -h | --help)
+        usage
+        exit 0
+        ;;
+      *)
+        usage
+        exit 64
+        ;;
+    esac
+  done
+
+  if [[ "$force" == true && "$mode" != files ]]; then
+    error "--force only applies with --dest"
+    exit 64
+  fi
+  # --only is meaningful only for the two drain modes
+  if [[ -n "$only" && "$mode" != import && "$mode" != files ]]; then
+    error "--only only applies with import mode or --dest"
+    exit 64
+  fi
+
+  # Serialize against a concurrent run (timer vs. manual `ti`), but only
+  # wait bounded: a second instance skips its import when the lock is held
+  # (a skipped import is not an error — the next hourly run retries) instead
+  # of wedging an interactive `ti` behind a long timer run.
+  exec 9>"$LOCK"
+  if ! flock -w 30 9; then
+    error "another quicklog-drain run holds the lock; skipping import this time"
+    exit 0
+  fi
+
+  load_credentials
+  check_prerequisites
+
+  if [[ "$mode" == files ]]; then
+    # Legacy manual-recovery path: drain objects into files, import nothing.
+    # (No `exec`: run_dart is a shell function, and `exec` only finds
+    # external binaries — the E2E --dest smoke test caught the rc 127.)
+    local -a dart_args=(--dest "$dest")
+    $dry_run && dart_args+=(--dry-run)
+    $force && dart_args+=(--force)
+    [[ -n "$limit" ]] && dart_args+=(--limit "$limit")
+    [[ -n "$only" ]] && dart_args+=(--only "$only")
+    run_dart "${dart_args[@]}"
+    exit $?
+  fi
+
+  report_stranded_staging
+
+  if $dry_run; then
+    local -a dart_args=(--import --dry-run)
+    [[ -n "$limit" ]] && dart_args+=(--limit "$limit")
+    [[ -n "$only" ]] && dart_args+=(--only "$only")
+    run_dart "${dart_args[@]}"
+    exit $?
+  fi
+
+  import_notes "$limit" "$only"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi

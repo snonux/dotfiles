@@ -110,7 +110,7 @@ KILLWIN_GOODS=122 # first + third + 120 filler lines
 gen_fake_task "$SAN/bin4b" "third good line" "$SAN/4b-block" "$SAN/4b-tasklog"
 touch "$SAN/4b-block"
 build_wrapper_env "" "" "$SAN/bin4b:$CHILD_PATH"
-env "${WRAPPER_ENV[@]}" "$DOTFILES/scripts/quicklog-drain" --only "$K4B" &
+env "${WRAPPER_ENV[@]}" "$DOTFILES/scripts/quicklog/drain" --only "$K4B" &
 WPID=$!
 if kill_when_blocked "$WPID" "$SAN/4b-tasklog"; then
   echo "ok: wrapper killed while the import was blocked mid-add"

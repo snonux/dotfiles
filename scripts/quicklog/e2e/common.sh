@@ -30,8 +30,9 @@ fi
 source "$_E2E_DIR/../../lib/e2e-assert.sh"
 
 ql_e2e::load_creds() {
-  # Load credentials once, exactly like the production wrapper does. They stay
-  # in this process and are passed explicitly (never printed) to the Dart tools.
+  # Live-S3 only: load credentials once, exactly like the production wrapper.
+  # They stay in this process and are passed explicitly (never printed) to the
+  # Dart tools. protocol-fake must not call this — it never talks to Garage.
   # shellcheck disable=SC1090
   source "$CREDS"
   S3_ENV_ARGS=(
@@ -41,6 +42,25 @@ ql_e2e::load_creds() {
     "GARAGE_ACCESS_KEY_ID=${GARAGE_ACCESS_KEY_ID:-}"
     "GARAGE_SECRET_ACCESS_KEY=${GARAGE_SECRET_ACCESS_KEY:-}"
   )
+}
+
+# Dummy Garage env for the drain wrapper on the protocol-fake path (drain
+# always sources QUICKLOG_CREDS even when QUICKLOG_DART is a fake emitter).
+ql_e2e::write_dummy_creds() { # ql_e2e::write_dummy_creds PATH
+  cat >"$1" <<'EOF'
+GARAGE_ENDPOINT=http://127.0.0.1:9
+GARAGE_REGION=garage
+GARAGE_BUCKET=quicklog-e2e-dummy
+GARAGE_ACCESS_KEY_ID=dummy
+GARAGE_SECRET_ACCESS_KEY=dummy
+EOF
+}
+
+# Cross-phase wipe: run orchestration calls this between phases so counts stay
+# exact. Parser-local must not wipe the sandbox for later phases.
+ql_e2e::reset_sandbox_taskdata() {
+  rm -rf "$SAN/taskdata"
+  mkdir -p "$SAN/taskdata"
 }
 
 # --- live S3 helpers --------------------------------------------------------
@@ -278,7 +298,7 @@ run_script() { # run_script [--taskdata DIR] [--dart PATH] [--only CSV] <wrapper
     echo "$PROGRAM: run_script: empty --only (pass --only KEYS or put_note first)" >&2
     return 64
   fi
-  env "${WRAPPER_ENV[@]}" "$DOTFILES/scripts/quicklog-drain" --only "$only_csv" "$@"
+  env "${WRAPPER_ENV[@]}" "$DOTFILES/scripts/quicklog/drain" --only "$only_csv" "$@"
 }
 
 # Headless fish against the sandbox (production parity: QUICKLOG_HEADLESS).

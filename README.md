@@ -117,7 +117,7 @@ Installed by `home_scripts`. Quick hacks mostly.
 | `immich-export` | exports Immich assets per account and date range |
 | `immich-upload` | uploads images to Immich, skipping SHA1 duplicates |
 | `pihole-dns-toggle` | toggles Pi-hole DNS for the active NetworkManager connection |
-| `quicklog-drain` | imports Quicklog notes from Garage S3 directly into taskwarrior (no local staging); run by its timer; e2e lives beside it under `scripts/quicklog/e2e/` (`protocol-fake` vs `live-s3`; thin `scripts/quicklog-drain-e2e` wrapper). Deploy note: `fish/conf.d` is a live symlink (applies immediately) while this script and the systemd units are gonf copies — deploy both together via `./gonf.sh home`, otherwise the import preflight warns about notes stranded in `~/Notes/Quicklog` |
+| `quicklog-drain` | imports Quicklog notes from Garage S3 directly into taskwarrior (no local staging); run by its timer; lives under `scripts/quicklog/drain` with e2e beside it under `scripts/quicklog/e2e/` (`protocol-fake` vs `live-s3`; thin `scripts/quicklog-drain` / `scripts/quicklog-drain-e2e` wrappers preserve CLI paths). Deploy note: `fish/conf.d` is a live symlink (applies immediately) while this script and the systemd units are gonf copies — deploy both together via `./gonf.sh home`, otherwise the import preflight warns about notes stranded in `~/Notes/Quicklog` |
 | `randomnote.rb` | prints a random line from the foo.zone notes or a local book text |
 | `random-wallpaper.sh` | sets a random GNOME wallpaper; run hourly by `random-wallpaper.timer` (earth only) |
 | `screenshot` | flameshot wrapper: `full`, `screen`, `gui`; `-c` also copies the image to the clipboard |

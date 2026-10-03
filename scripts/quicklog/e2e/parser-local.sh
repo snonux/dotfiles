@@ -176,7 +176,3 @@ elif [[ "$due_zero_raw" =~ ^[0-9]+$ ]]; then
 else
   fail "due zero task missing or unrecognized due: $due_zero_raw"
 fi
-
-# Fresh sandbox DB for the pipeline phases so counts stay exact
-rm -rf "$SAN/taskdata"
-mkdir -p "$SAN/taskdata"

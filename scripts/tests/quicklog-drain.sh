@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Negative/repro checks for scripts/quicklog-drain JSON ack escaping (k33).
+# Negative/repro checks for scripts/quicklog/drain JSON ack escaping (k33).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 declare -r SCRIPT_DIR
-declare -r QUICKLOG_DRAIN="${SCRIPT_DIR}/../quicklog-drain"
+declare -r QUICKLOG_DRAIN="${SCRIPT_DIR}/../quicklog/drain"
+declare -r QUICKLOG_DRAIN_WRAPPER="${SCRIPT_DIR}/../quicklog-drain"
 
 fail() {
     printf 'quicklog-drain test: %s\n' "$*" >&2
@@ -12,7 +13,18 @@ fail() {
 }
 
 bash -n "$QUICKLOG_DRAIN" || fail "bash -n failed"
+bash -n "$QUICKLOG_DRAIN_WRAPPER" || fail "bash -n wrapper failed"
+[[ -x "$QUICKLOG_DRAIN_WRAPPER" ]] || fail "wrapper not executable"
+grep -q 'quicklog/drain' "$QUICKLOG_DRAIN_WRAPPER" \
+    || fail "wrapper does not exec quicklog/drain"
 shellcheck -x "$QUICKLOG_DRAIN" || fail "shellcheck failed"
+shellcheck -x "$QUICKLOG_DRAIN_WRAPPER" || fail "shellcheck wrapper failed"
+
+# PROGRAM must stay quicklog-drain via wrapper export (not argv0 / exec -a).
+grep -qE 'PROGRAM:=quicklog-drain' "$QUICKLOG_DRAIN_WRAPPER" \
+    || fail "wrapper missing PROGRAM=quicklog-drain export"
+grep -qE 'PROGRAM="\$\{PROGRAM:-quicklog-drain\}"' "$QUICKLOG_DRAIN" \
+    || fail "drain does not respect pre-set PROGRAM"
 
 # --- Structural: helper + call-site wiring (resilient, not brittle printf greps) ---
 
@@ -63,7 +75,7 @@ trap "rm -rf $(printf '%q' "$no_fish_bin")" EXIT
 # shellcheck disable=SC2016 # $1 / command substitutions expand inside the child
 PATH="$no_fish_bin" "$bash_bin" -c '
     set -euo pipefail
-    # shellcheck source=scripts/quicklog-drain
+    # shellcheck source=scripts/quicklog/drain
     source "$1"
     [[ "$(type -t _emit_ack)" == function ]]
     [[ -z "${FISH_BIN:-}" ]]

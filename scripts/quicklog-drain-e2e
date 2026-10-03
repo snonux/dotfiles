@@ -2,5 +2,6 @@
 # Thin wrapper: Quicklog drain e2e lives beside the code under test under
 # scripts/quicklog/e2e/. Kept here so existing docs/invocations keep working.
 set -uo pipefail
-exec -a quicklog-drain-e2e \
-  "$(cd "$(dirname "$0")" && pwd)/quicklog/e2e/run" "$@"
+: "${PROGRAM:=quicklog-drain-e2e}"
+export PROGRAM
+exec "$(cd "$(dirname "$0")" && pwd)/quicklog/e2e/run" "$@"
