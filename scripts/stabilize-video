@@ -10,8 +10,13 @@
 #
 # Outputs are written next to each source as `stabilised-<base>.mp4`.
 # On successful stabilization (output decodes OK and the per-source TRF
-# is present) the original .MOV is deleted. Clips that already have a
-# stabilized output are skipped.
+# file is still present) the original .MOV is deleted. Clips that already
+# have a stabilized output are skipped.
+#
+# Missing-TRF refuse-delete is presence / defense-in-depth only: it checks
+# that the expected TRF path still exists before rm, not that TRF contents
+# bind to the source (content-identity). Unique keys + _assert_unique_trfs
+# are what prevent wrong-transform collisions.
 
 set -euo pipefail
 
@@ -213,7 +218,8 @@ main() {
       continue
     fi
     if [[ ! -f "$trf" ]]; then
-      # Ambiguous / missing transform identity — keep the original.
+      # Presence check only (defense-in-depth): TRF path gone after a
+      # decode-OK output — do not claim content↔source binding here.
       printf '  %-28s %s -> %s  (%ss, decode OK; missing TRF — keeping source)\n' \
         "$base" "$src_h" "$out_h" "$dur" >&2
       continue

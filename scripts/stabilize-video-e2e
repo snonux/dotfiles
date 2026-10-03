@@ -3,7 +3,8 @@
 #
 # Covers the c33 failure mode: same basename in different directories must
 # not share a .trf (wrong stabilize → delete originals). Also covers paths
-# with spaces and the collision / missing-TRF refuse-delete guards.
+# with spaces, main/CLI same-realpath collision abort, and missing-TRF
+# refuse-delete (presence / defense-in-depth — not content-identity).
 set -euo pipefail
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -12,11 +13,14 @@ sandbox=$(mktemp -d)
 trap 'rm -rf "$sandbox"' EXIT
 
 mkdir -p "$sandbox/bin" "$sandbox/a" "$sandbox/b" \
-  "$sandbox/dir with spaces"
+  "$sandbox/dir with spaces" "$sandbox/real"
 
 # --- fake ffmpeg / ffprobe -------------------------------------------------
 # Records which TRF each source used in pass 1/2 so the harness can assert
 # identity. VAAPI probe fails so the script takes the software encode path.
+#
+# STAB_FAKE_RM_TRF_AFTER_PASS2=1 — after a successful pass 2, delete the
+# TRF that was just consumed so main's verify sees decode-OK + missing TRF.
 
 cat > "$sandbox/bin/ffmpeg" <<'EOF'
 #!/usr/bin/env bash
@@ -40,7 +44,6 @@ for arg in "$@"; do
     -vf) vf=$arg ;;
   esac
   prev=$arg
-  # Last non-option-ish .mp4 / path after codecs is the output.
 done
 # Output file is the final argument when not -f null.
 out=${*: -1}
@@ -82,6 +85,10 @@ if [[ "$vf" == *vidstabtransform=* ]]; then
     cat "$trf"
   } > "$out"
   printf 'pass2\t%s\t%s\t%s\n' "$src" "$trf" "$out" >> "$log"
+  # Simulate TRF vanishing after encode so verify must refuse delete.
+  if [[ "${STAB_FAKE_RM_TRF_AFTER_PASS2:-}" == 1 ]]; then
+    rm -f -- "$trf"
+  fi
   exit 0
 fi
 
@@ -205,31 +212,109 @@ if ((${#trf_paths[@]} != 3)); then
 fi
 printf 'ok: e2e used 3 distinct TRF files for 3 same-basename clips\n'
 
-# --- negative: missing TRF keeps source (refuse delete) -------------------
-# Re-create one clip; run pass2-only style by invoking verify logic via a
-# tiny wrapper that sources helpers and simulates decode-OK without TRF.
-printf 'keep-me\n' > "$sandbox/a/clip.MOV"
-# shellcheck source=scripts/stabilize-video
-source "$script"
-trf_dir="$sandbox/trf-missing"
-mkdir -p "$trf_dir"
-# No TRF written for this source.
-out=$(_outfor "$sandbox/a/clip.MOV")
-printf 'OUT_FOR=%s\nTRF_FOR=missing\nUSED_TRF=missing\n' \
-  "$sandbox/a/clip.MOV" > "$out"
+# --- main/CLI: same-realpath collision abort (duplicate args) -------------
+# Exercises _assert_unique_trfs through main. Removing that call from main
+# must make this test fail (stabilize would proceed and delete the source).
+printf 'dup-src\n' > "$sandbox/real/clip.MOV"
+: > "$STAB_FAKE_LOG"
+set +e
+"$script" "$sandbox/real/clip.MOV" "$sandbox/real/clip.MOV" \
+  >"$sandbox/dup.out" 2>"$sandbox/dup.err"
+dup_rc=$?
+set -e
+if ((dup_rc == 0)); then
+  echo "FAIL: expected non-zero exit for duplicate-arg same realpath" >&2
+  cat "$sandbox/dup.out" "$sandbox/dup.err" >&2
+  exit 1
+fi
+grep -q 'TRF key collision' "$sandbox/dup.err" || {
+  echo "FAIL: missing collision message on duplicate args" >&2
+  cat "$sandbox/dup.err" >&2
+  exit 1
+}
+if [[ ! -f "$sandbox/real/clip.MOV" ]]; then
+  echo "FAIL: duplicate-arg run deleted source" >&2
+  exit 1
+fi
+if [[ -e "$sandbox/real/stabilised-clip.mp4" ]]; then
+  echo "FAIL: duplicate-arg run wrote output before abort" >&2
+  exit 1
+fi
+printf 'ok: main/CLI — duplicate args abort, source kept\n'
 
-# Mimic the verify/delete decision from main.
-trf=$(_trf_for "$sandbox/a/clip.MOV")
-if [[ -f "$trf" ]]; then
-  echo "FAIL: TRF unexpectedly exists at $trf" >&2
+# --- main/CLI: same-realpath collision abort (two symlinks) ---------------
+ln -sfn "$sandbox/real/clip.MOV" "$sandbox/a/via-a.MOV"
+ln -sfn "$sandbox/real/clip.MOV" "$sandbox/b/via-b.MOV"
+: > "$STAB_FAKE_LOG"
+set +e
+"$script" "$sandbox/a/via-a.MOV" "$sandbox/b/via-b.MOV" \
+  >"$sandbox/sym.out" 2>"$sandbox/sym.err"
+sym_rc=$?
+set -e
+if ((sym_rc == 0)); then
+  echo "FAIL: expected non-zero exit for symlink same-realpath pair" >&2
+  cat "$sandbox/sym.out" "$sandbox/sym.err" >&2
   exit 1
 fi
-# Script keeps source when TRF is missing — assert that invariant here.
+grep -q 'TRF key collision' "$sandbox/sym.err" || {
+  echo "FAIL: missing collision message on symlink pair" >&2
+  cat "$sandbox/sym.err" >&2
+  exit 1
+}
+if [[ ! -f "$sandbox/real/clip.MOV" ]]; then
+  echo "FAIL: symlink-pair run deleted real source" >&2
+  exit 1
+fi
+if [[ ! -L "$sandbox/a/via-a.MOV" || ! -L "$sandbox/b/via-b.MOV" ]]; then
+  echo "FAIL: symlink-pair run removed symlink args" >&2
+  exit 1
+fi
+if [[ -e "$sandbox/a/stabilised-via-a.mp4" || -e "$sandbox/b/stabilised-via-b.mp4" ]]; then
+  echo "FAIL: symlink-pair run wrote output before abort" >&2
+  exit 1
+fi
+printf 'ok: main/CLI — symlink same-realpath abort, sources kept\n'
+
+# --- main: missing TRF after decode-OK keeps source (presence check) ------
+# Drive full main: fake ffmpeg encodes OK then removes the TRF so verify
+# sees decode-OK + absent expected TRF path. This is a presence /
+# defense-in-depth guard — not a content-identity binding test.
+# Removing the keep-source branch in main must make this fail (source rm'd).
+rm -f -- "$sandbox/a/stabilised-clip.mp4"
+printf 'keep-me\n' > "$sandbox/a/clip.MOV"
+: > "$STAB_FAKE_LOG"
+export STAB_FAKE_RM_TRF_AFTER_PASS2=1
+set +e
+"$script" "$sandbox/a/clip.MOV" \
+  >"$sandbox/miss.out" 2>"$sandbox/miss.err"
+miss_rc=$?
+set -e
+unset STAB_FAKE_RM_TRF_AFTER_PASS2
+if ((miss_rc != 0)); then
+  echo "FAIL: missing-TRF run exited $miss_rc (expected 0)" >&2
+  cat "$sandbox/miss.out" "$sandbox/miss.err" >&2
+  exit 1
+fi
 if [[ ! -f "$sandbox/a/clip.MOV" ]]; then
-  echo "FAIL: source vanished before missing-TRF check" >&2
+  echo "FAIL: source deleted despite missing TRF after decode-OK" >&2
+  cat "$sandbox/miss.out" "$sandbox/miss.err" >&2
   exit 1
 fi
-printf 'ok: negative — missing TRF would block delete (source intact)\n'
+if [[ ! -f "$sandbox/a/stabilised-clip.mp4" ]]; then
+  echo "FAIL: missing stabilized output for missing-TRF case" >&2
+  exit 1
+fi
+grep -q 'missing TRF — keeping source' "$sandbox/miss.err" \
+  || grep -q 'missing TRF — keeping source' "$sandbox/miss.out" || {
+  echo "FAIL: expected keeping-source message for missing TRF" >&2
+  cat "$sandbox/miss.out" "$sandbox/miss.err" >&2
+  exit 1
+}
+if grep -q 'deleted source:' "$sandbox/miss.out" "$sandbox/miss.err"; then
+  echo "FAIL: reported source delete when TRF was missing" >&2
+  exit 1
+fi
+printf 'ok: main — missing TRF after decode-OK keeps source (presence)\n'
 
 # --- syntax / shellcheck --------------------------------------------------
 bash -n "$script"
