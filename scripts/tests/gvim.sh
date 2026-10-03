@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 # Negative/repro checks for scripts/gvim argv safety (task e33).
+#
+# Mock ghostty only records argv; it never execs a shell. Regression
+# signal is therefore argv shape, not filesystem side effects from -e.
+# Older ghostty (<1.2.0) re-joined -e args into sh -c; this suite does
+# not claim to reproduce that runtime — see scripts/gvim header.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -37,13 +42,11 @@ export ARGV_DUMP="$TEST_ROOT/argv"
 declare -r EVIL_PATH="$TEST_ROOT/evil \$HOME; touch pwned \`id\` file.txt"
 : >"$EVIL_PATH"
 
-declare -r PWNED="$TEST_ROOT/pwned"
-
 bash -n "$GVIM" || fail "bash -n failed"
 shellcheck -x "$GVIM" || fail "shellcheck failed"
 
-# Repro of the pre-fix form: path is glued into one -e string argument.
-# Real ghostty may then shell-eval that string; mock only records argv.
+# Document buggy glued-string form: path becomes one -e string argument.
+# (Honest about the mock: no shell runs, so no side-effect file appears.)
 ARGV_DUMP="$TEST_ROOT/argv_buggy"
 ghostty -e "hx $EVIL_PATH" || fail "buggy repro mock failed"
 mapfile -d '' -t buggy_argv <"$ARGV_DUMP"
@@ -51,10 +54,9 @@ mapfile -d '' -t buggy_argv <"$ARGV_DUMP"
 [[ "${buggy_argv[1]}" == "hx $EVIL_PATH" ]] || fail \
     "buggy repro did not glue path into -e string: ${buggy_argv[1]@Q}"
 
+# Fixed form: path must be its own argv after hx -- (not glued into -e).
 ARGV_DUMP="$TEST_ROOT/argv"
 "$GVIM" unused "$EVIL_PATH" || fail "gvim exited non-zero"
-
-[[ -e "$PWNED" ]] && fail "side-effect file created (injection)"
 
 mapfile -d '' -t argv <"$ARGV_DUMP"
 ((${#argv[@]} >= 4)) || fail "expected >=4 argv entries, got ${#argv[@]}"
@@ -70,6 +72,11 @@ mapfile -d '' -t argv <"$ARGV_DUMP"
 # Missing path must fail closed (set -u / ${2:?}).
 if "$GVIM" unused 2>/dev/null; then
     fail "gvim succeeded with missing file path"
+fi
+
+# Empty second arg must fail closed (qutebrowser-style $2 contract).
+if "$GVIM" unused "" 2>/dev/null; then
+    fail "gvim succeeded with empty file path"
 fi
 
 # Structural guard: must not interpolate FILE_PATH inside a shell string.

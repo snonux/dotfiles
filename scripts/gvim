@@ -1,8 +1,17 @@
 #!/usr/bin/env bash
 # Hack so qutebrowser starts an editor (Helix) in a new ghostty terminal.
+#
+# Contract (qutebrowser-style): path is always the second argument
+#   gvim -f {file}   →  $1 unused (-f), $2 = file path
+# Single-arg or empty-$2 invocation fails closed (${2:?}).
+#
+# Requires ghostty >= 1.2.0, where -e direct-execs the following argv
+# (ghostty PR 7032). Older ghostty re-joined -e args and ran them via
+# sh -c, so argv separation alone was not shell-safe on those builds.
 set -euo pipefail
 
 declare -r FILE_PATH="${2:?missing file path}"
 
-# Pass path as its own argv so ghostty -e does not shell-expand it.
+# Separate argv for hx/--/path. Safe under ghostty >= 1.2.0 (-e exec);
+# not a claim of shell-safety against older ghostty sh -c joining.
 ghostty -e hx -- "$FILE_PATH"
