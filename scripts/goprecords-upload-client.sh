@@ -1,8 +1,14 @@
 #!/bin/sh
-set -e
+# Upload uptimed records / host metadata to goprecords (cron / systemd).
+set -eu
+
 GOPRECORDS_BASE_URL="${GOPRECORDS_BASE_URL:-https://goprecords.f3s.buetow.org}"
-GOPRECORDS_HOST="${GOPRECORDS_HOST:?set GOPRECORDS_HOST (e.g. f0, pi0, earth)}"
-PATH="/bin:/sbin:/usr/bin:/usr/sbin:/usr/pkg/bin:/usr/pkg/sbin:/usr/local/bin:/usr/local/sbin:${PATH}"
+# Bound hung TCP/HTTP so cron/systemd units cannot stall forever (v33).
+GOPRECORDS_CONNECT_TIMEOUT="${GOPRECORDS_CONNECT_TIMEOUT:-10}"
+GOPRECORDS_MAX_TIME="${GOPRECORDS_MAX_TIME:-60}"
+# Bounded retries for transient curl failures (timeouts, 408/429/5xx).
+GOPRECORDS_CURL_RETRIES="${GOPRECORDS_CURL_RETRIES:-2}"
+GOPRECORDS_CURL_RETRY_DELAY="${GOPRECORDS_CURL_RETRY_DELAY:-1}"
 
 _default_token_file() {
 	if [ "$(id -u)" = "0" ]; then
@@ -13,14 +19,6 @@ _default_token_file() {
 	fi
 }
 
-GOPRECORDS_TOKEN_FILE="${GOPRECORDS_TOKEN_FILE:-$(_default_token_file)}"
-
-if ! test -r "$GOPRECORDS_TOKEN_FILE"; then
-	echo "goprecords-upload-client: cannot read $GOPRECORDS_TOKEN_FILE" >&2
-	exit 1
-fi
-TOKEN=$(tr -d '\n\r' <"$GOPRECORDS_TOKEN_FILE")
-
 upload() {
 	kind=$1
 	file=$2
@@ -28,12 +26,25 @@ upload() {
 		echo "goprecords-upload-client: skip $kind (no $file)" >&2
 		return 0
 	fi
-	curl -fsS -X PUT --data-binary "@${file}" \
+	curl -fsS \
+		--connect-timeout "${GOPRECORDS_CONNECT_TIMEOUT}" \
+		--max-time "${GOPRECORDS_MAX_TIME}" \
+		--retry "${GOPRECORDS_CURL_RETRIES}" \
+		--retry-delay "${GOPRECORDS_CURL_RETRY_DELAY}" \
+		-X PUT --data-binary "@${file}" \
 		-H "Authorization: Bearer ${TOKEN}" \
 		"${GOPRECORDS_BASE_URL}/upload/${GOPRECORDS_HOST}/${kind}"
 }
 
 _find_records() {
+	if [ -n "${GOPRECORDS_RECORDS_FILE:-}" ]; then
+		if test -f "$GOPRECORDS_RECORDS_FILE"; then
+			printf '%s' "$GOPRECORDS_RECORDS_FILE"
+			return 0
+		fi
+		echo "goprecords-upload-client: GOPRECORDS_RECORDS_FILE not a file: $GOPRECORDS_RECORDS_FILE" >&2
+		exit 1
+	fi
 	for p in \
 		/var/spool/uptimed/records \
 		/var/db/uptimed/records \
@@ -47,36 +58,58 @@ _find_records() {
 	exit 1
 }
 
-records_path=$(_find_records)
+_main() {
+	: "${GOPRECORDS_HOST:?set GOPRECORDS_HOST (e.g. f0, pi0, earth)}"
 
-tmp=$(mktemp)
-trap 'rm -f "$tmp"' 0 INT TERM HUP
+	# Prefer known platform dirs (NetBSD pkgsrc, FreeBSD local) over a
+	# sparse/odd caller PATH — same approach as the pre-v33 script.
+	PATH="/bin:/sbin:/usr/bin:/usr/sbin:/usr/pkg/bin:/usr/pkg/sbin:/usr/local/bin:/usr/local/sbin:${PATH}"
 
-upload records "$records_path"
+	GOPRECORDS_TOKEN_FILE="${GOPRECORDS_TOKEN_FILE:-$(_default_token_file)}"
 
-if command -v uprecords >/dev/null 2>&1; then
-	uprecords -a -m 100 >"$tmp"
-	upload txt "$tmp"
-	uprecords -a | grep '^->' >"$tmp" || true
-	if test -s "$tmp"; then
-		upload cur.txt "$tmp"
+	if ! test -r "$GOPRECORDS_TOKEN_FILE"; then
+		echo "goprecords-upload-client: cannot read $GOPRECORDS_TOKEN_FILE" >&2
+		exit 1
 	fi
-fi
+	TOKEN=$(tr -d '\n\r' <"$GOPRECORDS_TOKEN_FILE")
 
-if test -r /etc/os-release; then
-	upload os.txt /etc/os-release
-elif test -r /var/run/dmesg.boot; then
-	upload os.txt /var/run/dmesg.boot
-else
-	uname -a >"$tmp"
-	upload os.txt "$tmp"
-fi
+	records_path=$(_find_records)
 
-if test -r /proc/cpuinfo; then
-	upload cpuinfo.txt /proc/cpuinfo
-elif test -r /var/run/dmesg.boot; then
-	upload cpuinfo.txt /var/run/dmesg.boot
-else
-	sysctl hw.model hw.ncpu hw.machine >"$tmp" 2>/dev/null || uname -a >"$tmp"
-	upload cpuinfo.txt "$tmp"
+	tmp=$(mktemp)
+	trap 'rm -f "$tmp"' 0 INT TERM HUP
+
+	upload records "$records_path"
+
+	if command -v uprecords >/dev/null 2>&1; then
+		uprecords -a -m 100 >"$tmp"
+		upload txt "$tmp"
+		uprecords -a | grep '^->' >"$tmp" || true
+		if test -s "$tmp"; then
+			upload cur.txt "$tmp"
+		fi
+	fi
+
+	if test -r /etc/os-release; then
+		upload os.txt /etc/os-release
+	elif test -r /var/run/dmesg.boot; then
+		upload os.txt /var/run/dmesg.boot
+	else
+		uname -a >"$tmp"
+		upload os.txt "$tmp"
+	fi
+
+	if test -r /proc/cpuinfo; then
+		upload cpuinfo.txt /proc/cpuinfo
+	elif test -r /var/run/dmesg.boot; then
+		upload cpuinfo.txt /var/run/dmesg.boot
+	else
+		sysctl hw.model hw.ncpu hw.machine >"$tmp" 2>/dev/null || uname -a >"$tmp"
+		upload cpuinfo.txt "$tmp"
+	fi
+}
+
+# Library mode for tests: GOPRECORDS_UPLOAD_LIB=yes . ./goprecords-upload-client.sh
+# (Basename gating is unsafe — scripts/tests/ shares this name.)
+if [ "${GOPRECORDS_UPLOAD_LIB:-no}" != "yes" ]; then
+	_main "$@"
 fi
