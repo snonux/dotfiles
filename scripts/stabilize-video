@@ -26,10 +26,14 @@
 #     binding). Unique keys + _assert_unique_trfs prevent wrong-transform
 #     collisions.
 #   • Inspect-then-delete: if --delete-source and a decodable stabilised-*
-#     already exists from a prior keep-default run, re-verify decode +
-#     duration/size sanity and may rm the source without re-encoding.
-#     The live TRF gate is skipped here — that TRF lived only in a prior
-#     process's temp dir and cannot be required on a later cleanup pass.
+#     already exists from a prior keep-default run, and the source mtime is
+#     not newer than the out, re-verify decode + duration/size sanity and
+#     may rm the source without re-encoding. The live TRF gate is skipped
+#     here — that TRF lived only in a prior process's temp dir and cannot
+#     be required on a later cleanup pass.
+#   • Stale-out guard: if source mtime is newer than a decodable out, always
+#     re-encode (todo) instead of skip or inspect-then-delete. Prevents
+#     destroying a replaced master while keeping an old stabilised-*.mp4.
 
 set -euo pipefail
 
@@ -76,6 +80,15 @@ _output_decodes() {
   local -r path="$1"
   [[ -f "$path" ]] || return 1
   ffmpeg -v error -i "$path" -f null - >/dev/null 2>&1
+}
+
+# True when source mtime is strictly newer than out (replaced master).
+_source_newer_than_out() {
+  local -r src="$1" out="$2"
+  local -i src_m out_m
+  src_m=$(stat -c '%Y' -- "$src")
+  out_m=$(stat -c '%Y' -- "$out")
+  ((src_m > out_m))
 }
 
 _vaapi_label() {
@@ -257,8 +270,10 @@ Usage: stabilize-video [--delete-source] [DIR|FILE ...]
 Stabilize .MOV clips to stabilised-<base>.mp4 next to each source.
 Sources are kept by default. Pass --delete-source to remove originals
 after decode OK + duration/size sanity (fresh encodes also require the
-live pass1 TRF). If a decodable output already exists, --delete-source
-inspects it and may delete the source without re-encoding (no TRF gate).
+live pass1 TRF). If a decodable output already exists and the source is
+not newer (mtime), --delete-source inspects it and may delete the source
+without re-encoding (no TRF gate). A source newer than its out always
+re-encodes — never delete a replaced master against a stale out.
 EOF
         exit 0
         ;;
@@ -290,8 +305,9 @@ main() {
   echo "  quality: $QUALITY (vaapi: $_vaapi_ok)"
   echo "  delete : $DELETE_SOURCE"
 
-  # Build the work list. Skip only decodable finals (unless
-  # --delete-source → inspect-then-delete); drop stale partials and
+  # Build the work list. Skip only decodable finals that are not older
+  # than their source (unless --delete-source → inspect-then-delete).
+  # A source newer than out always re-encodes. Drop stale partials and
   # undecodable leftovers so a failed prior run can retry.
   local -a todo=()
   local -a delete_only=()
@@ -305,16 +321,21 @@ main() {
     rm -f -- "$partial"
     if [[ -f "$out" ]]; then
       if _output_decodes "$out"; then
-        if [[ "$DELETE_SOURCE" == yes && -f "$src" ]]; then
+        if [[ -f "$src" ]] && _source_newer_than_out "$src" "$out"; then
+          echo "  re-encode (source newer than out): $src"
+          # Fall through to todo — do not skip or inspect-then-delete.
+        elif [[ "$DELETE_SOURCE" == yes && -f "$src" ]]; then
           echo "  inspect-then-delete: $out"
           delete_only+=("$src")
+          continue
         else
           echo "  skip (exists): $out"
+          continue
         fi
-        continue
+      else
+        echo "  discard (undecodable): $out"
+        rm -f -- "$out"
       fi
-      echo "  discard (undecodable): $out"
-      rm -f -- "$out"
     fi
     todo+=("$src")
   done

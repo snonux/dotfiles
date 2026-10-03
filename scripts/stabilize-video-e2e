@@ -7,7 +7,8 @@
 # refuse-delete (presence / defense-in-depth — not content-identity),
 # d33: mid-encode failure must not leave a final output that forever skips
 # retries (atomic .partial + verify-before-skip), and p33: keep sources by
-# default; delete only with --delete-source after duration/size sanity.
+# default; delete only with --delete-source after duration/size sanity;
+# inspect-then-delete refuses when source mtime is newer than out.
 set -euo pipefail
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -640,7 +641,11 @@ fi
 printf 'ok: negative — ffprobe fail at verify discards final + exit 1\n'
 
 # --- d33: decodable existing output still skips ---------------------------
+# Pin source mtime ≤ out so the stale-out / newer-source guard does not
+# force a re-encode (that path is covered separately under p33).
 printf 'should-not-touch\n' > "$sandbox/corrupt/clip.MOV"
+out_m=$(stat -c '%Y' -- "$sandbox/corrupt/stabilised-clip.mp4")
+touch -d "@$out_m" -- "$sandbox/corrupt/clip.MOV"
 : > "$STAB_FAKE_LOG"
 "$script" "$sandbox/corrupt/clip.MOV" \
   >"$sandbox/skip.out" 2>"$sandbox/skip.err" || {
@@ -834,6 +839,9 @@ if [[ ! -f "$sandbox/keepdel/stabilised-clip.mp4" ]]; then
   echo "FAIL: keep-default prelude missing output" >&2
   exit 1
 fi
+# Ensure source is not newer than out (same-second write races).
+out_m=$(stat -c '%Y' -- "$sandbox/keepdel/stabilised-clip.mp4")
+touch -d "@$out_m" -- "$sandbox/keepdel/clip.MOV"
 : > "$STAB_FAKE_LOG"
 "$script" --delete-source "$sandbox/keepdel/clip.MOV" \
   >"$sandbox/keepdel2.out" 2>"$sandbox/keepdel2.err" || {
@@ -870,6 +878,82 @@ grep -q 'deleted source:' "$sandbox/keepdel2.out" \
 }
 printf 'ok: keep-then --delete-source cleans source without re-encode\n'
 
+# --- p33: keep-default → replace newer source → --delete-source re-encodes
+# If the master is replaced after a keep run, inspect-then-delete must NOT
+# rm the new source against a stale stabilised-*.mp4 (mtime guard → todo).
+mkdir -p "$sandbox/staleout"
+printf 'staleout-old\n' > "$sandbox/staleout/clip.MOV"
+rm -f -- "$sandbox/staleout/stabilised-clip.mp4"
+: > "$STAB_FAKE_LOG"
+"$script" "$sandbox/staleout/clip.MOV" \
+  >"$sandbox/staleout1.out" 2>"$sandbox/staleout1.err" || {
+  echo "FAIL: staleout keep-default exited $?" >&2
+  cat "$sandbox/staleout1.out" "$sandbox/staleout1.err" >&2
+  exit 1
+}
+[[ -f "$sandbox/staleout/stabilised-clip.mp4" ]] || {
+  echo "FAIL: staleout keep-default missing output" >&2
+  exit 1
+}
+old_out_for=$(grep '^OUT_FOR=' "$sandbox/staleout/stabilised-clip.mp4" | cut -d= -f2-)
+# Pin out older than the replaced source (second-resolution mtime).
+out_m=$(stat -c '%Y' -- "$sandbox/staleout/stabilised-clip.mp4")
+touch -d "@$out_m" -- "$sandbox/staleout/stabilised-clip.mp4"
+printf 'staleout-NEW-footage\n' > "$sandbox/staleout/clip.MOV"
+touch -d "@$((out_m + 60))" -- "$sandbox/staleout/clip.MOV"
+: > "$STAB_FAKE_LOG"
+"$script" --delete-source "$sandbox/staleout/clip.MOV" \
+  >"$sandbox/staleout2.out" 2>"$sandbox/staleout2.err" || {
+  echo "FAIL: staleout --delete-source exited $?" >&2
+  cat "$sandbox/staleout2.out" "$sandbox/staleout2.err" >&2
+  exit 1
+}
+grep -q 're-encode (source newer than out)' "$sandbox/staleout2.out" \
+  || grep -q 're-encode (source newer than out)' "$sandbox/staleout2.err" || {
+  echo "FAIL: expected re-encode for newer source vs stale out" >&2
+  cat "$sandbox/staleout2.out" "$sandbox/staleout2.err" >&2
+  exit 1
+}
+if grep -q 'inspect-then-delete' "$sandbox/staleout2.out" \
+  "$sandbox/staleout2.err"; then
+  echo "FAIL: took inspect-then-delete with newer source" >&2
+  cat "$sandbox/staleout2.out" "$sandbox/staleout2.err" >&2
+  exit 1
+fi
+if ! grep -q $'^pass1\t' "$STAB_FAKE_LOG" || ! grep -q $'^pass2\t' "$STAB_FAKE_LOG"
+then
+  echo "FAIL: newer-source --delete-source did not re-encode" >&2
+  cat "$STAB_FAKE_LOG" >&2
+  exit 1
+fi
+if [[ -e "$sandbox/staleout/clip.MOV" ]]; then
+  echo "FAIL: newer-source re-encode left source (want delete after OK)" >&2
+  cat "$sandbox/staleout2.out" "$sandbox/staleout2.err" >&2
+  exit 1
+fi
+new_out_for=$(grep '^OUT_FOR=' "$sandbox/staleout/stabilised-clip.mp4" | cut -d= -f2-)
+# OUT_FOR records the path at encode time; content must be the new encode
+# (USED_TRF / TRF_FOR present) — not the pre-replacement out bytes alone.
+grep -q '^USED_TRF=' "$sandbox/staleout/stabilised-clip.mp4" || {
+  echo "FAIL: re-encode did not rewrite stabilized output" >&2
+  exit 1
+}
+assert_eq "staleout OUT_FOR path" "$sandbox/staleout/clip.MOV" "$new_out_for"
+# Path is the same; ensure we did not keep the old OUT_FOR payload blindly
+# by checking the second-run log wrote pass2 for this source.
+grep -q $'^pass2\t'"$sandbox/staleout/clip.MOV"$'\t' "$STAB_FAKE_LOG" || {
+  echo "FAIL: pass2 log missing for replaced source" >&2
+  cat "$STAB_FAKE_LOG" >&2
+  exit 1
+}
+# Sanity: old keep-run OUT_FOR path equals new (same path); content changed
+# via re-encode — assert the prelude still had an out (already checked).
+[[ -n "$old_out_for" ]] || {
+  echo "FAIL: prelude OUT_FOR empty" >&2
+  exit 1
+}
+printf 'ok: newer source vs stale out re-encodes under --delete-source\n'
+
 # --- unit: _partial_for / _output_decodes / _parse_cli --------------------
 # shellcheck source=scripts/stabilize-video
 source "$script"
@@ -903,7 +987,20 @@ if _is_positive_number N/A || _is_positive_number 0 || _is_positive_number '' \
   echo "FAIL: _is_positive_number accepted non-positive/non-numeric" >&2
   exit 1
 fi
-printf 'ok: unit — _partial_for + _output_decodes + _parse_cli + numbers\n'
+printf 'older\n' > "$sandbox/mtime-src"
+printf 'newer\n' > "$sandbox/mtime-out"
+touch -d '@1000' -- "$sandbox/mtime-src"
+touch -d '@2000' -- "$sandbox/mtime-out"
+if _source_newer_than_out "$sandbox/mtime-src" "$sandbox/mtime-out"; then
+  echo "FAIL: _source_newer_than_out true when src older" >&2
+  exit 1
+fi
+touch -d '@3000' -- "$sandbox/mtime-src"
+_source_newer_than_out "$sandbox/mtime-src" "$sandbox/mtime-out" || {
+  echo "FAIL: _source_newer_than_out false when src newer" >&2
+  exit 1
+}
+printf 'ok: unit — _partial_for + _output_decodes + _parse_cli + mtime\n'
 
 # --- syntax / shellcheck --------------------------------------------------
 bash -n "$script"
