@@ -19,10 +19,10 @@ cleanup() {
 }
 
 (( $# == 1 )) || { usage >&2; exit 2; }
-declare -r APK=$1
+declare -r APK="$1"
 
 command -v adb >/dev/null 2>&1 || die 'adb is not installed'
-[[ -f $APK ]] || die "APK not found: $APK"
+[[ -f "$APK" ]] || die "APK not found: $APK"
 
 adb get-state >/dev/null 2>&1 \
   || die 'connect one Supernote with USB debugging enabled'
@@ -30,7 +30,7 @@ adb get-state >/dev/null 2>&1 \
 declare MODEL
 MODEL=$(adb shell getprop ro.product.model | tr -d '\r')
 readonly MODEL
-[[ $MODEL == *Supernote* ]] || die "connected device is not a Supernote: $MODEL"
+[[ "$MODEL" == *Supernote* ]] || die "connected device is not a Supernote: $MODEL"
 
 trap cleanup EXIT
 printf 'Copying %s to %s...\n' "$APK" "$MODEL"
