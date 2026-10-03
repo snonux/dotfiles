@@ -24,8 +24,9 @@
 #   • Fresh encode in this run: also require the ephemeral pass1 TRF path
 #     still present (presence / defense-in-depth only — not content↔source
 #     binding). Unique keys + _assert_unique_trfs prevent wrong-transform
-#     collisions. On successful verify, write a .srcid sidecar (size +
-#     mtime_ns + inode) binding the out to that master.
+#     collisions. Write .srcid only after that TRF gate passes (size +
+#     sha256 of the master) so a missing-TRF keep cannot later
+#     inspect-delete without a live TRF.
 #   • Inspect-then-delete: if --delete-source and a decodable stabilised-*
 #     already exists from a prior keep-default run, the .srcid still matches
 #     the current source, and the source is not newer than the out ([[ -nt ]],
@@ -34,9 +35,9 @@
 #     that TRF lived only in a prior process's temp dir. Immediately before
 #     rm, recheck -nt + .srcid (TOCTOU); mismatch → keep + late re-encode.
 #   • Stale-out / identity guard: if source is newer than out, or .srcid is
-#     missing/mismatched, always re-encode (todo) instead of skip or
-#     inspect-then-delete. Prevents destroying a replaced master (including
-#     same-second content replace) while keeping an old stabilised-*.mp4.
+#     missing/mismatched (content hash), always re-encode (todo) instead of
+#     skip or inspect-then-delete. Catches same-size in-place replaces that
+#     restore mtime on the same inode.
 
 set -euo pipefail
 
@@ -96,10 +97,13 @@ _srcid_for() {
   printf '%s.srcid' "$1"
 }
 
-# Fingerprint: size + fractional mtime + inode (cheap identity vs mtime alone).
+# Fingerprint: size + sha256 (content identity; survives mtime/inode tricks).
 _src_fingerprint() {
   local -r src="$1"
-  stat -c '%s %.9Y %i' -- "$src"
+  local size hash
+  size=$(stat -c '%s' -- "$src")
+  hash=$(sha256sum -- "$src" | cut -d' ' -f1)
+  printf '%s %s\n' "$size" "$hash"
 }
 
 _write_srcid() {
@@ -364,12 +368,13 @@ _encode_verify_delete() {
       ((++_evd_verify_fail))
       continue
     fi
-    # Sidecar records the identity at encode start (not a later replace).
-    printf '%s\n' "${encode_fp[$src]}" >"$sid"
     # Fingerprint-only mid-encode change detect: do not use [[ -nt ]] here
     # — a replaced master is often intentionally newer than the new out.
+    # Do not write .srcid until TRF gate passes (else a missing-TRF keep
+    # would enable a later inspect-then-delete that skips the TRF check).
     cur_fp=$(_src_fingerprint "$src")
     if [[ "$cur_fp" != "${encode_fp[$src]}" ]]; then
+      rm -f -- "$sid"
       printf '  %-28s %s -> %s  (%ss, decode OK; source changed — keeping source)\n' \
         "$base" "$src_h" "$out_h" "$dur" >&2
       continue
@@ -377,10 +382,15 @@ _encode_verify_delete() {
     if [[ ! -f "$trf" ]]; then
       # Presence check only (defense-in-depth): TRF path gone after a
       # decode-OK output — do not claim content↔source binding here.
+      # Drop any leftover sidecar so a later --delete-source cannot
+      # inspect-delete without a fresh encode + live TRF.
+      rm -f -- "$sid"
       printf '  %-28s %s -> %s  (%ss, decode OK; missing TRF — keeping source)\n' \
         "$base" "$src_h" "$out_h" "$dur" >&2
       continue
     fi
+    # Sidecar binds out to encode-start identity only after TRF OK.
+    printf '%s\n' "${encode_fp[$src]}" >"$sid"
     printf '  %-28s %s -> %s  (%ss, decode OK)\n' \
       "$base" "$src_h" "$out_h" "$dur"
     if [[ "$DELETE_SOURCE" != yes ]]; then
@@ -425,11 +435,11 @@ Usage: stabilize-video [--delete-source] [DIR|FILE ...]
 Stabilize .MOV clips to stabilised-<base>.mp4 next to each source.
 Sources are kept by default. Pass --delete-source to remove originals
 after decode OK + duration/size sanity (fresh encodes also require the
-live pass1 TRF). Successful encodes write a .srcid sidecar (size +
-mtime_ns + inode). If a decodable out exists, .srcid still matches, and
-the source is not newer ([[ -nt ]]), --delete-source may delete without
-re-encoding (no TRF gate). Missing/mismatched .srcid or a newer source
-always re-encodes — never delete a replaced master against a stale out.
+live pass1 TRF). .srcid (size + sha256) is written only after that TRF
+gate. If a decodable out exists, .srcid still matches, and the source
+is not newer ([[ -nt ]]), --delete-source may delete without re-encoding
+(no TRF gate). Missing/mismatched .srcid or a newer source always
+re-encodes — never delete a replaced master against a stale out.
 A TOCTOU recheck runs immediately before rm.
 EOF
         exit 0
