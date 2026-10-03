@@ -1,25 +1,61 @@
 #!/usr/bin/env bash
-# Mirror selected local directories to a remote tempbackup via rsync --delete.
+# Sync selected local directories to a remote tempbackup via rsync.
 #
 # Usage:
-#   temp-backup                  # Notes + Documents (defaults)
-#   temp-backup DIR [DIR ...]    # Explicit source directories
+#   temp-backup [-n] [-d DEST] [--delete] [DIR ...]
+#   temp-backup -h
 #
-# Override remote host with TEMP_BACKUP_HOST (default: f0.wg0).
+# Defaults (no DIR args): Notes + Documents under $HOME.
+#
+# Destination (remote base, sources land in DEST/<basename>):
+#   BACKUP_DEST env, or -d DEST, else ${TEMP_BACKUP_HOST:-f0.wg0}:tempbackup
+#   Empty and CHANGEME_* destinations are refused.
+#
+# Safety policy (differs from home-backup on purpose):
+#   --delete is opt-in. home-backup always mirrors with --delete; this script
+#   only passes --delete when --delete is given, so a casual run cannot wipe
+#   remote tempbackup trees. Use -n to dry-run first.
 set -euo pipefail
 
-declare -a dirs
-if (($# > 0)); then
-    dirs=("$@")
-else
-    dirs=(
-        "${HOME}/Syncthing/Notes/"
-        "${HOME}/Documents/"
-    )
-fi
+declare -r PROGRAM=${0##*/}
 
-# Remote leaf name under tempbackup/; never allow empty, ., .., or /
-# (dest escape: basename -- // is /, which would yield tempbackup//).
+# Prefer BACKUP_DEST; else host:tempbackup from TEMP_BACKUP_HOST (compat).
+declare DEST="${BACKUP_DEST:-${TEMP_BACKUP_HOST:-f0.wg0}:tempbackup}"
+declare DRY_RUN=""
+declare DO_DELETE="no"
+
+log() {
+    printf '%s\n' "$*"
+}
+
+error() {
+    log "$*" >&2
+}
+
+usage() {
+    cat <<EOF
+Usage: $PROGRAM [-n] [-d DEST] [--delete] [DIR ...]
+
+  -n           Dry run (show what would be transferred, transfer nothing)
+  -d DEST      Remote base destination (host:path), overrides BACKUP_DEST
+  --delete     Opt-in: remove remote files that no longer exist locally
+  -h, --help   Show this help
+
+Without DIR arguments, backs up:
+  \$HOME/Syncthing/Notes/
+  \$HOME/Documents/
+
+Destination may also be set via BACKUP_DEST. If unset, defaults to
+\${TEMP_BACKUP_HOST:-f0.wg0}:tempbackup. Empty and CHANGEME_* values
+are refused.
+
+Unlike home-backup (always --delete), this script requires --delete
+explicitly before any destructive remote pruning.
+EOF
+}
+
+# Remote leaf name under DEST/; never allow empty, ., .., or /
+# (dest escape: basename -- // is /, which would yield DEST//).
 _remote_basename() {
     local -r src="$1"
     local name
@@ -41,33 +77,106 @@ _normalize_source() {
     printf '%s\n' "$src"
 }
 
-for dir in "${dirs[@]}"; do
-    if [[ ! -e "$dir" ]]; then
-        printf 'temp-backup: source does not exist: %s\n' "$dir" >&2
-        exit 1
-    fi
-    if [[ ! -d "$dir" ]]; then
-        printf 'temp-backup: source is not a directory: %s\n' "$dir" >&2
-        exit 1
-    fi
-    # Reject filesystem root. On Linux, cd // && pwd -P can print //
-    # (POSIX quirk), so == / alone misses it; any all-slashes path is root.
-    resolved="$(cd -- "$dir" && pwd -P)"
-    if [[ -z "${resolved//\/}" ]]; then
-        printf 'temp-backup: refusing filesystem root as source: %s\n' \
-            "$dir" >&2
-        exit 1
-    fi
-    # Validate remote leaf early (before any --delete rsync).
-    _remote_basename "$dir" >/dev/null
-done
+_validate_sources() {
+    local -n _dirs="$1"
+    local dir resolved
+    for dir in "${_dirs[@]}"; do
+        if [[ ! -e "$dir" ]]; then
+            printf 'temp-backup: source does not exist: %s\n' "$dir" >&2
+            exit 1
+        fi
+        if [[ ! -d "$dir" ]]; then
+            printf 'temp-backup: source is not a directory: %s\n' "$dir" >&2
+            exit 1
+        fi
+        # Reject filesystem root. On Linux, cd // && pwd -P can print //
+        # (POSIX quirk), so == / alone misses it; any all-slashes path is root.
+        resolved="$(cd -- "$dir" && pwd -P)"
+        if [[ -z "${resolved//\/}" ]]; then
+            printf 'temp-backup: refusing filesystem root as source: %s\n' \
+                "$dir" >&2
+            exit 1
+        fi
+        # Validate remote leaf early (before any --delete rsync).
+        _remote_basename "$dir" >/dev/null
+    done
+}
 
-declare -r remote_host="${TEMP_BACKUP_HOST:-f0.wg0}"
+main() {
+    local -a dirs=()
 
-for dir in "${dirs[@]}"; do
-    remote_name="$(_remote_basename "$dir")"
-    source_path="$(_normalize_source "$dir")"
-    rsync -av --delete -- \
-        "$source_path" \
-        "${remote_host}:tempbackup/${remote_name}"
-done
+    while (($# > 0)); do
+        case "$1" in
+            -n)
+                DRY_RUN="--dry-run"
+                shift
+                ;;
+            -d)
+                if (($# < 2)); then
+                    error "Option -d requires an argument."
+                    usage
+                    exit 2
+                fi
+                DEST="$2"
+                shift 2
+                ;;
+            --delete)
+                DO_DELETE="yes"
+                shift
+                ;;
+            -h | --help)
+                usage
+                exit 0
+                ;;
+            --)
+                shift
+                dirs+=("$@")
+                break
+                ;;
+            -*)
+                error "Unknown option: $1"
+                usage
+                exit 2
+                ;;
+            *)
+                dirs+=("$1")
+                shift
+                ;;
+        esac
+    done
+
+    if [[ -z "$DEST" || "$DEST" == CHANGEME_* ]]; then
+        error "No backup destination set."
+        error "Set BACKUP_DEST, pass -d host:path, or edit DEST in $PROGRAM."
+        exit 1
+    fi
+
+    if ((${#dirs[@]} == 0)); then
+        dirs=(
+            "${HOME}/Syncthing/Notes/"
+            "${HOME}/Documents/"
+        )
+    fi
+
+    _validate_sources dirs
+
+    local dir remote_name source_path
+    local -a rsync_args
+
+    for dir in "${dirs[@]}"; do
+        remote_name="$(_remote_basename "$dir")"
+        source_path="$(_normalize_source "$dir")"
+        rsync_args=(-av)
+        if [[ "$DO_DELETE" == yes ]]; then
+            rsync_args+=(--delete)
+        fi
+        if [[ -n "$DRY_RUN" ]]; then
+            rsync_args+=(--dry-run)
+        fi
+        rsync "${rsync_args[@]}" -- \
+            "$source_path" \
+            "${DEST%/}/${remote_name}"
+    done
+}
+
+main "$@"
