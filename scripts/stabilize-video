@@ -9,53 +9,82 @@
 #   stabilize-video clip1.MOV clip2.MOV   # or pass explicit files
 #
 # Outputs are written next to each source as `stabilised-<base>.mp4`.
-# On successful stabilization (output decodes OK) the original .MOV is
-# deleted. Clips that already have a stabilized output are skipped.
+# On successful stabilization (output decodes OK and the per-source TRF
+# is present) the original .MOV is deleted. Clips that already have a
+# stabilized output are skipped.
 
 set -euo pipefail
 
-VADEVICE="/dev/dri/renderD128"
+VADEVICE="${VADEVICE:-/dev/dri/renderD128}"
 trf_dir=""              # set by main; cleaned up by EXIT trap
 QUALITY="${QUALITY:-34}"          # HEVC CQP quality (higher = smaller)
 SHAKINESS="${SHAKINESS:-5}"       # vidstab shakiness 1..10
 ACCURACY="${ACCURACY:-15}"        # vidstab accuracy 1..15
 UNSHARP="unsharp=5:5:0.8:3:3:0.4"
 
-# Collect the list of .MOV files to process.
-_mov_files=()
-if [[ $# -gt 0 ]]; then
-  for arg in "$@"; do
-    if [[ -d "$arg" ]]; then
-      while IFS= read -r -d '' f; do
-        _mov_files+=("$f")
-      done < <(find "$arg" -maxdepth 1 -type f -iname '*.MOV' -print0)
-    elif [[ -f "$arg" ]]; then
-      _mov_files+=("$arg")
-    else
-      echo "stabilize-video: not a file or directory: $arg" >&2
-      exit 1
-    fi
-  done
-else
-  while IFS= read -r -d '' f; do
-    _mov_files+=("$f")
-  done < <(find . -maxdepth 1 -type f -iname '*.MOV' -print0)
-fi
+# Display label (basename without .MOV). Not used for TRF identity.
+_base() { basename "${1%.MOV}"; }
 
-if [[ ${#_mov_files[@]} -eq 0 ]]; then
-  echo "stabilize-video: no .MOV files found" >&2
-  exit 0
-fi
+# Collision-free TRF stem: sha256 of the absolute source path. Basename
+# alone is unsafe when the same clip name appears in different directories.
+_trf_key() {
+  local -r src="$1"
+  local abs
+  abs=$(realpath -m -- "$src")
+  printf '%s' "$abs" | sha256sum | cut -d' ' -f1
+}
+
+_trf_for() {
+  local -r src="$1"
+  printf '%s/%s.trf' "$trf_dir" "$(_trf_key "$src")"
+}
+
+_outfor() {
+  printf '%s/stabilised-%s.mp4' "$(dirname "$1")" "$(basename "${1%.MOV}")"
+}
+
+_vaapi_label() {
+  if [[ "$_vaapi_ok" == yes ]]; then
+    echo "vaapi hevc"
+  else
+    echo "software libx265"
+  fi
+}
 
 # Detect whether VAAPI HEVC is usable on the configured device.
-_vaapi_ok=no
-if [[ -c "$VADEVICE" ]] \
-  && ffmpeg -hide_banner -vaapi_device "$VADEVICE" \
-       -f lavfi -i color=black:s=320x240:d=0.1 \
-       -vf 'format=nv12,hwupload' \
-       -c:v hevc_vaapi -f null - 2>/dev/null; then
-  _vaapi_ok=yes
-fi
+_detect_vaapi() {
+  _vaapi_ok=no
+  if [[ -c "$VADEVICE" ]] \
+    && ffmpeg -hide_banner -vaapi_device "$VADEVICE" \
+         -f lavfi -i color=black:s=320x240:d=0.1 \
+         -vf 'format=nv12,hwupload' \
+         -c:v hevc_vaapi -f null - 2>/dev/null; then
+    _vaapi_ok=yes
+  fi
+}
+
+# Collect the list of .MOV files to process into _mov_files.
+_collect_mov_files() {
+  _mov_files=()
+  if [[ $# -gt 0 ]]; then
+    for arg in "$@"; do
+      if [[ -d "$arg" ]]; then
+        while IFS= read -r -d '' f; do
+          _mov_files+=("$f")
+        done < <(find "$arg" -maxdepth 1 -type f -iname '*.MOV' -print0)
+      elif [[ -f "$arg" ]]; then
+        _mov_files+=("$arg")
+      else
+        echo "stabilize-video: not a file or directory: $arg" >&2
+        return 1
+      fi
+    done
+  else
+    while IFS= read -r -d '' f; do
+      _mov_files+=("$f")
+    done < <(find . -maxdepth 1 -type f -iname '*.MOV' -print0)
+  fi
+}
 
 # Pass 1: motion detection (all clips in parallel — CPU-bound, read-only).
 _pass1() {
@@ -84,10 +113,31 @@ _pass2() {
   fi
 }
 
-_base() { basename "${1%.MOV}"; }
-_outfor() { printf '%s/stabilised-%s.mp4' "$(dirname "$1")" "$(basename "${1%.MOV}")"; }
+# Abort if two sources would share a TRF path (ambiguous transform identity).
+_assert_unique_trfs() {
+  local -A trf_owners=()
+  local src trf
+  for src in "$@"; do
+    trf=$(_trf_for "$src")
+    if [[ -n "${trf_owners[$trf]:-}" ]]; then
+      echo "stabilize-video: TRF key collision between" \
+        "${trf_owners[$trf]} and $src — refusing to stabilize" >&2
+      return 1
+    fi
+    trf_owners[$trf]="$src"
+  done
+}
 
 main() {
+  _collect_mov_files "$@" || exit 1
+
+  if [[ ${#_mov_files[@]} -eq 0 ]]; then
+    echo "stabilize-video: no .MOV files found" >&2
+    exit 0
+  fi
+
+  _detect_vaapi
+
   echo "stabilize-video: ${#_mov_files[@]} clip(s) to process"
   echo "  device : $VADEVICE"
   echo "  quality: $QUALITY (vaapi: $_vaapi_ok)"
@@ -97,8 +147,8 @@ main() {
   trf_dir=$(mktemp -d -t stabilize-video.XXXXXX)
   trap '[[ -n "$trf_dir" ]] && rm -rf "$trf_dir"' EXIT
 
+  local src out
   for src in "${_mov_files[@]}"; do
-    local out
     out=$(_outfor "$src")
     if [[ -f "$out" ]]; then
       echo "  skip (exists): $out"
@@ -112,19 +162,21 @@ main() {
     exit 0
   fi
 
+  _assert_unique_trfs "${todo[@]}" || exit 1
+
   # Pass 1 — parallel motion detection.
   echo ""
   echo "==> Pass 1: motion detection"
-  local pids=()
+  local pids=() base trf
   for src in "${todo[@]}"; do
-    local base trf
     base=$(_base "$src")
-    trf="${trf_dir}/${base}.trf"
+    trf=$(_trf_for "$src")
     echo "  [P1] $src"
     _pass1 "$src" "$trf" | sed "s/^/    [$base P1] /" &
     pids+=("$!")
   done
   local fail=0
+  local pid
   for pid in "${pids[@]}"; do
     wait "$pid" || ((++fail))
   done
@@ -137,9 +189,8 @@ main() {
   echo ""
   echo "==> Pass 2: stabilize + encode ($(_vaapi_label))"
   for src in "${todo[@]}"; do
-    local base trf out
     base=$(_base "$src")
-    trf="${trf_dir}/${base}.trf"
+    trf=$(_trf_for "$src")
     out=$(_outfor "$src")
     echo "  [P2] $src -> $out"
     _pass2 "$src" "$trf" "$out" | tail -3 | sed "s/^/    [$base P2] /"
@@ -148,35 +199,36 @@ main() {
   # Verify outputs decode cleanly and report size reduction.
   echo ""
   echo "==> Verify"
+  local src_h out_h dur
   for src in "${todo[@]}"; do
-    local base out src_h out_h dur
     base=$(_base "$src")
     out=$(_outfor "$src")
+    trf=$(_trf_for "$src")
     src_h=$(du -h "$src" | cut -f1)
     out_h=$(du -h "$out" | cut -f1)
     dur=$(ffprobe -v error -show_entries format=duration \
       -of csv=p=0 "$out")
-    if ffmpeg -v error -i "$out" -f null - 2>&1; then
-      printf '  %-28s %s -> %s  (%ss, decode OK)\n' \
-        "$base" "$src_h" "$out_h" "$dur"
-      # Stabilization succeeded — remove the original .MOV.
-      rm -f -- "$src"
-      echo "    deleted source: $src"
-    else
+    if ! ffmpeg -v error -i "$out" -f null - 2>&1; then
       printf '  %-28s %s -> %s  DECODE ERROR\n' "$base" "$src_h" "$out_h" >&2
+      continue
     fi
+    if [[ ! -f "$trf" ]]; then
+      # Ambiguous / missing transform identity — keep the original.
+      printf '  %-28s %s -> %s  (%ss, decode OK; missing TRF — keeping source)\n' \
+        "$base" "$src_h" "$out_h" "$dur" >&2
+      continue
+    fi
+    printf '  %-28s %s -> %s  (%ss, decode OK)\n' \
+      "$base" "$src_h" "$out_h" "$dur"
+    rm -f -- "$src"
+    echo "    deleted source: $src"
   done
 
   echo ""
   echo "stabilize-video: done"
 }
 
-_vaapi_label() {
-  if [[ "$_vaapi_ok" == yes ]]; then
-    echo "vaapi hevc"
-  else
-    echo "software libx265"
-  fi
-}
-
-main "$@"
+# Allow unit-testing helpers without running main when sourced.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi
