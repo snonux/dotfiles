@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Path-safety and unique-naming checks for scripts/immich-export (243, g33).
+# Path-safety, unique-naming (243, g33), and resilience (q33) checks for
+# scripts/immich-export.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,6 +19,7 @@ declare -r ID_A='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
 declare -r ID_B='bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
 declare -r ID_C='cccccccc-cccc-cccc-cccc-cccccccccccc'
 declare -r ID_DUP='dddddddd-dddd-dddd-dddd-dddddddddddd'
+declare -r ID_FAIL='eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'
 
 cleanup() {
     rm -rf "$TEST_ROOT"
@@ -64,6 +66,43 @@ grep -q 'destination collision' "$IMMICH_EXPORT" \
     || fail "missing same-run destination collision detection"
 grep -q 'BASH_SOURCE' "$IMMICH_EXPORT" \
     || fail "main is not gated for sourcing in tests"
+# q33 resilience: URL failover, timeouts, fail count, CLI/env knobs.
+grep -q 'detect_immich_url' "$IMMICH_EXPORT" \
+    || fail "missing detect_immich_url helper"
+grep -q 'immich_reachable' "$IMMICH_EXPORT" \
+    || fail "missing immich_reachable helper"
+grep -q 'IMMICH_LAN_URL' "$IMMICH_EXPORT" \
+    || fail "missing IMMICH_LAN_URL"
+grep -q 'IMMICH_PUBLIC_URL' "$IMMICH_EXPORT" \
+    || fail "missing IMMICH_PUBLIC_URL"
+grep -q 'CURL_PING_TIMEOUT' "$IMMICH_EXPORT" \
+    || fail "missing CURL_PING_TIMEOUT"
+grep -q 'CURL_SEARCH_TIMEOUT' "$IMMICH_EXPORT" \
+    || fail "missing CURL_SEARCH_TIMEOUT"
+grep -q 'CURL_DOWNLOAD_TIMEOUT' "$IMMICH_EXPORT" \
+    || fail "missing CURL_DOWNLOAD_TIMEOUT"
+# shellcheck disable=SC2016  # intentional literal $CURL_* in grep
+grep -Eq 'curl .* -m "\$CURL_DOWNLOAD_TIMEOUT"|curl -sf -m "\$CURL_DOWNLOAD_TIMEOUT"' \
+    "$IMMICH_EXPORT" \
+    || fail "download curl missing -m CURL_DOWNLOAD_TIMEOUT"
+# shellcheck disable=SC2016
+grep -Eq 'curl .* -m "\$CURL_SEARCH_TIMEOUT"|curl -sf -m "\$CURL_SEARCH_TIMEOUT"' \
+    "$IMMICH_EXPORT" \
+    || fail "search curl missing -m CURL_SEARCH_TIMEOUT"
+grep -q 'failed (download errors)' "$IMMICH_EXPORT" \
+    || fail "Done summary missing failed download count"
+grep -q 'failed == 0 && collided == 0' "$IMMICH_EXPORT" \
+    || fail "download_assets must fail when failed or collided"
+grep -q 'IMMICH_EXPORT_DEST' "$IMMICH_EXPORT" \
+    || fail "missing IMMICH_EXPORT_DEST env support"
+grep -q 'IMMICH_EXPORT_AFTER' "$IMMICH_EXPORT" \
+    || fail "missing IMMICH_EXPORT_AFTER env support"
+grep -q 'IMMICH_EXPORT_BEFORE' "$IMMICH_EXPORT" \
+    || fail "missing IMMICH_EXPORT_BEFORE env support"
+grep -q -- '--dest' "$IMMICH_EXPORT" \
+    || fail "missing --dest CLI flag"
+grep -q -- '--account' "$IMMICH_EXPORT" \
+    || fail "missing --account CLI flag"
 # Must not wipe real exports named *.tmp
 if grep -E -- 'find .* -name ["'\'']\*\.tmp' "$IMMICH_EXPORT" | grep -q .; then
     fail "stale cleanup still uses find -name '*.tmp'"
@@ -80,10 +119,17 @@ grep -Eq '\[0-9a-fA-F\]\{8\}' "$IMMICH_EXPORT" \
 if grep -Fq 'refused (unsafe name)' "$IMMICH_EXPORT"; then
     fail "Done summary still labels all refuses as unsafe name only"
 fi
+# Must not hardcode a single LAN-only IMMICH_URL without failover.
+if grep -Eq '^IMMICH_URL="http://immich\.f3s\.lan' "$IMMICH_EXPORT"; then
+    fail "IMMICH_URL still hardcoded to LAN-only (no failover)"
+fi
 
 # Source helpers only (main is gated on BASH_SOURCE).
 # shellcheck source=scripts/immich-export
 source "$IMMICH_EXPORT"
+
+# download_assets builds URLs from IMMICH_URL (set by detect_immich_url in main).
+IMMICH_URL='http://immich.test.example'
 
 # --- Unit: safe names pass through basename ---
 got=$(_safe_export_filename 'IMG_1234.JPG') \
@@ -168,7 +214,7 @@ buggy_dest="$ACCOUNT_DIR/$filename"
     || fail "buggy join repro did not write outside account_dir"
 rm -f "$ESCAPE_MARKER"
 
-# --- Curl spy: log every -o / URL invocation ---
+# --- Curl spy: log every -o / URL invocation; require -m timeout ---
 mkdir -p "$TEST_ROOT/bin" "$TEST_ROOT/calls"
 cat >"$TEST_ROOT/bin/curl" <<'EOF'
 #!/usr/bin/env bash
@@ -176,17 +222,20 @@ set -euo pipefail
 log="$CURL_SPY_LOG"
 out=""
 url=""
+has_m=0
 args=("$@")
 printf '%s\n' "${args[*]}" >>"$log"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -o) out="$2"; shift 2 ;;
-        -H|-d|-X|-m|-w) shift 2 ;;
-        -sf|-s|-f|-L) shift ;;
+        -m) has_m=1; shift 2 ;;
+        -H|-d|-X|-w|--connect-timeout) shift 2 ;;
+        -sf|-s|-f|-L|-sL) shift ;;
         http://*|https://*) url="$1"; shift ;;
         *) shift ;;
     esac
 done
+[[ "$has_m" -eq 1 ]] || { echo "curl spy: missing -m timeout" >&2; exit 2; }
 [[ -n "$out" ]] || exit 1
 # Record dest path separately for assertions.
 printf 'out=%s url=%s\n' "$out" "$url" >>"${log}.outs"
@@ -411,5 +460,225 @@ _path_is_under "$ACCOUNT_DIR" "$ACCOUNT_DIR/${ID_OK}_normal.jpg" \
 if _path_is_under "$ACCOUNT_DIR" "$DEST_PARENT/escape.jpg" 2>/dev/null; then
     fail "_path_is_under accepted path outside account_dir"
 fi
+
+# --- q33: download curl failure must exit non-zero and count failed ---
+rm -f "$ACCOUNT_DIR/${ID_FAIL}_failme.jpg"
+: >"$CURL_SPY_LOG"
+: >"${CURL_SPY_LOG}.outs"
+cat >"$TEST_ROOT/bin/curl" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+log="$CURL_SPY_LOG"
+out=""
+has_m=0
+args=("$@")
+printf '%s\n' "${args[*]}" >>"$log"
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -o) out="$2"; shift 2 ;;
+        -m) has_m=1; shift 2 ;;
+        -H|-d|-X|-w|--connect-timeout) shift 2 ;;
+        -sf|-s|-f|-L|-sL) shift ;;
+        http://*|https://*) shift ;;
+        *) shift ;;
+    esac
+done
+[[ "$has_m" -eq 1 ]] || { echo "curl spy: missing -m timeout" >&2; exit 2; }
+[[ -n "$out" ]] || exit 1
+printf 'out=%s\n' "$out" >>"${log}.outs"
+# Simulate network / HTTP failure (curl -sf non-zero).
+exit 22
+EOF
+chmod +x "$TEST_ROOT/bin/curl"
+printf '%s\n' "${ID_FAIL}"$'\tfailme.jpg' >"$ASSET_LIST"
+set +e
+download_assets 'fake-key' "$ACCOUNT_DIR" "$ASSET_LIST" \
+    >"$TEST_ROOT/out-fail" 2>"$TEST_ROOT/err-fail"
+fail_rc=$?
+set -e
+[[ "$fail_rc" -ne 0 ]] \
+    || fail "download failure should make download_assets exit non-zero"
+grep -q 'failed to download' "$TEST_ROOT/err-fail" \
+    || fail "missing download failure message: $(cat "$TEST_ROOT/err-fail")"
+grep -q '1 failed (download errors)' "$TEST_ROOT/out-fail" \
+    || fail "Done summary missing failed count: $(cat "$TEST_ROOT/out-fail")"
+[[ ! -e "$ACCOUNT_DIR/${ID_FAIL}_failme.jpg" ]] \
+    || fail "failed download must not leave destination file"
+# Temp must be cleaned up (no leftover .immich-export.*).
+leftover=$(find "$ACCOUNT_DIR" -maxdepth 1 -type f -name '.immich-export.*' | wc -l)
+[[ "$leftover" -eq 0 ]] \
+    || fail "failed download left mktemp files behind"
+
+# Restore successful download spy for any later checks.
+cat >"$TEST_ROOT/bin/curl" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+log="$CURL_SPY_LOG"
+out=""
+url=""
+has_m=0
+args=("$@")
+printf '%s\n' "${args[*]}" >>"$log"
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -o) out="$2"; shift 2 ;;
+        -m) has_m=1; shift 2 ;;
+        -H|-d|-X|-w|--connect-timeout) shift 2 ;;
+        -sf|-s|-f|-L|-sL) shift ;;
+        http://*|https://*) url="$1"; shift ;;
+        *) shift ;;
+    esac
+done
+[[ "$has_m" -eq 1 ]] || { echo "curl spy: missing -m timeout" >&2; exit 2; }
+[[ -n "$out" ]] || exit 1
+printf 'out=%s url=%s\n' "$out" "$url" >>"${log}.outs"
+printf 'payload\n' >"$out"
+EOF
+chmod +x "$TEST_ROOT/bin/curl"
+
+# --- q33: URL failover — LAN fail → public success ---
+: >"$CURL_SPY_LOG"
+cat >"$TEST_ROOT/bin/curl" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+log="$CURL_SPY_LOG"
+printf '%s\n' "$*" >>"$log"
+url=""
+has_m=0
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -m) has_m=1; shift 2 ;;
+        -o|-H|-d|-X|-w|--connect-timeout) shift 2 ;;
+        -sf|-s|-f|-L|-sL) shift ;;
+        http://*|https://*) url="$1"; shift ;;
+        *) shift ;;
+    esac
+done
+[[ "$has_m" -eq 1 ]] || { echo "curl spy: missing -m timeout" >&2; exit 2; }
+case "$url" in
+    *lan.example*/api/server/ping)
+        # LAN unreachable
+        printf '000'
+        exit 7
+        ;;
+    *public.example*/api/server/ping)
+        printf '200'
+        exit 0
+        ;;
+    *)
+        echo "unexpected ping url: $url" >&2
+        exit 1
+        ;;
+esac
+EOF
+chmod +x "$TEST_ROOT/bin/curl"
+IMMICH_LAN_URL='http://immich.lan.example'
+IMMICH_PUBLIC_URL='https://immich.public.example'
+IMMICH_URL=''
+detect_immich_url >"$TEST_ROOT/out-detect" 2>"$TEST_ROOT/err-detect"
+[[ "$IMMICH_URL" == "$IMMICH_PUBLIC_URL" ]] \
+    || fail "expected public failover URL, got ${IMMICH_URL@Q}"
+grep -q 'public ingress' "$TEST_ROOT/out-detect" \
+    || fail "missing public failover message: $(cat "$TEST_ROOT/out-detect")"
+grep -q 'lan.example' "$CURL_SPY_LOG" \
+    || fail "LAN ping was not attempted"
+grep -q 'public.example' "$CURL_SPY_LOG" \
+    || fail "public ping was not attempted"
+
+# --- q33 negative: both URLs unreachable → die ---
+: >"$CURL_SPY_LOG"
+cat >"$TEST_ROOT/bin/curl" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >>"$CURL_SPY_LOG"
+# Always fail ping.
+printf '000'
+exit 7
+EOF
+chmod +x "$TEST_ROOT/bin/curl"
+IMMICH_URL=''
+set +e
+detect_out=$(detect_immich_url 2>&1)
+detect_rc=$?
+set -e
+[[ "$detect_rc" -ne 0 ]] \
+    || fail "detect_immich_url should die when both URLs are down"
+[[ "$detect_out" == *'not reachable'* ]] \
+    || fail "expected not-reachable die message: ${detect_out@Q}"
+
+# --- q33: LAN reachable prefers LAN ---
+: >"$CURL_SPY_LOG"
+cat >"$TEST_ROOT/bin/curl" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >>"$CURL_SPY_LOG"
+url=""
+has_m=0
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -m) has_m=1; shift 2 ;;
+        -o|-H|-d|-X|-w|--connect-timeout) shift 2 ;;
+        -sf|-s|-f|-L|-sL) shift ;;
+        http://*|https://*) url="$1"; shift ;;
+        *) shift ;;
+    esac
+done
+[[ "$has_m" -eq 1 ]] || exit 2
+case "$url" in
+    *lan.example*/api/server/ping) printf '200'; exit 0 ;;
+    *) printf '000'; exit 7 ;;
+esac
+EOF
+chmod +x "$TEST_ROOT/bin/curl"
+IMMICH_LAN_URL='http://immich.lan.example'
+IMMICH_PUBLIC_URL='https://immich.public.example'
+IMMICH_URL=''
+detect_immich_url >"$TEST_ROOT/out-lan" 2>/dev/null
+[[ "$IMMICH_URL" == "$IMMICH_LAN_URL" ]] \
+    || fail "expected LAN URL when reachable, got ${IMMICH_URL@Q}"
+if grep -q 'public.example' "$CURL_SPY_LOG"; then
+    fail "public ping should not run when LAN succeeds"
+fi
+
+# --- q33: env defaults for DEST/dates are honored when sourced ---
+# Re-source in a subshell with env overrides to avoid clobbering test state.
+env_out=$(
+    IMMICH_EXPORT_DEST="$TEST_ROOT/env-dest" \
+    IMMICH_EXPORT_AFTER='2020-01-01T00:00:00.000Z' \
+    IMMICH_EXPORT_BEFORE='2020-02-01T00:00:00.000Z' \
+    bash -c '
+        set -euo pipefail
+        # shellcheck source=scripts/immich-export
+        source "$1"
+        printf "%s\n" "$DEST_DIR"
+        printf "%s\n" "$DATE_AFTER"
+        printf "%s\n" "$DATE_BEFORE"
+    ' bash "$IMMICH_EXPORT"
+) || fail "env-default subshell failed"
+mapfile -t env_lines <<<"$env_out"
+[[ "${env_lines[0]}" == "$TEST_ROOT/env-dest" ]] \
+    || fail "IMMICH_EXPORT_DEST not applied: ${env_lines[0]@Q}"
+[[ "${env_lines[1]}" == '2020-01-01T00:00:00.000Z' ]] \
+    || fail "IMMICH_EXPORT_AFTER not applied: ${env_lines[1]@Q}"
+[[ "${env_lines[2]}" == '2020-02-01T00:00:00.000Z' ]] \
+    || fail "IMMICH_EXPORT_BEFORE not applied: ${env_lines[2]@Q}"
+
+# --- q33 negative: unknown CLI option exits non-zero ---
+set +e
+"$IMMICH_EXPORT" --not-a-real-flag >/dev/null 2>"$TEST_ROOT/err-cli"
+cli_rc=$?
+set -e
+[[ "$cli_rc" -ne 0 ]] \
+    || fail "unknown CLI flag should fail"
+grep -qi 'unknown option' "$TEST_ROOT/err-cli" \
+    || fail "missing unknown-option message: $(cat "$TEST_ROOT/err-cli")"
+
+# --- q33: --help exits 0 ---
+"$IMMICH_EXPORT" --help >"$TEST_ROOT/out-help" 2>"$TEST_ROOT/err-help" \
+    || fail "--help should exit 0"
+grep -q -- '--dest' "$TEST_ROOT/out-help" \
+    || fail "--help missing --dest"
+grep -q -- '--account' "$TEST_ROOT/out-help" \
+    || fail "--help missing --account"
 
 printf 'immich-export test: ok\n'
