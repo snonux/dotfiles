@@ -5,6 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 declare -r SCRIPT_DIR
 declare -r IMMICH_UPLOAD="${SCRIPT_DIR}/../immich-upload"
+declare -r IMMICH_LIB="${SCRIPT_DIR}/../lib/immich.sh"
 TEST_ROOT="$(mktemp -d)"
 declare -r TEST_ROOT
 
@@ -19,7 +20,18 @@ fail() {
 }
 
 bash -n "$IMMICH_UPLOAD" || fail "bash -n failed"
+bash -n "$IMMICH_LIB" || fail "bash -n failed on lib/immich.sh"
 shellcheck -x "$IMMICH_UPLOAD" || fail "shellcheck failed"
+shellcheck -x "$IMMICH_LIB" || fail "shellcheck failed on lib/immich.sh"
+
+grep -Eq '^[[:space:]]*source[[:space:]].*lib/immich\.sh' "$IMMICH_UPLOAD" \
+    || fail "immich-upload must source lib/immich.sh"
+grep -q 'detect_immich_url' "$IMMICH_UPLOAD" \
+    || fail "upload must call detect_immich_url"
+grep -q 'curl_immich' "$IMMICH_UPLOAD" \
+    || fail "upload must use curl_immich"
+grep -q '_account_api_key' "$IMMICH_UPLOAD" \
+    || fail "upload must load key via _account_api_key"
 
 # Structural guards: no raw printf JSON, no embedded resp path, no swallowed parse.
 # shellcheck disable=SC2016

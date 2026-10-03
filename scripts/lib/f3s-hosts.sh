@@ -5,8 +5,7 @@
 # DNS order) live here so wol-f3s, pihole-dns-toggle, home-backup, and
 # temp-backup do not drift independently.
 #
-# Immich base URLs are recorded for inventory completeness; sibling
-# immich-* workers are out of scope for the u33 wiring pass.
+# Immich base URLs are consumed by scripts/lib/immich.sh (upload/export).
 #
 # SC2034: names are the public API for sourcing consumers; unused-here
 # warnings are expected when shellcheck scans this file alone.
@@ -31,7 +30,7 @@ declare -gr F3S_TEMP_BACKUP_HOST='f0.wg0'
 # Rack-fan Shelly Plug (HTTP RPC).
 declare -gr F3S_SHELLY_IP='192.168.1.28'
 
-# Immich ingress (inventory only; consumers may opt in later).
+# Immich ingress (scripts/lib/immich.sh → immich-upload / immich-export).
 declare -gr F3S_IMMICH_LAN_URL='http://immich.f3s.lan.buetow.org'
 declare -gr F3S_IMMICH_PUBLIC_URL='https://immich.f3s.buetow.org'
 

@@ -6,6 +6,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 declare -r SCRIPT_DIR
 declare -r IMMICH_EXPORT="${SCRIPT_DIR}/../immich-export"
+declare -r IMMICH_LIB="${SCRIPT_DIR}/../lib/immich.sh"
 TEST_ROOT="$(mktemp -d)"
 declare -r TEST_ROOT
 
@@ -32,7 +33,12 @@ fail() {
 }
 
 bash -n "$IMMICH_EXPORT" || fail "bash -n failed"
+bash -n "$IMMICH_LIB" || fail "bash -n failed on lib/immich.sh"
 shellcheck -x "$IMMICH_EXPORT" || fail "shellcheck failed"
+shellcheck -x "$IMMICH_LIB" || fail "shellcheck failed on lib/immich.sh"
+
+grep -Eq '^[[:space:]]*source[[:space:]].*lib/immich\.sh' "$IMMICH_EXPORT" \
+    || fail "immich-export must source lib/immich.sh"
 
 # Structural guards: never join raw API filename onto account_dir.
 # Match several spellings so a trivial rename does not vacate the check.
@@ -66,29 +72,34 @@ grep -q 'destination collision' "$IMMICH_EXPORT" \
     || fail "missing same-run destination collision detection"
 grep -q 'BASH_SOURCE' "$IMMICH_EXPORT" \
     || fail "main is not gated for sourcing in tests"
-# q33 resilience: URL failover, timeouts, fail count, CLI/env knobs.
-grep -q 'detect_immich_url' "$IMMICH_EXPORT" \
-    || fail "missing detect_immich_url helper"
-grep -q 'immich_reachable' "$IMMICH_EXPORT" \
-    || fail "missing immich_reachable helper"
+# q33/r33 resilience: URL failover, timeouts, fail count, CLI/env knobs.
+# Shared helpers live in lib/immich.sh; drivers must still call them.
+grep -q 'detect_immich_url' "$IMMICH_LIB" \
+    || fail "missing detect_immich_url helper in lib"
+grep -q 'immich_reachable' "$IMMICH_LIB" \
+    || fail "missing immich_reachable helper in lib"
+grep -q 'curl_immich' "$IMMICH_LIB" \
+    || fail "missing curl_immich helper in lib"
+grep -q 'F3S_IMMICH_LAN_URL' "$IMMICH_LIB" \
+    || fail "lib must wire IMMICH_LAN_URL from F3S_IMMICH_LAN_URL"
+grep -q 'F3S_IMMICH_PUBLIC_URL' "$IMMICH_LIB" \
+    || fail "lib must wire IMMICH_PUBLIC_URL from F3S_IMMICH_PUBLIC_URL"
 grep -q 'IMMICH_LAN_URL' "$IMMICH_EXPORT" \
-    || fail "missing IMMICH_LAN_URL"
+    || fail "missing IMMICH_LAN_URL reference in export"
 grep -q 'IMMICH_PUBLIC_URL' "$IMMICH_EXPORT" \
-    || fail "missing IMMICH_PUBLIC_URL"
-grep -q 'CURL_PING_TIMEOUT' "$IMMICH_EXPORT" \
+    || fail "missing IMMICH_PUBLIC_URL reference in export"
+grep -q 'CURL_PING_TIMEOUT' "$IMMICH_LIB" \
     || fail "missing CURL_PING_TIMEOUT"
-grep -q 'CURL_SEARCH_TIMEOUT' "$IMMICH_EXPORT" \
+grep -q 'CURL_SEARCH_TIMEOUT' "$IMMICH_LIB" \
     || fail "missing CURL_SEARCH_TIMEOUT"
-grep -q 'CURL_DOWNLOAD_TIMEOUT' "$IMMICH_EXPORT" \
+grep -q 'CURL_DOWNLOAD_TIMEOUT' "$IMMICH_LIB" \
     || fail "missing CURL_DOWNLOAD_TIMEOUT"
 # shellcheck disable=SC2016  # intentional literal $CURL_* in grep
-grep -Eq 'curl .* -m "\$CURL_DOWNLOAD_TIMEOUT"|curl -sf -m "\$CURL_DOWNLOAD_TIMEOUT"' \
-    "$IMMICH_EXPORT" \
-    || fail "download curl missing -m CURL_DOWNLOAD_TIMEOUT"
+grep -Eq 'curl_immich -f "\$CURL_DOWNLOAD_TIMEOUT"' "$IMMICH_EXPORT" \
+    || fail "download missing curl_immich -f CURL_DOWNLOAD_TIMEOUT"
 # shellcheck disable=SC2016
-grep -Eq 'curl .* -m "\$CURL_SEARCH_TIMEOUT"|curl -sf -m "\$CURL_SEARCH_TIMEOUT"' \
-    "$IMMICH_EXPORT" \
-    || fail "search curl missing -m CURL_SEARCH_TIMEOUT"
+grep -Eq 'curl_immich -f "\$CURL_SEARCH_TIMEOUT"' "$IMMICH_EXPORT" \
+    || fail "search missing curl_immich -f CURL_SEARCH_TIMEOUT"
 grep -q 'failed (download errors)' "$IMMICH_EXPORT" \
     || fail "Done summary missing failed download count"
 grep -q 'failed == 0 && collided == 0' "$IMMICH_EXPORT" \
@@ -103,11 +114,11 @@ grep -q -- '--dest' "$IMMICH_EXPORT" \
     || fail "missing --dest CLI flag"
 grep -q -- '--account' "$IMMICH_EXPORT" \
     || fail "missing --account CLI flag"
-grep -q '_safe_account_name' "$IMMICH_EXPORT" \
-    || fail "missing _safe_account_name allowlist helper"
+grep -q '_safe_account_name' "$IMMICH_LIB" \
+    || fail "missing _safe_account_name allowlist helper in lib"
 # shellcheck disable=SC2016
-grep -Eq '\[\^A-Za-z0-9_-\]\+|\[A-Za-z0-9_-\]\+' "$IMMICH_EXPORT" \
-    || fail "missing account name allowlist character class"
+grep -Eq '\[\^A-Za-z0-9_-\]\+|\[A-Za-z0-9_-\]\+' "$IMMICH_LIB" \
+    || fail "missing account name allowlist character class in lib"
 # Must not wipe real exports named *.tmp
 if grep -E -- 'find .* -name ["'\'']\*\.tmp' "$IMMICH_EXPORT" | grep -q .; then
     fail "stale cleanup still uses find -name '*.tmp'"

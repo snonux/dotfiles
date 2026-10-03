@@ -8,10 +8,13 @@
 
 set -euo pipefail
 
-IMMICH_LAN_URL="http://immich.f3s.lan.buetow.org"   # LAN-only, fast when on home network
-IMMICH_PUBLIC_URL="https://immich.f3s.buetow.org"   # public, works from anywhere
-IMMICH_URL=""                                        # auto-detected in main()
-API_KEY_FILE="$HOME/.immich_paul_key"
+_IMMICH_UPLOAD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=lib/immich.sh
+source "${_IMMICH_UPLOAD_DIR}/lib/immich.sh"
+
+# Upload defaults to the paul account key; URL/CURL_* come from lib/immich.sh.
+declare -r IMMICH_UPLOAD_ACCOUNT=paul
 
 # Supported image extensions (case-insensitive)
 IMAGE_EXTENSIONS='\.(jpg|jpeg|png|gif|webp|heic|heif|raw|cr2|nef|arw|dng|tiff|tif|bmp)$'
@@ -19,35 +22,6 @@ IMAGE_EXTENSIONS='\.(jpg|jpeg|png|gif|webp|heic|heif|raw|cr2|nef|arw|dng|tiff|ti
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
-
-die() { echo "ERROR: $1" >&2; exit 1; }
-
-warn() { echo "WARN: $1" >&2; }
-
-info() { echo "==> $1"; }
-
-# Probe the Immich /api/server/ping endpoint at the given base URL.
-# Returns success only on HTTP 200 within a short timeout (follows redirects).
-immich_reachable() {
-    local url="$1"
-    local code
-    code=$(curl -sL -m 5 -o /dev/null -w '%{http_code}' \
-        "$url/api/server/ping" 2>/dev/null) || return 1
-    [[ "$code" == "200" ]]
-}
-
-# Pick the LAN URL if reachable, otherwise fall back to the public URL.
-detect_immich_url() {
-    if immich_reachable "$IMMICH_LAN_URL"; then
-        IMMICH_URL="$IMMICH_LAN_URL"
-        info "Using LAN ingress: $IMMICH_URL"
-    elif immich_reachable "$IMMICH_PUBLIC_URL"; then
-        IMMICH_URL="$IMMICH_PUBLIC_URL"
-        info "LAN ingress unreachable, using public ingress: $IMMICH_URL"
-    else
-        die "Immich is not reachable via LAN ($IMMICH_LAN_URL) or public ($IMMICH_PUBLIC_URL)"
-    fi
-}
 
 # Compute SHA1 (hex, lowercase) for a file.
 file_sha1() {
@@ -232,7 +206,8 @@ upload_file() {
     # x-immich-checksum header (and the bulk-upload-check pre-pass), which
     # returns HTTP 200 {"status":"duplicate"} instead of 201 {"status":"created"}.
     local http_code
-    http_code=$(curl -s -o "$tmpfile" -w '%{http_code}' -X POST \
+    http_code=$(curl_immich "$CURL_DOWNLOAD_TIMEOUT" -s -o "$tmpfile" \
+        -w '%{http_code}' -X POST \
         -H "x-api-key: $api_key" \
         -H "x-immich-checksum: $checksum" \
         -F "$form_asset" \
@@ -284,11 +259,12 @@ bulk_upload() {
 
     info "Checking for duplicates on server..."
     local response
-    response=$(curl -sf -X POST \
+    response=$(curl_immich -f "$CURL_SEARCH_TIMEOUT" -X POST \
         -H "x-api-key: $api_key" \
         -H "Content-Type: application/json" \
         -d @"$tmp_json.json" \
-        "$IMMICH_URL/api/assets/bulk-upload-check" 2>/dev/null) || die "bulk-upload-check failed"
+        "$IMMICH_URL/api/assets/bulk-upload-check" 2>/dev/null) \
+        || die "bulk-upload-check failed"
 
     # Parse the response to find which files are duplicates.
     # Response: { "results": [{ "id": "...", "action": "reject", "reason": "duplicate", ... }] }
@@ -346,15 +322,8 @@ main() {
         die "Path is not readable: $src"
     fi
 
-    if [[ ! -f "$API_KEY_FILE" ]]; then
-        die "API key file not found: $API_KEY_FILE"
-    fi
-
     local api_key
-    api_key=$(cat "$API_KEY_FILE")
-    if [[ -z "$api_key" ]]; then
-        die "API key file is empty: $API_KEY_FILE"
-    fi
+    api_key=$(_account_api_key "$IMMICH_UPLOAD_ACCOUNT")
 
     detect_immich_url
 

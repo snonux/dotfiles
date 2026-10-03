@@ -21,29 +21,24 @@
 
 set -euo pipefail
 
-# Defaults — overridable by env, then CLI in main().
-IMMICH_LAN_URL="${IMMICH_LAN_URL:-http://immich.f3s.lan.buetow.org}"
-IMMICH_PUBLIC_URL="${IMMICH_PUBLIC_URL:-https://immich.f3s.buetow.org}"
-IMMICH_URL=""   # set by detect_immich_url()
+_IMMICH_EXPORT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=lib/immich.sh
+source "${_IMMICH_EXPORT_DIR}/lib/immich.sh"
+
+# Export-only defaults — overridable by env, then CLI in main().
+# IMMICH_LAN_URL / IMMICH_PUBLIC_URL / IMMICH_URL / CURL_* come from lib/immich.sh
+# (inventory via f3s-hosts, env override, then --lan-url/--public-url).
 DEST_DIR="${IMMICH_EXPORT_DEST:-/home/paul/Pictures/Pictures.Processing}"
 # Immich treats takenAfter/takenBefore as exclusive boundaries.
 DATE_AFTER="${IMMICH_EXPORT_AFTER:-2026-03-31T23:59:59.999Z}"
 DATE_BEFORE="${IMMICH_EXPORT_BEFORE:-2026-07-01T00:00:00.000Z}"
 PAGE_SIZE=100
 
-# Curl max-time (seconds). Ping is short; search/download allow larger payloads.
-readonly CURL_PING_TIMEOUT=5
-readonly CURL_SEARCH_TIMEOUT=60
-readonly CURL_DOWNLOAD_TIMEOUT=300
-
 # Download temps live under the account dir with this mktemp template.
 # Cleanup matches the glob only — never '*.tmp' (could wipe real exports).
 readonly _IMMICH_EXPORT_TMP_TEMPLATE='.immich-export.XXXXXX'
 readonly _IMMICH_EXPORT_TMP_GLOB='.immich-export.*'
-
-die() { echo "ERROR: $1" >&2; exit 1; }
-
-info() { echo "==> $1"; }
 
 usage() {
     cat <<'EOF'
@@ -58,29 +53,6 @@ Usage: immich-export [options]
   --public-url URL     Public Immich base (env: IMMICH_PUBLIC_URL)
   -h, --help           Show this help
 EOF
-}
-
-# Probe the Immich /api/server/ping endpoint at the given base URL.
-# Returns success only on HTTP 200 within a short timeout (follows redirects).
-immich_reachable() {
-    local url="$1"
-    local code
-    code=$(curl -sL -m "$CURL_PING_TIMEOUT" -o /dev/null -w '%{http_code}' \
-        "$url/api/server/ping" 2>/dev/null) || return 1
-    [[ "$code" == "200" ]]
-}
-
-# Pick the LAN URL if reachable, otherwise fall back to the public URL.
-detect_immich_url() {
-    if immich_reachable "$IMMICH_LAN_URL"; then
-        IMMICH_URL="$IMMICH_LAN_URL"
-        info "Using LAN ingress: $IMMICH_URL"
-    elif immich_reachable "$IMMICH_PUBLIC_URL"; then
-        IMMICH_URL="$IMMICH_PUBLIC_URL"
-        info "LAN ingress unreachable, using public ingress: $IMMICH_URL"
-    else
-        die "Immich is not reachable via LAN ($IMMICH_LAN_URL) or public ($IMMICH_PUBLIC_URL)"
-    fi
 }
 
 # _safe_export_filename RAW — print a single path component safe to join under
@@ -168,7 +140,7 @@ discover_assets() {
 
     while true; do
         local response
-        response=$(curl -sf -m "$CURL_SEARCH_TIMEOUT" -X POST \
+        response=$(curl_immich -f "$CURL_SEARCH_TIMEOUT" -X POST \
             "$IMMICH_URL/api/search/metadata" \
             -H "x-api-key: $api_key" \
             -H "Content-Type: application/json" \
@@ -288,7 +260,7 @@ download_assets() {
             continue
         fi
 
-        if curl -sf -m "$CURL_DOWNLOAD_TIMEOUT" -o "$tmp" \
+        if curl_immich -f "$CURL_DOWNLOAD_TIMEOUT" -o "$tmp" \
             -H "x-api-key: $api_key" \
             "$IMMICH_URL/api/assets/$asset_id/original"; then
             # Re-check dest before rename (TOCTOU / planted symlink).
@@ -356,36 +328,6 @@ download_assets_for_account() {
     rm -f -- "$asset_list"
     trap - EXIT
     return "$dl_rc"
-}
-
-# _safe_account_name RAW — allowlist a single path-safe account label used under
-# DEST_DIR and in ~/.immich_<name>_key. Reject path escape (../elsewhere),
-# absolute paths, empty, and any character outside [A-Za-z0-9_-].
-_safe_account_name() {
-    local -r raw="$1"
-
-    [[ -n "$raw" ]] || return 1
-    [[ "$raw" =~ ^[A-Za-z0-9_-]+$ ]] || return 1
-    # Defense: allowlist already excludes '/', '.', but keep explicit bans.
-    case "$raw" in
-        .|..|*"/"*|*"\\"*) return 1 ;;
-    esac
-
-    printf '%s\n' "$raw"
-}
-
-# Load API key for an account name from ~/.immich_<name>_key.
-_account_api_key() {
-    local account
-    account=$(_safe_account_name "$1") \
-        || die "Invalid account name: ${1@Q} (allowed: [A-Za-z0-9_-]+)"
-    local -r key_file="$HOME/.immich_${account}_key"
-
-    [[ -f "$key_file" ]] || die "API key file not found: $key_file"
-    local key
-    key=$(cat -- "$key_file")
-    [[ -n "$key" ]] || die "API key file is empty: $key_file"
-    printf '%s\n' "$key"
 }
 
 main() {
