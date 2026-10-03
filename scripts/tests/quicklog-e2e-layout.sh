@@ -55,6 +55,27 @@ if grep -q 'exec -a' "$E2E_WRAPPER" "$E2E_DIR/protocol-fake" "$E2E_DIR/live-s3" 
     "$DRAIN_WRAPPER"; then
     die "wrappers still rely on exec -a for PROGRAM"
 fi
+# WRAPPER_ENV must pin PROGRAM=quicklog-drain so env (no -i) does not leak
+# the harness PROGRAM=quicklog-drain-e2e into drain Usage/errors.
+grep -qE 'PROGRAM=quicklog-drain' "$E2E_DIR/common.sh" \
+    || die "common.sh WRAPPER_ENV missing PROGRAM=quicklog-drain pin"
+if awk '
+    /build_wrapper_env\(\)/ { in_fn=1 }
+    in_fn && /WRAPPER_ENV=\(/ { in_arr=1 }
+    in_arr && /PROGRAM=quicklog-drain/ { found=1 }
+    in_arr && /^[[:space:]]*\)/ { exit }
+    END { exit found ? 0 : 1 }
+' "$E2E_DIR/common.sh"; then
+    :
+else
+    die "PROGRAM=quicklog-drain not inside WRAPPER_ENV array"
+fi
+
+# gonf SyncDir(scripts/*) skips directories; nested drain must be InstallFile'd.
+GONF_HOME="${SCRIPT_DIR}/../../gonf/home/home.go"
+[[ -f "$GONF_HOME" ]] || die "missing gonf home.go for deploy check"
+grep -q 'scripts/quicklog/drain' "$GONF_HOME" \
+    || die "gonf home.go missing InstallFile for scripts/quicklog/drain"
 
 # common.sh must source shared asserts; phase bodies must not redefine them.
 grep -qE '^[[:space:]]*source[[:space:]].*lib/e2e-assert\.sh' \

@@ -93,8 +93,13 @@ func (HomeTasks) Agents() {
 }
 
 // Scripts installs ~/scripts.
+//
+// SyncDir of scripts/* copies regular files by basename and skips
+// directories, so nested production helpers under scripts/quicklog/ are
+// installed explicitly (e2e stays repo-only).
 func (HomeTasks) Scripts() {
 	SyncDir(DestHome("scripts"), paths.Dot("scripts/*"), WithFileMode(0o750), WithPrune)
+	InstallFile(DestHome("scripts/quicklog/drain"), paths.Dot("scripts/quicklog/drain"), WithMode(0o750))
 }
 
 // Ssh installs ~/.ssh/config.
@@ -227,12 +232,15 @@ func (HomeTasks) SystemdUser() {
 	WhenHostname("earth", func() {
 		units := SyncDir(DestHome(".config/systemd/user"), paths.Dot("systemd-user/quicklog-drain.*"))
 		quicklogDrain := InstallFile(DestHome("scripts/quicklog-drain"), paths.Dot("scripts/quicklog-drain"), WithMode(0o750))
+		// Nested impl: SyncDir(scripts/*) skips directories; timer must not
+		// activate until both the thin wrapper and scripts/quicklog/drain exist.
+		quicklogDrainImpl := InstallFile(DestHome("scripts/quicklog/drain"), paths.Dot("scripts/quicklog/drain"), WithMode(0o750))
 		// Only the unit files fan into the reload; the quicklog-drain script
 		// is an ordering dependency of its timer, so editing it does not reload.
 		SystemdUnits(
 			WithUserBus(),
 			FanIn(units),
-			ActivateTimer("quicklog-drain", DependsOn(quicklogDrain)),
+			ActivateTimer("quicklog-drain", DependsOn(quicklogDrain, quicklogDrainImpl)),
 		)
 		// Generated timer (units mode 0644); shares the user-bus reload when
 		// declared after SystemdUnits in this same when-fragment.

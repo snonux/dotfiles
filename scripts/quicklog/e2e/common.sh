@@ -260,7 +260,10 @@ ql_e2e::require_tools() { # ql_e2e::require_tools TOOL...
 # The third positional arg of build_wrapper_env sets QUICKLOG_FISH_PATH
 # (fake-`task` kill-test scenarios); run_script itself never sets it.
 build_wrapper_env() { # build_wrapper_env [TASKDATA] [DART] [FISH_PATH]
+  # Pin PROGRAM: env without -i inherits the harness PROGRAM
+  # (quicklog-drain-e2e); drain Usage/errors must say quicklog-drain.
   WRAPPER_ENV=(
+    PROGRAM=quicklog-drain
     HOME="$SAN/home"
     TASKDATA="${1:-$SAN/taskdata}"
     XDG_RUNTIME_DIR="$SAN/xdg"

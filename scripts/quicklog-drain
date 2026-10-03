@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Thin wrapper: Quicklog drain lives beside its e2e under scripts/quicklog/.
 # Kept here so gonf, systemd, and existing invocations keep working.
+# gonf home_scripts SyncDir(scripts/*) skips directories; it InstallFile's
+# scripts/quicklog/drain alongside this wrapper so production is not broken.
 set -euo pipefail
 : "${PROGRAM:=quicklog-drain}"
 export PROGRAM
