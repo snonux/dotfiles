@@ -108,9 +108,15 @@ SHELLY_PASS_FILE="$(_shelly_pass_file)"
 
 # SSH user
 SSH_USER="paul"
+# Pinned host keys for power-control SSH. StrictHostKeyChecking=yes rejects
+# unknown and changed keys (MITM protection stays on). Override
+# _WOL_F3S_KNOWN_HOSTS in tests. After intentional key rotation, update the
+# pin file via supervised ssh-keyscan — do not weaken checking.
+_WOL_F3S_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+: "${_WOL_F3S_KNOWN_HOSTS:=${_WOL_F3S_DIR}/wol-f3s.known_hosts}"
 SSH_OPTIONS=(
-    -o StrictHostKeyChecking=no
-    -o UserKnownHostsFile=/dev/null
+    -o StrictHostKeyChecking=yes
+    -o UserKnownHostsFile="${_WOL_F3S_KNOWN_HOSTS}"
     -o LogLevel=ERROR
 )
 
@@ -385,11 +391,67 @@ shutdown_host() {
     fi
 }
 
+# shutdown_fleet [--with-pis]
+# Shared Beelink (f0/f1/f2) shutdown path used by both "shutdown" and
+# "shutdown-all". Umounts NFS, mutes Gogios (best-effort), shuts hosts,
+# optionally includes Pis, then powers off rack fans on full success.
+shutdown_fleet() {
+    local with_pis=no
+    local -i failed=0
+
+    case "${1:-}" in
+        --with-pis) with_pis=yes ;;
+        "") ;;
+        *)
+            echo "shutdown_fleet: unknown option: $1" >&2
+            return 2
+            ;;
+    esac
+
+    # Umount local NFS filesystems first; abort if any are stuck.
+    # The NFS mounts on earth tunnel through stunnel to the f3s CARP VIP,
+    # so they will hang or corrupt if the servers go down while mounted.
+    echo "Checking for locally mounted NFS filesystems..."
+    umount_nfs_mounts || return 1
+    # Mute Gogios on both gateways. Best-effort: mute_gogios reports
+    # clear per-gateway SSH errors and returns non-zero on failure, but
+    # must not abort the privileged host shutdown (pre-set -e behaviour).
+    mute_gogios || true
+
+    shutdown_bhyve_host "f0" "$F0_IP" || failed=1
+    shutdown_bhyve_host "f1" "$F1_IP" || failed=1
+    shutdown_bhyve_host "f2" "$F2_IP" || failed=1
+
+    if [[ "$with_pis" == yes ]]; then
+        shutdown_host "pi0" "$PI0_IP" || failed=1
+        shutdown_host "pi1" "$PI1_IP" || failed=1
+        shutdown_host "pi2" "$PI2_IP" || failed=1
+        shutdown_host "pi3" "$PI3_IP" || failed=1
+    fi
+
+    if (( failed != 0 )); then
+        if [[ "$with_pis" == yes ]]; then
+            echo "✗ At least one machine did not accept shutdown; leaving rack fans on."
+        else
+            echo "✗ At least one Beelink did not complete shutdown; leaving rack fans on."
+        fi
+        return 1
+    fi
+
+    # Power off the rack fans once all hosts are shutting down.
+    shelly_set "false" || return 1
+    echo ""
+    if [[ "$with_pis" == yes ]]; then
+        echo "✓ Shutdown commands sent to all machines."
+    else
+        echo "✓ Shutdown commands sent to all Beelinks."
+    fi
+    return 0
+}
+
 main() {
     local ACTION="${1:-all}"
-    local host_shutdown_failed=0
     local pi_shutdown_failed=0
-    local machine_shutdown_failed=0
     # Set when the all-path wake continues past a WoL failure so the final
     # banner reports partial/failure instead of unconditional success.
     local -i wake_failed=0
@@ -425,27 +487,7 @@ main() {
             unmute_gogios || true
             ;;
         shutdown|poweroff|down)
-            # Umount local NFS filesystems first; abort if any are stuck.
-            # The NFS mounts on earth tunnel through stunnel to the f3s CARP VIP,
-            # so they will hang or corrupt if the servers go down while mounted.
-            echo "Checking for locally mounted NFS filesystems..."
-            umount_nfs_mounts || exit 1
-            # Mute Gogios on both gateways. Best-effort: mute_gogios reports
-            # clear per-gateway SSH errors and returns non-zero on failure, but
-            # must not abort the privileged host shutdown (pre-set -e behaviour).
-            mute_gogios || true
-            host_shutdown_failed=0
-            shutdown_bhyve_host "f0" "$F0_IP" || host_shutdown_failed=1
-            shutdown_bhyve_host "f1" "$F1_IP" || host_shutdown_failed=1
-            shutdown_bhyve_host "f2" "$F2_IP" || host_shutdown_failed=1
-            if [[ $host_shutdown_failed -ne 0 ]]; then
-                echo "✗ At least one Beelink did not complete shutdown; leaving rack fans on."
-                exit 1
-            fi
-            # Power off the rack fans once all hosts are shutting down.
-            shelly_set "false" || exit 1
-            echo ""
-            echo "✓ Shutdown commands sent to all Beelinks."
+            shutdown_fleet || exit 1
             exit 0
             ;;
         shutdown-f3|poweroff-f3|down-f3)
@@ -475,31 +517,7 @@ main() {
             exit 0
             ;;
         shutdown-all)
-            # Umount local NFS filesystems first; abort if any are stuck.
-            # The NFS mounts on earth tunnel through stunnel to the f3s CARP VIP,
-            # so they will hang or corrupt if the servers go down while mounted.
-            echo "Checking for locally mounted NFS filesystems..."
-            umount_nfs_mounts || exit 1
-            # Mute Gogios on both gateways. Best-effort: mute_gogios reports
-            # clear per-gateway SSH errors and returns non-zero on failure, but
-            # must not abort the privileged host shutdown (pre-set -e behaviour).
-            mute_gogios || true
-            machine_shutdown_failed=0
-            shutdown_bhyve_host "f0" "$F0_IP" || machine_shutdown_failed=1
-            shutdown_bhyve_host "f1" "$F1_IP" || machine_shutdown_failed=1
-            shutdown_bhyve_host "f2" "$F2_IP" || machine_shutdown_failed=1
-            shutdown_host "pi0" "$PI0_IP" || machine_shutdown_failed=1
-            shutdown_host "pi1" "$PI1_IP" || machine_shutdown_failed=1
-            shutdown_host "pi2" "$PI2_IP" || machine_shutdown_failed=1
-            shutdown_host "pi3" "$PI3_IP" || machine_shutdown_failed=1
-            if [[ $machine_shutdown_failed -ne 0 ]]; then
-                echo "✗ At least one machine did not accept shutdown; leaving rack fans on."
-                exit 1
-            fi
-            # Power off the rack fans once all hosts are shutting down.
-            shelly_set "false" || exit 1
-            echo ""
-            echo "✓ Shutdown commands sent to all machines."
+            shutdown_fleet --with-pis || exit 1
             exit 0
             ;;
         *)

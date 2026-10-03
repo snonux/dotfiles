@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Checks for scripts/wol-f3s: Shelly home resolution (m33) and mute/wake/ssh
-# fail-closed messaging under set -e (n33), without undoing m33 ops semantics.
+# Checks for scripts/wol-f3s: Shelly home resolution (m33), mute/wake/ssh
+# fail-closed messaging under set -e (n33), and w33 shutdown_fleet DRY +
+# pinned known_hosts — without undoing m33/n33 ops semantics.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -42,23 +43,32 @@ fi
 # wake failures must not skip remaining wakes / unmute.
 # Strip comments so a doc line alone cannot satisfy the guard.
 code_no_comments="$(sed -E 's/[[:space:]]+#.*//' "$WOL_F3S")"
-# Real call sites in both shutdown and shutdown-all (not comment-only).
-shutdown_mute="$(awk '
+# w33: shared shutdown_fleet owns mute || true; both CLI paths must call it.
+shutdown_fleet_body="$(awk '
+    /^shutdown_fleet\(\)/ { inblk=1; next }
+    inblk && /^main\(\)/ { exit }
+    inblk && /^[[:space:]]*[^#]/ { print }
+' "$WOL_F3S" | sed -E 's/[[:space:]]+#.*//')"
+grep -Eq '^[[:space:]]*mute_gogios[[:space:]]*\|\|[[:space:]]*true[[:space:]]*$' \
+    <<<"$shutdown_fleet_body" \
+    || fail "shutdown_fleet must call mute_gogios || true (not comment-only)"
+shutdown_case="$(awk '
     /^[[:space:]]*shutdown\|poweroff\|down\)/ { inblk=1; next }
     inblk && /^[[:space:]]*shutdown-/ { exit }
     inblk && /^[[:space:]]*[^#]/ { print }
 ' "$WOL_F3S" | sed -E 's/[[:space:]]+#.*//')"
-grep -Eq '^[[:space:]]*mute_gogios[[:space:]]*\|\|[[:space:]]*true[[:space:]]*$' \
-    <<<"$shutdown_mute" \
-    || fail "shutdown path must call mute_gogios || true (not comment-only)"
-shutdown_all_mute="$(awk '
+grep -Eq '^[[:space:]]*shutdown_fleet([[:space:]]|$)' <<<"$shutdown_case" \
+    || fail "shutdown case must call shutdown_fleet"
+grep -Eq 'shutdown_fleet[[:space:]]+--with-pis' <<<"$shutdown_case" \
+    && fail "shutdown case must not pass --with-pis"
+shutdown_all_case="$(awk '
     /^[[:space:]]*shutdown-all\)/ { inblk=1; next }
     inblk && /^[[:space:]]*\*\)/ { exit }
     inblk && /^[[:space:]]*[^#]/ { print }
 ' "$WOL_F3S" | sed -E 's/[[:space:]]+#.*//')"
-grep -Eq '^[[:space:]]*mute_gogios[[:space:]]*\|\|[[:space:]]*true[[:space:]]*$' \
-    <<<"$shutdown_all_mute" \
-    || fail "shutdown-all path must call mute_gogios || true (not comment-only)"
+grep -Eq '^[[:space:]]*shutdown_fleet[[:space:]]+--with-pis' \
+    <<<"$shutdown_all_case" \
+    || fail "shutdown-all case must call shutdown_fleet --with-pis"
 # All-path tracks wake_failed rather than bare || true; either is fine as long
 # as a failed wake does not abort before later wakes / unmute.
 grep -Eq 'wake "f0".*(\|\| true|\|\| wake_failed=1)' <<<"$code_no_comments" \
@@ -69,6 +79,32 @@ grep -Eq 'wake "f2".*(\|\| true|\|\| wake_failed=1)' <<<"$code_no_comments" \
     || fail "all-path wake f2 must not abort on failure"
 grep -Eq 'unmute_gogios[[:space:]]*\|\|[[:space:]]*true' <<<"$code_no_comments" \
     || fail "all-path must keep unmute_gogios || true"
+
+# w33: pin known_hosts; never disable host-key checks for power control.
+# Drop full-line and trailing comments before scanning for insecure options.
+ssh_opts_code="$(grep -Ev '^[[:space:]]*#' "$WOL_F3S" | sed -E 's/[[:space:]]+#.*//')"
+declare -r WOL_KNOWN_HOSTS="${SCRIPT_DIR}/../wol-f3s.known_hosts"
+[[ -f "$WOL_KNOWN_HOSTS" ]] || fail "missing pinned known_hosts: $WOL_KNOWN_HOSTS"
+grep -Eq 'StrictHostKeyChecking=no|UserKnownHostsFile=/dev/null' \
+    <<<"$ssh_opts_code" \
+    && fail "wol-f3s must not disable host-key checking"
+grep -Fq 'StrictHostKeyChecking=yes' <<<"$ssh_opts_code" \
+    || fail "SSH options must set StrictHostKeyChecking=yes"
+grep -Eq '_WOL_F3S_KNOWN_HOSTS:=.*/wol-f3s\.known_hosts' <<<"$ssh_opts_code" \
+    || fail "default known_hosts pin must be wol-f3s.known_hosts beside the script"
+grep -Eq 'UserKnownHostsFile=\$\{_WOL_F3S_KNOWN_HOSTS\}|UserKnownHostsFile="\$\{_WOL_F3S_KNOWN_HOSTS\}"' \
+    <<<"$ssh_opts_code" \
+    || fail "SSH options must pin UserKnownHostsFile via _WOL_F3S_KNOWN_HOSTS"
+# Pin file must cover Beelinks, Pis, and Gogios gateways (port 2).
+for host in 192.168.1.130 192.168.1.131 192.168.1.132 192.168.1.133 \
+    192.168.1.125 192.168.1.126 192.168.1.127 192.168.1.128; do
+    grep -Eq "^${host//./\\.}[[:space:]]" "$WOL_KNOWN_HOSTS" \
+        || fail "known_hosts missing host key for $host"
+done
+grep -Fq '[blowfish.buetow.org]:2' "$WOL_KNOWN_HOSTS" \
+    || fail "known_hosts missing blowfish gateway key"
+grep -Fq '[fishfinger.buetow.org]:2' "$WOL_KNOWN_HOSTS" \
+    || fail "known_hosts missing fishfinger gateway key"
 
 # Single-host wake must still abort on failure (no || true / wake_failed).
 single_wake_block="$(awk '
@@ -396,6 +432,34 @@ mapfile -t shut_hosts <"$MAIN_SHUTDOWN_LOG"
 mapfile -t ssh_targets <"$SSH_LOG"
 (( ${#ssh_targets[@]} == 2 )) \
     || fail "main shutdown mute attempted ${#ssh_targets[@]} gateway(s), want 2"
+grep -Fq 'Shutdown commands sent to all Beelinks' <<<"$main_shut_out" \
+    || fail "main shutdown missing Beelink success banner: ${main_shut_out@Q}"
+
+# w33: shutdown-all shares shutdown_fleet --with-pis (mute || true + Pis).
+declare -r MAIN_PI_LOG="$TEST_ROOT/main-pi.log"
+: >"$MAIN_PI_LOG"
+: >"$MAIN_SHUTDOWN_LOG"
+: >"$SSH_LOG"
+shutdown_host() {
+    printf '%s\n' "$1" >>"$MAIN_PI_LOG"
+    return 0
+}
+main_all_shut_out="$(main shutdown-all 2>&1)" && main_all_shut_ec=0 || main_all_shut_ec=$?
+(( main_all_shut_ec == 0 )) \
+    || fail "main shutdown-all exited $main_all_shut_ec after mute failure: ${main_all_shut_out@Q}"
+mapfile -t shut_hosts <"$MAIN_SHUTDOWN_LOG"
+(( ${#shut_hosts[@]} == 3 )) \
+    || fail "shutdown-all skipped Beelinks; got ${#shut_hosts[@]} host(s)"
+mapfile -t pi_hosts <"$MAIN_PI_LOG"
+(( ${#pi_hosts[@]} == 4 )) \
+    || fail "shutdown-all skipped Pis; got ${#pi_hosts[@]} pi(s)"
+[[ "${pi_hosts[*]}" == "pi0 pi1 pi2 pi3" ]] \
+    || fail "shutdown-all pi order unexpected: ${pi_hosts[*]@Q}"
+mapfile -t ssh_targets <"$SSH_LOG"
+(( ${#ssh_targets[@]} == 2 )) \
+    || fail "main shutdown-all mute attempted ${#ssh_targets[@]} gateway(s), want 2"
+grep -Fq 'Shutdown commands sent to all machines' <<<"$main_all_shut_out" \
+    || fail "main shutdown-all missing machines banner: ${main_all_shut_out@Q}"
 
 # f0 wake failure must still run f1/f2 + unmute; no unconditional success banner.
 wake() {
