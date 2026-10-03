@@ -16,120 +16,160 @@ DATE_AFTER="2026-03-31T23:59:59.999Z"
 DATE_BEFORE="2026-07-01T00:00:00.000Z"
 PAGE_SIZE=100
 
-# Load keys explicitly — declare -A with inline $() substitutions can silently
-# drop entries in some bash versions, so we assign after the declaration.
-declare -A ACCOUNTS
-ACCOUNTS["paul"]="$(cat ~/.immich_paul_key)"
-ACCOUNTS["albena"]="$(cat ~/.immich_albena_key)"
+# _safe_export_filename RAW — print a single path component safe to join under
+# an account export directory. Never join RAW onto DEST unchanged: Immich
+# originalFileName is attacker-influenced and may contain ../ or absolute
+# paths. Returns 1 if RAW is empty, absolute, or resolves to "." / "..".
+_safe_export_filename() {
+    local -r raw="$1"
+    local base
 
-mkdir -p "$DEST_DIR"
+    [[ -n "$raw" ]] || return 1
+    # Absolute paths are refused even though basename would strip the prefix.
+    [[ "$raw" != /* ]] || return 1
+
+    base=$(basename -- "$raw")
+    [[ -n "$base" ]] || return 1
+    case "$base" in
+        .|..) return 1 ;;
+    esac
+    # basename should never leave a slash; keep the guard anyway.
+    [[ "$base" != */* ]] || return 1
+
+    printf '%s\n' "$base"
+}
 
 # Phase 1: paginate through all search results and print "id\tfilename" lines.
 # The API's 'total' field only reflects the current page size, not the grand
 # total, so we must walk all pages to know how many assets there are.
 discover_assets() {
-  local api_key="$1"
-  local page=1
+    local api_key="$1"
+    local page=1
 
-  while true; do
-    local response
-    response=$(curl -sf -X POST "$IMMICH_URL/api/search/metadata" \
-      -H "x-api-key: $api_key" \
-      -H "Content-Type: application/json" \
-      -d "{\"takenAfter\":\"$DATE_AFTER\",\"takenBefore\":\"$DATE_BEFORE\",\"type\":\"IMAGE\",\"size\":$PAGE_SIZE,\"page\":$page}")
+    while true; do
+        local response
+        response=$(curl -sf -X POST "$IMMICH_URL/api/search/metadata" \
+            -H "x-api-key: $api_key" \
+            -H "Content-Type: application/json" \
+            -d "{\"takenAfter\":\"$DATE_AFTER\",\"takenBefore\":\"$DATE_BEFORE\",\"type\":\"IMAGE\",\"size\":$PAGE_SIZE,\"page\":$page}")
 
-    # Print id<TAB>filename for each asset on this page
-    echo "$response" | python3 -c "
+        # Print id<TAB>filename for each asset on this page
+        echo "$response" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
 for item in d['assets']['items']:
     print(item['id'] + '\t' + item['originalFileName'])
 "
-    # Use 'or ""' to handle null nextPage — .get() returns None when the key
-    # exists with a JSON null value, and print(None) would yield "None" (non-empty).
-    local next_page
-    next_page=$(echo "$response" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['assets'].get('nextPage') or '')")
+        # Use 'or ""' to handle null nextPage — .get() returns None when the key
+        # exists with a JSON null value, and print(None) would yield "None" (non-empty).
+        local next_page
+        next_page=$(echo "$response" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['assets'].get('nextPage') or '')")
 
-    echo "    Discovery: page $page done..." >&2
-    [[ -z "$next_page" ]] && break
-    page="$next_page"
-  done
+        echo "    Discovery: page $page done..." >&2
+        [[ -z "$next_page" ]] && break
+        page="$next_page"
+    done
 }
 
 # Phase 2: download each asset by ID, showing real [X/total] progress.
 download_assets() {
-  local api_key="$1"
-  local account_dir="$2"
-  local asset_list="$3"   # path to temp file with "id\tfilename" lines
-  local total
-  total=$(wc -l < "$asset_list")
-  local downloaded=0
-  local skipped=0
-  local n=0
+    local api_key="$1"
+    local account_dir="$2"
+    local asset_list="$3"   # path to temp file with "id\tfilename" lines
+    local total
+    total=$(wc -l < "$asset_list")
+    local downloaded=0
+    local skipped=0
+    local refused=0
+    local n=0
 
-  while IFS=$'\t' read -r asset_id filename; do
-    ((n++)) || true
-    local dest="$account_dir/$filename"
+    while IFS=$'\t' read -r asset_id filename; do
+        ((n++)) || true
 
-    if [[ -f "$dest" ]]; then
-      ((skipped++)) || true
-      echo "    [$n/$total] skip (exists): $filename"
-      continue
-    fi
+        local safe
+        if ! safe=$(_safe_export_filename "$filename"); then
+            ((refused++)) || true
+            echo "    [$n/$total] ERROR: refusing unsafe originalFileName: ${filename@Q}" >&2
+            continue
+        fi
 
-    # Download to a temp file first; rename to final dest only on success.
-    # This prevents half-downloaded files from being mistaken as complete.
-    local tmp="$dest.tmp"
-    if curl -sf -o "$tmp" \
-      -H "x-api-key: $api_key" \
-      "$IMMICH_URL/api/assets/$asset_id/original"; then
-      mv "$tmp" "$dest"
-      ((downloaded++)) || true
-      echo "    [$n/$total] downloaded: $filename"
-    else
-      echo "    [$n/$total] ERROR: failed to download $asset_id ($filename)" >&2
-      rm -f "$tmp"    # Remove partial temp file on failure
-    fi
-  done < "$asset_list"
+        local dest="$account_dir/$safe"
 
-  echo "    Done: $downloaded downloaded, $skipped skipped (already exist)"
+        if [[ -f "$dest" ]]; then
+            ((skipped++)) || true
+            echo "    [$n/$total] skip (exists): $safe"
+            continue
+        fi
+
+        # Download to a temp file first; rename to final dest only on success.
+        # This prevents half-downloaded files from being mistaken as complete.
+        local tmp="$dest.tmp"
+        if curl -sf -o "$tmp" \
+            -H "x-api-key: $api_key" \
+            "$IMMICH_URL/api/assets/$asset_id/original"; then
+            mv "$tmp" "$dest"
+            ((downloaded++)) || true
+            echo "    [$n/$total] downloaded: $safe"
+        else
+            echo "    [$n/$total] ERROR: failed to download $asset_id ($safe)" >&2
+            rm -f "$tmp"    # Remove partial temp file on failure
+        fi
+    done < "$asset_list"
+
+    echo "    Done: $downloaded downloaded, $skipped skipped (already exist), $refused refused (unsafe name)"
 }
 
 download_assets_for_account() {
-  local account="$1"
-  local api_key="$2"
-  local account_dir="$DEST_DIR/$account"
-  mkdir -p "$account_dir"
+    local account="$1"
+    local api_key="$2"
+    local account_dir="$DEST_DIR/$account"
+    mkdir -p "$account_dir"
 
-  echo "==> Account: $account"
+    echo "==> Account: $account"
 
-  # Collect full asset list into a temp file so we know the total upfront
-  local asset_list
-  asset_list=$(mktemp)
-  trap "rm -f $asset_list" EXIT
+    # Collect full asset list into a temp file so we know the total upfront
+    local asset_list
+    asset_list=$(mktemp)
+    # Expand asset_list when the trap runs (still in this function scope).
+    trap 'rm -f -- "$asset_list"' EXIT
 
-  echo "    Phase 1: discovering assets..."
-  discover_assets "$api_key" > "$asset_list"
-  echo "    Found $(wc -l < "$asset_list") images total"
+    echo "    Phase 1: discovering assets..."
+    discover_assets "$api_key" > "$asset_list"
+    echo "    Found $(wc -l < "$asset_list") images total"
 
-  # Clean up any leftover .tmp files from a previously aborted run
-  local stale_tmp
-  stale_tmp=$(find "$account_dir" -name "*.tmp" 2>/dev/null | wc -l)
-  if [[ "$stale_tmp" -gt 0 ]]; then
-    echo "    Cleaning up $stale_tmp leftover .tmp file(s) from previous run..."
-    find "$account_dir" -name "*.tmp" -delete
-  fi
+    # Clean up any leftover .tmp files from a previously aborted run
+    local stale_tmp
+    stale_tmp=$(find "$account_dir" -name "*.tmp" 2>/dev/null | wc -l)
+    if [[ "$stale_tmp" -gt 0 ]]; then
+        echo "    Cleaning up $stale_tmp leftover .tmp file(s) from previous run..."
+        find "$account_dir" -name "*.tmp" -delete
+    fi
 
-  echo "    Phase 2: downloading..."
-  download_assets "$api_key" "$account_dir" "$asset_list"
+    echo "    Phase 2: downloading..."
+    download_assets "$api_key" "$account_dir" "$asset_list"
 
-  rm -f "$asset_list"
-  trap - EXIT
+    rm -f "$asset_list"
+    trap - EXIT
 }
 
-for account in "${!ACCOUNTS[@]}"; do
-  download_assets_for_account "$account" "${ACCOUNTS[$account]}"
-done
+main() {
+    # Load keys explicitly — declare -A with inline $() substitutions can
+    # silently drop entries in some bash versions, so we assign after the
+    # declaration.
+    declare -A ACCOUNTS
+    ACCOUNTS["paul"]="$(cat ~/.immich_paul_key)"
+    ACCOUNTS["albena"]="$(cat ~/.immich_albena_key)"
 
-echo ""
-echo "Export complete -> $DEST_DIR"
+    mkdir -p "$DEST_DIR"
+
+    for account in "${!ACCOUNTS[@]}"; do
+        download_assets_for_account "$account" "${ACCOUNTS[$account]}"
+    done
+
+    echo ""
+    echo "Export complete -> $DEST_DIR"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi
