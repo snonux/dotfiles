@@ -61,9 +61,11 @@ PI3_IP="192.168.1.128"
 # Home resolution must not use eval (a crafted SUDO_USER/DOAS_USER could run
 # arbitrary code as the elevated helper). getent is also avoided: NetBSD Pis
 # historically lack it. Instead, validate the username and read the home
-# directory from /etc/passwd, which holds local accounts on the hosts this
-# script targets (Fedora "earth" and the NetBSD Pis). Override via
-# _PASSWD_FILE for tests.
+# directory from /etc/passwd (files-only; no NSS/LDAP). That covers local
+# accounts on the hosts this script targets (Fedora "earth" and the NetBSD
+# Pis). Username charset is restricted to [[:alnum:]_-]+ — sufficient for
+# those local accounts; exotic NSS names are rejected and fall back to
+# $HOME. Override via _PASSWD_FILE for tests.
 SHELLY_IP="192.168.1.28"
 _PASSWD_FILE="${_PASSWD_FILE:-/etc/passwd}"
 
@@ -75,7 +77,8 @@ _user_home_from_passwd() {
 
     [[ "$user" =~ ^[[:alnum:]_-]+$ ]] || return 1
 
-    while IFS=: read -r name _ _ _ _ home _; do
+    # Handle a final passwd line that lacks a trailing newline.
+    while IFS=: read -r name _ _ _ _ home _ || [[ -n "$name" ]]; do
         if [[ "$name" == "$user" ]]; then
             [[ -n "$home" ]] || return 1
             printf '%s\n' "$home"
@@ -365,9 +368,11 @@ main() {
         all|"")
             # Power on the rack fans before booting the hosts.
             shelly_set "true" || exit 1
-            wake "f0" "$F0_MAC"
-            wake "f1" "$F1_MAC"
-            wake "f2" "$F2_MAC"
+            # WoL failures must not skip remaining hosts or the unmute step
+            # (pre-set -e behaviour).
+            wake "f0" "$F0_MAC" || true
+            wake "f1" "$F1_MAC" || true
+            wake "f2" "$F2_MAC" || true
             # Counterpart to the mute in the shutdown path below. Only the "all"
             # wake clears it: waking a single host would un-mute alerts for the
             # others that are still down.
@@ -379,9 +384,9 @@ main() {
             # so they will hang or corrupt if the servers go down while mounted.
             echo "Checking for locally mounted NFS filesystems..."
             umount_nfs_mounts || exit 1
-            # Mute Gogios monitoring alerts on both OpenBSD gateways; the wake
-            # path clears the marker again once the k3s nodes are back.
-            mute_gogios
+            # Mute Gogios on both gateways. Best-effort: a gateway mute failure
+            # must not abort the privileged host shutdown (pre-set -e behaviour).
+            mute_gogios || true
             host_shutdown_failed=0
             shutdown_bhyve_host "f0" "$F0_IP" || host_shutdown_failed=1
             shutdown_bhyve_host "f1" "$F1_IP" || host_shutdown_failed=1
@@ -428,9 +433,9 @@ main() {
             # so they will hang or corrupt if the servers go down while mounted.
             echo "Checking for locally mounted NFS filesystems..."
             umount_nfs_mounts || exit 1
-            # Mute Gogios monitoring alerts on both OpenBSD gateways; the wake
-            # path clears the marker again once the k3s nodes are back.
-            mute_gogios
+            # Mute Gogios on both gateways. Best-effort: a gateway mute failure
+            # must not abort the privileged host shutdown (pre-set -e behaviour).
+            mute_gogios || true
             machine_shutdown_failed=0
             shutdown_bhyve_host "f0" "$F0_IP" || machine_shutdown_failed=1
             shutdown_bhyve_host "f1" "$F1_IP" || machine_shutdown_failed=1
