@@ -89,6 +89,17 @@ file_timestamps() {
     echo "$modified"
 }
 
+# Reject paths that cannot travel safely through checksum<TAB>path lines
+# or line-oriented file lists (find -print / while read).
+_assert_safe_path() {
+    local -r path="$1"
+    case "$path" in
+        *$'\n'*|*$'\r'*|*$'\t'*)
+            die "path contains newline/tab (unsupported): ${path@Q}"
+            ;;
+    esac
+}
+
 # Escape a path for curl -F quoted-filename syntax: field=@"path"
 # Backslashes and double quotes must be escaped inside the quotes.
 _curl_escape_form_path() {
@@ -99,8 +110,11 @@ _curl_escape_form_path() {
 }
 
 # Build a curl -F file-field argument with quoted path (and optional
-# form filename). Commas/semicolons in the path then stay inside quotes
-# and are not treated as multipart separators.
+# Content-Disposition filename). Commas/semicolons in the path then stay
+# inside quotes and are not treated as multipart separators.
+# Callers that need Immich's DTO filename field should also pass
+# --form-string filename=... (safer for quote-heavy names than relying
+# only on the disposition filename= segment).
 _curl_form_file_field() {
     local -r field="$1"
     local -r path="$2"
@@ -117,17 +131,30 @@ _curl_form_file_field() {
 
 # stdin: checksum<TAB>path lines → stdout: Immich bulk-upload-check JSON.
 # Paths are encoded with json.dumps (never printf into JSON).
+# Dies clearly if a record is not exactly checksum<TAB>path.
 _build_bulk_check_json() {
     python3 -c '
 import json
 import sys
 
 assets = []
-for raw in sys.stdin:
+for lineno, raw in enumerate(sys.stdin, start=1):
     line = raw.rstrip("\n")
     if not line:
         continue
+    if "\t" not in line:
+        raise SystemExit(
+            f"bulk-check record {lineno}: missing tab separator"
+        )
     checksum, path = line.split("\t", 1)
+    if not checksum or not path:
+        raise SystemExit(
+            f"bulk-check record {lineno}: empty checksum or path"
+        )
+    if "\t" in path or "\n" in path or "\r" in path:
+        raise SystemExit(
+            f"bulk-check record {lineno}: path contains newline/tab"
+        )
     assets.append({"id": path, "checksum": checksum})
 json.dump({"assets": assets}, sys.stdout, separators=(",", ":"))
 sys.stdout.write("\n")
@@ -176,6 +203,7 @@ for item in results:
 upload_file() {
     local file="$1"
     local api_key="$2"
+    _assert_safe_path "$file"
     local filename
     filename=$(basename "$file")
     local checksum
@@ -193,6 +221,8 @@ upload_file() {
     tmpfile=$(mktemp)
     trap 'rm -f "$tmpfile"' RETURN
 
+    # Quoted @path + disposition filename= for curl multipart parsing;
+    # also send Immich DTO filename via --form-string (quote-safe).
     form_asset=$(_curl_form_file_field assetData "$file" "$filename")
 
     # Immich 3.x dropped the deviceAssetId/deviceId columns (migration
@@ -206,6 +236,7 @@ upload_file() {
         -H "x-api-key: $api_key" \
         -H "x-immich-checksum: $checksum" \
         -F "$form_asset" \
+        --form-string "filename=$filename" \
         --form-string "fileCreatedAt=$fileCreatedAt" \
         --form-string "fileModifiedAt=$fileModifiedAt" \
         "$IMMICH_URL/api/assets" 2>/dev/null) || { http_code="000"; }
@@ -242,6 +273,7 @@ bulk_upload() {
 
     info "Computing SHA1 checksums for $total file(s)..."
     while IFS= read -r file; do
+        _assert_safe_path "$file"
         local checksum
         checksum=$(file_sha1 "$file")
         printf '%s\t%s\n' "$checksum" "$file" >> "$tmp_json"
