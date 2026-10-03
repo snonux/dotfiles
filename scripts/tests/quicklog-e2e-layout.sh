@@ -174,6 +174,44 @@ grep -q 'quicklog-drain-e2e: unknown mode' "$out" || {
 }
 rm -f "$out"
 
+# z33: fake dart must not list objects via unquoted $(ls|sort).
+if grep -nE 'for[[:space:]]+obj[[:space:]]+in[[:space:]]+\$\(ls' \
+    "$E2E_DIR/protocol-fake.sh"; then
+    die "protocol-fake still uses unquoted \$(ls ...) object listing"
+fi
+grep -qE 'find .* -print0 \| sort -z' "$E2E_DIR/protocol-fake.sh" \
+    || die "protocol-fake missing find -print0 | sort -z object listing"
+grep -qE 'mapfile -d' "$E2E_DIR/protocol-fake.sh" \
+    || die "protocol-fake missing mapfile -d (must not while-read listing on stdin)"
+
+# Behavioral: null-safe list keeps a whitespace name as one entry.
+list_tmp=$(mktemp -d)
+mkdir -p "$list_tmp/objects"
+printf 'a\n' >"$list_tmp/objects/plain.md"
+printf 'b\n' >"$list_tmp/objects/has space.md"
+mapfile -d '' -t listed < <(
+    find "$list_tmp/objects" -mindepth 1 -maxdepth 1 -type f -print0 | sort -z
+)
+rc=0
+((${#listed[@]} == 2)) || {
+    echo "expected 2 object paths, got ${#listed[@]}" >&2
+    rc=1
+}
+basenames=()
+for p in "${listed[@]}"; do
+    basenames+=("$(basename -- "$p")")
+done
+printf '%s\n' "${basenames[@]}" | grep -qxF 'has space.md' || {
+    echo "whitespace object name was split or lost" >&2
+    rc=1
+}
+printf '%s\n' "${basenames[@]}" | grep -qxF 'plain.md' || {
+    echo "plain.md missing from null-safe listing" >&2
+    rc=1
+}
+rm -rf "$list_tmp"
+((rc == 0)) || die "null-safe object listing regression"
+
 # shellcheck the runner (sourced libs via -x)
 shellcheck -x "$E2E_DIR/run" || die "shellcheck run failed"
 shellcheck -x "$E2E_WRAPPER" || die "shellcheck e2e wrapper failed"

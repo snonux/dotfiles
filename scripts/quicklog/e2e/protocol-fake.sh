@@ -32,8 +32,14 @@ if [[ -f "$state/garbage-first" ]]; then
   log "emitted garbage"
 fi
 
-for obj in $(ls "$state/objects" | sort); do
-  content_json=$(jq -Rs . <"$state/objects/$obj")
+# Null-safe listing (z33): unquoted $(ls|sort) splits on whitespace in names.
+# mapfile (not while-read on stdin) — ack reads must keep the consumer pipe.
+mapfile -d '' -t obj_paths < <(
+  find "$state/objects" -mindepth 1 -maxdepth 1 -type f -print0 | sort -z
+)
+for obj_path in "${obj_paths[@]}"; do
+  obj=$(basename -- "$obj_path")
+  content_json=$(jq -Rs . <"$obj_path")
   printf '{"key":"%s","content":%s}\n' "$obj" "$content_json"
   log "emitted $obj"
   if ! IFS= read -r ack; then
@@ -47,7 +53,7 @@ for obj in $(ls "$state/objects" | sort); do
     exit 1
   fi
   if [[ "$ack_ok" == "true" ]]; then
-    rm -f "$state/objects/$obj"
+    rm -f -- "$obj_path"
     log "deleted $obj"
   else
     log "kept $obj"
