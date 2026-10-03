@@ -9,9 +9,12 @@
 #   stabilize-video clip1.MOV clip2.MOV   # or pass explicit files
 #
 # Outputs are written next to each source as `stabilised-<base>.mp4`.
+# Encode writes `stabilised-<base>.mp4.partial` first and renames only on
+# success, so a mid-encode crash cannot leave a final path that forever
+# skips retries. Skip-if-exists requires a decodable output; undecodable
+# leftovers are discarded and retried.
 # On successful stabilization (output decodes OK and the per-source TRF
-# file is still present) the original .MOV is deleted. Clips that already
-# have a stabilized output are skipped.
+# file is still present) the original .MOV is deleted.
 #
 # Missing-TRF refuse-delete is presence / defense-in-depth only: it checks
 # that the expected TRF path still exists before rm, not that TRF contents
@@ -46,6 +49,18 @@ _trf_for() {
 
 _outfor() {
   printf '%s/stabilised-%s.mp4' "$(dirname "$1")" "$(basename "${1%.MOV}")"
+}
+
+# Sidecar path for in-progress encodes (never a skip reason).
+_partial_for() {
+  printf '%s.partial' "$1"
+}
+
+# True when path exists and ffmpeg can decode it end-to-end.
+_output_decodes() {
+  local -r path="$1"
+  [[ -f "$path" ]] || return 1
+  ffmpeg -v error -i "$path" -f null - >/dev/null 2>&1
 }
 
 _vaapi_label() {
@@ -147,17 +162,24 @@ main() {
   echo "  device : $VADEVICE"
   echo "  quality: $QUALITY (vaapi: $_vaapi_ok)"
 
-  # Build the work list, skipping clips whose output already exists.
+  # Build the work list. Skip only decodable finals; drop stale partials
+  # and undecodable leftovers so a failed prior run can retry.
   local -a todo=()
   trf_dir=$(mktemp -d -t stabilize-video.XXXXXX)
   trap '[[ -n "$trf_dir" ]] && rm -rf "$trf_dir"' EXIT
 
-  local src out
+  local src out partial
   for src in "${_mov_files[@]}"; do
     out=$(_outfor "$src")
+    partial=$(_partial_for "$out")
+    rm -f -- "$partial"
     if [[ -f "$out" ]]; then
-      echo "  skip (exists): $out"
-      continue
+      if _output_decodes "$out"; then
+        echo "  skip (exists): $out"
+        continue
+      fi
+      echo "  discard (undecodable): $out"
+      rm -f -- "$out"
     fi
     todo+=("$src")
   done
@@ -190,15 +212,29 @@ main() {
     exit 1
   fi
 
-  # Pass 2 — serial stabilize + encode.
+  # Pass 2 — serial stabilize + encode to .partial, then atomic rename.
   echo ""
   echo "==> Pass 2: stabilize + encode ($(_vaapi_label))"
+  local -i enc_rc
   for src in "${todo[@]}"; do
     base=$(_base "$src")
     trf=$(_trf_for "$src")
     out=$(_outfor "$src")
+    partial=$(_partial_for "$out")
     echo "  [P2] $src -> $out"
-    _pass2 "$src" "$trf" "$out" | tail -3 | sed "s/^/    [$base P2] /"
+    rm -f -- "$partial"
+    set +e
+    _pass2 "$src" "$trf" "$partial" \
+      | tail -3 \
+      | sed "s/^/    [$base P2] /"
+    enc_rc=${PIPESTATUS[0]}
+    set -e
+    if ((enc_rc != 0)); then
+      rm -f -- "$partial"
+      echo "stabilize-video: pass 2 failed for $src" >&2
+      exit 1
+    fi
+    mv -f -- "$partial" "$out"
   done
 
   # Verify outputs decode cleanly and report size reduction.
@@ -215,6 +251,7 @@ main() {
       -of csv=p=0 "$out")
     if ! ffmpeg -v error -i "$out" -f null - 2>&1; then
       printf '  %-28s %s -> %s  DECODE ERROR\n' "$base" "$src_h" "$out_h" >&2
+      rm -f -- "$out"
       continue
     fi
     if [[ ! -f "$trf" ]]; then

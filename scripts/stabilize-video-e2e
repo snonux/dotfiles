@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Exercise stabilize-video TRF identity without real ffmpeg / GPU work.
+# Exercise stabilize-video without real ffmpeg / GPU work.
 #
 # Covers the c33 failure mode: same basename in different directories must
 # not share a .trf (wrong stabilize → delete originals). Also covers paths
-# with spaces, main/CLI same-realpath collision abort, and missing-TRF
-# refuse-delete (presence / defense-in-depth — not content-identity).
+# with spaces, main/CLI same-realpath collision abort, missing-TRF
+# refuse-delete (presence / defense-in-depth — not content-identity), and
+# d33: mid-encode failure must not leave a final output that forever skips
+# retries (atomic .partial + verify-before-skip).
 set -euo pipefail
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -21,6 +23,7 @@ mkdir -p "$sandbox/bin" "$sandbox/a" "$sandbox/b" \
 #
 # STAB_FAKE_RM_TRF_AFTER_PASS2=1 — after a successful pass 2, delete the
 # TRF that was just consumed so main's verify sees decode-OK + missing TRF.
+# STAB_FAKE_FAIL_PASS2=1 — write a corrupt partial then exit 1 (mid-encode).
 
 cat > "$sandbox/bin/ffmpeg" <<'EOF'
 #!/usr/bin/env bash
@@ -61,10 +64,11 @@ if [[ "$vf" == *vidstabdetect=* ]]; then
   exit 0
 fi
 
-# Decode-verify: ffmpeg -v error -i "$out" -f null -
+# Decode-verify: ffmpeg -v error -i "$path" -f null -
+# Only files with OUT_FOR= count as decodable (successful encode marker).
 # (Pass 1 also ends in -f null -, but is handled above via vidstabdetect.)
 if [[ "$*" == *' -f null -'* || "$*" == *'-f null -' ]]; then
-  if [[ -n "$src" && -f "$src" ]]; then
+  if [[ -n "$src" && -f "$src" ]] && grep -q '^OUT_FOR=' "$src" 2>/dev/null; then
     exit 0
   fi
   exit 1
@@ -77,6 +81,12 @@ if [[ "$vf" == *vidstabtransform=* ]]; then
   trf=${trf%%:*}
   if [[ ! -f "$trf" ]]; then
     echo "fake-ffmpeg: missing trf $trf for $src" >&2
+    exit 1
+  fi
+  # Mid-encode crash: leave corrupt bytes at the encode target (.partial).
+  if [[ "${STAB_FAKE_FAIL_PASS2:-}" == 1 ]]; then
+    printf 'CORRUPT_PARTIAL\n' > "$out"
+    printf 'pass2fail\t%s\t%s\t%s\n' "$src" "$trf" "$out" >> "$log"
     exit 1
   fi
   {
@@ -315,6 +325,145 @@ if grep -q 'deleted source:' "$sandbox/miss.out" "$sandbox/miss.err"; then
   exit 1
 fi
 printf 'ok: main — missing TRF after decode-OK keeps source (presence)\n'
+
+# --- d33: mid-encode fail must not leave a final skip-forever output ------
+mkdir -p "$sandbox/fail"
+printf 'fail-src\n' > "$sandbox/fail/clip.MOV"
+rm -f -- "$sandbox/fail/stabilised-clip.mp4" \
+  "$sandbox/fail/stabilised-clip.mp4.partial"
+: > "$STAB_FAKE_LOG"
+export STAB_FAKE_FAIL_PASS2=1
+set +e
+"$script" "$sandbox/fail/clip.MOV" \
+  >"$sandbox/fail.out" 2>"$sandbox/fail.err"
+fail_rc=$?
+set -e
+unset STAB_FAKE_FAIL_PASS2
+if ((fail_rc == 0)); then
+  echo "FAIL: expected non-zero exit when pass 2 fails" >&2
+  cat "$sandbox/fail.out" "$sandbox/fail.err" >&2
+  exit 1
+fi
+if [[ ! -f "$sandbox/fail/clip.MOV" ]]; then
+  echo "FAIL: pass2-fail run deleted source" >&2
+  exit 1
+fi
+if [[ -e "$sandbox/fail/stabilised-clip.mp4" ]]; then
+  echo "FAIL: pass2-fail left final output (would skip forever)" >&2
+  exit 1
+fi
+if [[ -e "$sandbox/fail/stabilised-clip.mp4.partial" ]]; then
+  echo "FAIL: pass2-fail left .partial behind" >&2
+  exit 1
+fi
+grep -q 'pass 2 failed' "$sandbox/fail.err" || {
+  echo "FAIL: missing pass-2-failed message" >&2
+  cat "$sandbox/fail.err" >&2
+  exit 1
+}
+printf 'ok: negative — mid-encode fail leaves no final/partial\n'
+
+# Retry after failure must succeed (not permanently skipped).
+: > "$STAB_FAKE_LOG"
+"$script" "$sandbox/fail/clip.MOV" \
+  >"$sandbox/retry.out" 2>"$sandbox/retry.err" || {
+  echo "FAIL: retry after pass2-fail exited $?" >&2
+  cat "$sandbox/retry.out" "$sandbox/retry.err" >&2
+  exit 1
+}
+if [[ -e "$sandbox/fail/clip.MOV" ]]; then
+  echo "FAIL: retry did not delete source after success" >&2
+  exit 1
+fi
+if [[ ! -f "$sandbox/fail/stabilised-clip.mp4" ]]; then
+  echo "FAIL: retry did not produce final output" >&2
+  exit 1
+fi
+if [[ -e "$sandbox/fail/stabilised-clip.mp4.partial" ]]; then
+  echo "FAIL: retry left .partial behind" >&2
+  exit 1
+fi
+grep -q '^OUT_FOR=' "$sandbox/fail/stabilised-clip.mp4"
+printf 'ok: retry after mid-encode fail succeeds\n'
+
+# --- d33: undecodable leftover is discarded and retried (not skipped) -----
+mkdir -p "$sandbox/corrupt"
+printf 'corrupt-src\n' > "$sandbox/corrupt/clip.MOV"
+# Simulate a prior -y truncate / crash that left a final path.
+printf 'CORRUPT_LEFTOVER\n' > "$sandbox/corrupt/stabilised-clip.mp4"
+: > "$STAB_FAKE_LOG"
+"$script" "$sandbox/corrupt/clip.MOV" \
+  >"$sandbox/corrupt.out" 2>"$sandbox/corrupt.err" || {
+  echo "FAIL: undecodable-leftover run exited $?" >&2
+  cat "$sandbox/corrupt.out" "$sandbox/corrupt.err" >&2
+  exit 1
+}
+grep -q 'discard (undecodable)' "$sandbox/corrupt.out" \
+  || grep -q 'discard (undecodable)' "$sandbox/corrupt.err" || {
+  echo "FAIL: expected discard message for undecodable leftover" >&2
+  cat "$sandbox/corrupt.out" "$sandbox/corrupt.err" >&2
+  exit 1
+}
+if grep -q 'skip (exists)' "$sandbox/corrupt.out" "$sandbox/corrupt.err"; then
+  echo "FAIL: skipped undecodable leftover instead of retrying" >&2
+  exit 1
+fi
+if [[ -e "$sandbox/corrupt/clip.MOV" ]]; then
+  echo "FAIL: source kept after re-stabilize of undecodable leftover" >&2
+  exit 1
+fi
+grep -q '^OUT_FOR=' "$sandbox/corrupt/stabilised-clip.mp4" || {
+  echo "FAIL: re-stabilize did not rewrite undecodable leftover" >&2
+  exit 1
+}
+printf 'ok: negative — undecodable leftover discarded and retried\n'
+
+# --- d33: decodable existing output still skips ---------------------------
+printf 'should-not-touch\n' > "$sandbox/corrupt/clip.MOV"
+: > "$STAB_FAKE_LOG"
+"$script" "$sandbox/corrupt/clip.MOV" \
+  >"$sandbox/skip.out" 2>"$sandbox/skip.err" || {
+  echo "FAIL: skip-existing run exited $?" >&2
+  cat "$sandbox/skip.out" "$sandbox/skip.err" >&2
+  exit 1
+}
+grep -q 'skip (exists)' "$sandbox/skip.out" \
+  || grep -q 'skip (exists)' "$sandbox/skip.err" || {
+  echo "FAIL: expected skip for decodable existing output" >&2
+  cat "$sandbox/skip.out" "$sandbox/skip.err" >&2
+  exit 1
+}
+if [[ ! -f "$sandbox/corrupt/clip.MOV" ]]; then
+  echo "FAIL: skip run deleted source" >&2
+  exit 1
+fi
+if grep -q $'^pass2\t' "$STAB_FAKE_LOG"; then
+  echo "FAIL: skip run still encoded" >&2
+  cat "$STAB_FAKE_LOG" >&2
+  exit 1
+fi
+printf 'ok: decodable existing output still skipped\n'
+
+# --- unit: _partial_for / _output_decodes helpers -------------------------
+# shellcheck source=scripts/stabilize-video
+source "$script"
+partial_path=$(_partial_for "$sandbox/corrupt/stabilised-clip.mp4")
+assert_eq "_partial_for suffix" \
+  "$sandbox/corrupt/stabilised-clip.mp4.partial" "$partial_path"
+if ! _output_decodes "$sandbox/corrupt/stabilised-clip.mp4"; then
+  echo "FAIL: _output_decodes rejected known-good encode marker" >&2
+  exit 1
+fi
+printf 'junk\n' > "$sandbox/unit-bad.mp4"
+if _output_decodes "$sandbox/unit-bad.mp4"; then
+  echo "FAIL: _output_decodes accepted undecodable junk" >&2
+  exit 1
+fi
+if _output_decodes "$sandbox/does-not-exist.mp4"; then
+  echo "FAIL: _output_decodes accepted missing path" >&2
+  exit 1
+fi
+printf 'ok: unit — _partial_for + _output_decodes\n'
 
 # --- syntax / shellcheck --------------------------------------------------
 bash -n "$script"
