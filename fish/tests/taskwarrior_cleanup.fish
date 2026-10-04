@@ -26,7 +26,8 @@ function seed_db
             'plain-1', '{\"uuid\":\"plain-1\",\"status\":\"completed\",\"end\":1}'
         );
         INSERT INTO tasks VALUES (
-            'deleted-1', '{\"uuid\":\"deleted-1\",\"status\":\"deleted\",\"modified\":1}'
+            'deleted-1', '{\"uuid\":\"deleted-1\",\"status\":\"deleted\",\"end\":1,\"modified\":'
+                || CAST(strftime('%s', 'now') AS TEXT) || '}'
         );
     "
     or fail "could not create test database"
@@ -55,6 +56,62 @@ string match -q '*-agent delete' (head -n 1 $TASK_CALLS)
 or fail "non-agent deletion did not exclude agent tasks"
 string match -q '*agent-1*+agent delete' (sed -n '2p' $TASK_CALLS)
 or fail "agent deletion was not limited to archived UUIDs"
+string match -q '*status:completed end.before:today-90days -agent delete' (head -n 1 $TASK_CALLS)
+or fail "completed deletion did not require 90 days since completion"
+# deleted-1 was modified just now but deleted long ago: deletion age counts.
+string match -q '*status:deleted end.before:today-90days purge' (sed -n '3p' $TASK_CALLS)
+or fail "purge did not require 90 days since deletion"
+
+# Tasks completed or deleted 89 days ago are kept; at 91 days they go.
+function seed_aged
+    seed_db $argv[1]
+    sqlite3 "$TASKDATA/taskchampion.sqlite3" "
+        UPDATE tasks SET data = json_set(data, '\$.end',
+            CAST(strftime('%s', 'now', '-$argv[2] days') AS INTEGER));
+    "
+    or fail "could not age test tasks"
+end
+seed_aged young 89
+taskwarrior::cleanup >/dev/null
+or fail "cleanup failed with young tasks"
+test (count (cat $TASK_CALLS)) -eq 0
+or fail "tasks completed or deleted under 90 days ago were removed"
+test (count (find "$TASKDATA/AgentsHistory" -type f)) -eq 0
+or fail "young agent task was archived"
+seed_aged old 91
+taskwarrior::cleanup >/dev/null
+or fail "cleanup failed with 91-day-old tasks"
+test (count (cat $TASK_CALLS)) -eq 3
+or fail "tasks completed or deleted 91 days ago were not removed"
+
+# The SQLite selection uses Taskwarrior's today-90days cutoff (local midnight
+# minus 90*86400s), so it never selects tasks the task filter would skip.
+function seed_at_cutoff
+    seed_db $argv[1]
+    sqlite3 "$TASKDATA/taskchampion.sqlite3" "
+        UPDATE tasks SET data = json_set(data, '\$.end',
+            CAST(strftime('%s', 'now', 'localtime', 'start of day', 'utc') AS INTEGER)
+            - 90 * 86400 + $argv[2]);
+    "
+    or fail "could not place test tasks at the cutoff"
+end
+# Seeding and cleanup each compute the cutoff; redo a case that spans midnight.
+function cleanup_at_cutoff
+    while true
+        set -l day (date +%F)
+        rm -rf "$TEST_ROOT/$argv[1]"
+        seed_at_cutoff $argv
+        taskwarrior::cleanup >/dev/null
+        or fail "cleanup failed with tasks $argv[2]s from the cutoff"
+        test (date +%F) = $day; and break
+    end
+end
+cleanup_at_cutoff after_cutoff 1
+test (count (cat $TASK_CALLS)) -eq 0
+or fail "tasks ended after today-90days were removed"
+cleanup_at_cutoff before_cutoff -1
+test (count (cat $TASK_CALLS)) -eq 3
+or fail "tasks ended before today-90days were not removed"
 
 # A UUID absent from the database must not produce an empty or partial archive.
 set -l missing_archive "$TASKDATA/AgentsHistory/missing.json"

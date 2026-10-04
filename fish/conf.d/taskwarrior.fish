@@ -444,6 +444,12 @@ function taskwarrior::import
     return $failed
 end
 
+# SQL epoch matching Taskwarrior's today-DAYSdays filter: local midnight minus
+# DAYS*86400 seconds, so the SQLite pre-selection and the task filter agree.
+function _taskwarrior::cutoff_sql
+    echo "(CAST(strftime('%s', 'now', 'localtime', 'start of day', 'utc') AS INTEGER) - $argv[1] * 86400)"
+end
+
 # Fast UUID batch from taskchampion.sqlite3 (avoids TW3 loading the whole set).
 # Usage: _taskwarrior::old_uuids STATUS DATE_FIELD LIMIT DAYS [TAG]
 # STATUS: completed|deleted  DATE_FIELD: end|modified
@@ -453,7 +459,7 @@ function _taskwarrior::old_uuids
     set -l batch $argv[3]
     set -l days $argv[4]
     set -l tag $argv[5]
-    test -n "$days"; or set days 180
+    test -n "$days"; or set days 90
 
     set -l data_dir $HOME/.task
     test -n "$TASKDATA"; and set data_dir $TASKDATA
@@ -469,7 +475,7 @@ function _taskwarrior::old_uuids
         SELECT uuid FROM tasks
         WHERE json_extract(data, '\$.status') = '$tw_status'
           AND CAST(json_extract(data, '\$.$field') AS INTEGER)
-              < CAST(strftime('%s', 'now', '-$days days') AS INTEGER)
+              < $(_taskwarrior::cutoff_sql $days)
           $tag_sql
         LIMIT $batch;
     "
@@ -481,7 +487,7 @@ function _taskwarrior::old_count
     set -l field $argv[2]
     set -l days $argv[3]
     set -l tag $argv[4]
-    test -n "$days"; or set days 180
+    test -n "$days"; or set days 90
 
     set -l data_dir $HOME/.task
     test -n "$TASKDATA"; and set data_dir $TASKDATA
@@ -497,7 +503,7 @@ function _taskwarrior::old_count
         SELECT COUNT(*) FROM tasks
         WHERE json_extract(data, '\$.status') = '$tw_status'
           AND CAST(json_extract(data, '\$.$field') AS INTEGER)
-              < CAST(strftime('%s', 'now', '-$days days') AS INTEGER)
+              < $(_taskwarrior::cutoff_sql $days)
           $tag_sql;
     "
 end
@@ -551,12 +557,15 @@ function _taskwarrior::unattended
     task rc.confirmation=off rc.bulk=0 rc.gc=0 rc.verbose:nothing $argv
 end
 
-# Called from taskwarrior::invoke (hence supersync): delete completed and purge
-# deleted older than 180 days. Completed +agent tasks are archived before deletion.
+# Called from taskwarrior::invoke (hence supersync): delete tasks completed and
+# purge tasks deleted at least 90 days ago. Both use the task's end timestamp
+# (set on completion and on deletion); modified is bumped by later syncs and
+# imports, so it does not say how long a task has been deleted. Completed
+# +agent tasks are archived before deletion.
 # All destructive calls go through _taskwarrior::unattended so supersync never
 # blocks on a confirmation prompt.
 function taskwarrior::cleanup
-    set -l days 180
+    set -l days 90
     set -l data_dir $HOME/.task
     test -n "$TASKDATA"; and set data_dir $TASKDATA
     set -l agent_history_dir $data_dir/AgentsHistory
@@ -614,7 +623,7 @@ function taskwarrior::cleanup
         end
     end
 
-    set -l n (_taskwarrior::old_count deleted modified $days)
+    set -l n (_taskwarrior::old_count deleted end $days)
     if test $status -ne 0
         echo "taskwarrior::cleanup: unable to count old deleted tasks; skipping purge" >&2
         return 1
@@ -622,7 +631,7 @@ function taskwarrior::cleanup
     if test $n -gt 0
         echo "taskwarrior::cleanup: purging $n deleted ≥{$days}d"
         _taskwarrior::unattended \
-            status:deleted modified.before:today-"$days"days purge
+            status:deleted end.before:today-"$days"days purge
     else
         echo "taskwarrior::cleanup: no deleted ≥{$days}d"
     end
