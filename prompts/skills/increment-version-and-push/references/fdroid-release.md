@@ -28,7 +28,7 @@ A release is a pushed `vX.Y.Z` tag, nothing more. The app repo's release workflo
 5. Commit, tag and push (fish):
 
        git commit -am "release: vX.Y.Z"
-       git tag vX.Y.Z; and git push; and git push --tags
+       git tag vX.Y.Z; and git push; and git push origin vX.Y.Z
        gh run watch
 
 6. Check that `gh release view vX.Y.Z` lists the APKs: `app-<abi>-release.apk` for Quicklog, `<app>-vX.Y.Z-<abi>.apk` for the others. To put it in F-Droid right away instead of waiting up to 6 hours: `gh workflow run publish.yml -R snonux/fdroid`.

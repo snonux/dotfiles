@@ -29,7 +29,15 @@ project defines an `install` target.
   - Never increment `x` (the major version) unless explicitly specified.
 - Update the F-Droid changelog if applicable (see below) before committing.
 - Commit the version change (and the changelog, in the same commit), create a
-  git tag matching the new version, and push both the commit and the tag.
+  git tag for the new version, and push both the commit and the tag.
+  - **Release tags always carry a leading `v`: `vX.Y.Z`** (e.g. `v0.39.3`),
+    even when the version file stores the bare number (`const Version =
+    "0.39.3"`). Never tag `0.39.3` — Go modules and the release workflows only
+    recognise `v`-prefixed semver tags.
+  - Before tagging, confirm with `git tag -l 'vX.Y.Z'` that the tag does not
+    already exist, and push only that tag (`git push origin vX.Y.Z`) rather than
+    `git push --tags`, so stray local tags are not published.
+  - If you create a GitHub release, use the same `vX.Y.Z` tag and title.
 - After the version has been incremented (so the working tree / tagged commit
   embeds the new version), run **`mage install`** when the project supports it
   (see below). Do this after the version files are updated; prefer after the
