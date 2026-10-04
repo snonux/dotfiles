@@ -35,7 +35,7 @@ Detect untracked and changed skill files in `~/git/dotfiles/prompts/skills/`, su
    git add prompts/skills/
    git commit -m "sync skills: <brief summary>"
    ```
-   The commit message should start with `sync skills:` followed by a short phrase listing the key changes (e.g., `sync skills: add check-shopping-status, protonbridge-imap; update creating-cd-mixes scripts`).
+   The commit message should start with `sync skills:` followed by a short phrase listing the key changes (e.g., `sync skills: add protonbridge-imap; update creating-cd-mixes scripts`).
 
 5. **Push** (non-Darwin only):
    ```

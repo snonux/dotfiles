@@ -70,8 +70,8 @@ let them choose the owner. Criteria for the recommendation:
 ## Worked examples from this collection
 
 - **Proton Bridge IMAP connect** → owned by `protonbridge-imap/SKILL.md`.
-  `check-shopping-status/references/imap-scan-script.md` references it instead
-  of re-deriving the STARTTLS/`ssl.CERT_NONE` connect block.
+  Other mail skills reference it instead of re-deriving the
+  STARTTLS/`ssl.CERT_NONE` connect block.
 - **Verification honesty discipline** → owned by
   `agent-task-management/references/verification-honesty.md`.
   `go-best-practices/SKILL.md` keeps only the Go-specific actions (errcheck,

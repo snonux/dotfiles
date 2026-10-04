@@ -69,7 +69,7 @@ grep -l "<unique line from SKILL.md>" skill/references/*.md
 - **Sub-divided during the DRY pass:** `f3s-rocky-vm-setup` (260 → ~40 line index),
   `blog-writing-style` (216 → ~120 lines; examples moved to `references/`).
 - **Borderline, kept inline by design:** `photo-processing` (snippets are the
-  skill's value), `check-shopping-status` (already delegates to 2 refs).
+  skill's value).
 
 ## After sub-dividing
 
