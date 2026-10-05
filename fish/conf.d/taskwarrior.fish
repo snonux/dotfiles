@@ -599,7 +599,7 @@ function taskwarrior::cleanup
         return 1
     end
     if test $n -eq 0
-        echo "taskwarrior::cleanup: no completed ≥{$days}d"
+        echo "taskwarrior::cleanup: no completed ≥"$days"d"
     else
         # New +agent tasks can become eligible after the archive query. The
         # broad filter therefore excludes them; archived UUIDs are explicit.
@@ -628,12 +628,41 @@ function taskwarrior::cleanup
         echo "taskwarrior::cleanup: unable to count old deleted tasks; skipping purge" >&2
         return 1
     end
-    if test $n -gt 0
-        echo "taskwarrior::cleanup: purging $n deleted ≥{$days}d"
+    if test $n -eq 0
+        echo "taskwarrior::cleanup: no deleted ≥"$days"d"
+        return 0
+    end
+    # TW 3.4 purge reloads and dependency-scans every task for each purged
+    # task (CmdPurge::handleDeps -> TDB2::all_tasks), ~1.3s each here. Purge
+    # in small UUID batches so progress is visible, Ctrl-C keeps finished
+    # batches, and later batches scan a smaller task set.
+    set -l uuids (_taskwarrior::old_uuids deleted end $n $days)
+    if test $status -ne 0
+        echo "taskwarrior::cleanup: unable to find old deleted tasks; skipping purge" >&2
+        return 1
+    end
+    set -l total (count $uuids)
+    echo "taskwarrior::cleanup: purging $total deleted ≥"$days"d"
+    set -l start (date +%s)
+    set -l last_report $start
+    set -l offset 1
+    while test $offset -le $total
+        set -l last (math $offset + 4)
+        if test $last -gt $total
+            set last $total
+        end
         _taskwarrior::unattended \
-            status:deleted end.before:today-"$days"days purge
-    else
-        echo "taskwarrior::cleanup: no deleted ≥{$days}d"
+            $uuids[$offset..$last] status:deleted \
+            end.before:today-"$days"days purge
+        or return 1
+        set offset (math $last + 1)
+        set -l now (date +%s)
+        if test (math $now - $last_report) -ge 10; or test $last -eq $total
+            set -l elapsed (math $now - $start)
+            set -l eta (math --scale=0 "$elapsed * ($total - $last) / $last")
+            echo "taskwarrior::cleanup: purged $last/$total deleted ("$elapsed"s elapsed, ~"$eta"s left)"
+            set last_report $now
+        end
     end
 end
 
