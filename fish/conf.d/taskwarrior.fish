@@ -450,6 +450,17 @@ function _taskwarrior::cutoff_sql
     echo "(CAST(strftime('%s', 'now', 'localtime', 'start of day', 'utc') AS INTEGER) - $argv[1] * 86400)"
 end
 
+# SQL condition skipping recurrence templates (mask set) that still have a
+# non-deleted child: purging such a template aborts the whole task command.
+# Templates whose children are all deleted stay eligible; purge takes their
+# deleted children along.
+function _taskwarrior::no_live_children_sql
+    echo "AND NOT (json_extract(data, '\$.mask') IS NOT NULL AND uuid IN (
+        SELECT json_extract(c.data, '\$.parent') FROM tasks c
+        WHERE json_extract(c.data, '\$.parent') IS NOT NULL
+          AND json_extract(c.data, '\$.status') != 'deleted'))"
+end
+
 # Fast UUID batch from taskchampion.sqlite3 (avoids TW3 loading the whole set).
 # Usage: _taskwarrior::old_uuids STATUS DATE_FIELD LIMIT DAYS [TAG]
 # STATUS: completed|deleted  DATE_FIELD: end|modified
@@ -477,6 +488,7 @@ function _taskwarrior::old_uuids
           AND CAST(json_extract(data, '\$.$field') AS INTEGER)
               < $(_taskwarrior::cutoff_sql $days)
           $tag_sql
+          $(_taskwarrior::no_live_children_sql)
         LIMIT $batch;
     "
 end
@@ -504,7 +516,8 @@ function _taskwarrior::old_count
         WHERE json_extract(data, '\$.status') = '$tw_status'
           AND CAST(json_extract(data, '\$.$field') AS INTEGER)
               < $(_taskwarrior::cutoff_sql $days)
-          $tag_sql;
+          $tag_sql
+          $(_taskwarrior::no_live_children_sql);
     "
 end
 
@@ -553,8 +566,12 @@ end
 # enough: once a command touches rc.bulk (default 3) or more tasks, Taskwarrior
 # asks per task (yes/no/all/quit) regardless. rc.bulk=0 means "no bulk limit",
 # so cleanup stays unattended however many tasks are due.
+# recurrence.confirmation (default prompt) has its own prompt; =no keeps delete
+# from also deleting the pending siblings of an old recurring instance. Purge
+# overrides it with =yes, as =no aborts purging a template with deleted children.
 function _taskwarrior::unattended
-    task rc.confirmation=off rc.bulk=0 rc.gc=0 rc.verbose:nothing $argv
+    task rc.confirmation=off rc.bulk=0 rc.gc=0 rc.verbose:nothing \
+        rc.recurrence.confirmation=no $argv
 end
 
 # Called from taskwarrior::invoke (hence supersync): delete tasks completed and
@@ -651,7 +668,7 @@ function taskwarrior::cleanup
         if test $last -gt $total
             set last $total
         end
-        _taskwarrior::unattended \
+        _taskwarrior::unattended rc.recurrence.confirmation=yes \
             $uuids[$offset..$last] status:deleted \
             end.before:today-"$days"days purge
         or return 1

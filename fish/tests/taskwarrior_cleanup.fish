@@ -113,6 +113,31 @@ cleanup_at_cutoff before_cutoff -1
 test (count (cat $TASK_CALLS)) -eq 3
 or fail "tasks ended before today-90days were not removed"
 
+# A recurrence template is purged only once all its children are deleted;
+# purge would abort on a template that still has a live child.
+seed_db templates
+sqlite3 "$TASKDATA/taskchampion.sqlite3" "
+    INSERT INTO tasks VALUES
+        ('tpl-dead', '{\"status\":\"deleted\",\"end\":1,\"mask\":\"XX\"}'),
+        ('kid-dead', '{\"status\":\"deleted\",\"end\":1,\"parent\":\"tpl-dead\"}'),
+        ('tpl-live', '{\"status\":\"deleted\",\"end\":1,\"mask\":\"X-\"}'),
+        ('kid-live', '{\"status\":\"completed\",\"end\":1,\"parent\":\"tpl-live\"}');
+"
+or fail "could not seed recurrence templates"
+set -l purgeable (_taskwarrior::old_uuids deleted end 100 90)
+contains -- tpl-dead $purgeable
+or fail "template with only deleted children was not selected"
+contains -- tpl-live $purgeable
+and fail "template with a live child was selected"
+test (_taskwarrior::old_count deleted end 90) -eq (count $purgeable)
+or fail "count and UUID selection disagree on templates"
+taskwarrior::cleanup >/dev/null
+or fail "cleanup failed with recurrence templates"
+string match -q '*recurrence.confirmation=yes*purge' (tail -n 1 $TASK_CALLS)
+or fail "purge did not accept taking deleted children along"
+string match -q '*recurrence.confirmation=no*' (head -n 1 $TASK_CALLS)
+or fail "delete may cascade to pending recurrences"
+
 # A UUID absent from the database must not produce an empty or partial archive.
 set -l missing_archive "$TASKDATA/AgentsHistory/missing.json"
 _taskwarrior::archive_uuids $missing_archive agent-1 absent-1
