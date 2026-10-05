@@ -687,9 +687,9 @@ function taskwarrior::unscheduled
     # _ids can emit a trailing empty line; skip empty values to avoid a no-filter modify
     set -l failed 0
 
-    # +auto tasks without due/scheduled get a fixed due in 6 days (eligible for
+    # +auto / +agent tasks without due/scheduled get a fixed due in 6 days (eligible for
     # next-auto-task's 7-day window). Exclude them from the random assignment below.
-    set -l auto_ids (task +auto status:pending due: scheduled: _ids)
+    set -l auto_ids (task '( +auto or +agent )' status:pending due: scheduled: _ids)
     or return 1
     for id in $auto_ids
         test -n "$id"; or continue
@@ -697,8 +697,8 @@ function taskwarrior::unscheduled
         or set failed 1
     end
 
-    # Non-auto: random due in 0..42 days
-    set -l ids (task status:pending -auto -unsched -nosched -meeting -track -tr due: _ids)
+    # Non-auto/non-agent: random due in 0..42 days
+    set -l ids (task status:pending -auto -agent -unsched -nosched -meeting -track -tr due: _ids)
     or return 1
     for id in $ids
         test -n "$id"; or continue

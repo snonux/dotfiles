@@ -38,8 +38,8 @@ function task
     switch "$MOCK_MODE"
         case unscheduled
             if test "$argv[-1]" = _ids
-                # Auto due path: empty so this test covers the random non-auto loop
-                if contains -- +auto $argv
+                # Fixed 6d due path: empty so this test covers the random non-auto loop
+                if contains -- '( +auto or +agent )' $argv
                     return 0
                 end
                 printf '%s\n' bad good
@@ -47,11 +47,11 @@ function task
             end
         case unscheduled_auto
             if test "$argv[-1]" = _ids
-                if contains -- +auto $argv
+                if contains -- '( +auto or +agent )' $argv
                     printf '%s\n' abad agood
                     return 0
                 end
-                # No non-auto ids — exercise only the auto due:6d path
+                # No non-auto/non-agent ids — exercise only the fixed due:6d path
                 return 0
             end
         case gos
@@ -150,7 +150,7 @@ set -g MOCK_FAIL_FIRST 0
 taskwarrior::unscheduled
 or fail "successful due-date modifies failed"
 
-# +auto undated/unscheduled path stamps due:6d before the random non-auto loop
+# +auto/+agent undated/unscheduled path stamps due:6d before the random loop
 set -g MOCK_MODE unscheduled_auto
 set -g MOCK_FAIL_FIRST 1
 : >"$MODIFY_LOG"
