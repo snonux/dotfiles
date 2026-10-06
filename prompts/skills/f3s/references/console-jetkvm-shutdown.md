@@ -4,12 +4,88 @@ Findings from troubleshooting f1 on 2026-06-27, after the FreeBSD **15.1** upgra
 (`@pre-15.1-upgrade` ZFS snapshots, taken 2026-06-19/06-20). Applies to the Beelink
 S12 Pro / Intel N100 hosts **f0, f1, f2, f3**.
 
-A JetKVM (KVM-over-IP) is currently attached to **f1** (USB + HDMI). It enumerates on
-the FreeBSD USB bus as `ugen0.X: <Multifunction Composite Gadget Linux Foundation>`
-(idVendor `0x1d6b`, idProduct `0x0104`, iManufacturer `JetKVM`) — 3× HID interfaces
-(keyboard/tablet/mouse) + 1× mass storage (virtual media). The generic "Composite
-Gadget" product string means a name-grep for "JetKVM" can miss it; match on the gadget
-descriptor instead.
+A JetKVM (KVM-over-IP) is attached to **each of f0, f1, f2, f3** (USB + HDMI); see
+the inventory below. It enumerates on the FreeBSD USB bus as vendor `0x1d6b`, product
+`0x0104` — HID interfaces (keyboard/tablet/mouse), audio, and mass storage (virtual
+media). Older firmware reported the product string as `Multifunction Composite Gadget
+Linux Foundation`; firmware 0.5.9 reports `JetKVM USB Emulation Device`, so match on
+the vendor/product IDs rather than a name. The gadget's USB serial number is empty on
+all four, so a host cannot tell *which* JetKVM it has from the USB side.
+
+## 0. JetKVM inventory, login and remote probing (verified 2026-10-06)
+
+**The IPs are DHCP leases and may differ next time — the MAC and device ID are the
+stable identifiers.** Re-discover before trusting the IP column (command below), and
+match a unit by its MAC or by `getDeviceID` / `GET /device`, never by IP alone.
+
+| MAC (stable) | Device ID / hostname suffix (stable) | Attached to | LAN IP on 2026-10-06 (DHCP) | HDMI capture 2026-10-06 |
+|---|---|---|---|---|
+| 30:52:53:03:57:38 | `46793b0d4c8d45d` | **f2** (proven, see below) | 192.168.1.151 | **no signal / `no_lock`** |
+| 30:52:53:08:97:97 | `e10a0883debf7d4a` | not yet mapped | 192.168.1.158 | 1920x1080 @ 60 |
+| 30:52:53:06:8b:21 | `f72978d7f87aa969` | not yet mapped | 192.168.1.191 | 1920x1080 @ 60 |
+| 30:52:53:04:a4:4b | `cee6ab4df2f88754` | not yet mapped | 192.168.1.198 | 1920x1080 @ 60 |
+
+All four run firmware app `0.5.9` / system `0.2.8`, and their mDNS/DHCP hostname is
+`jetkvm-<device id>`. There are no DNS names for them: `jetkvm*.f3s.lan.buetow.org`
+resolves, but only through the Pi-hole wildcard (to the storage VIP), so ignore it.
+
+**Discovery** (from a machine on the LAN; sweeps the /24 for web UIs titled `JetKVM`,
+then prints each hit with its MAC so it can be matched to the table):
+
+```sh
+for i in $(seq 1 254); do
+  ( curl -s -m 3 http://192.168.1.$i/ | grep -q -i '<title>JetKVM' && echo 192.168.1.$i ) &
+done | sort -t. -k4 -n | while read ip; do ip neigh show "$ip"; done
+```
+
+The rest of this document refers to units by the IP they had on 2026-10-06 (`.151`
+etc.) as shorthand; translate through the MAC if the leases have moved. A static DHCP
+reservation per MAC on the router would make the IPs stable, but none is set up.
+
+**Password.** Since 2026-10-06 all four share one local password, stored in
+`~/.jetkvm` on the laptop (before that they had three different ones, which is why
+earlier notes claimed the stored password "is rejected"). Never write it into this
+skill.
+
+**The JetKVMs CAN be driven without a browser** (an earlier note here said otherwise):
+
+- `GET  http://<ip>/device/status` — unauthenticated, returns `{"isSetup":true}`.
+- `POST http://<ip>/auth/login-local` with `{"password": "..."}` — plain HTTP works;
+  sets the auth cookie. `GET /device` then returns the device ID and auth mode.
+- `PUT  http://<ip>/auth/password-local` with `{"oldPassword","newPassword"}` (needs the
+  login cookie) changes the password.
+- Everything else (video state, USB state, EDID, reboot, USB emulation on/off) is
+  JSON-RPC 2.0 over the WebRTC data channel named `rpc`. Signaling is the websocket
+  `/webrtc/signaling/client`: send `{"type":"offer","data":{"sd":<base64 JSON SDP>}}`,
+  receive `{"type":"answer","data":<base64 JSON SDP>}`. The legacy
+  `POST /webrtc/session` returns 404 on this firmware.
+
+[`scripts/jetkvm-probe.py`](../scripts/jetkvm-probe.py) does all of that read-only
+(login, WebRTC session, `getVideoState`, `getUSBState`, versions, network state) for
+any number of IPs; it needs `aiortc` + `aiohttp` in a throwaway venv (see its
+docstring). It reports the device's own view of the HDMI input — the Python client
+does not decode the video stream, so it is not a screenshot. To actually see or type
+on a console, use the web UI in a browser.
+
+**Mapping a JetKVM to its f-host.** Call RPC `setUsbEmulationState {"enabled": false}`,
+wait a few seconds, then `{"enabled": true}`, and see which host logs the gadget
+re-attaching (`grep 'JetKVM USB Emulation' /var/log/messages`, readable without root).
+This detaches the emulated keyboard/mouse from that host for a few seconds and nothing
+else. Done for `.151` on 2026-10-06: only f2 logged it. The other three still need it.
+
+### f2's JetKVM (.151) gets no usable HDMI signal (open, 2026-10-06)
+
+`.151` reported `no_signal` while the other three captured 1920x1080 @ 60. After
+rebooting that JetKVM (RPC `reboot`) the error changed to `no_lock` and stayed there:
+it now sees a signal but cannot lock onto it. Not the host's configuration: f2 logs
+`VT(efifb): resolution 1920x1080` with the same `efi_max_resolution="1080p"` as the
+three working hosts, and `.151` presents the same default EDID (`JetKVM v1`). f2 got
+1080p from the firmware at boot, so the EDID read over the cable works; only the video
+signal does not lock. That leaves the physical path — HDMI cable/seating, f2's HDMI
+port, or that JetKVM unit. Next step is hands-on: reseat or swap the HDMI cable, or
+swap `.151` with a known-good JetKVM to see whether the fault follows the unit or
+stays with f2. Not tried: rebooting f2 to make the firmware re-initialise the output.
+Until fixed, **f2 has no remote console** (USB keyboard/mouse still work blind).
 
 ## 1. HDMI / console regressed to 640x480 in FreeBSD 15.1 (breaks JetKVM)
 
@@ -58,6 +134,11 @@ override). This is a per-JetKVM **EDID configuration** difference, NOT something
 changes: f1 came up 1080p on its first 1080p boot, *before* its JetKVM was ever rebooted
 (that later JetKVM reboot only cleared a flicker). Verified 2026-06-27: rebooting the f3
 *host* twice (JetKVM untouched) stayed 640x480.
+
+**Update 2026-10-06: all four hosts now boot `VT(efifb): resolution 1920x1080`**
+(f0/f1/f2 booted that day, f3 on 2026-10-02), so the 640x480 fallback described above
+is no longer the state of the fleet. Three JetKVMs capture 1080p; f2's does not, for a
+different reason (see section 0).
 
 **To make a host do 1080p:** set/raise that host's JetKVM emulated **EDID/resolution to
 1080p** in the JetKVM web UI to match f1 — a host reboot alone does nothing. Alternative
@@ -188,9 +269,9 @@ No mechanism is established. The pattern is real but unexplained, and it has
 survived four wrong theories — so treat further armchair hypotheses with
 suspicion and get the BIOS on screen instead.
 
-**Next step: read f0's BIOS via the JetKVM** (browser/WebRTC only — it cannot
-be driven with curl, and the password in `~/.jetkvm` is rejected over plain
-HTTP). Check `Wake system from S5` (RTC), `State After G3`, and USB wake, and
+**Next step: read f0's BIOS via the JetKVM** (needs the web UI in a browser to
+see the screen; which of the four JetKVMs is f0's is not mapped yet — see
+section 0). Check `Wake system from S5` (RTC), `State After G3`, and USB wake, and
 **compare them against f1 or f2**, which do not do this. Leave Wake-on-LAN
 enabled — f3sctl depends on it.
 
@@ -199,8 +280,8 @@ and power it off alone while f1/f2 stay off. That reproduces "f0 powered off
 while the others are down" with no fan switching involved, and separates the
 pattern from the shutdown path entirely.
 
-**BIOS settings to check via the JetKVM** (two are on the LAN:
-`http://192.168.1.191/` and `http://192.168.1.198/`), in likely order:
+**BIOS settings to check via the JetKVM** (IPs in the section 0 inventory), in
+likely order:
 
 1. `Advanced → ACPI Settings → Wake system from S5` (RTC alarm) — should be
    **Disabled**. A fixed-time alarm would produce regular restarts.
@@ -386,8 +467,9 @@ Persistent journals (256 MB cap) are now enabled on r0/r1/r2 for future diagnosi
 
 ## 3. Safe remote-reboot procedure for an f-host
 
-Because a hung `rc.shutdown` can strand a host in single-user (unrecoverable remotely
-unless the JetKVM is attached — it lives on f1 only):
+Because a hung `rc.shutdown` can strand a host in single-user (recoverable remotely
+only through that host's JetKVM — every host has one, but f2's has had no picture
+since 2026-10-06, see section 0):
 
 1. Gracefully stop guests first, outside the 90s watchdog: `doas vm stopall` (wait for
    `vm list` to show none `Running`). This also avoids an ungraceful guest kill.

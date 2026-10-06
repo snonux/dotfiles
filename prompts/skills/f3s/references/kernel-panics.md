@@ -32,7 +32,7 @@ s (no KDB backend is compiled in, so `debugger_on_panic=1` is a no-op). A
 host that is dark with its power LED on and **no new vmcore** afterwards did
 not have a normal panic. It is a hang: firmware, loader, kernel deadlock,
 single-user mode, or a panic that could not dump. Only the screen tells
-which, so look at the JetKVM (f1) or plug in HDMI **before** pressing power.
+which, so look at that host's JetKVM or plug in HDMI **before** pressing power.
 
 ## 2. Reading the dumps
 
