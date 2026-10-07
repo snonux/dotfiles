@@ -93,6 +93,20 @@ When a post is part of a series (Part 1 / Part 2 / Part 3 …):
 - Cross-link to siblings near the top (right after the intro paragraph) and
   again at the bottom, using the dated filename:
   `=> ./YYYY-MM-DD-slug-part-N.gmi Part N: short subtitle`.
+- **Parts list via template, like the f3s series.** Prefer the generated list
+  over hand-written sibling links at the top: give all parts a common filename
+  stem (`…-slug-part-1`, `…-slug-part-2`) and put
+  `<< template::inline::index slug-part` right after the intro of every part.
+  Gemtexter renders the dated list and marks the current part. It only lists
+  parts whose `.gmi` exists and skips `DRAFT-` files.
+- **Next/previous links at the bottom.** End each part with "Read the next post
+  of this series:" (and/or "Read the previous post of this series:") plus the
+  dated link, above the "Other related posts" rindex.
+- **Splitting one long post into parts.** Title the parts
+  `Series title - Part N: subtitle`. When a section becomes its own post,
+  promote its subsections one heading level (`###` → `##`), and rewrite
+  "earlier/later in this post" references that now cross a part boundary to
+  "part N". Give each new part its own short intro and wrap-up.
 - **Shared hero image.** Use the same hero image at the same position
   (typically immediately after the intro) in every part. Store hero and other
   shared assets in one subfolder, e.g. `gemfeed/series-slug/`.
