@@ -39,6 +39,7 @@
     "pwgrep",
     "guprecords",
     "ioriot",
+    "ior",
     "xerl",
     "gorum",
     "hsbot",
@@ -69,7 +70,10 @@
     "failunderd",
     "perl-c-fibonacci",
     "perl-poetry",
-    "cpuinfo"
+    "cpuinfo",
+    "quicklog",
+    "gonf",
+    "syncmaster"
   ],
   "skip_releases": {
     "fapi": [
