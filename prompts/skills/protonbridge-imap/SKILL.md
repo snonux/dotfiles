@@ -17,7 +17,17 @@ Credentials live in `~/.protonbridge` (chmod 600) as `KEY=VALUE` pairs:
 - `IMAP_PASS` (bridge-generated password, NOT the Proton account password)
 - `IMAP_SECURITY` (STARTTLS)
 
-Bridge also exposes SMTP on 127.0.0.1:1025 with the same user/password.
+The password itself is not stored in `~/.protonbridge`. `IMAP_PASS` and
+`SMTP_PASS` are set by command substitution from
+`~/.config/aerc/protonbridge-password`, the single place the Bridge-generated
+password is kept (owned by [`protonbridge-aerc`](../protonbridge-aerc/SKILL.md),
+which also describes how to refresh it). A second copy in `~/.protonbridge`
+went stale once and broke logins with `no such user`, so do not put a literal
+password back. Because of the substitution the file must be sourced by a
+shell; a plain `KEY=VALUE` parser will not get the password.
+
+Bridge also exposes SMTP on 127.0.0.1:1025 with the same user/password
+(`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` in the same file).
 
 Never echo `IMAP_PASS` to the terminal or commit it. Load it via shell:
 
@@ -118,8 +128,12 @@ PY
 ## Troubleshooting
 
 - `Connection refused` → Proton Bridge is not running. Start the Bridge app.
-- `LOGIN failed` → password rotated in Bridge; regenerate and update
-  `~/.protonbridge`.
+- `LOGIN failed` / `no such user` → first wait a few minutes if the Bridge pod
+  just restarted (it rejects logins while syncing). If it persists, the
+  password was rotated in Bridge: refresh
+  `~/.config/aerc/protonbridge-password` as described in
+  [`protonbridge-aerc`](../protonbridge-aerc/SKILL.md); `~/.protonbridge`
+  picks it up from there.
 - `socket.gaierror` → don't use `localhost` if IPv6 is broken; stick to
   `127.0.0.1`.
 - `STARTTLS extension not supported` → you connected with `IMAP4_SSL`; use
