@@ -33,6 +33,16 @@ function cl
     claude --dangerously-skip-permissions $argv
 end
 
+# Keep Claude Code's per-session temp files (scratchpads, task output) off
+# /tmp: on Fedora /tmp is tmpfs, so multi-GiB scratchpads eat RAM and fill
+# the zram swap. ~/tmp is disk-backed; unlike /tmp and /var/tmp nothing
+# cleans it automatically, so old session dirs need pruning by hand.
+# Claude Code appends claude-<uid>/ itself.
+mkdir -p ~/tmp
+if test -d ~/tmp -a -w ~/tmp
+    set -gx CLAUDE_CODE_TMPDIR ~/tmp
+end
+
 # Stamp an audit/<date> tag on the current repo's HEAD and push it to
 # origin — the end-marker step of the audit-tagging skill
 # (~/.claude/skills/audit-tagging), so `audit-due` measures the next

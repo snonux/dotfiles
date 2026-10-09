@@ -1001,7 +1001,6 @@ end
 if not set -q QUICKLOG_HEADLESS
     abbr -a ta task
     abbr -a log 'task add +log'
-    abbr -a tdue 'tasksamurai status:pending due.before:now'
     abbr -a track 'taskwarrior::add::track'
     abbr -a ti 'taskwarrior::invoke; tasksamurai due.before:today+7d'
     abbr -a ts tasksamurai
