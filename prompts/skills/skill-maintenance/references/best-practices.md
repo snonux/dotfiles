@@ -46,6 +46,22 @@ description: Helps with PDFs.
 
 This collection's convention: end descriptions with `Triggers on: <comma-separated phrases>.`
 
+### Description budget
+
+Descriptions are the only part of a skill that is loaded into every session,
+so their total length is the collection's standing context cost. The spec
+allows 1024 characters; aim for about **300**:
+
+- one clause for what the skill does
+- one for when to use it
+- the trigger phrases
+
+Leave the workflow out: caller lists, step order and tool names belong in the
+body, which loads only when the skill runs. A manual-only skill's description
+is not auto-loaded, so its length matters less (Codex and Amp still read it).
+`scripts/audit_skills.py` prints the total auto-loaded description size and
+warns on descriptions well over the target.
+
 ## Structure
 
 ```
@@ -81,9 +97,15 @@ See [the reference guide](references/REFERENCE.md) for details.
 Run the extraction script: scripts/extract.py
 ```
 
-Keep file references **one level deep** from `SKILL.md`. Avoid deeply nested
-reference chains. (An index file like `references/storage.md` that links into
-`references/storage/*.md` is acceptable but at the limit — prefer flat.)
+Keep file references shallow. The spec's default is **one level deep** from
+`SKILL.md`, and that is right for most skills: `SKILL.md` links straight to
+`references/<topic>.md`.
+
+A large skill with distinct subsystems may add exactly one more level, as `f3s`
+does: `SKILL.md` → `references/<area>.md` (an area index) →
+`references/<area>/<topic>.md`. Never go deeper than that, and never make the
+agent read an index that only points at one file. The rules are in
+[sub-division.md](sub-division.md).
 
 ## Validation
 

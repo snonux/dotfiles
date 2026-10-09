@@ -68,6 +68,24 @@ the union of the trigger phrases. `f3s` absorbed the eight `f3s-*` skills plus
 (`../f3s/references/k3s.md`), which keeps working when the owning skill is
 `disable-model-invocation: true`.
 
+## Pitfalls when splitting a file
+
+- **Positional prose breaks.** "See section 2", "§2a", "see above/below" and
+  "this document" stop being true once the sections live in different files.
+  Replace each with a link to the file that now holds the target, and drop
+  section numbers from headings that are no longer referenced by number.
+- **Headings other skills cite must stay put.** If other skills refer to
+  "workflow §5–6" of a skill, keep those numbered headings in `SKILL.md` as
+  short stubs that link to the reference (as `auditing-code-quality` does), or
+  update every caller in the same change.
+- **Anchored links need a per-part map.** A link to `old.md#some-heading` has to
+  go to whichever part now contains that heading, not to the first part.
+- **Shared intros.** A file's opening paragraphs often set context for all its
+  sections; give each part the sentences it needs instead of leaving them all in
+  the first part.
+
+The full move procedure is in [moving-skills.md](moving-skills.md).
+
 ## The "must not duplicate its own references" rule
 
 The clearest sub-division signal: `SKILL.md` contains a table/block that also

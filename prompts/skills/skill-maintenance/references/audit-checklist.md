@@ -3,6 +3,22 @@
 Step-by-step checklist for reviewing a single skill or sweeping the whole
 `~/.agents/skills/` collection.
 
+## Run the sweep script first
+
+```sh
+cd ~/.agents/skills
+python3 skill-maintenance/scripts/audit_skills.py --extra ../commands
+```
+
+It covers the mechanical items below: frontmatter validity and non-spec keys,
+description length and trigger wording, `SKILL.md` and reference sizes, broken
+links and anchors, reference files nobody links, area topics missing from their
+index, `SKILL.md` lines repeated in its references, the manual-only pair
+(frontmatter flag + `agents/openai.yaml`), and callers that ask for a
+manual-only skill without a file path. `--gone <name>...` reports leftover
+mentions of renamed or removed skills. ERROR lines are violations; WARN lines
+are judgment calls. The DRY-across-skills section still needs reading by hand.
+
 ## Scope the sweep
 
 ```sh
@@ -46,6 +62,7 @@ for f in ~/.agents/skills/*/SKILL.md; do printf "%5s %s\n" "$(wc -l < "$f")" "$f
 - [ ] Cross-skill links use `../sibling/...` and resolve.
 
 ### Description / discovery
+- [ ] Description near the ~300 character target: what, when, triggers; no workflow narration (see the description budget in [best-practices.md](best-practices.md#description-budget)).
 - [ ] Description would cause the agent to load the skill for the intended tasks (specific keywords, "when to use").
 - [ ] No duplicate `name` across locations (collisions warn; first wins).
 
