@@ -26,10 +26,12 @@ http://forgejo.services.svc.cluster.local/snonux/conf.git
 path: f3s/xplayer/helm-chart
 ```
 
-Keep `~/git/conf` pushed to both remotes after chart updates:
+Keep `~/git/conf` pushed to both remotes after chart updates. The repo moved
+off Codeberg in October 2026, so the old `master` remote (Codeberg) rejects
+pushes; GitHub is the canonical home:
 
 ```sh
-git push master master
+git push github master
 git push forgejo master
 ```
 
@@ -100,7 +102,7 @@ charts, so stage the player files by explicit path, never `git add -A`:
 git add f3s/player/helm-chart/Chart.yaml f3s/player/helm-chart/templates/deployment.yaml \
   f3s/xplayer/helm-chart/Chart.yaml f3s/xplayer/helm-chart/templates/deployment.yaml
 git commit -m "Update player image tags"
-git push master master
+git push github master
 git push forgejo master   # ArgoCD reads the in-cluster Forgejo repo
 ```
 
