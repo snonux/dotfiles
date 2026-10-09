@@ -17,7 +17,6 @@
 ./commands/create-skill.md
 ./commands/work-on-tasks.md
 ./commands/tiny-work-on-tasks.md
-./commands/load-skill.md
 ./skills/audit
 ./skills/timesamurai
 ./skills/100-go-mistakes
