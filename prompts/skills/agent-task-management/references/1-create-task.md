@@ -11,7 +11,7 @@ dependencies inline during creation with `depends:<id>,...`.
 - **Every task MUST have at least one tag** for sub-project/feature/area (e.g. `+integrationtests`, `+flamegraph`, `+bpf`, `+cli`, `+refactor`, `+bugfix`). **Tag names cannot contain hyphens (`-`)**; use camelCase or concatenated words instead (e.g. `+bugfix` not `+bug-fix`).
 - **After creating a task, add annotation** — one with the agent workflow reminder:
   ```
-  ask annotate <id> "Agent workflow: load the agent-task-management skill as instructions only, not as a shell command. Use only normal ~/go/bin/ask subcommand syntax. Also load and apply: (1) the best-practices skill for the programming language used in the project, (2) solid-principles. When all tests and sub-agent reviews pass, commit and automatically progress to the next ready task."
+  ask annotate <id> "Agent workflow: load the agent-task-management skill as instructions only, not as a shell command. Use only normal ~/go/bin/ask subcommand syntax. Also load and apply: (1) the best-practices skill for the programming language used in the project, (2) solid-principles. Manual-only skills such as go-best-practices and solid-principles are not offered by the Skill tool: read ~/.agents/skills/go-best-practices/SKILL.md and ~/.agents/skills/solid-principles/SKILL.md directly. When all tests and sub-agent reviews pass, commit and automatically progress to the next ready task."
   ```
 
 - **Include references to all context required** to work on the task. So that work can be done with a fresh context, every task must list or link everything needed: relevant files, docs, specs, other tasks, or project guidelines (e.g. paths, doc links, `AGENTS.md`, `README` sections). Put these in the task description or in an initial annotation so that an agent starting with no prior conversation has everything they need in the task itself.
@@ -40,7 +40,7 @@ ask add "+<tag> -p M Description"      # wrong: everything in one quoted arg
 
 ```bash
 id=$(ask add +<tag> "Description" | sed -n 's/^created task //p')
-ask annotate "$id" "Agent workflow: load the agent-task-management skill as instructions only, not as a shell command. Never run ~/go/bin/ask agent-task-management ... or other natural-language ~/go/bin/ask commands. Use only normal ~/go/bin/ask subcommand syntax. Also load and apply: (1) the best-practices skill for the programming language used in the project, (2) solid-principles, and (3) beyond-solid-principles. When all tests and sub-agent reviews pass, commit and automatically progress to the next ready task."
+ask annotate "$id" "Agent workflow: load the agent-task-management skill as instructions only, not as a shell command. Never run ~/go/bin/ask agent-task-management ... or other natural-language ~/go/bin/ask commands. Use only normal ~/go/bin/ask subcommand syntax. Also load and apply: (1) the best-practices skill for the programming language used in the project, (2) solid-principles, and (3) beyond-solid-principles. Manual-only skills such as go-best-practices and solid-principles are not offered by the Skill tool: read ~/.agents/skills/go-best-practices/SKILL.md and ~/.agents/skills/solid-principles/SKILL.md directly. When all tests and sub-agent reviews pass, commit and automatically progress to the next ready task."
 ```
 
 ## With dependency
