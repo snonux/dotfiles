@@ -152,6 +152,49 @@ ssh -p 22 root@192.168.1.120 'chmod 777 /data/nfs/k3svolumes/player /data/nfs/k3
 ssh -p 22 root@192.168.1.120 'chmod 777 /data/nfs/k3svolumes/xplayer /data/nfs/k3svolumes/xplayer/data /data/nfs/k3svolumes/xplayer/media'
 ```
 
+## Transcoding (since v0.3.0)
+
+The server converts formats browsers and Android cannot decode (AVI, WMV,
+FLV, WMA, …) with ffmpeg and caches the result next to the database, in
+`/data/media.db.transcode-cache` (NFS-backed, default budget 4096 MB via
+`TRANSCODE_CACHE_MAX_MB`; one job at a time via `TRANSCODE_MAX_JOBS`).
+
+- Both charts set the memory limit to `1Gi`: one ffmpeg job needs about
+  400 MB next to the server. Do not lower it back to 512Mi.
+- With the 1-CPU limit a long 1080p re-encode can exceed the 2 h job timeout;
+  short and SD files are fine.
+- After upgrading from v0.2.2 or older, trigger one admin **Rescan** per
+  instance: it regenerates every thumbnail under the new naming
+  (`.thumbnails/<file name>.jpg`).
+- The schema setup at startup rewrites old timestamps to UTC and removes
+  orphaned rows; back up `media.db` before an upgrade
+  (`cp media.db media.db.pre-<version>-<date>` on the NFS volume).
+
+## End-to-end tests against the deployed instances
+
+Both instances hold three generated sets, `test-videos`, `test-audio` and
+`test-images` (one `sample-<ext>.<ext>` per supported extension, made by
+`player-server/testdata/gen-all-formats.sh`). Two suites use them:
+
+- Web: `player-server/test/e2e-web`, `npx playwright test -c playwright.live.config.ts`
+  with `PLAYER_URL` and the `E2E_*` variables (about 5 minutes per instance).
+- Android: `player-android/test/e2e-live/android_e2e.py <base-url>` with the
+  release APK installed in the `Player_FDroid_Test_API34` emulator (about
+  20 minutes per instance); see its README.
+
+Both need an admin and a regular test account, read from
+`~/.config/player-e2e.env`. There is no password reset, so temporary accounts
+are created by hand and removed afterwards:
+
+1. Back up `media.db`, then insert a temporary admin with `sqlite3` on an
+   r-node that has it (r2), feeding the SQL through stdin so the `$` in the
+   bcrypt hash is not expanded by the remote shell
+   (`htpasswd -bnBC 12 x <password>` gives a hash the server accepts).
+2. Create the regular test user through `POST /api/v1/admin/users`.
+3. After the runs delete the regular user through the admin API and the
+   temporary admin with `sqlite3` (`PRAGMA foreign_keys=ON;` first, so the
+   user's sessions go with it), and remove the env file.
+
 ## Verification
 
 ```sh
