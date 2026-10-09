@@ -1,6 +1,6 @@
 ---
 name: chasing-orders
-description: "Chases overdue crowdfunding pledges and pre-orders: finds order, shipping and tracking mails in Proton Mail, reads pledge status and backer numbers on Kickstarter through Chrome, checks seller order portals and tracking sheets, and follows up with sellers. Keeps the order snapshot and all seller-specific details in private notes outside the skill. Use when asked which deliveries are due or late, where an order or reward is, to find a backer number or tracking number, to check Kickstarter shipping status, or to email a seller about a delivery. Triggers on: chase orders, deliveries due, overdue orders, where is my order, shipping status, tracking status, backer number, kickstarter deliveries, pre-order status, order follow-up."
+description: "Chases overdue crowdfunding pledges and pre-orders via Proton Mail, Kickstarter and seller portals, and follows up with sellers. Use when asked which deliveries are due or late, where an order is, or for a backer or tracking number. Triggers on: chase orders, deliveries due, overdue orders, where is my order, shipping status, tracking status, backer number, kickstarter deliveries, pre-order status, order follow-up."
 ---
 
 # Chasing Orders

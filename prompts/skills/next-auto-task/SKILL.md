@@ -1,6 +1,6 @@
 ---
 name: next-auto-task
-description: "Pick up and work on the next agent task tagged +auto that is due within 7 days (or has no due date). First tries the current git project via the `agent-task-management` skill; if no eligible +auto task is available there, runs `ask projects +auto due-window:7.days` and probes each project for due-window-eligible ready tasks, then switches into the matching git repo under `~/git/` (and into a subdirectory when the project name is hierarchical, e.g. `dotfiles.prompts` → `~/git/dotfiles/prompts`) and continues with `agent-task-management`. After each completed task, commit (if needed), push the git repo, and when applicable bump/publish the app version via `increment-version-and-push`. Triggers on: next auto task, next-auto-task, auto task, work next auto, pick up next auto task."
+description: "Pick up and work on the next agent task tagged +auto that is due within 7 days (or has no due date), in the current git project or else in another project's repo under ~/git, then commit, push and bump the version when applicable. Triggers on: next auto task, next-auto-task, auto task, work next auto, pick up next auto task."
 ---
 
 # Next Auto Task

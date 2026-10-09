@@ -1,6 +1,6 @@
 ---
 name: audit-tagging
-description: "Stamp and move the audit/<date> git tag markers that drive audit-due scheduling. Use when asked to tag for a code audit, set the audit start marker, finalize the audit end marker, move an audit tag, defer a repo from auditing, or bootstrap an audit baseline. Defines the start-tag (local safety net) -> end-tag (moved to post-fix HEAD, pushed remotely) workflow so the next audit-due run measures churn from the END of the fix cycle, not from before the audit. Callers: audit-next-repo (start tag when picking a repo); auditing-code-quality (start tag when caller did not pass $START_TAG; end+push via final +audit task after the gate, or immediate end+push on zero-findings); ATM-only audit batches (start if needed, then end+push on the tagging task). Triggers on: audit tag, audit marker, tag for audit, finalize audit tag, move audit tag, defer audit, bootstrap audit marker."
+description: "Stamp and move the audit/<date> git tag markers that drive audit-due scheduling: local start tag before an audit, end tag moved to the post-fix HEAD and pushed. Use when asked to tag for a code audit, finalize or move an audit tag, defer a repo, or bootstrap an audit baseline. Triggers on: audit tag, audit marker, tag for audit, finalize audit tag, move audit tag, defer audit, bootstrap audit marker."
 ---
 
 # Audit Tagging

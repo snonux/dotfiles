@@ -1,6 +1,6 @@
 ---
 name: audit-next-repo
-description: "Show the top 5 git repos due for a code audit (ranked by LOC churn since the last audit/<date> marker, with stats explaining why each is due) and let the user pick one to audit. On selection, stamp the start audit/<date> tag (audit-tagging skill, local safety net), run a full code-quality audit (auditing-code-quality skill — which creates finding tasks, a +audit closure gate, and a final +audit tagging task that moves/pushes the end marker after fixes), record findings as tasks via agent-task-management within the audited repo. Do not stamp or push an immediate post-audit end marker here — auditing-code-quality owns that delayed end tag so the next audit-due run measures churn from the end of the fix cycle. The user can also defer a repo (tag it to skip this cycle) or stop. Uses ~/scripts/audit-due. Triggers on: audit next repo, next code audit, which repo to audit, code audit due, run audit-due."
+description: "Show the top 5 git repos due for a code audit (ranked by LOC churn since the last audit/<date> marker) and let the user pick one to audit or defer. Entry point tying together ~/scripts/audit-due, audit-tagging and auditing-code-quality. Triggers on: audit next repo, next code audit, which repo to audit, code audit due, run audit-due."
 ---
 
 # Audit Next Repo
