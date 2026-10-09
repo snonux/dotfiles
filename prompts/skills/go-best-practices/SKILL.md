@@ -1,6 +1,6 @@
 ---
 name: go-best-practices
-description: Enforce Go best practices for project structure, style, and conventions in the current codebase.
+description: Enforce Go best practices for project structure, style, and conventions in the current codebase. Use when writing, reviewing, or refactoring Go code, or auditing a Go project for convention compliance. Triggers on: go best practices, go style, go conventions, go project layout, review go code.
 disable-model-invocation: true
 ---
 

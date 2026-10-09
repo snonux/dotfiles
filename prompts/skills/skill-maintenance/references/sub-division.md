@@ -84,7 +84,9 @@ grep -l "<unique line from SKILL.md>" skill/references/*.md
 - **Good index models:** `f3s`, `c-best-practices`, `bash-best-practices`,
   `agent-task-management`, `llm-benchmark-comparison`, `music-collection`.
 - **Sub-divided during the DRY pass:** the rocky VM skill (260 → ~40 line index, now an `f3s` area),
-  `blog-writing-style` (216 → ~120 lines; examples moved to `references/`).
+  `blog-writing-style` (216 → ~120 lines; examples moved to `references/`),
+  `timesamurai` (272 → 85 lines), `auditing-code-quality` (220 → 107 lines; the
+  numbered workflow headings stay in `SKILL.md` because other skills cite them).
 
 ## After sub-dividing
 

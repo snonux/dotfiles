@@ -1,0 +1,4 @@
+# Codex counterpart of `disable-model-invocation: true` in SKILL.md:
+# the skill runs only when invoked explicitly ($skill-name).
+policy:
+  allow_implicit_invocation: false

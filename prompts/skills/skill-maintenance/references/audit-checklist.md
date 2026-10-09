@@ -18,7 +18,9 @@ for f in ~/.agents/skills/*/SKILL.md; do printf "%5s %s\n" "$(wc -l < "$f")" "$f
 ### Frontmatter
 - [ ] `name` present, 1-64 chars, lowercase a-z/0-9/hyphens, no leading/trailing/consecutive hyphens.
 - [ ] `description` present, ≤1024 chars, states **what** and **when to use**, includes trigger keywords. (Missing ⇒ not loaded.)
-- [ ] Optional fields (`license`, `compatibility`, `metadata`, `allowed-tools`, `disable-model-invocation`) used only when relevant.
+- [ ] Optional fields (`license`, `compatibility`, `metadata`, `allowed-tools`, `disable-model-invocation`) used only when relevant. Anything else (e.g. `version`) goes under `metadata`.
+- [ ] A manual-only skill has both `disable-model-invocation: true` (Claude Code, pi, Cursor) and `agents/openai.yaml` with `policy.allow_implicit_invocation: false` (Codex). Amp has no per-skill switch.
+- [ ] No other skill tells the agent to invoke a manual-only skill through the Skill tool; callers link to its `SKILL.md` or reference file by path.
 
 ### Structure / progressive disclosure
 - [ ] `SKILL.md` < 500 lines / < 5000 tokens.

@@ -1,6 +1,6 @@
 ---
 name: update-blog-post
-description: Update an existing blog post in .gmi.tpl format from foo.zone-content, commit, push, and optionally publish.
+description: Update an existing blog post in .gmi.tpl format from foo.zone-content, commit, push, and optionally publish. Use when asked to edit, correct, or extend an existing foo.zone blog post. Triggers on: update blog post, edit blog post, fix blog post, foo.zone post.
 disable-model-invocation: true
 ---
 

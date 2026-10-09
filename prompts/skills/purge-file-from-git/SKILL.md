@@ -1,6 +1,6 @@
 ---
 name: purge-file-from-git
-description: Completely remove a file from git history using git-filter-repo.
+description: Completely remove a file from git history using git-filter-repo. Use when a secret, large binary, or other sensitive file must be purged from every commit. Triggers on: purge file from git, remove file from history, delete secret from git history, git-filter-repo.
 disable-model-invocation: true
 ---
 

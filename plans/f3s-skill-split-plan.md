@@ -1,5 +1,10 @@
 # Plan: Split the `f3s` skill into smaller sibling skills
 
+> **Superseded 2026-10-09.** The split described here was carried out and then
+> reversed: the `f3s-*` sibling skills are references of the single `f3s` skill
+> again, laid out as `SKILL.md` → `references/<area>.md` →
+> `references/<area>/<topic>.md`. Kept as a historical record.
+
 Task: **us0** — "look at skill f3s, it has many references within the skill; make a
 plan to create multiple skills out of it so the f3s skill becomes smaller."
 

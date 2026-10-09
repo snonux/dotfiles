@@ -1,6 +1,5 @@
 ---
 name: solid-principles
-version: 1.0.0
 description: >
   This skill should be used when the user asks to "check SOLID violations",
   "audit class design", "review code quality", "find design smells", or
@@ -10,6 +9,8 @@ description: >
   responsibilities. Supports checking all five principles at once or
   focusing on a single principle.
 disable-model-invocation: true
+metadata:
+  version: "1.0.0"
 ---
 
 # SOLID Principles
