@@ -1,6 +1,6 @@
 ---
 name: protonbridge
-description: "Proton Mail through Proton Bridge: read, list, search, count or fetch mail over local IMAP (STARTTLS on 127.0.0.1 port 1143, credentials from ~/.protonbridge), and manage the aerc connection to the Bridge running in the f3s k3s cluster (kubectl port-forward tunnel, pinned certificate, systemd user service). Use for inbox or folder questions, aerc setup, certificate or login errors, and the protonbridge-k3s-tunnel service. Triggers on: protonbridge, proton bridge, proton mail, protonmail, imap, list emails, read inbox, aerc mail, Proton Bridge tunnel, aerc IMAP, aerc SMTP."
+description: "Reads Proton Mail over the local Proton Bridge IMAP port and manages the aerc connection to the Bridge in the f3s k3s cluster (tunnel, pinned certificate, credentials). Use for inbox or folder questions, aerc setup, and login or certificate errors. Triggers on: protonbridge, proton mail, protonmail, imap, list emails, read inbox, aerc mail, Proton Bridge tunnel."
 ---
 
 # Proton Bridge

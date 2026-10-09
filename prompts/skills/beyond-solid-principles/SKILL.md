@@ -1,12 +1,6 @@
 ---
 name: beyond-solid-principles
-description: >
-  This skill should be used when the user asks to "check architecture principles",
-  "audit system design", "review code for coupling", "find architecture smells", or
-  "improve system-level design". Also triggers when the user mentions a principle by
-  name (e.g., "check separation of concerns", "is this violating DRY?", "Law of
-  Demeter", "KISS", "YAGNI", "resilience", "evolvability", "loose coupling"). Supports
-  checking all ten principles at once or focusing on a single principle.
+description: "Checks code against ten system-level architecture principles (separation of concerns, DRY, KISS, YAGNI, Law of Demeter, loose coupling, resilience, evolvability, and more), all at once or one by name. Use when asked to check architecture principles, audit system design, or find coupling and architecture smells."
 metadata:
   version: "1.0.0"
 ---

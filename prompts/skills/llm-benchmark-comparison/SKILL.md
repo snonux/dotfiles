@@ -1,6 +1,6 @@
 ---
 name: llm-benchmark-comparison
-description: "Research and compare LLM model benchmarks (coding, agentic, reasoning, multimodal) across frontier and open-weight models. Produces a side-by-side comparison table with cost, context, modality, and per-benchmark scores; calls out ties, caveats, and 'what the numbers hide'. Use when asked to compare LLMs, benchmark models, rank models, or build a model-selection report. Triggers on: compare LLMs, LLM benchmark, model comparison, GPT vs Claude vs DeepSeek, which model is best, model leaderboard, SWE-Bench comparison, benchmark scores."
+description: "Researches and compares LLM benchmarks (coding, agentic, reasoning, multimodal) across frontier and open-weight models as a side-by-side table with cost, context, and caveats. Use when asked to compare, benchmark, or rank models. Triggers on: compare LLMs, LLM benchmark, model comparison, which model is best, model leaderboard, SWE-Bench comparison."
 ---
 
 # LLM Benchmark Comparison

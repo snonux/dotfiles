@@ -1,6 +1,6 @@
 ---
 name: audit
-description: "Schedule code audits across the git repos and manage the audit/<date> git tag markers that drive audit-due. Picks the next repo to audit (top 5 by LOC churn since the last marker, user chooses or defers) and stamps, moves, pushes or bootstraps the audit tags. Triggers on: audit next repo, next code audit, which repo to audit, code audit due, run audit-due, audit tag, audit marker, tag for audit, finalize audit tag, move audit tag, defer audit, bootstrap audit marker."
+description: "Schedules code audits across the git repos: picks the next repo due for an audit and manages the audit/<date> git tags that audit-due reads. Use when asked which repo to audit next or to tag, finalize, defer, or bootstrap an audit marker. Triggers on: audit next repo, next code audit, code audit due, run audit-due, audit tag, audit marker, defer audit."
 ---
 
 # Audit

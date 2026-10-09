@@ -1,6 +1,6 @@
 ---
 name: 100-go-mistakes
-description: "Audits Go code for the 100 common mistakes from the book '100 Go Mistakes and How to Avoid Them' by Teiva Harsanyi. Use when asked to 'check for Go mistakes', 'audit Go code', 'find Go anti-patterns', 'run 100 Go mistakes check', or 'common Go pitfalls'. Covers error handling, concurrency, data types, control structures, strings, functions, project organization, testing, and optimization. Triggers on: 100 go mistakes, go mistakes, go anti-patterns, go pitfalls, go audit."
+description: "Audits Go code for the 100 common mistakes from the book '100 Go Mistakes and How to Avoid Them' (error handling, concurrency, data types, strings, testing, and more). Use when asked to check Go code for mistakes, anti-patterns, or pitfalls. Triggers on: 100 go mistakes, go mistakes, go anti-patterns, go pitfalls, go audit."
 ---
 
 # 100 Go Mistakes
