@@ -24,7 +24,7 @@ LAN router:
 
 ## Related Areas
 
-- kubectl over WireGuard while roaming: [k3s — remote access](k3s/remote-access.md)
+- kubectl over WireGuard while roaming: [k3s — remote access](k3s/kubectl-remote-access.md)
 - WireGuard on the NetBSD Pis (`wireguard-go`): [Raspberry Pis — NetBSD WireGuard](raspberry-pi/netbsd-wireguard.md)
 - "Something is eating the network": [Observability — network triage](observability/network-triage.md)
 - LAN wildcard DNS and Pi-hole: [Raspberry Pis](raspberry-pi.md)

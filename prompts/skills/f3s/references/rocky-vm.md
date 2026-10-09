@@ -22,7 +22,7 @@ Load the one that matches the task:
 - [User and Privileges](rocky-vm/privileges.md) — `root` access, Paul's targeted updater and IOR sudo rules, sudoers config
 - [Scripts](rocky-vm/scripts.md) — the `update::tools` Fish updater and its privileged commands
 - [Dotfiles deployment (gonf)](rocky-vm/gonf.md) — `~/git/dotfiles/gonf.sh home` (paul), rocky tmux overrides loaded by `tmux.conf` itself (`home_tmux_rocky` is a legacy alias of `home_tmux`); no Rocky package task (install packages with `dnf` as root)
-- [ZFS Snapshot / Replication](rocky-vm/zrepl.md) — `zroot/bhyve/rocky` via zrepl on f3 → f2, retention; full config in [Storage — zrepl](storage/zrepl.md)
+- [ZFS Snapshot / Replication](rocky-vm/snapshot-replication.md) — `zroot/bhyve/rocky` via zrepl on f3 → f2, retention; full config in [Storage — zrepl](storage/zrepl.md)
 - [Notes](rocky-vm/notes.md) — `claude` wrapper must be a symlink not a shell script (fork bomb), Node.js 22 module, `amp` non-TTY panic
 
 ## Quick Reference

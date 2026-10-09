@@ -218,7 +218,7 @@ an etcd snapshot restore) and Traefik 3.3 -> 3.7 (chart 34 -> 40; our
 both still valid). Traefik >= 3.6 rejects some encoded characters in request
 paths by default (startup WRN). 1.34 drops the `node-role.kubernetes.io/master`
 tolerations (nothing here selects on it). Use an etcdctl 3.6.x for the
-[etcd recovery](troubleshooting.md) procedure now.
+[etcd recovery](cluster-troubleshooting.md) procedure now.
 
 ## Node IP Summary
 

@@ -140,7 +140,7 @@ What success looks like:
   10 s with no errors.
 
 One-shot remote check from a roaming laptop (see
-[remote-access.md](remote-access.md)):
+[kubectl-remote-access.md](kubectl-remote-access.md)):
 
 ```sh
 ssh -A -J rex@fishfinger.buetow.org root@r0.wg0 \
