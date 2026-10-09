@@ -20,7 +20,7 @@ I need to update an existing skill. Please follow these steps:
 
 2. **Show me the current content** of the skill in a clear, organized format
 
-3. **Audit it against the collection's conventions** — load the `skill-maintenance` skill and run its `references/audit-checklist.md` against this skill. Surface findings before editing:
+3. **Audit it against the collection's conventions** — load the `skill-maintenance` skill (manual-only: read `~/Notes/Prompts/skills/skill-maintenance/SKILL.md` directly) and run its `references/audit-checklist.md` against this skill. Surface findings before editing:
    - *best-practices*: frontmatter valid (`name`/`description` rules, `description` ≤1024 with trigger keywords), `SKILL.md` < 500 lines, file refs one level deep, no missing `description`.
    - *dry-across-skills*: does this skill duplicate knowledge another skill owns? Should shared knowledge get a single canonical home with cross-links instead?
    - *sub-division*: does `SKILL.md` re-inline content that already lives in its own `references/`? Should detail move to focused `references/` so `SKILL.md` becomes a slim index?

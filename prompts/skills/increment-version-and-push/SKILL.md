@@ -1,6 +1,6 @@
 ---
 name: increment-version-and-push
-description: Increment the project version, update the F-Droid changelog if the project has one, tag it in git, commit, push, and run mage install when available.
+description: Increment the project version, update the F-Droid changelog if the project has one, tag it in git, commit, push, and run mage install when available. Use when asked to bump the version, cut a release, or tag and push a new version.
 ---
 
 # Increment version and push

@@ -26,6 +26,12 @@ sequence. This meta-skill orchestrates them so you only need a single command.
 6. **agent-task-management** — Creates actionable tasks for design/convention findings; bug tasks follow **find-code-bugs** + this skill's `ask` rules.
 7. **audit** (`references/tagging.md`) — Owns `audit/<date>` git markers; the **last** audit task created (workflow §6) tells the agent to follow that skill — do not duplicate its tagging procedure here.
 
+**go-best-practices** and **solid-principles** are manual-only skills
+(`disable-model-invocation: true`), so the Skill tool will not invoke them.
+Load them by reading [`../go-best-practices/SKILL.md`](../go-best-practices/SKILL.md)
+and [`../solid-principles/SKILL.md`](../solid-principles/SKILL.md) directly, then
+follow their reference links from there.
+
 ## Workflow
 
 ### 1. Identify Target Code

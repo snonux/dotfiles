@@ -21,7 +21,7 @@ Update an existing blog post in ~/git/foo.zone-content/gemtext/gemfeed/ in the g
 5. Also add an "last updated" note to the blog post's publishing date, format like this  "> Published at 2025-07-13T16:44:29+03:00, last updated Tue 27 Jan 10:09:08 EET 2026"
 6. Show a diff or summary of the changes before writing.
 7. After writing, commit and push the changes to git.
-8. Ask whether the updated blog post should be published. If yes, use the `gemtexter` skill to handle the publish workflow instead of embedding the publish commands here.
+8. Ask whether the updated blog post should be published. If yes, use the `gemtexter` skill (manual-only: read [`../gemtexter/SKILL.md`](../gemtexter/SKILL.md) directly) to handle the publish workflow instead of embedding the publish commands here.
 9. Once published, use the `gemtexter` skill's verification workflow to confirm that the changes appear on `https://foo.zone`.
 10. If the published page does not match the expected content, investigate the `gemtexter` publish output and fix the publishing problem instead of assuming the content edit was wrong.
 
