@@ -1,6 +1,7 @@
 ---
 name: snonux-microblog-post
 description: Create and publish a new microblog post to snonux.foo using the snonux static generator. Handles text, markdown, and images dropped into the inbox directory.
+disable-model-invocation: true
 ---
 
 # snonux-microblog-post

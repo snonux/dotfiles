@@ -1,6 +1,7 @@
 ---
 name: cleaning-obsolete-branches
 description: "Audits and deletes obsolete git branches across GitHub, Forgejo and the local clones, and fixes repos whose default branch is not main or master. Deletes only fully merged branches, after review. Triggers on: obsolete branches, stale branches, merged branches, branch cleanup, delete branches, prune branches, claude/codex agent branches, default branch, fix default branch."
+disable-model-invocation: true
 ---
 
 # Cleaning Obsolete Branches
@@ -24,7 +25,7 @@ Everything before the delete step is read-only.
 
 Related skills, not duplicated here:
 
-- Forgejo access, ports and exposure: [`f3s-workloads` Forgejo reference](../f3s-workloads/references/forgejo.md)
+- Forgejo access, ports and exposure: [`f3s` Forgejo reference](../f3s/references/workloads/forgejo.md)
 - Forge endpoints and owners come from `~/.config/gitsyncer/config.json`
   (`scripts/forge.py` reads them; do not hardcode the Forgejo host or port).
 

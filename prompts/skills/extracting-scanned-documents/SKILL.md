@@ -1,6 +1,7 @@
 ---
 name: extracting-scanned-documents
 description: "Extracts individual pages from scanned multi-page PDF bills, receipts, and invoices, naming each file from page content (date, type/store, address or items, amount). Use when asked to extract, split, or organize scanned bills, utility receipts, utility/payment documents, purchase receipts, shop receipts, or invoices from PDFs. Triggers on: extract bills, extract receipts, split scans, split receipts, organize receipts, organize invoices, scanned documents, scanned receipts, purchase receipts, utility receipts."
+disable-model-invocation: true
 ---
 
 # Extracting Scanned Documents

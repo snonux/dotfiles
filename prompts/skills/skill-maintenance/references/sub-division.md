@@ -1,9 +1,9 @@
 # Sub-division
 
 When a skill grows too large, sub-divide it into a slim `SKILL.md` index plus
-focused `references/`. The model in this collection is `f3s` and
-`f3s-rocky-vm-setup`: a short overview + a "Reference Files" list + a tiny
-quick-reference, with all detail living in `references/*.md`.
+focused `references/`. The model in this collection is `f3s`: a short overview +
+an area map + a tiny quick-reference in `SKILL.md`, one area index per subsystem
+in `references/<area>.md`, and all detail in `references/<area>/<topic>.md`.
 
 ## When to sub-divide
 
@@ -11,7 +11,7 @@ Sub-divide when any of these hold:
 
 - `SKILL.md` exceeds ~500 lines or ~5000 tokens (the spec's soft target).
 - `SKILL.md` re-inlines content that already exists in its own `references/`
-  (the worst DRY offender — `f3s-rocky-vm-setup` was this before refactoring).
+  (the worst DRY offender — the rocky VM skill, now `f3s/references/rocky-vm.md`, was this before refactoring).
 - A single reference file covers multiple unrelated topics (split it).
 - The agent would need to load the whole `SKILL.md` when only one section is
   relevant.
@@ -20,11 +20,11 @@ Do **not** sub-divide when:
 
 - The skill is short (< ~110 lines) and cohesive.
 - The inlined content *is* the skill's value and is needed the moment the
-  skill activates (e.g. the aHash/burst/sharpness snippets in `photo-processing`
-  — thresholds and code are inseparable; keep inline).
+  skill activates (e.g. code snippets whose thresholds and code are
+  inseparable; keep inline).
 - The skill is a single linear procedure with no reusable sub-topics.
 
-## The index pattern (f3s / f3s-rocky-vm-setup)
+## The index pattern (f3s)
 
 A sub-divided `SKILL.md` should contain:
 
@@ -49,6 +49,24 @@ agent loads the one reference that matches the task.
 - A reference that itself grows large can become an *index* into a subfolder:
   `references/storage.md` → `references/storage/zfs.md`,
   `references/storage/zrepl.md`. Keep this to one level of nesting.
+- A topic file that still grows past ~300 lines is split into sibling files in
+  the same area folder (`garage.md`, `garage-commands.md`, `garage-clients.md`),
+  not into a deeper folder; the area index groups them and names the one to
+  start with.
+
+## Folding related skills into one (f3s, audit, protonbridge)
+
+Several small skills that share a subject cost one always-loaded description
+each. Fold them into one skill when they are only ever used together or share a
+canonical home: each former `SKILL.md` body becomes a reference (or an area
+index), the surviving `SKILL.md` routes to them, and its description carries
+the union of the trigger phrases. `f3s` absorbed the eight `f3s-*` skills plus
+`miniflux-news`, `gogios`, `openwrt-router-management` and
+`refresh-irregular-ninja`; `audit` absorbed `audit-next-repo` and
+`audit-tagging`; `protonbridge` absorbed `protonbridge-aerc` and
+`protonbridge-imap`. Other skills link to the reference file directly
+(`../f3s/references/k3s.md`), which keeps working when the owning skill is
+`disable-model-invocation: true`.
 
 ## The "must not duplicate its own references" rule
 
@@ -64,12 +82,9 @@ grep -l "<unique line from SKILL.md>" skill/references/*.md
 ## Sub-division in this collection (status)
 
 - **Good index models:** `f3s`, `c-best-practices`, `bash-best-practices`,
-  `agent-task-management`, `llm-benchmark-comparison`, `music-collection`,
-  `f3s-rocky-vm-setup` (after refactor).
-- **Sub-divided during the DRY pass:** `f3s-rocky-vm-setup` (260 → ~40 line index),
+  `agent-task-management`, `llm-benchmark-comparison`, `music-collection`.
+- **Sub-divided during the DRY pass:** the rocky VM skill (260 → ~40 line index, now an `f3s` area),
   `blog-writing-style` (216 → ~120 lines; examples moved to `references/`).
-- **Borderline, kept inline by design:** `photo-processing` (snippets are the
-  skill's value).
 
 ## After sub-dividing
 

@@ -5,6 +5,7 @@ description: >-
   library rescans (including Kubernetes); re-indexes cmus; downloads from Tidal
   with tiddl. Use when the user works on a music library, Navidrome, cmus, beets,
   duplicate tracks, folder layout, full scan, or Tidal downloads (tiddl).
+disable-model-invocation: true
 ---
 
 # Music collection (beets, Navidrome, cmus, tiddl)

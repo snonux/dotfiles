@@ -7,7 +7,7 @@
 
 **Example usage:**
 - `/load-skill go-best-practices` - Loads ~/Notes/Prompts/skills/go-best-practices/SKILL.md
-- `/load-skill f3s-k3s` - Loads the k3s reference skill
+- `/load-skill f3s` - Loads the f3s homelab reference skill
 - `/load-skill` - Lists available skills (name + description) if no name provided
 
 ---

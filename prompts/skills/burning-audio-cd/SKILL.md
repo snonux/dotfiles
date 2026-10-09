@@ -1,6 +1,7 @@
 ---
 name: burning-audio-cd
 description: Burns a Red Book audio CD-R from a directory of FLAC files on a Fedora Linux host. Converts each FLAC to 44.1 kHz / 16-bit / stereo WAV with ffmpeg, then writes them as CD-DA tracks with cdrskin in DAO mode. Use when the user asks to burn, write, or master an audio CD / CD-R / CD-RW from FLACs, or mentions a CD writer / DVD-RW USB drive with a music folder to put on it. Triggers on, burn audio CD, burn CD-R, master audio CD, write FLAC to CD, audio CD from FLAC.
+disable-model-invocation: true
 ---
 
 # Burning audio CD-Rs from FLAC files

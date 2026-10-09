@@ -1,6 +1,7 @@
 ---
 name: creating-cd-mixes
 description: "Builds themed audio-CD mixes from FLAC files in the local music library. Picks tracks from the user's chosen genres/folders, shuffles, deduplicates, and packs them into N discs that fit a 74-min or 80-min CD-R/RW; copies FLACs to ~/Desktop/Music and writes a .txt tracklist per disc. Use when the user asks to burn/create/prepare audio CDs, CD-R, CD-RW, mix CDs, or compile FLACs for a CD player. Triggers on: burn CD, mix CD, audio CD, CD-R, CD-RW, compile FLACs for CD."
+disable-model-invocation: true
 ---
 
 # Creating CD mixes

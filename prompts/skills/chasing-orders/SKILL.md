@@ -1,6 +1,7 @@
 ---
 name: chasing-orders
 description: "Chases overdue crowdfunding pledges and pre-orders via Proton Mail, Kickstarter and seller portals, and follows up with sellers. Use when asked which deliveries are due or late, where an order is, or for a backer or tracking number. Triggers on: chase orders, deliveries due, overdue orders, where is my order, shipping status, tracking status, backer number, kickstarter deliveries, pre-order status, order follow-up."
+disable-model-invocation: true
 ---
 
 # Chasing Orders
@@ -36,7 +37,7 @@ Load the one that matches the task:
 
 ## Quick Reference
 
-- Mail access: [`protonbridge-imap`](../protonbridge-imap/SKILL.md); tunnel and the working password file: [`protonbridge-aerc`](../protonbridge-aerc/SKILL.md).
+- Mail access: [`protonbridge` IMAP](../protonbridge/references/imap.md); tunnel and the working password file: [`protonbridge` aerc](../protonbridge/references/aerc.md).
 - Order mail lives in `Folders/Kickstarter`, but shipping notices are usually in `Archive`; always search both.
 - Open orders are in `~/Notes/OrderStatus.md`, seller specifics in `~/Notes/OrderVendors.md`; read both first, update them last. Never name a seller or copy order data into this skill (public repo).
 - A missing shipping mail is not proof of "not shipped": check the vendor portal or the creator's tracking list before calling an order overdue.

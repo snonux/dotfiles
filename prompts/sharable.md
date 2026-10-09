@@ -18,8 +18,7 @@
 ./commands/work-on-tasks.md
 ./commands/tiny-work-on-tasks.md
 ./commands/load-skill.md
-./skills/audit-tagging
-./skills/audit-next-repo
+./skills/audit
 ./skills/timesamurai
 ./skills/100-go-mistakes
 ./skills/agent-task-management

@@ -1,6 +1,7 @@
 ---
 name: next-auto-task
 description: "Pick up and work on the next agent task tagged +auto that is due within 7 days (or has no due date), in the current git project or else in another project's repo under ~/git, then commit, push and bump the version when applicable. Triggers on: next auto task, next-auto-task, auto task, work next auto, pick up next auto task."
+disable-model-invocation: true
 ---
 
 # Next Auto Task

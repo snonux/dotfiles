@@ -1,6 +1,7 @@
 ---
 name: gemtexter
 description: "Manage the Gemtexter-powered foo.zone site: generate output, publish content branches, troubleshoot publish issues, and verify changes on https://foo.zone. Also covers publishing book notes — sourcing highlights from Supernote/KOReader (or any location the user names), authoring note pages under gemtext/notes, and promoting them to the gemfeed. Use when working on gemtexter, foo.zone-content, republishing the site, or creating/publishing book notes."
+disable-model-invocation: true
 ---
 
 # Gemtexter

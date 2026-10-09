@@ -24,7 +24,7 @@ sequence. This meta-skill orchestrates them so you only need a single command.
 4. **solid-principles** — Class-level SOLID analysis (SRP, OCP, LSP, ISP, DIP).
 5. **beyond-solid-principles** — System-level architecture principles (SoC, DRY, KISS, YAGNI, coupling, resilience, etc.).
 6. **agent-task-management** — Creates actionable tasks for design/convention findings; bug tasks follow **find-code-bugs** + this skill's `ask` rules.
-7. **audit-tagging** — Owns `audit/<date>` git markers; the **last** audit task created (workflow §6) tells the agent to follow that skill — do not duplicate its tagging procedure here.
+7. **audit** (`references/tagging.md`) — Owns `audit/<date>` git markers; the **last** audit task created (workflow §6) tells the agent to follow that skill — do not duplicate its tagging procedure here.
 
 ## Workflow
 
@@ -39,8 +39,8 @@ Detect the primary language(s) of the target code to decide whether to include
 the Go-specific skill.
 
 If the target is inside a git repo and this run does not already have an
-explicit `$START_TAG` from the caller (e.g. **audit-next-repo** step 4), load
-**audit-tagging** and follow its **Start tag** step now — always stamp a new
+explicit `$START_TAG` from the caller (e.g. **audit** (`references/next-repo.md`) step 4), load
+**audit** (`references/tagging.md`) and follow its **Start tag** step now — always stamp a new
 start tag for this run; collision `-N` handles same-day reuse. Do **not** skip
 Start tag merely because some `audit/<date>` tag already exists on the repo
 (prior audits, defer tags, and end markers are indistinguishable by name).
@@ -174,7 +174,7 @@ gate **and** the tagging task in workflow §6 when there is no git root **or**
 the audit produced no finding tasks (nothing to gate) — note that in the
 report. When skipping because there were **zero findings** but a `$START_TAG`
 was stamped for this run, still finalize the baseline now: load
-**audit-tagging** and follow **End tag** + **Push the end marker remotely** on
+**audit** (`references/tagging.md`) and follow **End tag** + **Push the end marker remotely** on
 that same `$START_TAG` (so a clean audit does not leave an unpushed local-only
 start tag). Do not create a gate with an empty `depends:` list.
 
@@ -191,22 +191,22 @@ fixed and the gate has re-verified). Capture the gate's alias ID from
 workflow §5, then:
 
 ```bash
-ask add +audit depends:<gate-id> "Tag <project> that the code-quality audit is done: follow the audit-tagging skill to move the audit/<date> marker to the post-fix HEAD and push the end marker"
+ask add +audit depends:<gate-id> "Tag <project> that the code-quality audit is done: follow the audit skill's tagging reference to move the audit/<date> marker to the post-fix HEAD and push the end marker"
 ```
 
 Tag it `+audit` (separate arg). Do **not** set a priority modifier. Annotate it
 so a fresh-context agent can finish without re-deriving tagging rules:
 
-- Exact `$START_TAG` string from workflow §1 / **audit-next-repo** (including
+- Exact `$START_TAG` string from workflow §1 / **audit** (`references/next-repo.md`) (including
   any `-N` suffix). Do **not** recompute `audit/$(date +%F)` when the task
   later becomes READY — that would invent a different day's name.
-- Load **audit-tagging** and follow its **End tag** + **Push the end marker
+- Load **audit** (`references/tagging.md`) and follow its **End tag** + **Push the end marker
   remotely** sections to move that same name to the current (post-fix)
   `HEAD` and push it.
 - Gate task ID it depends on; `ask list` must show that gate (and thus every
   finding) done before tagging.
 - Cross-link only: **do not** paste `git tag` / `git push` incantations here —
-  **audit-tagging** is the canonical home for naming, collision suffixes,
+  **audit** (`references/tagging.md`) is the canonical home for naming, collision suffixes,
   start→end move, and push/protected-tag fallbacks.
 
 This tagging task is the **last** task created for the audit batch and the

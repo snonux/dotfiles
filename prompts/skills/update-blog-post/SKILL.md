@@ -1,6 +1,7 @@
 ---
 name: update-blog-post
 description: Update an existing blog post in .gmi.tpl format from foo.zone-content, commit, push, and optionally publish.
+disable-model-invocation: true
 ---
 
 # Update blog post

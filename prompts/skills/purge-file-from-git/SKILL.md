@@ -1,6 +1,7 @@
 ---
 name: purge-file-from-git
 description: Completely remove a file from git history using git-filter-repo.
+disable-model-invocation: true
 ---
 
 # Purge file from git

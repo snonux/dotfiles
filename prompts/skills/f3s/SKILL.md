@@ -1,11 +1,14 @@
 ---
 name: f3s
-description: "Hub reference skill for the f3s homelab—four Beelink S12 Pro hosts (f0/f1/f2/f3) running FreeBSD with Rocky Linux Bhyve VMs and a k3s Kubernetes cluster. f0/f1/f2 run r0/r1/r2 k3s nodes; f3 is standalone bhyve only (not part of k3s) and hosts the plain Rocky Linux VM named rocky; plus four Raspberry Pi 3 nodes (pi0–pi3). This hub owns the master host/IP inventory, the physical hosts, bhyve layer, power, WireGuard mesh, and off-LAN access; detailed subsystems live in sibling skills: f3s-storage, f3s-k3s, f3s-observability, f3s-workloads, f3s-raspberry-pi, f3s-dtail (also f3s-pkgrepo, f3s-rocky-vm-setup). Use for host/network/context questions or as the entry point to the f3s skill family."
+description: "Reference skill for the whole f3s homelab: FreeBSD f-hosts (f0-f3), bhyve Rocky VMs (r0-r2, rocky), WireGuard mesh, storage (ZFS, zrepl, CARP, NFS), the k3s cluster, observability, hosted workloads (Immich, Garage, Player, yChat, Forgejo, Miniflux news, irregular.ninja), Gogios, the OpenWrt router, Raspberry Pis (pi0-pi3), DTail/dserver, the pkgrepo, and the rocky VM. Use for any f3s host, network, storage, cluster, or app question. Triggers on: f3s, homelab, f0, r0, k3s, zrepl, CARP, NFS, pkgrepo, dserver, Pi-hole, JetKVM, rocky VM, miniflux, RSS news, gogios, openwrt, irregular ninja."
+disable-model-invocation: true
 ---
 
 # f3s Homelab Reference
 
-**f3s** = **f**reeBSD + **k3s**. Four physical Beelink S12 Pro mini-PCs (Intel N100) running FreeBSD as the base OS. f0/f1/f2 each host a Rocky Linux 9 bhyve VM forming a 3-node HA k3s Kubernetes cluster. f3 is a standalone host for bhyve VMs only — not part of the k3s cluster — and runs a plain Rocky Linux 9 VM named `rocky`.
+**f3s** = **f**reeBSD + **k3s**. Four physical Beelink S12 Pro mini-PCs (Intel N100) running FreeBSD as the base OS. f0/f1/f2 each host a Rocky Linux 9 bhyve VM forming a 3-node HA k3s Kubernetes cluster. f3 is a standalone host for bhyve VMs only — not part of the k3s cluster — and runs a plain Rocky Linux 9 VM named `rocky`. Four Raspberry Pi 3 nodes (pi0–pi3) serve the static site and Pi-hole.
+
+This skill is loaded explicitly (`/f3s`); it is not auto-selected by the model.
 
 ## When to Use
 
@@ -13,27 +16,35 @@ description: "Hub reference skill for the f3s homelab—four Beelink S12 Pro hos
 - Making decisions about configuration, storage, networking, or workload placement
 - Answering questions about how the setup works
 
-## Reference Files
+## How to Navigate (three levels)
 
-This hub keeps the cross-cutting host/network references that every other f3s
-skill links back to. Topic-specific detail lives in the sibling skills (see
-"Related skills" below). Detailed reference documentation is in the `references/`
-subfolder:
+Load as little as the task needs:
 
-- [Hardware](references/hardware.md) — Beelink S12 Pro specs, network switch, IPs, MAC addresses, Wake-on-LAN
-- [FreeBSD Setup](references/freebsd-setup.md) — Base OS install, packages, ZFS snapshots, configuration
-- [UPS & Power](references/ups-power.md) — APC BX750MI, gonf-managed apcupsd on f0 (USB) and f1/f2/f3 (net clients)
-- [Console (HDMI/JetKVM) & Shutdown](references/console-jetkvm-shutdown.md) — FreeBSD 15.1 regressed console to vga 640x480 (fix `efi_max_resolution="1080p"` in loader.conf); **JetKVM inventory** — one per f-host, **DHCP IPs that can change** (identify by MAC `30:52:53:…`/device ID; discovery sweep documented; `.151/.158/.191/.198` on 2026-10-06), shared password in `~/.jetkvm`, HTTP login + WebRTC JSON-RPC, read-only health probe [`scripts/jetkvm-probe.py`](scripts/jetkvm-probe.py), `.151` = f2 with no HDMI lock (open); only 1080p captures; shutdown hang (`rc.shutdown` 90s watchdog → single-user → un-wakeable by WoL) from slow bhyve k3s guest stop — **mitigated 2026-06-28**: `rcshutdown_timeout="300"` set on f0/f1/f2 (vm-bhyve 1.7.3 has no `stop_timeout` lever); safe remote-reboot procedure (`vm stopall` then `reboot`)
-- [Kernel Panics & Hangs](references/kernel-panics.md) — investigating f-host crashes: where the dumps/logs are, decoding vmcores without debug symbols (`dmesg -M`, `nm`), boot timing via `kern.msgbuf_show_timestamp`; fleet-wide 15.1 ZFS-taskq panic signature (NULL IP / `sched_ule_sswitch+0x888`) = kstack VA/PA aliasing at boot mount/shutdown export, suspect N100 PCID/INVLPG erratum (fix plan: `vm.pmap.pcid_enabled=0`); the f1 2026-09-25 un-dumped hang
-- [Rocky Linux VMs](references/rocky-linux-vms.md) — Bhyve, vm-bhyve, VM config, NVMe disk fix; FreeBSD VM on f3 (migrated from f0)
-- [f3 Rocky VM](references/f3-rocky-vm.md) — Plain Rocky Linux 9 VM on f3 (`rocky`, `192.168.1.123`), autostart policy, root SSH
-- [Bootstrap Rocky bhyve VM](references/bootstrap-rocky-bhyve.md) — Runbook for creating a new plain Rocky Linux bhyve guest with unattended kickstart
-- [Backup Restore Test](references/backup-restore-test.md) — f3 clone of `freebsd` → `backuprestoretest` (same IP; `backup` pool on `nda1`+`nda2` → `/backup`)
-- [WireGuard Mesh](references/wireguard.md) — Mesh topology, IP assignments, peer configs (the canonical WireGuard reference for the whole homelab)
-- [Remote Access](references/remote-access.md) — reaching f-hosts, r-VMs, rocky, and Pis from outside the LAN via fishfinger/blowfish ProxyJump; user/key requirements per host type; f3 WireGuard caveat
-- [Shelly Plugs](references/shelly-plug.md) — two **Plug M Gen 3**: **shelly1** (`192.168.1.28`) rack fans (boot rc.d + `f3sctl fans` / power-sequence thermal guard); **shelly2** (`192.168.1.29`) f-host AC (`f3sctl ac` / `/ac` API, independent of power on/off); shared digest auth (`admin`) and secret **`/keys/shelly_plug.secret`** / **`~/.shelly_plug`**
+1. **This file** — the area map and the canonical host/IP table. Often enough for "which host / which IP" questions.
+2. **One area index** (`references/<area>.md`) — the area's overview, quick reference, and a one-line map of its topic files. Read exactly one, the one matching the task.
+3. **One topic file** (`references/<area>/<topic>.md`) — the full procedure or runbook. Read only the topic the area index points to.
+
+Do not read a whole area directory up front. Follow a cross-area link only when the task actually crosses areas.
+
+## Areas
+
+| Area index | Covers |
+|------------|--------|
+| [Physical hosts](references/hosts.md) | Beelink hardware, FreeBSD base setup and upgrades, UPS, Shelly plugs (fans, AC), JetKVM, console resolution, shutdown hangs, safe reboot, kernel panics |
+| [bhyve VMs](references/vms.md) | vm-bhyve, the r0–r2 Rocky guests, NVMe disk fix, bootstrapping a new Rocky guest, the FreeBSD VM and backup-restore test on f3 |
+| [Network](references/network.md) | WireGuard mesh (topology, per-OS setup, generator, troubleshooting), off-LAN access via fishfinger/blowfish, OpenWrt router DNS/DHCP repair |
+| [Storage](references/storage.md) | ZFS (`zdata`), USB keys, zrepl, CARP VIP, NFS over stunnel, nfs-mount-monitor, backups, storage and thermal troubleshooting |
+| [k3s cluster](references/k3s.md) | Install, kubeconfig, off-LAN kubectl, ingress (relayd, cert-manager), ArgoCD, etcd recovery, gonf r-node rollout |
+| [Observability](references/observability.md) | Prometheus, Alloy/Loki/Tempo/Grafana state, alerting, FreeBSD node_exporter, Gogios deployment, network-traffic troubleshooting |
+| [Workloads](references/workloads.md) | Immich, Garage (S3), Player, yChat, Forgejo, goprecords/uptimed, reading Miniflux news, refreshing the irregular.ninja photo album |
+| [Raspberry Pis](references/raspberry-pi.md) | pi0/pi1 NetBSD static site (bozohttpd, npf, uptimed), pi2/pi3 Pi-hole and LAN wildcard DNS |
+| [DTail / dserver](references/dtail.md) | dserver deployment and operations on port 2222 across Pis and r0–r2 |
+| [Package repo](references/pkgrepo.md) | `pkgrepo.f3s.buetow.org`: repo layout, packaging workflow, DTail package, client setup, OpenBSD build VM |
+| [rocky VM](references/rocky-vm.md) | The plain Rocky Linux VM on f3: bhyve config, SSH keys, git remotes, tooling, tmux, privileges, zrepl |
 
 ## Quick Reference: Host IPs
+
+This table is the canonical host/IP inventory; every area links back here.
 
 | Host | Role | LAN IP | WireGuard IP |
 |------|------|--------|--------------|
@@ -54,21 +65,6 @@ subfolder:
 | pi1 | Raspberry Pi 3, **NetBSD 11.0** (evbarm-aarch64), static `f3s.buetow.org` backend | 192.168.1.126 | 192.168.2.204 |
 | pi2 | Raspberry Pi 3, Rocky Linux 9, Pi-hole (Docker, host net) | 192.168.1.127 | — |
 | pi3 | Raspberry Pi 3, Rocky Linux 9, Pi-hole (Docker, host net) | 192.168.1.128 | — |
-
-## Related skills
-
-Detailed subsystems were carved out of this hub into focused sibling skills. Load
-the one that matches the task; this hub stays the canonical home for the host/IP
-table, physical hosts, WireGuard mesh, and off-LAN access that they all link back to.
-
-- [`f3s-storage`](../f3s-storage/SKILL.md) — ZFS (`zdata`), zrepl, CARP VIP, NFS over stunnel, nfs-mount-monitor, USB keys, backups, storage troubleshooting
-- [`f3s-k3s`](../f3s-k3s/SKILL.md) — k3s cluster install, off-LAN access, ingress, ArgoCD, etcd recovery, r-node gonf rollout
-- [`f3s-observability`](../f3s-observability/SKILL.md) — Prometheus/Alloy/Loki/Tempo + alerting, FreeBSD node_exporter
-- [`f3s-raspberry-pi`](../f3s-raspberry-pi/SKILL.md) — pi0/pi1 NetBSD static `f3s.buetow.org`/`snonux.foo` site (bozohttpd), pi2/pi3 Pi-hole + LAN wildcard DNS
-- [`f3s-workloads`](../f3s-workloads/SKILL.md) — hosted apps: Immich, Garage, Player, yChat, goprecords/uptimed
-- [`f3s-dtail`](../f3s-dtail/SKILL.md) — DTail/dserver deployment/ops (SSH port 2222)
-- [`f3s-pkgrepo`](../f3s-pkgrepo/SKILL.md) — `pkgrepo.f3s.buetow.org`, repo layout, package publication, client repo config (incl. the `dtail` package build)
-- [`f3s-rocky-vm-setup`](../f3s-rocky-vm-setup/SKILL.md) — the plain Rocky Linux VM on f3 (`rocky`, `192.168.1.123`): SSH keys, git remotes, tooling, zrepl, user privileges
 
 ## Config Repository
 

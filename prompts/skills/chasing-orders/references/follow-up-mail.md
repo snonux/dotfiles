@@ -36,7 +36,7 @@ off "Thanks and regards, Paul". No signature block.
 ## Sending
 
 Bridge SMTP is `127.0.0.1:1025` with STARTTLS and the same login as IMAP (see
-[`protonbridge-imap`](../../protonbridge-imap/SKILL.md); use the password file
+[`protonbridge` IMAP](../../protonbridge/references/imap.md); use the password file
 named in [mail-search.md](mail-search.md)). The certificate is self-signed.
 
 ```python

@@ -1,6 +1,7 @@
 ---
 name: continue-reminder
 description: Resume a paused coding-agent session after a rate limit, cooldown, or scheduled break by using systemd user timers to send keystrokes to the correct tmux pane. Supports Claude, Codex, OpenCode, and AMP agents.
+disable-model-invocation: true
 ---
 
 # Continue Reminder via Systemd

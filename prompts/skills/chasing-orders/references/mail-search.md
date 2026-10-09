@@ -1,9 +1,9 @@
 # Mail Search
 
 Connection details, credentials and the basic `imaplib` recipe are owned by
-[`protonbridge-imap`](../../protonbridge-imap/SKILL.md). The tunnel, the pod
+[`protonbridge` IMAP](../../protonbridge/references/imap.md). The tunnel, the pod
 and the password file are owned by
-[`protonbridge-aerc`](../../protonbridge-aerc/SKILL.md). This file covers only
+[`protonbridge` aerc](../../protonbridge/references/aerc.md). This file covers only
 what is specific to finding order mail.
 
 ## Password file
@@ -11,7 +11,7 @@ what is specific to finding order mail.
 The Bridge password has one home, `~/.config/aerc/protonbridge-password`.
 `scripts/imap_search.py` reads that file, and `~/.protonbridge` derives its
 password from it. If login fails with `no such user`, follow the
-troubleshooting in `protonbridge-imap` and `protonbridge-aerc` (the same error
+troubleshooting in the `protonbridge` skill's IMAP and aerc references (the same error
 also appears for a few minutes after the Bridge pod restarts, while it syncs).
 
 ## Folders

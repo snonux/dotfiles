@@ -1,6 +1,7 @@
 ---
 name: fedora-power-management
 description: "Manage CPU/power profiles on this Fedora + GNOME laptop using tuned/tuned-ppd, including automatic switching to performance on AC and balanced on battery. Use when asked to change, inspect, or auto-switch power/CPU profiles, fix battery vs AC behavior, or troubleshoot tuned/tuned-ppd. Triggers on: power profile, power mode, CPU performance, battery vs AC, tuned, tuned-ppd, powerprofilesctl."
+disable-model-invocation: true
 ---
 
 # Fedora Power Management

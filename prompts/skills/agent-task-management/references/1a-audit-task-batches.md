@@ -35,12 +35,12 @@ After creating the closure gate, create one final `+audit` task that depends
 only on the gate alias ID:
 
 ```bash
-ask add +audit depends:<gate-id> "Tag <project> that the code-quality audit is done: follow the audit-tagging skill to move the audit/<date> marker to the post-fix HEAD and push the end marker"
+ask add +audit depends:<gate-id> "Tag <project> that the code-quality audit is done: follow the audit skill's tagging reference to move the audit/<date> marker to the post-fix HEAD and push the end marker"
 ```
 
 Annotate it with the exact `$START_TAG` name, including any `-N` suffix, and
-instructions to load `audit-tagging` for the end-marker and push steps. Do not
+instructions to load `audit` (`references/tagging.md`) for the end-marker and push steps. Do not
 paste `git tag` or `git push` commands into the annotation. If no start tag is
-already in context for an ATM-only batch, use `audit-tagging` to create one at
+already in context for an ATM-only batch, use `audit` (`references/tagging.md`) to create one at
 this point and record its exact name; move and push it when the tagging task is
 ready.

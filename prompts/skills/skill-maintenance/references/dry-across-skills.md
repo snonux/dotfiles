@@ -21,7 +21,7 @@ instructions. A single canonical home + cross-links eliminates drift.
    `../owner-skill/references/x.md`.
 3. **Declare prerequisites.** If skill B depends on skill A's knowledge, B's
    `SKILL.md` should state the prerequisite up front (e.g. "Prerequisites: the
-   `protonbridge-imap` skill loaded for IMAP access").
+   `protonbridge` skill loaded for IMAP access").
 4. **Keep skills self-contained where the dependency is loose.** The Agent
    Skills spec prefers self-contained skills. Only centralize when (a) the
    knowledge is genuinely shared by 2+ skills AND (b) it is stable enough that
@@ -45,7 +45,7 @@ instructions. A single canonical home + cross-links eliminates drift.
 Relative path from the referencing skill's `SKILL.md`:
 
 ```markdown
-Connect as shown in the [`protonbridge-imap` skill](../protonbridge-imap/SKILL.md).
+Connect as shown in the [`protonbridge` skill](../protonbridge/references/imap.md).
 The general discipline lives in
 [`agent-task-management`](../agent-task-management/references/verification-honesty.md).
 Follow the conventions in [`gemtext-conventions.md`](../blog-writing-style/references/gemtext-conventions.md).
@@ -69,7 +69,7 @@ let them choose the owner. Criteria for the recommendation:
 
 ## Worked examples from this collection
 
-- **Proton Bridge IMAP connect** → owned by `protonbridge-imap/SKILL.md`.
+- **Proton Bridge IMAP connect** → owned by `protonbridge/references/imap.md`.
   Other mail skills reference it instead of re-deriving the
   STARTTLS/`ssl.CERT_NONE` connect block.
 - **Verification honesty discipline** → owned by
@@ -81,4 +81,4 @@ let them choose the owner. Criteria for the recommendation:
   `gemtexter`'s compose-blog-post reference and `update-blog-post` link to it instead of restating
   the structure/TOC/links/images/format rules.
 - **f3s host table** → owned by `f3s/SKILL.md`.
-  `rocky-vm-setup/references/overview.md` keeps only the rocky-VM-local view.
+  `f3s/references/rocky-vm/overview.md` keeps only the rocky-VM-local view.

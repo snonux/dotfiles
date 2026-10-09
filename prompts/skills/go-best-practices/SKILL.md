@@ -1,6 +1,7 @@
 ---
 name: go-best-practices
 description: Enforce Go best practices for project structure, style, and conventions in the current codebase.
+disable-model-invocation: true
 ---
 
 # Go Best Practices
