@@ -24,3 +24,7 @@ scope reference and only the action reference needed for the request.
 Read only the references that the requested action requires. Task descriptions
 and annotations must contain the context a fresh worker needs; read them in full
 before implementing a task.
+
+Completed tasks get a fresh-context sub-agent review by default. If the user
+explicitly asks to skip it (to speed up the work), follow "Skipping the
+sub-agent review" in [3-complete-task.md](references/3-complete-task.md).

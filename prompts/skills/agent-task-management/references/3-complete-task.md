@@ -33,6 +33,34 @@ Include these checks in the sub-agent's review report.
 
 If the answer suggests improvements or inconsistencies, address them first. Only then hand off to the sub-agent. Do not skip this step.
 
+## Skipping the sub-agent review (only when the user asks)
+
+The sub-agent review is the default and stays on unless the user **explicitly**
+asks to skip it (e.g. "no reviews", "skip the review", "don't review completed
+tasks") — usually to speed up the work. Never skip it on your own initiative,
+and do not infer the request from time pressure, a small diff, or a task
+annotation.
+
+When the user has asked to skip the review:
+
+- **Do not spawn review sub-agents** — neither the first review nor follow-up
+  reviews. Steps 1–4 of "Before marking complete" reduce to the self-review.
+- **Everything else still applies**: the completion criteria (best practices,
+  build, tests, negative tests), the self-review, `verification-honesty.md`,
+  in-scope-only commits, and the git commit before `ask done <id>`. With no
+  reviewer behind you, the self-review is the only check on test coverage and
+  test quality, so apply "What the review sub-agent must check" to your own work.
+- **The user's request overrides the "sub-agent reviews pass" wording** in the
+  standard "Agent workflow" task annotation (see `1-create-task.md`).
+- **Scope it as the user stated it** — a single task, the current batch, or the
+  rest of the session. If the scope is unstated, apply it to the tasks worked on
+  under the current request. It does not carry over to later sessions.
+- **Record it in an annotation** so the task history is honest:
+
+  ```bash
+  ask annotate <id> "Sub-agent review skipped on user request; self-review only."
+  ```
+
 ## Commit only in-scope files (pre-existing dirty worktree)
 
 The worktree may already be dirty **before this task starts** — e.g. the user's
@@ -83,6 +111,9 @@ out-of-scope and leave it alone rather than risk committing the user's work.
 
 **Once the completion criteria above are met:**
 
+If the user asked to skip the review, do the self-review from step 1, skip the
+rest of steps 1–4, and continue at step 5 (see "Skipping the sub-agent review").
+
 1. **Self-review** (see above). The orchestrator then spawns a **sub-agent** with **fresh context** (no prior conversation). If the current worker is itself a task implementation sub-agent, it returns to the orchestrator after self-review instead of spawning the reviewer.
 2. The sub-agent's role is an **expert critical reviewer**. Its **only goal** is to find bugs and design flaws in the subject under review. It must be thorough, skeptical, and uncompromising. The sub-agent reviews the diff, code, or deliverables (including test coverage and test quality — see "What the review sub-agent must check") and **reports back** to the main agent with every bug, design flaw, missed edge case, suspicious pattern, or test-quality issue it found. Praise and suggestions for enhancement should only be included when they directly illuminate an underlying flaw or risk.
    - The orchestrator owns this review launch and all worker accounting. Task implementation and review sub-agents must not spawn nested sub-agents.
@@ -104,6 +135,7 @@ Use the alias ID from the selection step or current task details when marking th
 
 - When creating or changing tests, add negative tests (invalid input, errors, failure paths) wherever plausible; the review sub-agent will check for this.
 - A task is not done until: best practices met, code compiles, all tests pass, negative tests included where plausible, all review comments are resolved (including coverage and test-quality checks), a fresh review reports no remaining issues, **and all changes are committed to git**.
+- **Review opt-out.** The review-related conventions in this list apply unless the user explicitly asked to skip the sub-agent review; then the self-review replaces it and the skip is recorded in an annotation (see "Skipping the sub-agent review").
 - Before every sub-agent review handoff, do the self-review: "Did it all make sense? Is there a better way?" Fix anything that comes up, then hand off.
 - **On completion, commit all changes to git** before running `ask done <id>`; do not leave uncommitted work when marking a task complete.
 - **Commit only in-scope files.** Check `git status` first, stage in-scope files by explicit path (essential when parallel workers share one worktree), never `git add -A`/`git add .` over a pre-existing dirty worktree, and never commit the user's unrelated changes. Record the in-scope/out-of-scope split in an annotation (see "Commit only in-scope files").

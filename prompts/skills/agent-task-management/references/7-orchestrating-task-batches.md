@@ -114,3 +114,9 @@ no remaining issues. Commit the in-scope changes, mark the task done, then
 check for the next started or ready task. The completion and review procedure
 is in [3-complete-task.md](3-complete-task.md). Review sub-agents count as
 workers: apply the memory guard before launching each reviewer as well.
+
+If the user explicitly asked to skip reviews (to speed up the batch), launch no
+review sub-agents: each task goes from its self-review straight to commit and
+`ask done <id>`. Tell every implementation sub-agent about the opt-out so it
+does not wait for a reviewer. See "Skipping the sub-agent review" in
+[3-complete-task.md](3-complete-task.md).
