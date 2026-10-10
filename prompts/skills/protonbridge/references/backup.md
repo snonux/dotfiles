@@ -18,7 +18,8 @@ retained. The Bridge session in the cluster is already authenticated.
 
 ## Run
 
-The export takes hours, so run it in the background and log to a file. `-I`
+The export takes about an hour for 3 GB / 19,000 messages, so run it in the
+background and log to a file. `-I`
 keeps Python from importing anything from the current directory.
 
 ```bash
@@ -73,11 +74,18 @@ DEST_DIR/
 
 - The last log line is `DONE: <n> exported, <failed> failed, <unique> unique
   messages`; `failed` must be 0.
-- Per mailbox, the number of lines in `manifest.tsv` must equal the message
+- Per mailbox, the number of lines in `manifest.tsv` should equal the message
   count IMAP reports for it:
 
 ```bash
 find DEST_DIR -name manifest.tsv -exec wc -l {} +
 ```
+
+- Small differences right after a long run are normal: mail that arrived
+  during the run is missing, and a message moved or deleted meanwhile leaves
+  an extra manifest line. Run the script once more; the second pass takes
+  seconds and should report only those few messages. Compare UID sets
+  (`UID SEARCH ALL` against the first manifest column) rather than counts when
+  it matters, since one arrival and one move cancel out in the count.
 
 - No `*.part` files may remain; one is a write that was interrupted.
