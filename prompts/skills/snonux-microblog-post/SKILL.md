@@ -1,6 +1,6 @@
 ---
 name: snonux-microblog-post
-description: Create and publish a new microblog post to snonux.foo using the snonux static generator. Handles text, markdown, and images dropped into the inbox directory. Use when asked to post a thought, photo, link, or short update to the microblog. Triggers on: post to snonux, snonux.foo, microblog post, add to the microblog.
+description: "Create and publish a new microblog post to snonux.foo using the snonux static generator. Handles text, markdown, and images dropped into the inbox directory. Use when asked to post a thought, photo, link, or short update to the microblog. Triggers on: post to snonux, snonux.foo, microblog post, add to the microblog."
 disable-model-invocation: true
 ---
 

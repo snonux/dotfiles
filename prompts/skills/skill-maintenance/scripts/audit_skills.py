@@ -29,6 +29,12 @@ SOFT_REFERENCE_LINES = 300
 SKIP_DIRS = {"synced"}
 LINK = re.compile(r"\]\(([^)\s]+)\)")
 TRIGGER = re.compile(r"\b(use when|use for|triggers?)\b", re.I)
+# A top-level frontmatter value written as a plain (unquoted) YAML scalar.
+PLAIN_VALUE = re.compile(r"^([A-Za-z-]+):[ \t]+([^\s\"'>|].*)$", re.M)
+# What a strict YAML parser will not accept inside a plain scalar: ": " starts
+# a nested mapping, " #" starts a comment, and a leading indicator character
+# starts another node type altogether.
+PLAIN_HAZARD = re.compile(r":\s|:$|\s#|^[\[\]{}&*!%@`,?#-]")
 
 
 class Report:
@@ -70,6 +76,18 @@ def description_of(front):
         return ""
     raw = re.sub(r"^[>|]-?\s*", "", match.group(1).strip())
     return re.sub(r"\s+", " ", raw).strip("\"'")
+
+
+def unsafe_plain_values(front):
+    """Keys whose unquoted value breaks a strict YAML parser.
+
+    pi parses frontmatter with a real YAML library and drops the whole skill on
+    a parse error ("Nested mappings are not allowed in compact mappings"),
+    while Claude Code reads the same line leniently, so the breakage only shows
+    up in pi. The usual culprit is a description with "Triggers on: ...".
+    """
+    return [key for key, value in PLAIN_VALUE.findall(front)
+            if PLAIN_HAZARD.search(value.strip())]
 
 
 def load_skills(root):
@@ -114,6 +132,9 @@ def check_frontmatter(skills, report):
         extra = set(re.findall(r"^([A-Za-z-]+):", front, re.M)) - SPEC_KEYS
         if extra:
             report.error(name, f"non-spec frontmatter keys {sorted(extra)} (move under metadata)")
+        for key in unsafe_plain_values(front):
+            report.error(name, f"{key} is an unquoted YAML value containing ': ', ' #' or a leading indicator; "
+                               "wrap it in double quotes (pi fails to parse it and skips the skill)")
         if not desc:
             report.error(name, "no description (the skill will not load)")
         elif len(desc) > MAX_DESCRIPTION:

@@ -39,13 +39,14 @@ Detailed reference documentation is in the `references/` subfolder:
 - [ ] `SKILL.md` does not re-inline content already in its own `references/`
 - [ ] Each reference file is focused (one topic); refs one level deep, or one area index deeper for a large skill
 - [ ] Frontmatter valid: `name` (lowercase, hyphens, ≤64), `description` (≤1024, specific keywords + when-to-use)
+- [ ] `description` is double-quoted (or a block scalar): an unquoted `Triggers on: ...` is invalid YAML and pi skips the skill
 - [ ] `description` includes trigger phrases so the agent loads it on match, and stays near 300 characters
 - [ ] Manual-only skills carry both `disable-model-invocation: true` and `agents/openai.yaml`; callers link to them by path
 - [ ] File references use relative paths from the skill root
 - [ ] Shared knowledge has exactly one canonical home; others cross-link, don't duplicate
 - [ ] Cross-skill links resolve: `../sibling/SKILL.md` or `../sibling/references/x.md`
 - [ ] Scripts self-contained, helpful errors, edge cases handled
-- [ ] No spec warnings (run `pi` validation; missing `description` = not loaded)
+- [ ] No spec warnings: `pi --verbose` lists no `[Skill conflicts]` at startup (missing `description` or unparsable frontmatter = not loaded)
 
 ## Workflow
 
@@ -55,5 +56,5 @@ Detailed reference documentation is in the `references/` subfolder:
 4. **Sub-divide.** Load [references/sub-division.md](references/sub-division.md); split oversized `SKILL.md`s into an index + focused references.
 5. **Decide.** Present the plan; get approval on conflicts before editing.
 6. **Refactor.** Apply edits; preserve all information (move, don't delete). For renames, folds and deletions follow [references/moving-skills.md](references/moving-skills.md).
-7. **Verify.** Re-run `scripts/audit_skills.py` until it reports no errors.
+7. **Verify.** Re-run `scripts/audit_skills.py` until it reports no errors, then start `pi --verbose` and confirm every skill is listed under `[Skills]` with no `[Skill conflicts]` section.
 8. **Commit.** Use the `commit-skills` skill to summarize and push changes.

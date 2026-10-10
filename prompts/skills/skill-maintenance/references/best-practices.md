@@ -46,6 +46,21 @@ description: Helps with PDFs.
 
 This collection's convention: end descriptions with `Triggers on: <comma-separated phrases>.`
 
+### Quote the description
+
+Always wrap the description in double quotes (or use a `>` block scalar):
+
+```yaml
+description: "Purges a file from git history. Use when a secret must go. Triggers on: purge file from git."
+```
+
+Unquoted, the `: ` after `Triggers on` (or any other colon-space, or a ` #`)
+is YAML syntax. pi parses frontmatter with a strict YAML library, reports
+`Nested mappings are not allowed in compact mappings` under `[Skill conflicts]`
+at startup and **skips the skill**. Claude Code reads the same line leniently,
+so the skill looks fine there and is silently missing in pi. A description
+that itself contains `"` needs it escaped as `\"`, or a block scalar instead.
+
 ### Description budget
 
 Descriptions are the only part of a skill that is loaded into every session,
@@ -110,7 +125,9 @@ agent read an index that only points at one file. The rules are in
 ## Validation
 
 Pi validates skills against the Agent Skills standard. Most issues warn but
-still load. **Exception: skills with missing `description` are not loaded.**
+still load. **Exceptions: skills with a missing `description`, or with
+frontmatter that is not valid YAML, are not loaded** — the latter are listed
+under `[Skill conflicts]` at startup (`pi --verbose`; print mode `-p` hides it).
 Name collisions (same name from different locations) warn and keep the first.
 
 ## Skill commands
