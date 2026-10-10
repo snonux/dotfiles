@@ -40,10 +40,10 @@ Create and publish a short microblog post to snonux.foo.
 
 6. **Preview and confirm.** Before writing any files to the inbox or running snonux, show the user the composed post text (and note any image that will be included). Wait for explicit confirmation ("looks good", "go ahead", etc.) before proceeding. If the user requests changes, revise and show the preview again.
 
-7. **Run snonux.** Only after confirmation, write files to the inbox and run from `~/git/snonuxmicroblog/`:
+7. **Run snonux.** Only after confirmation, write files to the inbox and run from `~/git/snonux.foo/`:
 
    ```sh
-   cd ~/git/snonuxmicroblog
+   cd ~/git/snonux.foo
    ./snonux --input ~/.gosdir/snonux/inbox/ --output ~/.gosdir/snonux/dist/ --sync
    ```
 
@@ -58,4 +58,4 @@ Create and publish a short microblog post to snonux.foo.
 
 For full documentation on flags, output structure, supported file types, and theme options, read:
 
-=> ~/git/snonuxmicroblog/README.md
+=> ~/git/snonux.foo/README.md
