@@ -1,6 +1,6 @@
 ---
 name: protonbridge
-description: "Reads Proton Mail over the local Proton Bridge IMAP port and manages the aerc connection to the Bridge in the f3s k3s cluster (tunnel, pinned certificate, credentials). Use for inbox or folder questions, aerc setup, and login or certificate errors. Triggers on: protonbridge, proton mail, protonmail, imap, list emails, read inbox, aerc mail, Proton Bridge tunnel."
+description: "Reads Proton Mail over the local Proton Bridge IMAP port and manages the aerc connection to the Bridge in the f3s k3s cluster (tunnel, pinned certificate, credentials). Use for inbox or folder questions, full mail backups or exports, aerc setup, and login or certificate errors. Triggers on: protonbridge, proton mail, protonmail, imap, list emails, read inbox, aerc mail, Proton Bridge tunnel, backup mail, export mail."
 ---
 
 # Proton Bridge
@@ -14,6 +14,7 @@ Never print the Bridge-generated password, and never commit it.
 ## When to Use
 
 - Reading, listing, searching, counting or fetching mail, checking the inbox, listing folders
+- Backing up or exporting all mail to a local directory
 - Setting up, starting, validating or troubleshooting aerc against the Bridge
 - Certificate errors, rejected logins, a rotated Bridge password, or a dead tunnel
 
@@ -23,6 +24,7 @@ Load the one that matches the task:
 
 - [IMAP access](references/imap.md) — reading mail with Python `imaplib`: loading `~/.protonbridge`, connecting with STARTTLS (not `IMAP4_SSL`), listing folders, searching, fetching without marking as read, a one-shot shell helper, IMAP troubleshooting
 - [aerc and the tunnel](references/aerc.md) — the path from aerc to the Bridge pod: architecture, canonical files, the f3s Argo CD deployment, bootstrap order, the expected aerc account, starting and inspecting the `protonbridge-k3s-tunnel` service, end-to-end health check, recreating the tunnel, refreshing credentials and the pinned certificate, troubleshooting order
+- [Backup](references/backup.md) — exporting every mailbox to `.eml` files with `scripts/export_mailboxes.py`: sizing the job, running it in the background, the resulting layout and manifests, resuming, the wedged port-forward on large messages, verifying the result
 
 ## Quick Reference
 

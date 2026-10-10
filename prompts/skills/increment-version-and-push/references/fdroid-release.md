@@ -64,7 +64,7 @@ This table is a copy and may be behind; `apps.yml` and `docs/releasing-apps.md` 
 
    Without `gh`, use the GitHub MCP `actions_run_trigger` (method `run_workflow`, workflow `release.yml`, ref the default branch, inputs `{"tag": "vX.Y.Z"}`).
 
-   If the grep prints 0, the workflow can only rebuild existing tags (File Browser's `android-release.yml` was still like that on 2026-10-10), and a manual run for a new tag fails at checkout with "couldn't find remote ref" without creating anything. Then the tag is pushed the old way, which only works from Paul's own machine; in a cloud session, ask Paul to run it:
+   If the grep prints 0, the workflow can only rebuild existing tags, and a manual run for a new tag fails at checkout with "couldn't find remote ref" without creating anything. Then the tag is pushed the old way, which only works from Paul's own machine; in a cloud session, ask Paul to run it:
 
        git tag vX.Y.Z; and git push origin vX.Y.Z
 
