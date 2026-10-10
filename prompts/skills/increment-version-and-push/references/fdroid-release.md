@@ -38,7 +38,12 @@ This table is a copy and may be behind; `apps.yml` and `docs/releasing-apps.md` 
 
 ## 4. Steps
 
-1. Start from an up-to-date, clean main branch.
+1. Find the repo's default branch and start from an up-to-date, clean checkout of it. It is `main` in some app repos and `master` in others (File Browser), so look it up instead of assuming (fish):
+
+       set branch (gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
+       git switch $branch; and git pull
+
+   Without `gh`: `git symbolic-ref --short refs/remotes/origin/HEAD` prints `origin/<branch>`. The steps below use `$branch`.
 2. Bump the version file. In a pubspec, the part of `version:` before `+` is the new version and must equal the tag without its prefix, or the release run stops on purpose. The build number after `+` must be higher than in the last release. Never lower it, or phones cannot update.
 3. Write the "What's new" text: plain text, at most 500 characters, in `<fastlane dir>/metadata/android/en-US/changelogs/`. It must be in the commit that gets tagged.
    - Quicklog: three files with the same text, named build*10+1, +2 and +3. For example, `+13` needs 131.txt, 132.txt and 133.txt.
@@ -46,18 +51,18 @@ This table is a copy and may be behind; `apps.yml` and `docs/releasing-apps.md` 
    - RESTForge: overwrite default.txt.
    - Any other app: F-Droid reads `<versionCode>.txt`, falling back to `default.txt`. Check the app's AGENTS.md or README.
 4. Update CHANGELOG.md or the README if the repo keeps one, and run the repo's own tests and analyzer.
-5. Commit and push to `main`, without a tag (fish):
+5. Commit and push to the default branch, without a tag (fish):
 
-       git commit -am "release: vX.Y.Z"; and git push
+       git commit -am "release: vX.Y.Z"; and git push origin $branch
 
-6. Check that the workflow has the tag step, then start it on `main` with the new tag. Start it only after the bump commit is on `origin/main`, and with nothing after it that should not ship: the tag goes on the branch head at the moment the run starts.
+6. Check that the workflow has the tag step, then start it on the default branch with the new tag. Start it only after the bump commit is on `origin/$branch`, and with nothing after it that should not ship: the tag goes on the branch head at the moment the run starts.
 
        set repo (gh repo view --json nameWithOwner -q .nameWithOwner)
        gh api repos/$repo/contents/.github/workflows/release.yml -H 'Accept: application/vnd.github.raw' | grep -c 'Create the tag if it does not exist yet'
-       gh workflow run release.yml --ref main -f tag=vX.Y.Z
+       gh workflow run release.yml --ref $branch -f tag=vX.Y.Z
        gh run watch (gh run list --workflow release.yml --limit 1 --json databaseId --jq '.[0].databaseId')
 
-   Without `gh`, use the GitHub MCP `actions_run_trigger` (method `run_workflow`, workflow `release.yml`, ref `main`, inputs `{"tag": "vX.Y.Z"}`).
+   Without `gh`, use the GitHub MCP `actions_run_trigger` (method `run_workflow`, workflow `release.yml`, ref the default branch, inputs `{"tag": "vX.Y.Z"}`).
 
    If the grep prints 0, the workflow can only rebuild existing tags (File Browser's `android-release.yml` was still like that on 2026-10-10), and a manual run for a new tag fails at checkout with "couldn't find remote ref" without creating anything. Then the tag is pushed the old way, which only works from Paul's own machine; in a cloud session, ask Paul to run it:
 

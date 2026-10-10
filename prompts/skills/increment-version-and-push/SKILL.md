@@ -32,8 +32,10 @@ project defines an `install` target.
   git tag for the new version, and push both the commit and the tag.
   - **Exception, F-Droid apps: do not create or push the tag yourself.** Push
     only the commit, then start the app's Release workflow with the new tag
-    as input (`gh workflow run release.yml --ref main -f tag=vX.Y.Z`); the
-    workflow checks the version file and creates the tag on the branch head.
+    as input (`gh workflow run release.yml --ref <default branch> -f
+    tag=vX.Y.Z`); the workflow checks the version file and creates the tag on
+    the branch head. The default branch is `main` in some repos and `master`
+    in others; look it up, never assume.
     Details and the fallback for a workflow without that step are in
     `references/fdroid-release.md`, section 4.
   - **Release tags always carry a leading `v`: `vX.Y.Z`** (e.g. `v0.39.3`),
@@ -82,8 +84,8 @@ Applies when the project has a fastlane store listing:
 If nothing is found, skip this section. The F-Droid repo
 (github.com/snonux/fdroid) reads the listing from the release tag, so the
 changelog must be in the tagged commit; it cannot be fixed afterwards without
-retagging. The Release workflow tags the head of `main` when it is started,
-so the changelog has to be pushed before that run.
+retagging. The Release workflow tags the head of the default branch when it
+is started, so the changelog has to be pushed before that run.
 
 F-Droid shows `changelogs/<versionCode>.txt` as "What's new", where
 `<versionCode>` is the **APK's** version code, and falls back to
