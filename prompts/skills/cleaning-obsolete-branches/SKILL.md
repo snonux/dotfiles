@@ -36,7 +36,7 @@ is fish). They need `gh` (logged in as the repo owner) and `git`.
 
 | Script | Does | Writes? |
 |--------|------|---------|
-| `collect_all.sh <datadir> [dirs...]` | runs all collectors into `<datadir>` (`gh.tsv`, `fj.tsv`, `prs.tsv`, `local.tsv`); dirs default to `~/git ~/git/gitsyncer-workdir` | no |
+| `collect_all.sh <datadir> [dirs...]` | runs all collectors into `<datadir>` (`gh.tsv`, `fj.tsv`, `prs.tsv`, `local.tsv`); dirs default to `~/git ~/git/gitsyncer-workdir`; exits nonzero if a collector process fails | no |
 | `collect_remote.py defaults` | lists repos whose default branch is not main/master, and whether main/master exists | no |
 | `make_candidates.py <datadir> <out.txt>` | classifies branches into DELETE CANDIDATES and REVIEW sections | no |
 | `delete_merged.py <out.txt> [--delete]` | re-verifies, then deletes the `fully merged into main\|master` rows; dry run without `--delete` | only with `--delete` |
@@ -61,6 +61,15 @@ is fish). They need `gh` (logged in as the repo owner) and `git`.
    ```sh
    bash scripts/collect_all.sh <datadir>
    ```
+
+   Continue only when it exits successfully. If the GitHub, Forgejo or local
+   collector process fails, the wrapper waits for both remote jobs, reports each
+   failing collector and its exit status plus captured errors on stderr, then
+   exits 1 without collecting PRs or printing inventory counts. Partial TSVs
+   remain for diagnosis; do not classify or report them as a complete inventory.
+   A rerun removes any previous `prs.tsv` before collecting. Fix the failure and
+   collect again. Individual API failures handled by a successful collector can
+   still leave `?` values; those rows keep their REVIEW behavior.
 
 3. **Classify** into a candidates file next to gitsyncer's own scripts:
 
