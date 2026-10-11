@@ -23,10 +23,16 @@ function tasksync --description 'Sync Taskwarrior to the Garage S3 bucket'
     end
 
     # The file is sh syntax (: "${VAR:=default}" plus export), so read the
-    # values out of a subshell rather than trying to source it in fish.
-    set -l env_kv (sh -c ". $creds; printenv GARAGE_ENDPOINT GARAGE_REGION GARAGE_BUCKET GARAGE_ACCESS_KEY_ID GARAGE_SECRET_ACCESS_KEY TASK_SYNC_SECRET")
+    # values out of a subshell rather than trying to source it in fish. Pass
+    # the filename as data, and refuse a failed source even if inherited
+    # variables would otherwise supply all six values.
+    set -l env_kv (sh -c '
+        . "$1" || exit $?
+        printenv GARAGE_ENDPOINT GARAGE_REGION GARAGE_BUCKET \
+            GARAGE_ACCESS_KEY_ID GARAGE_SECRET_ACCESS_KEY TASK_SYNC_SECRET
+    ' tasksync "$creds")
 
-    if test (count $env_kv) -lt 6
+    if test $status -ne 0; or test (count $env_kv) -lt 6
         echo "tasksync: could not read all values from $creds" >&2
         return 1
     end

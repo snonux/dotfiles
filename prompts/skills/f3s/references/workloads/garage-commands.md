@@ -78,8 +78,11 @@ defeats a one-off override such as
 still using the file's endpoint. That bug was real.
 
 The file is sh syntax, so fish cannot source it; `tasksync` reads the values out
-of a subshell with `printenv`. Anything parsing it in Python must handle the
-`: "${VAR:=value}"` form, not just `export VAR=value`.
+of a subshell with `printenv`. It passes the filename as a quoted shell argument,
+so spaces and shell metacharacters in the home path stay literal. A missing or
+unreadable file, a failed source, or an unset required variable stops the sync;
+inherited values cannot mask a failed source. Anything parsing it in Python must
+handle the `: "${VAR:=value}"` form, not just `export VAR=value`.
 
 ### Restoring that file if it is lost
 
