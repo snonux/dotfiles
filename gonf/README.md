@@ -1,6 +1,6 @@
 # gonf recipes
 
-gonf module for this repo. Pinned: `github.com/snonux/gonf v0.24.2` (`go.mod`). Task list: [../README.md](../README.md#tasks).
+gonf module for this repo. Pinned: `github.com/snonux/gonf v0.25.0` (`go.mod`), supporting plan schemas through 31 for the migrated DSL helpers and destination policies. Task list: [../README.md](../README.md#tasks).
 
 ## Layout
 
