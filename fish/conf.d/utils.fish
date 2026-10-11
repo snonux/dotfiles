@@ -15,22 +15,42 @@ function asum
 end
 
 function stop
-    set -l service $argv[1]
+    set -l service "$argv[1]"
+    if test -z "$service"
+        echo 'Usage: stop SERVICE [ARG ...]' >&2
+        return 2
+    end
+    set -e argv[1]
     sudo service $service stop $argv
 end
 
 function start
-    set -l service $argv[1]
+    set -l service "$argv[1]"
+    if test -z "$service"
+        echo 'Usage: start SERVICE [ARG ...]' >&2
+        return 2
+    end
+    set -e argv[1]
     sudo service $service start $argv
 end
 
 function restart
-    set -l service $argv[1]
+    set -l service "$argv[1]"
+    if test -z "$service"
+        echo 'Usage: restart SERVICE [ARG ...]' >&2
+        return 2
+    end
+    set -e argv[1]
     sudo service $service restart $argv
 end
 
 function statuss
-    set -l service $argv[1]
+    set -l service "$argv[1]"
+    if test -z "$service"
+        echo 'Usage: statuss SERVICE [ARG ...]' >&2
+        return 2
+    end
+    set -e argv[1]
     sudo service $service status $argv
 end
 
