@@ -26,7 +26,8 @@ or fail "could not install test config"
 
 printf '%s\n' \
     "$test_home/bin" "$test_home/scripts" "$test_home/go/bin" \
-    "$test_home/.cargo/bin" "$test_home/.local/bin" "$test_home/flutter/bin" \
+    "$test_home/.cargo/bin" "$test_home/.local/bin" "$test_home/.yarn/bin" \
+    "$test_home/flutter/bin" \
     "$test_home/extra-a" "$test_home/extra-b" >"$TEST_ROOT/expected"
 
 for startup in 1 2
