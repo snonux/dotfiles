@@ -1,23 +1,18 @@
 ---
 name: solid-principles
 description: >
-  This skill should be used when the user asks to "check SOLID violations",
-  "audit class design", "review code quality", "find design smells", or
-  "improve object-oriented architecture". Also triggers when the user
-  mentions a principle by name (e.g., "check SRP", "is this violating LSP?",
-  "dependency inversion"), or asks about coupling, cohesion, or class
-  responsibilities. Supports checking all five principles at once or
-  focusing on a single principle.
-disable-model-invocation: true
+  Review type and interface design using SOLID principles, reporting structural
+  problems with demonstrable consequences. Use for class design audits, SOLID
+  checks, or named principles such as SRP, LSP, and dependency inversion.
+  Supports all five principles or a focused review of one.
 metadata:
   version: "1.0.0"
 ---
 
 # SOLID Principles
 
-Analyze source code for violations of Robert C. Martin's SOLID principles of
-object-oriented design. Produce actionable findings with severity ratings,
-code locations, and concrete refactoring suggestions.
+Use SOLID as lenses on type and interface design. Report problems with evidence
+of concrete consequences, rather than seeking violations for every principle.
 
 ## Subcommands
 
@@ -25,12 +20,12 @@ Request a full audit or focus on a single principle:
 
 | Command Pattern | Principle | Reference |
 |----------------|-----------|-----------|
-| `solid all` / `solid check` / `solid` | All five principles | All references |
-| `solid srp` | Single Responsibility | `references/srp.md` |
-| `solid ocp` | Open/Closed | `references/ocp.md` |
-| `solid lsp` | Liskov Substitution | `references/lsp.md` |
-| `solid isp` | Interface Segregation | `references/isp.md` |
-| `solid dip` | Dependency Inversion | `references/dip.md` |
+| `solid all` / `solid check` / `solid` | All five principles | Applicable references |
+| `solid srp` | Single Responsibility | [srp.md](references/srp.md) |
+| `solid ocp` | Open/Closed | [ocp.md](references/ocp.md) |
+| `solid lsp` | Liskov Substitution | [lsp.md](references/lsp.md) |
+| `solid isp` | Interface Segregation | [isp.md](references/isp.md) |
+| `solid dip` | Dependency Inversion | [dip.md](references/dip.md) |
 
 When no subcommand is specified, default to checking all five principles.
 When a principle is mentioned by name (even without saying "solid"), match it to
@@ -52,53 +47,33 @@ across languages.
 
 ### 2. Load Principle References
 
-Before analyzing, read the reference file(s) for the requested principle(s):
-
-- [`references/srp.md`](references/srp.md) for SRP checks
-- [`references/ocp.md`](references/ocp.md) for OCP checks
-- [`references/lsp.md`](references/lsp.md) for LSP checks
-- [`references/isp.md`](references/isp.md) for ISP checks
-- [`references/dip.md`](references/dip.md) for DIP checks
-
-For a full audit (`solid all`), read all five.
+Read [the shared finding rules](../auditing-code-quality/references/report.md#shared-finding-rules)
+for evidence, severity, deduplication, and advisory observations. They apply to
+standalone reviews too. Read the relevant principle references from the table.
+For `solid all`, consider all five and load those applicable to the target;
+state which principles do not apply and why.
 
 ### 3. Analyze
 
-For each target file/class, apply the violation patterns from the loaded references.
-Think carefully about each pattern — not every heuristic match is a true violation.
-Consider context, project size, and pragmatism. A 50-line script doesn't need the
-same architectural rigor as a large production system.
+Investigate applicable patterns in the code and its callers under the shared
+rules. Check behavioral contracts, actual change patterns, and testability.
+Reference heuristics do not establish a finding by themselves. Concrete
+dependencies, switches, or large interfaces need a demonstrated consequence;
+prefer a local fix when adding abstraction would cost more than it solves.
 
 ### 4. Report Findings
 
-Present findings using this structure:
-
-#### Per Violation
-
-```
-**[PRINCIPLE] Violation — Severity: HIGH | MEDIUM | LOW**
-Location: `filename.py`, class `ClassName`, lines ~XX-YY
-Issue: Clear description of what violates the principle and why it matters.
-Suggestion: Concrete refactoring approach with brief code sketch if helpful.
-```
-
-Severity guidelines:
-- **HIGH**: Active maintenance pain, bug risk, or blocks extensibility.
-- **MEDIUM**: Code smell that will cause problems as the codebase grows.
-- **LOW**: Minor design impurity, worth noting but fine to defer.
-
-#### Summary
-
-After all findings, provide:
-- A count table: `| Principle | HIGH | MEDIUM | LOW |`
-- Top 3 priorities: which violations to fix first and why.
-- Overall assessment: one paragraph on the code's structural health.
+Use the shared finding format and severity rules. For a standalone review,
+count each finding once under its primary principle, list up to three practical
+priorities, and give a brief assessment. Separate advisory observations.
+When part of a broader audit, return findings and evidence for its single
+unified report; do not produce another full report or duplicate tracked bugs.
 
 ### 5. Refactor Mode (Optional)
 
 When a fix or refactoring is requested (e.g., "fix this", "refactor it",
 "show me the clean version"), produce refactored code that resolves the identified
-violations. Explain each change briefly.
+problems. Explain each change briefly.
 
 ## Pragmatism Guidelines
 
@@ -113,13 +88,3 @@ These are guidelines, not laws. Apply judgment:
   ISP looks different there.
 - Prefer actionable findings over exhaustive catalogs. Five important findings
   beat twenty trivial ones.
-
-## Example Interaction
-
-**User**: `solid srp` (with a file attached)
-
-**Claude**:
-1. Reads `references/srp.md`
-2. Analyzes the attached file for SRP violations
-3. Reports findings with locations, severity, and suggestions
-4. Provides a summary with priorities

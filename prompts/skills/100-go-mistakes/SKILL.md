@@ -10,9 +10,10 @@ This skill helps you identify and fix the most common mistakes made by Go develo
 ## Workflow
 
 1. **Trigger**: When asked to review Go code or find mistakes, activate this skill.
-2. **Analysis**: Use the list below to identify potential areas of concern in the target repository.
-3. **Reference**: Read the specific mistake documentation in the `references/` folder to understand the mistake and how to fix it.
-4. **Action**: Suggest or apply fixes to the codebase.
+2. **Analysis**: Consider the categories below against the target code. In a combined audit, use them within defect/design review rather than launching another full sweep or repeating checks.
+3. **Reference**: Read the specific mistake documentation relevant to the code. Check the project's Go version and effective library behavior before applying version-sensitive advice.
+4. **Findings**: Use [the shared finding rules](../auditing-code-quality/references/report.md#shared-finding-rules) for evidence, severity, and deduplication. A listed mistake is an investigation prompt, not proof of a defect. Route confirmed bugs through **find-code-bugs** when part of its sweep or a combined code-quality audit.
+5. **Action**: Report practical remedies; apply fixes when requested. In a combined audit, return findings for its unified report rather than producing a separate full report.
 
 ## List of Mistakes
 

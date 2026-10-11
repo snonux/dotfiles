@@ -1,12 +1,12 @@
 ---
 name: go-best-practices
 description: "Enforce Go best practices for project structure, style, and conventions in the current codebase. Use when writing, reviewing, or refactoring Go code, or auditing a Go project for convention compliance. Triggers on: go best practices, go style, go conventions, go project layout, review go code."
-disable-model-invocation: true
 ---
 
 # Go Best Practices
 
-Enforce Go project structure, style, and conventions in the current codebase.
+Apply the user's Go conventions when writing code. During an audit, distinguish
+those conventions from correctness defects and evidence-supported design problems.
 
 ## When to Use
 
@@ -16,6 +16,20 @@ Enforce Go project structure, style, and conventions in the current codebase.
 ## Instructions
 
 When writing or modifying Go code in the current project, follow all of the conventions below.
+
+### Audit Classification
+
+Read [the shared finding rules](../auditing-code-quality/references/report.md#shared-finding-rules)
+when reviewing or auditing. Treat the layout, file ordering, Mage choice,
+60% coverage target, and roughly 50-line function guideline below as local
+conventions, not correctness guarantees or automatic severity thresholds.
+Check the project's requirements and enforced checks; a convention difference
+alone does not justify a HIGH or MEDIUM task. Show its practical impact.
+
+Investigate safety-related diagnostics for actual failure modes. Route confirmed
+defects through **find-code-bugs**; keep preferences and design issues under
+the shared classification rules. Reuse checks already run for the same scope
+and revision rather than repeating them for each review lens.
 
 ### Semantics and receivers
 
@@ -71,7 +85,7 @@ When writing or modifying Go code in the current project, follow all of the conv
 
 When writing or modifying Go code (especially with an AI agent), run static-analysis guardrails as part of verification, not just `go build`/`go test`.
 
-* **errcheck:** Run `errcheck ./...` to catch silently ignored errors—one of the most common Go bugs. Treat findings as defects: check the error (wrap with `%w`) or discard it explicitly with `_ =`. Do not silence it by deleting the check. See `references/errcheck.md` for install instructions, flags, exclude files, and how to wire it into the Magefile / CI / pre-commit hooks.
+* **errcheck:** Run `errcheck ./...` to detect silently ignored errors. When fixing a diagnostic, check the error (wrap with `%w` where useful) or intentionally discard it with `_ =` when safe. During audits, establish the failure mode before calling it a bug; otherwise assess it as a convention finding under the shared rules. Do not silence it by deleting the check. See `references/errcheck.md` for installation, flags, exclusions, and automation.
 * Be honest about what actually ran: if errcheck (or any tool) is not installed or could not run, say so rather than implying the code was checked.
 
 ### Verification honesty (Go specifics)

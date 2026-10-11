@@ -24,7 +24,8 @@ status, enum, or string tag to decide behavior.
 - The same switch structure repeated across multiple methods/locations.
 - Adding a new type requires editing every switch statement.
 
-**Refactoring**: Replace conditionals with polymorphism. Define an interface,
+**Refactoring**: When repeated branching causes demonstrated change costs,
+consider replacing it with polymorphism. Define an interface,
 implement per type, and dispatch via method calls instead of branches.
 
 ### 2. Hardcoded Strategies

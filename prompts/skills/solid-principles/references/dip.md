@@ -41,8 +41,10 @@ instead of interfaces/protocols.
 - Factory methods that return concrete types.
 - DI container bindings that map concrete to concrete.
 
-**Refactoring**: Introduce an abstraction and depend on it. The concrete class
-implements the abstraction and is wired in at the composition root.
+**Refactoring**: Introduce an abstraction when the concrete dependency causes
+demonstrated testability, isolation, or supported-change costs. Wire its
+implementation at the composition root. Concrete injection is acceptable when
+it already provides the needed seam; the type annotation alone is not a finding.
 
 ### 3. Framework Entanglement
 **Heuristic**: Domain/business classes inherit from or directly use framework

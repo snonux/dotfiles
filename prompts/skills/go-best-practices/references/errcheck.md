@@ -79,10 +79,13 @@ or modifies Go code in this project:
   errcheck ./...
   ```
 
-* **Treat findings as defects, not noise.** Every reported call must either check
+* **Resolve diagnostics deliberately.** Every reported call must either check
   the error (wrap with `fmt.Errorf("...: %w", err)` per the error-handling
   conventions) or be *intentionally* discarded with an explicit `_ =` and, where
   it helps the reader, a short comment explaining why it is safe.
+  During audits, trace the error's effect before classifying a diagnostic as a
+  confirmed bug. Use [the shared finding rules](../../auditing-code-quality/references/report.md#shared-finding-rules)
+  for convention/design findings; a diagnostic alone does not set severity.
 
 * **Do not silence it by deleting the check.** Prefer fixing the code. If a
   function genuinely never returns a meaningful error, add it to the project's

@@ -5,26 +5,22 @@ workflow steps other skills refer to.
 
 ## 4. Create Tasks for Findings
 
-**Bug tasks:** The **find-code-bugs** step should already have created **one
-`ask` task per confirmed bug** (`+bugfix`, annotations per
+**Bug tasks:** Defect hunting, including bugs confirmed during design review,
+should already have created **one `ask` task per confirmed bug** (`+bugfix`, annotations per
 **agent-task-management**). Do not merge multiple bugs into a single task. If
 the repo had no git root, **find-code-bugs** lists findings without tasks —
 note that in the report.
 
 **Design and convention tasks:** After producing the unified report, load
 **agent-task-management** and create a task for every **HIGH** and **MEDIUM**
-severity finding from **solid-principles**, **beyond-solid-principles**, and
-**(when Go)** **go-best-practices** / **100-go-mistakes**, after applying the
-unified report's evidence and deduplication rules — not for bugs already tracked
-above. Create one task per distinct underlying issue, even when several
-principles or passes identified it. Advisory observations and LOW findings
-do not create tasks or become closure dependencies. Each such task should:
+design/convention finding accepted under [the shared finding rules](report.md#shared-finding-rules).
+Reuse bug tasks where they already cover the issue. Advisory observations and
+LOW findings do not create tasks or become closure dependencies. Each such task should:
 
 - Describe the concrete consequence to resolve, rather than merely naming a
   principle (e.g., "Centralize discount rules to prevent checkout/reporting drift").
-- Include the category, relevant principles, file location, cited evidence,
-  causal explanation, smallest practical remedy, and verification outcome in
-  an annotation.
+- Annotate with the evidence and remediation fields from the shared finding
+  format so a fresh-context fixer can act and verify the outcome.
 - Be tagged with `+codequality` (separate arg, never quoted together with the description; `ask` rejects hyphens — do **not** use `+code-quality`).
 - Set priority via the `priority:H` or `priority:M` modifier (separate arg).
 
@@ -65,7 +61,8 @@ a priority modifier — its urgency is derived from its dependencies, and the
 it with the closure checklist so a fresh-context agent can finish verification:
 
 - The list of every dependent task ID and what it covers.
-- The guardrail commands to re-run when this task becomes READY (the language's
+- The check commands and any coverage gaps from pass A, updated for the final
+  scope, to re-run when this task becomes READY (the language's
   build/test/lint/gofmt-equivalents; for Go: `go build ./...`, `go vet ./...`,
   `go test -race ./...`, `gofmt -l .`, `errcheck ./...`).
 - Instruction to confirm `ask list` shows every dependent done, then mark this

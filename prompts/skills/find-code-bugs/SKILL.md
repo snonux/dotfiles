@@ -21,6 +21,8 @@ description: "Systematically hunts defects in code (logic, concurrency, errors, 
 
 - Clarify scope if missing: paths, PR/diff, language, or “whole module X”.
 - Prefer reading real sources and running project checks (tests, linters, typecheck) when available.
+- Reuse check results already available for the same scope and revision. Rerun
+  only after changes or when additional coverage would resolve a specific concern.
 
 ### 2. Hunt method (pick what fits the stack)
 

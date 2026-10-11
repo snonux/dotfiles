@@ -1,36 +1,35 @@
 ---
 name: auditing-code-quality
 description: >
-  Run a comprehensive code quality audit by orchestrating specialized skills
-  for Go best practices, concrete defect hunting (find-code-bugs), SOLID
-  principles, and system-level architecture, then create actionable tasks for
-  the findings. Use when asked to "audit code quality", "full design review",
+  Run a comprehensive code quality audit through automated checks, defect
+  hunting, and design review, using language and architecture references,
+  then create actionable tasks for confirmed findings. Use when asked to
+  "audit code quality", "full design review",
   "code health check", "architecture and code audit", or to combine design
   review with a bug sweep.
 ---
 
-References are relative to /home/paul/.agents/skills/auditing-code-quality.
-
 # Auditing Code Quality
 
-Run a comprehensive code quality audit by invoking specialized skills in
-sequence. This meta-skill orchestrates them so you only need a single command.
+Review the target once through three complementary passes. Reuse check results
+and evidence across passes, then produce one report and remediation batch.
 
-## Skills Invoked
+## Skills and References
 
-1. **go-best-practices** — Go project structure, style, and conventions (loaded only when the target code is Go).
-2. **100-go-mistakes** — 100 Go mistakes and how to avoid them (Go only).
-3. **find-code-bugs** — Defect sweep (logic, concurrency, errors, APIs, security); **one `ask` task per confirmed bug** per that skill (all languages).
-4. **solid-principles** — Class-level SOLID analysis (SRP, OCP, LSP, ISP, DIP).
-5. **beyond-solid-principles** — Structural problems with demonstrable consequences, using system-level principles (simplicity, coupling, dependency direction, resilience, etc.).
-6. **agent-task-management** — Creates actionable tasks for design/convention findings; bug tasks follow **find-code-bugs** + this skill's `ask` rules.
-7. **audit** (`references/tagging.md`) — Owns `audit/<date>` git markers; the **last** audit task created (workflow §6) tells the agent to follow that skill — do not duplicate its tagging procedure here.
+- Go: [go-best-practices](../go-best-practices/SKILL.md) for conventions and
+  checks, [100-go-mistakes](../100-go-mistakes/SKILL.md) for relevant pitfalls.
+- Defects: [find-code-bugs](../find-code-bugs/SKILL.md), including one `ask`
+  task per confirmed bug, whatever pass discovered it.
+- Design: [solid-principles](../solid-principles/SKILL.md) for applicable
+  type/interface contracts and [beyond-solid-principles](../beyond-solid-principles/SKILL.md)
+  for system structure.
+- Tracking: [agent-task-management](../agent-task-management/SKILL.md) owns
+  `ask` syntax; [audit tagging](../audit/references/tagging.md) owns git markers.
 
-**go-best-practices** and **solid-principles** are manual-only skills
-(`disable-model-invocation: true`), so the Skill tool will not invoke them.
-Load them by reading [`../go-best-practices/SKILL.md`](../go-best-practices/SKILL.md)
-and [`../solid-principles/SKILL.md`](../solid-principles/SKILL.md) directly, then
-follow their reference links from there.
+**go-best-practices** and **solid-principles** have explicit-only invocation
+policies in `agents/openai.yaml`; read their files directly. Load other skills
+through the available skill mechanism or read their files. Use references
+within the passes below rather than running a separate full audit per skill.
 
 ## Workflow
 
@@ -53,46 +52,58 @@ Start tag merely because some `audit/<date>` tag already exists on the repo
 Capture the exact `$START_TAG` string (including any `-N` suffix) for the
 tagging task in workflow §6. Do not push the start tag.
 
-### 2. Load and Run Sub-Skills
+### 2. Review in Three Passes
 
-Invoke each sub-skill using the `skill` tool:
+Read [the shared finding rules](references/report.md#shared-finding-rules) before
+reviewing. Maintain one finding list throughout; retain evidence for the report.
 
-If the target code is **Go**:
+#### A. Automated Checks
 
-1. Load **go-best-practices** and run full audit on the code.
-2. Load **100-go-mistakes** and run full audit on the code.
+Inspect the project's documented build/test/lint commands and toolchain, then
+run the appropriate checks once. For Go, load **go-best-practices** and include
+`go build ./...`, `go vet ./...`, `go test -race ./...`, `gofmt -l .`, and
+`errcheck ./...` where the environment supports them. Follow its verification
+honesty rules for missing tools, dependencies, or expensive suites.
 
-For **all** targets (Go or not):
+Record commands, scope, results, and blockers. Diagnostics are investigation
+inputs; establish their impact before classifying them as defects or design
+findings. Later passes reuse these results; rerun only after changes or when
+additional coverage is needed to resolve a specific concern.
 
-3. Load **find-code-bugs** and run a full defect sweep on the same scope.
-   Follow that skill end-to-end for **finding tasks only** (`ask add +bugfix`,
-   annotations per **agent-task-management**). When instructing sub-agents or
-   sub-skills, state explicitly: create remediation tasks for findings —
-   **do not** create the ATM “Audit task batches” closure gate or tagging
-   task; **auditing-code-quality** workflow §5–6 owns that close-out after
-   **all** finding tasks (bugs + design) exist.
+#### B. Defect Hunting
 
-4. Load **solid-principles** and run a full SOLID audit on the target code.
-5. Load **beyond-solid-principles** and run a full system-level audit on the
-   same target code. Use all ten principles as lenses, prioritizing simplicity,
-   unnecessary abstractions, coupling, dependency direction, and failure
-   propagation. Apply its evidence rules rather than seeking a finding per principle.
+Load **find-code-bugs** and follow its hunt method and finding-task rules on
+the same scope, using pass A's results. For Go, also load **100-go-mistakes**:
+consider its categories and read the specific references applicable to the
+code and configured Go version. Use it to deepen this pass, not to repeat it.
 
-For each sub-skill, follow its own workflow (load references, analyze, report). Try to use sub-agents so each audit works with a fresh context. Even the sub-skills can spawn sub-agents themselves.
+Create one `+bugfix` task per confirmed bug. When a later design review confirms
+a new defect, use these same rules to add its task without repeating the sweep.
+Do not create the standalone bug-sweep closure gate or tagging task: workflow
+§5–6 below owns close-out after all finding tasks exist.
+
+#### C. Design and Conventions
+
+Load **beyond-solid-principles** and consider its ten lenses at the target's
+scale, prioritizing simplicity, coupling, dependency direction, and failure
+propagation. Load **solid-principles** where type/interface contracts or OO
+design are relevant; skip inapplicable principles rather than forcing them
+onto scripts or unrelated code. Read the applicable principle references.
+
+Review Go conventions using the already-loaded **go-best-practices** and
+relevant **100-go-mistakes** references. Apply the shared evidence rules;
+separate convention differences from correctness defects. Use one design
+finding for an underlying problem, even when multiple lenses describe it.
+
+For large scopes, sub-agents may review distinct modules or risks. Give them
+the shared rules, existing findings and check results, and the §5–6 ownership
+constraint. Avoid assigning overlapping full audits solely by skill name.
 
 ### 3. Produce a Unified Report
 
-After all sub-skills have run, combine their findings into one report: a
+After all three passes, produce one report: a
 findings table by category and severity, up to 5 priorities, and an overall
 assessment. Template and counting rules: [references/report.md](references/report.md).
-
-For design and convention findings, require cited evidence and a causal link to
-a concrete failure risk, maintenance cost, supported change, or violated project
-requirement. A heuristic match or hypothetical growth concern is not enough.
-Keep unsupported concerns advisory, without severity or remediation tasks.
-Merge overlapping findings across passes into one underlying issue; when a
-confirmed bug already covers it, cross-reference that bug and reuse its task.
-Preserve one task per distinct confirmed bug.
 
 ### 4. Create Tasks for Findings
 
