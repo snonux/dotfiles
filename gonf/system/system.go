@@ -51,15 +51,15 @@ func (System) OptsWireguard() TaskOptions {
 // Wireguard keeps /etc/wireguard and the wg0/wg1 configs private (earth,
 // perms only).
 //
-// Wireguard (task system_wireguard) manages permissions only, never
-// content or units: the directory is 0700 root:root and each existing tunnel
+// Wireguard (task system_wireguard) manages config permissions without
+// rewriting content: the directory is 0700 root:root and each existing tunnel
 // config 0600 root:root, since they hold private keys. A config that does not exist
 // (no hyperstack VM yet) is not created.
 //
 // wg-quick@wg0 and wg-quick@wg1 are enabled for auto-start at boot (user
 // decision 2026-09-25) for each tunnel whose config exists. Enable only, via
-// a guarded systemctl call: gonf's Service would also start them, and a
-// deploy must never bring a tunnel up or down on this roaming laptop.
+// Service WithEnableOnly: a deploy must never bring a tunnel up or down
+// on this roaming laptop.
 //
 // The directory also holds files neither generator writes (dated backups,
 // the single-gateway variants wg0-blowfish.conf and wg0-fishfinger.conf).
@@ -71,8 +71,7 @@ func (System) Wireguard() {
 		WhenPathExists(conf, func() {
 			EnsureFile(conf, RootPrivate)
 			unit := "wg-quick@" + strings.TrimSuffix(filepath.Base(conf), ".conf")
-			Command("systemctl", List("enable", unit),
-				OnlyIf("sh", List("-c", "! systemctl is-enabled --quiet "+unit)))
+			Service(unit, WithEnableOnly)
 		})
 	}
 }
@@ -98,14 +97,10 @@ func (System) OptsFishShell() TaskOptions {
 
 // FishShell installs fish and sets it as paul's login shell (earth, zen, rocky).
 //
-// FishShell installs the fish package first, then runs usermod only when
-// paul's passwd shell is not already /usr/bin/fish. User.WithShell is
-// creation-time only, so an existing account needs this guarded command.
+// FishShell installs the fish package first, then manages paul's login
+// shell without changing an existing account's other settings.
 // On rocky, paul has no general sudo: push as root@rocky.lan.
 func (System) FishShell() {
 	pkg := Package("fish")
-	Command("usermod", List("-s", "/usr/bin/fish", "paul"),
-		WithName("paul-fish-shell"),
-		DependsOn(pkg),
-		Unless("sh", List("-c", `[ "$(getent passwd paul | cut -d: -f7)" = /usr/bin/fish ]`)))
+	User("paul", WithShell("/usr/bin/fish"), WithManageShell, DependsOn(pkg))
 }

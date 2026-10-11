@@ -94,7 +94,7 @@ Guards are serializable and evaluated on the destination (gonf >= v0.19.0), so a
 | `system_fish_shell` | installs `fish`, sets paul's login shell to `/usr/bin/fish`; privileged | hostname earth, zen or rocky |
 | `system_hosts` | owns the `# BEGIN GONF fleet` block of `/etc/hosts` (LAN + wg0 mesh rows), 0644 root:root; lines outside the block stay; privileged | hostname earth |
 | `system_uptimed` | installs `uptimed`, deploys `/etc/uptimed.conf`, enables the daemon; privileged | hostname earth or zen |
-| `system_wireguard` | `/etc/wireguard` 0700, existing `wg0.conf`/`wg1.conf` 0600 root:root; never content or units; privileged | hostname earth |
+| `system_wireguard` | `/etc/wireguard` 0700, existing `wg0.conf`/`wg1.conf` 0600 root:root; enables matching units at boot only, never changes content or runtime state; privileged | hostname earth |
 
 Profile detection reads `/etc/os-release`; macOS reports `darwin`. FreeBSD has neither, so pass `-profile=freebsd`.
 

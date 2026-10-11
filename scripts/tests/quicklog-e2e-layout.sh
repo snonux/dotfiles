@@ -71,20 +71,32 @@ else
     die "PROGRAM=quicklog-drain not inside WRAPPER_ENV array"
 fi
 
-# gonf SyncDir(scripts/*) skips directories; nested drain needs Dir then InstallFile
-# (atomicfile.Write CreateTemp's in the parent and does not MkdirAll).
+# Scripts tree-sync deploys nested drain while excluding tests/e2e. The
+# standalone SystemdUser task still needs its own parent before InstallFile.
 GONF_HOME="${SCRIPT_DIR}/../../gonf/home/home.go"
 [[ -f "$GONF_HOME" ]] || die "missing gonf home.go for deploy check"
-# Each InstallFile(scripts/quicklog/drain) must be preceded by Dir(scripts/quicklog)
-# in the same task body (Scripts + SystemdUser) — not a mere path grep.
 if ! awk '
     /func \(HomeTasks\) Scripts\(\)/ { in_scripts=1; in_systemd=0 }
     /func \(HomeTasks\) SystemdUser\(\)/ { in_systemd=1; in_scripts=0 }
     /^func / && !/Scripts\(\)/ && !/SystemdUser\(\)/ { in_scripts=0; in_systemd=0 }
-    in_scripts && /Dir\(DestHome\("scripts\/quicklog"\)/ { scripts_dir=1 }
-    in_scripts && /InstallFile\(DestHome\("scripts\/quicklog\/drain"\)/ {
-        if (!scripts_dir) exit 1
-        scripts_install=1
+    in_scripts && /Dir\(DestHome\("scripts"\), WithSource\(paths.Dot\("scripts"\)\)/ {
+        scripts_tree=1
+    }
+    in_scripts && /WithMode\(0o700\), WithFileMode\(0o750\), WithPrune/ {
+        scripts_modes=1
+    }
+    in_scripts && /WithExclude\("tests", "quicklog", "quicklog-drain-e2e"\)/ {
+        scripts_exclude=1
+    }
+    in_scripts && /Dir\(DestHome\("scripts\/quicklog"\), WithSource\(paths.Dot\("scripts\/quicklog"\)\)/ {
+        if (!scripts_tree) exit 1
+        scripts_dir=1
+    }
+    in_scripts && /WithMode\(0o750\), WithFileMode\(0o750\), WithPrune/ {
+        quicklog_modes=1
+    }
+    in_scripts && /WithExclude\("e2e"\), DependsOn\(scripts\)/ {
+        quicklog_exclude=1
     }
     in_scripts && /NoFile\(DestHome\("scripts\/quicklog-drain-e2e"\)/ {
         scripts_nofile=1
@@ -94,9 +106,12 @@ if ! awk '
         if (!systemd_dir) exit 1
         systemd_install=1
     }
-    END { exit (scripts_install && systemd_install && scripts_nofile) ? 0 : 1 }
+    END {
+        exit (scripts_tree && scripts_modes && scripts_exclude && scripts_dir &&
+              quicklog_modes && quicklog_exclude && scripts_nofile && systemd_install) ? 0 : 1
+    }
 ' "$GONF_HOME"; then
-    die "gonf must Dir(scripts/quicklog) before InstallFile drain in Scripts and SystemdUser, and NoFile quicklog-drain-e2e after SyncDir"
+    die "gonf needs excluded scripts tree, separate quicklog tree/mode, NoFile e2e wrapper, and standalone SystemdUser parent before drain"
 fi
 
 # common.sh must source shared asserts; phase bodies must not redefine them.

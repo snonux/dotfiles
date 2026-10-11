@@ -1,10 +1,6 @@
 package home
 
 import (
-	"errors"
-	"fmt"
-	"os"
-
 	"github.com/snonux/dotfiles/gonf/paths"
 	"github.com/snonux/dotfiles/gonf/system"
 	. "github.com/snonux/gonf/api"
@@ -65,10 +61,10 @@ func (HomeTasks) Opencode() {
 // Notes/Prompts checkout. That checkout is optional (a controller without
 // it skips the task), but an unreadable one fails the run.
 func (HomeTasks) Agents() {
-	if !optionalControllerSource("home_agents", paths.NotesPrompts("commands")) {
+	if !OptionalControllerDir(paths.NotesPrompts("commands"), "home_agents") {
 		return
 	}
-	if !optionalControllerSource("home_agents", paths.NotesPrompts("skills")) {
+	if !OptionalControllerDir(paths.NotesPrompts("skills"), "home_agents") {
 		return
 	}
 	commands := paths.DestNotesPrompts("commands")
@@ -94,19 +90,18 @@ func (HomeTasks) Agents() {
 
 // Scripts installs ~/scripts.
 //
-// SyncDir of scripts/* copies regular files by basename and skips
-// directories, so nested production helpers under scripts/quicklog/ are
-// installed explicitly. The quicklog e2e tree stays repo-only: SyncDir
-// would still copy the thin scripts/quicklog-drain-e2e wrapper (which
-// execs a sibling quicklog/e2e/run that is never installed), so NoFile
-// removes that PATH entry after the sync.
+// Tree sync includes nested production helpers, but leaves tests and the
+// quicklog e2e tree repo-only. Exclusions preserve destination paths, so
+// NoFile still removes the previously installed quicklog e2e wrapper.
 func (HomeTasks) Scripts() {
-	SyncDir(DestHome("scripts"), paths.Dot("scripts/*"), WithFileMode(0o750), WithPrune)
+	scripts := Dir(DestHome("scripts"), WithSource(paths.Dot("scripts")),
+		WithMode(0o700), WithFileMode(0o750), WithPrune,
+		WithExclude("tests", "quicklog", "quicklog-drain-e2e"))
+	// Sync quicklog separately so the main tree never changes its 0750 mode.
+	Dir(DestHome("scripts/quicklog"), WithSource(paths.Dot("scripts/quicklog")),
+		WithMode(0o750), WithFileMode(0o750), WithPrune,
+		WithExclude("e2e"), DependsOn(scripts))
 	NoFile(DestHome("scripts/quicklog-drain-e2e"))
-	// Parent dir: atomicfile.Write CreateTemp's in the destination parent
-	// and does not MkdirAll (same pattern as Pipewire).
-	Dir(DestHome("scripts/quicklog"), WithMode(0o750))
-	InstallFile(DestHome("scripts/quicklog/drain"), paths.Dot("scripts/quicklog/drain"), WithMode(0o750))
 }
 
 // Ssh installs ~/.ssh/config.
@@ -160,10 +155,10 @@ func (HomeTasks) Sway() {
 }
 
 // OptsGitconfig skips macOS: git there is configured by hand, so a
-// Mac keeps its own global git config. gonf has no negated guard, so this
-// lists every other supported OS.
+// Mac keeps its own global git config. The negated guard travels in the
+// plan and is checked on the destination.
 func (HomeTasks) OptsGitconfig() TaskOptions {
-	return TaskOptions{WhenOS("linux", "freebsd", "openbsd", "netbsd")}
+	return TaskOptions{WhenNotOS("darwin")}
 }
 
 // Gitconfig sets global git config (not on macOS).
@@ -193,7 +188,7 @@ func (HomeTasks) Signature() {
 // Calendar installs ~/.calendar from private repo.
 func (HomeTasks) Calendar() {
 	calendar := paths.DotPrivate("calendar")
-	if !optionalControllerSource("home_calendar", calendar) {
+	if !OptionalControllerDir(calendar, "home_calendar") {
 		return
 	}
 	SyncDir(DestHome(".calendar"), calendar+"/*")
@@ -239,8 +234,8 @@ func (HomeTasks) SystemdUser() {
 	WhenHostname("earth", func() {
 		units := SyncDir(DestHome(".config/systemd/user"), paths.Dot("systemd-user/quicklog-drain.*"))
 		quicklogDrain := InstallFile(DestHome("scripts/quicklog-drain"), paths.Dot("scripts/quicklog-drain"), WithMode(0o750))
-		// Nested impl: SyncDir(scripts/*) skips directories; timer must not
-		// activate until both the thin wrapper and scripts/quicklog/drain exist.
+		// Standalone task: timer must not activate until both the thin
+		// wrapper and scripts/quicklog/drain exist, even without home_scripts.
 		// Dir first: atomicfile CreateTemp needs the parent (Pipewire pattern).
 		Dir(DestHome("scripts/quicklog"), WithMode(0o750))
 		quicklogDrainImpl := InstallFile(DestHome("scripts/quicklog/drain"), paths.Dot("scripts/quicklog/drain"), WithMode(0o750))
@@ -306,24 +301,4 @@ func (HomeTasks) GoprecordsUpload() {
 // Taskwarrior installs ~/.taskrc (Taskwarrior 3.x).
 func (HomeTasks) Taskwarrior() {
 	InstallFile(DestHome(".taskrc"), paths.Dot("taskwarrior/taskrc"))
-}
-
-// optionalControllerSource reports whether the optional controller-side
-// source directory dir exists, by reading it: a directory that exists but
-// cannot be listed (itself or a parent unreadable) would otherwise match no
-// files and silently yield an empty sync. Only a missing path
-// (os.ErrNotExist) means "skip the task"; any other error, such as a
-// permission or I/O error or dir not being a directory, fails the run naming
-// the task and path. This is a controller check; destination-side existence
-// stays a WhenPathExists guard (see Agents' ~/.pi).
-func optionalControllerSource(task, dir string) bool {
-	_, err := os.ReadDir(dir)
-	switch {
-	case err == nil:
-		return true
-	case errors.Is(err, os.ErrNotExist):
-		return false
-	default:
-		panic(fmt.Errorf("%s: cannot read optional controller source %s: %w", task, dir, err))
-	}
 }
