@@ -71,10 +71,21 @@ function f
 end
 
 function random
-    set -l upto $argv[1]
-    set -l random (math $RANDOM % $upto)
-    echo "Sleeping $random seconds"
-    sleep $random
+    if test (count $argv) -ne 1; or not string match -qr '\A[0-9]+\z' -- "$argv[1]"
+        echo 'Usage: random BOUND (integer from 1 to 9007199254740992)' >&2
+        return 2
+    end
+    set -l upto (string replace -r '^0+' '' -- "$argv[1]")
+    # Keep bound - 1 exact in Fish math and within builtin random's range.
+    if test -z "$upto"; or test (string length -- "$upto") -gt 16; or \
+            test "$upto" -gt 9007199254740992
+        echo 'Usage: random BOUND (integer from 1 to 9007199254740992)' >&2
+        return 2
+    end
+    set -l delay (builtin random 0 (math --scale=0 "$upto - 1"))
+    or return $status
+    echo "Sleeping $delay seconds"
+    sleep $delay
 end
 
 function _dedup_file --argument-names file keep_backup
