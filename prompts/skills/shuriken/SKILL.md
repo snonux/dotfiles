@@ -1,7 +1,6 @@
 ---
 name: shuriken
 description: "Generates a lean shuriken photo album (no tarball, no stats site, no per-photo details pages) from a directory of photos and publishes it to /var/www/html/fotos on pi0.lan and pi1.lan. Use when asked to build and publish a photo album from an input directory. Triggers on: shuriken album, generate photo album, publish fotos, new photo album."
-disable-model-invocation: true
 ---
 
 # Shuriken photo album
