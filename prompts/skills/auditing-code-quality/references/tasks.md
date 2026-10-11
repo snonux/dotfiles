@@ -14,19 +14,25 @@ note that in the report.
 **Design and convention tasks:** After producing the unified report, load
 **agent-task-management** and create a task for every **HIGH** and **MEDIUM**
 severity finding from **solid-principles**, **beyond-solid-principles**, and
-**(when Go)** **go-best-practices** / **100-go-mistakes** — not for bugs already
-tracked above. Each such task should:
+**(when Go)** **go-best-practices** / **100-go-mistakes**, after applying the
+unified report's evidence and deduplication rules — not for bugs already tracked
+above. Create one task per distinct underlying issue, even when several
+principles or passes identified it. Advisory observations and LOW findings
+do not create tasks or become closure dependencies. Each such task should:
 
-- Have a clear, actionable description (e.g., "Refactor UserService to fix SRP violation").
-- Include the principle, category, and file location in an annotation.
+- Describe the concrete consequence to resolve, rather than merely naming a
+  principle (e.g., "Centralize discount rules to prevent checkout/reporting drift").
+- Include the category, relevant principles, file location, cited evidence,
+  causal explanation, smallest practical remedy, and verification outcome in
+  an annotation.
 - Be tagged with `+codequality` (separate arg, never quoted together with the description; `ask` rejects hyphens — do **not** use `+code-quality`).
-- Set priority via the `priority:H`, `priority:M`, or `priority:L` modifier (separate arg).
+- Set priority via the `priority:H` or `priority:M` modifier (separate arg).
 
 **Exact command format** — keep each part as a separate argument, never quoted together:
 
 ```bash
-ask add priority:H +codequality "Refactor UserService to fix SRP violation"
-ask add priority:M +codequality "Fix high cognitive complexity in parser.go"
+ask add priority:H +codequality "Bound payment retries to prevent worker exhaustion"
+ask add priority:M +codequality "Centralize discount rules to prevent checkout/reporting drift"
 ```
 
 Do NOT do this (causes tag to land in description):
@@ -69,7 +75,8 @@ it with the closure checklist so a fresh-context agent can finish verification:
 This gate is mandatory whenever any audit finding tasks were created. Skip the
 gate **and** the tagging task in workflow §6 when there is no git root **or**
 the audit produced no finding tasks (nothing to gate) — note that in the
-report. When skipping because there were **zero findings** but a `$START_TAG`
+report. When skipping because there were **zero finding tasks** (including an
+audit with only LOW findings or advisory observations) but a `$START_TAG`
 was stamped for this run, still finalize the baseline now: load
 **audit** (`references/tagging.md`) and follow **End tag** + **Push the end marker remotely** on
 that same `$START_TAG` (so a clean audit does not leave an unpushed local-only

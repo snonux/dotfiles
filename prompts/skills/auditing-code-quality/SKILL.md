@@ -22,7 +22,7 @@ sequence. This meta-skill orchestrates them so you only need a single command.
 2. **100-go-mistakes** — 100 Go mistakes and how to avoid them (Go only).
 3. **find-code-bugs** — Defect sweep (logic, concurrency, errors, APIs, security); **one `ask` task per confirmed bug** per that skill (all languages).
 4. **solid-principles** — Class-level SOLID analysis (SRP, OCP, LSP, ISP, DIP).
-5. **beyond-solid-principles** — System-level architecture principles (SoC, DRY, KISS, YAGNI, coupling, resilience, etc.).
+5. **beyond-solid-principles** — Structural problems with demonstrable consequences, using system-level principles (simplicity, coupling, dependency direction, resilience, etc.).
 6. **agent-task-management** — Creates actionable tasks for design/convention findings; bug tasks follow **find-code-bugs** + this skill's `ask` rules.
 7. **audit** (`references/tagging.md`) — Owns `audit/<date>` git markers; the **last** audit task created (workflow §6) tells the agent to follow that skill — do not duplicate its tagging procedure here.
 
@@ -74,20 +74,32 @@ For **all** targets (Go or not):
 
 4. Load **solid-principles** and run a full SOLID audit on the target code.
 5. Load **beyond-solid-principles** and run a full system-level audit on the
-   same target code.
+   same target code. Use all ten principles as lenses, prioritizing simplicity,
+   unnecessary abstractions, coupling, dependency direction, and failure
+   propagation. Apply its evidence rules rather than seeking a finding per principle.
 
 For each sub-skill, follow its own workflow (load references, analyze, report). Try to use sub-agents so each audit works with a fresh context. Even the sub-skills can spawn sub-agents themselves.
 
 ### 3. Produce a Unified Report
 
 After all sub-skills have run, combine their findings into one report: a
-findings table by category and severity, the top 5 priorities, and an overall
+findings table by category and severity, up to 5 priorities, and an overall
 assessment. Template and counting rules: [references/report.md](references/report.md).
+
+For design and convention findings, require cited evidence and a causal link to
+a concrete failure risk, maintenance cost, supported change, or violated project
+requirement. A heuristic match or hypothetical growth concern is not enough.
+Keep unsupported concerns advisory, without severity or remediation tasks.
+Merge overlapping findings across passes into one underlying issue; when a
+confirmed bug already covers it, cross-reference that bug and reuse its task.
+Preserve one task per distinct confirmed bug.
 
 ### 4. Create Tasks for Findings
 
 Bug tasks already exist from **find-code-bugs** (one per confirmed bug). Create a
-`+codequality` task for every HIGH and MEDIUM design or convention finding.
+`+codequality` task for every distinct, evidence-supported HIGH and MEDIUM design
+or convention finding that is not already covered by a bug task. Advisory
+observations do not create tasks or block audit closure.
 Exact `ask add` format and what to annotate:
 [references/tasks.md](references/tasks.md#4-create-tasks-for-findings).
 

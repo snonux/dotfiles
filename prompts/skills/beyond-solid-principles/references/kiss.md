@@ -56,7 +56,7 @@ KISS is not "make everything trivial" — it's a bias toward the simplest archit
 - Under-utilized infrastructure capabilities
 - Significant portions of system complexity corresponding to features not used or not on the near-term roadmap
 
-**Refactoring/Remedy:** Remove unused abstractions. Apply YAGNI rigorously. If there's only one implementation, you don't need the interface yet. Add abstraction when the second use case arrives and you understand the axis of variation.
+**Refactoring/Remedy:** Simplify abstractions when they impose a demonstrated cost without serving a current requirement. A single implementation can still justify an interface for testability, isolation, or a stable contract. Remove only the indirection that does not earn its cost.
 
 ### 5. Excessive Middle Tiers and Indirection
 

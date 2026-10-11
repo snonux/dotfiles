@@ -34,7 +34,7 @@ The Last Responsible Moment principle from Lean Software Development instructs: 
 - Significant complexity for features not on the near-term roadmap
 - The answer to "What current requirement does this serve?" begins with "What if someday..." rather than "Currently we need..."
 
-**Refactoring/Remedy:** Remove unused abstractions ruthlessly. Apply the Rule of Three — don't abstract until you see three instances. Add generality only when the second or third use case arrives and you understand the axis of variation. Make concrete before making generic.
+**Refactoring/Remedy:** Remove speculative generality when its complexity has a demonstrated cost and no current requirement justifies it. Testability, isolation, and stable contracts can justify an abstraction with one implementation. Repeated use cases can reveal a useful abstraction; their count alone does not determine whether to keep or remove one.
 
 ### 3. Over-Provisioned Infrastructure
 
