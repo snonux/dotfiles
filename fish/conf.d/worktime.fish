@@ -68,17 +68,41 @@ function worktime::status
 end
 
 function worktime::sync
-    cd $WORKTIME_DIR
+    set -l caller_dir "$PWD"
+    cd "$WORKTIME_DIR"
+    or return 1
+    set -l failed 0
     if test -f ~/.tasksync_enable
         tasksync
+        or set failed 1
     end
     # `git commit -a` only stages tracked files, so the JSONL store's per-host
     # files would never be committed on the host that first creates them.
-    find . -name '*.jsonl' -exec git add {} \;
-    git commit -a -m sync
-    git pull
-    git push
-    cd -
+    if test $failed -eq 0
+        find . -name '*.jsonl' -exec git add {} +
+        or set failed 1
+    end
+    if test $failed -eq 0
+        git diff --quiet HEAD
+        set -l diff_status $status
+        if test $diff_status -eq 1
+            git commit -a -m sync
+            or set failed 1
+        else if test $diff_status -gt 1
+            set failed 1
+        end
+    end
+    if test $failed -eq 0
+        if git pull
+            git push
+            or set failed 1
+        else
+            set failed 1
+        end
+    end
+    cd "$caller_dir"
+    or set failed 1
+    return $failed
 end
 
 function worktime::supersync_sync
