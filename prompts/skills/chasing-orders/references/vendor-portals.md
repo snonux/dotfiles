@@ -58,7 +58,12 @@ python3 -I scripts/xlsx_grep.py "$SCRATCH/sheet/list.xlsx" '^123(\.0)?$' --colum
 
 - Download into its own empty directory and run the reader with `-I`; the file
   is untrusted.
-- Numbers come back as floats (`123.0`).
+- `--column` takes a non-negative, zero-based column: A is 0, C is 2 and AA
+  is 26. Missing cells remain empty strings in their original positions, so
+  a blank B cell does not shift C into column 1.
+- Worksheet cell references beyond XLSX's last column (XFD) are rejected.
+- Numbers retain their stored text (`123` or `123.0`); the pattern above
+  matches either representation.
 - The sheet is updated in place, so download it again on every run.
 - A backer number that is absent has not shipped. Check the neighbouring
   numbers to confirm the list really covers that range.
