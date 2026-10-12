@@ -43,6 +43,35 @@ if test -d ~/tmp -a -w ~/tmp
     set -gx CLAUDE_CODE_TMPDIR ~/tmp
 end
 
+# Give agents and their child tools disk-backed temporary storage too.
+# Explicit /tmp paths bypass these variables; use $TMPDIR in agent commands.
+function ai::with-temp --description 'Run an agent with disk-backed temporary storage'
+    set -l agent $argv[1]
+    set -l agent_tmp "$HOME/tmp/$agent"
+    command mkdir -p -m 700 -- "$agent_tmp"; or return
+    set -lx TMPDIR "$agent_tmp"
+    set -lx TMP "$agent_tmp"
+    set -lx TEMP "$agent_tmp"
+    if test "$agent" = claude
+        set -lx CLAUDE_CODE_TMPDIR "$agent_tmp"
+        command $argv
+    else
+        command $argv
+    end
+end
+
+function claude --wraps claude --description 'Claude Code with disk-backed temporary storage'
+    ai::with-temp claude $argv
+end
+
+function codex --wraps codex --description 'Codex with disk-backed temporary storage'
+    ai::with-temp codex $argv
+end
+
+function cursor-agent --wraps cursor-agent --description 'Cursor Agent with disk-backed temporary storage'
+    ai::with-temp cursor-agent $argv
+end
+
 # Stamp an audit/<date> tag on the current repo's HEAD and push it to
 # origin — the end-marker step of the audit skill's tagging
 # reference (~/.claude/skills/audit/references/tagging.md), so `audit-due` measures the next
