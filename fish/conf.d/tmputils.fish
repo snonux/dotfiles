@@ -21,7 +21,51 @@ end
 
 function tmpnew
     set -l name $argv[1]
-    tmpdir $argv
+    if test -z "$name"
+        set -l names_file "$HOME/.tmpnewnames"
+        if not command -q fzf
+            echo "tmpnew: fzf is not installed" >&2
+            return 1
+        end
+
+        set -l candidates
+        if test -f "$names_file"
+            while read -l candidate
+                if test -n "$candidate"; and not contains -- "$candidate" $candidates
+                    set -a candidates "$candidate"
+                end
+            end <"$names_file"
+        end
+
+        for dir in "$TMPUTILS_DIR"/*
+            test -d "$dir"; or continue
+            set -l candidate (basename "$dir")
+            if not contains -- "$candidate" $candidates
+                set -a candidates "$candidate"
+            end
+        end
+
+        if test (count $candidates) -eq 0
+            echo "tmpnew: no names in $names_file and no directories in $TMPUTILS_DIR" >&2
+            return 1
+        end
+
+        set -l selection (for candidate in $candidates
+            if test -d "$TMPUTILS_DIR/$candidate"
+                printf '[existing] %s\n' "$candidate"
+            else
+                printf '[new]      %s\n' "$candidate"
+            end
+        end | fzf --prompt='tmpnew name> ')
+        set -l fzf_status $status
+        if test $fzf_status -ne 0; or test -z "$selection"
+            return 1
+        end
+        set name (string replace -r '^\[(existing|new)\] +' '' -- "$selection")
+    end
+
+    tmpdir "$name"
+    or return
     tmux::attach $name
 end
 
