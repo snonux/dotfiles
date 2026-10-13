@@ -119,7 +119,7 @@ kubectl get application xplayer -n cicd -o jsonpath='sync={.status.sync.status} 
 
 ## Storage notes
 
-Player uses two static `hostPath` PVs that point at the NFS mount available on every k3s node:
+Player uses static `hostPath` PVs that point at the NFS mount available on every k3s node. Its own data:
 
 - `/data/nfs/k3svolumes/player/data` mounted at `/data`
 - `/data/nfs/k3svolumes/player/media` mounted at `/media`
@@ -154,6 +154,23 @@ work on these sets. Logins for both sites are in foostore
 (`pass/player.f3s.buetow.org-paul.txt`, `…-xman.txt`,
 `pass/xplayer.f3s.buetow.org-xman.txt`).
 
+Operating the library sets:
+
+- The `nfs-check-*` init containers also require each mounted subdirectory
+  to exist. If a library folder is renamed or removed (in Jellyfin, on the
+  phone, …) the pod refuses to start (`Init:CrashLoopBackOff`) rather than
+  let kubelet create an empty directory there. Fix the path in the chart.
+- `hostPath` and the claim binding are immutable: to point a set elsewhere,
+  scale the deployment down and delete that PV and PVC by hand before
+  syncing, or ArgoCD ends in `SyncFailed`.
+- Removing a set: drop its mount from the chart, remove the empty
+  mount-point directory from `<app>/media`, then delete the set row with
+  `sqlite3` (`PRAGMA foreign_keys=ON; DELETE FROM sets WHERE name='…';`,
+  after backing up `media.db`). There is no API for it; a leftover mount
+  point shows as an empty set and a rescan trashes its items.
+- Every new `<app>/…` directory that is a PV root needs `chmod 777` and a
+  `.nfs-sentinel` (see `docs/nfs-sentinel-initcontainer.md` in conf).
+
 The PVs must use:
 
 ```yaml
@@ -166,8 +183,8 @@ Do not change them to `DirectoryOrCreate`. `Directory` makes pod startup fail if
 Create the paths before first deploy:
 
 ```sh
-ssh -p 22 root@192.168.1.120 'mkdir -p /data/nfs/k3svolumes/player/{data,media}'
-ssh -p 22 root@192.168.1.120 'mkdir -p /data/nfs/k3svolumes/xplayer/{data,media}'
+ssh -p 22 root@192.168.1.120 'mkdir -p /data/nfs/k3svolumes/player/{data,media,thumbnails}'
+ssh -p 22 root@192.168.1.120 'mkdir -p /data/nfs/k3svolumes/xplayer/{data,media,thumbnails}'
 ```
 
 The NFS export may reject `chown` to UID 65534. Existing f3s writable service directories often use mode `777` when ownership cannot be changed:
@@ -190,7 +207,8 @@ FLV, WMA, …) with ffmpeg and caches the result next to the database, in
   short and SD files are fine.
 - After upgrading from v0.2.2 or older, trigger one admin **Rescan** per
   instance: it regenerates every thumbnail under the new naming
-  (`.thumbnails/<file name>.jpg`).
+  (`.thumbnails/<file name>.jpg`, on f3s below `/thumbnails`, see
+  "Storage notes").
 - The schema setup at startup rewrites old timestamps to UTC and removes
   orphaned rows; back up `media.db` before an upgrade
   (`cp media.db media.db.pre-<version>-<date>` on the NFS volume).
