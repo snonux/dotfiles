@@ -129,6 +129,31 @@ The `xplayer` instance uses separate static `hostPath` PVs under:
 - `/data/nfs/k3svolumes/xplayer/data` mounted at `/data`
 - `/data/nfs/k3svolumes/xplayer/media` mounted at `/media`
 
+Each instance also has a `<app>/thumbnails` volume mounted at `/thumbnails`
+(`THUMBNAIL_CACHE_DIR=/thumbnails`, since image `879f2d7`): all generated
+thumbnails live there, not in `.thumbnails` directories next to the media.
+
+Since 2026-10-13 the sets are existing libraries of other services, mounted
+**read-only** in place (no copies) with `subPath` from extra PVs that point
+at the other chart's PV root, where the `.nfs-sentinel` lives:
+
+| Instance | Set (= directory under `/media`) | NFS path under `/data/nfs/k3svolumes` |
+|---|---|---|
+| player | Music | `navidrome/music` |
+| player | Audiobooks | `audiobookshelf/audiobooks/default` |
+| player | Music Videos | `jellyfin/libraries/musicvideos` |
+| player | Yoga | `jellyfin/libraries/yoga` |
+| player | Irregular Ninja | `syncthing/data/paul/Pixel7Pro/DCIM/Irregular Ninja` |
+| xplayer | AI, Pictures, Videos | `jellyfin/libraries/xman/{ai,pictures,videos}` |
+
+The empty mount-point directories exist in `<app>/media` on NFS. A new set
+only appears after an admin **Rescan**. Player runs as UID 65534, so files
+in those libraries that are not world-readable (mode `0600`) are skipped
+with "permission denied". Uploads, deletes and "regenerate cover" do not
+work on these sets. Logins for both sites are in foostore
+(`pass/player.f3s.buetow.org-paul.txt`, `…-xman.txt`,
+`pass/xplayer.f3s.buetow.org-xman.txt`).
+
 The PVs must use:
 
 ```yaml
@@ -172,9 +197,11 @@ FLV, WMA, …) with ffmpeg and caches the result next to the database, in
 
 ## End-to-end tests against the deployed instances
 
-Both instances hold three generated sets, `test-videos`, `test-audio` and
-`test-images` (one `sample-<ext>.<ext>` per supported extension, made by
-`player-server/testdata/gen-all-formats.sh`). Two suites use them:
+Both instances used to hold three generated sets, `test-videos`,
+`test-audio` and `test-images` (one `sample-<ext>.<ext>` per supported
+extension, made by `player-server/testdata/gen-all-formats.sh`). They were
+removed on 2026-10-13; recreate them in `<app>/media` (and rescan) before
+running the two suites that use them:
 
 - Web: `player-server/test/e2e-web`, `npx playwright test -c playwright.live.config.ts`
   with `PLAYER_URL` and the `E2E_*` variables (about 5 minutes per instance).
