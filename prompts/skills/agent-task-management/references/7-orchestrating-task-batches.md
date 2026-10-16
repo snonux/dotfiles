@@ -109,9 +109,22 @@ own sub-agent. The detailed rule is in [2-start-task.md](2-start-task.md).
 ## Per-task lifecycle
 
 For each task, create it, start it, annotate progress, meet the completion
-criteria, and have the orchestrator run fresh-context review(s) until one finds
-no remaining issues. Commit the in-scope changes, mark the task done, then
-check for the next started or ready task. The completion and review procedure
+criteria, and have the orchestrator run fresh-context review(s) within the
+review budget (at most two rounds; the second only for blocking findings; see
+"Review budget and convergence" in [3-complete-task.md](3-complete-task.md)).
+Commit the in-scope changes, mark the task done, then check for the next
+started or ready task. Close each task as soon as it meets its criteria; do not
+hold finished tasks back for one big final merge or gate run. When lanes are
+merged into a shared branch, merge each finished lane promptly, run the full
+gates on the merged result, and close the tasks it covers.
+
+Workers run only the targeted checks for their task (formatting, lint when
+code changed, the filtered tests and end-to-end drivers for their feature).
+Heavy full-suite runs happen once per merge in the orchestrator, not in every
+worker. On a small host, cap concurrent build-heavy workers (about one per two
+cores) even when memory would allow more: oversubscription slows every worker
+and causes timing flakes that cost more review and rerun time than the
+parallelism saves. The completion and review procedure
 is in [3-complete-task.md](3-complete-task.md). Review sub-agents count as
 workers: apply the memory guard before launching each reviewer as well.
 

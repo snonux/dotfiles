@@ -84,9 +84,9 @@ Whatever mode you are in, you still pick tasks, mark them started/done, commit, 
 
 5. **Review, close, and record** (per task, as each worker returns):
    - Perform the self-review required by `agent-task-management`, then launch a fresh expert review sub-agent. Instruct the reviewer not to spawn other sub-agents.
-   - The reviewer must check the implementation, test coverage, real behavior assertions, and plausible negative tests, and report every concrete issue.
-   - Address every finding. In direct mode, fix it directly. In delegated mode, launch a fresh fixing sub-agent after the reviewer finishes; instruct it not to mark the task done or spawn other sub-agents.
-   - If a review reports any findings, resolve them, repeat self-review, and launch another fresh review sub-agent whether or not the resolution changed files. Continue until a review reports no remaining issues.
+   - The reviewer must check the implementation, test coverage, real behavior assertions, and plausible negative tests against the task's acceptance criteria, and classify every concrete finding as **blocking** or **non-blocking** (definitions in `agent-task-management` `references/3-complete-task.md`, "Review budget and convergence"). It must not add requirements the task did not state.
+   - Fix every blocking finding. Fix non-blocking ones inline only when cheap; otherwise drop them or record a follow-up task. In direct mode, fix directly. In delegated mode, send the findings to the task's worker (or a fresh fixing sub-agent); instruct it not to mark the task done or spawn other sub-agents.
+   - **Review budget: at most two rounds per task.** Only if the first review reported blocking findings, repeat self-review and launch one more fresh reviewer that confirms the blocking fixes and checks the fix diff for new blocking defects, nothing else. If something blocking remains after round two, fix it and verify it with tests yourself, or record it as a new task/blocker and tell the user; never start a third round.
    - Ensure all final changes are committed before closing the task.
    - Run `ask done <id>` to mark the task complete
    - Run `ask annotate <id> "<summary of what was delivered>"` if the sub-agent did not already add a final annotation
@@ -124,4 +124,7 @@ For a single task the fresh-context overhead is not worth it — the orchestrato
 - Never allow task implementation, fixing, or review sub-agents to spawn nested sub-agents; the orchestrator owns all launches.
 - Never implement tasks in the orchestrator's own context **when delegating** (2+ tasks to work on) — always delegate to a sub-agent. When there is exactly 1 task to work on, implement directly instead of spawning a sub-agent.
 - Complete all already-started tasks before selecting new ones from `ask ready`, unless this invocation explicitly says otherwise; several started tasks are normal, never a reason to stop.
+- Never run open-ended review loops. At most two review rounds per task; the second only for blocking findings. Do not raise the bar mid-run (no new evidence, provenance or documentation requirements the task didn't ask for); out-of-scope discoveries become new tasks.
+- Workers run targeted checks only; the orchestrator runs full suites once per merge of finished work. Close each task as soon as it meets its criteria rather than holding finished tasks for a final batch merge.
+- On a small host, cap build-heavy workers at roughly one per two cores even if memory allows more; oversubscription causes timeouts and flakes that cost more than the parallelism gains.
 - After a task's implementation, review, fixes, and closure are complete, immediately move on (refill free worker slots, or pick the next task).
