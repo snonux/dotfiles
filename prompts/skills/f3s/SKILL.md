@@ -33,7 +33,7 @@ Do not read a whole area directory up front. Follow a cross-area link only when 
 | [Physical hosts](references/hosts.md) | Beelink hardware, FreeBSD base setup and upgrades, UPS, Shelly plugs (fans, AC), JetKVM, console resolution, shutdown hangs, safe reboot, kernel panics |
 | [bhyve VMs](references/vms.md) | vm-bhyve, the r0–r2 Rocky guests, NVMe disk fix, bootstrapping a new Rocky guest, the FreeBSD VM and backup-restore test on f3 |
 | [Network](references/network.md) | WireGuard mesh (topology, per-OS setup, generator, troubleshooting), off-LAN access via fishfinger/blowfish, OpenWrt router DNS/DHCP repair |
-| [Storage](references/storage.md) | ZFS (`zdata`), USB keys, zrepl, CARP VIP, NFS over stunnel, nfs-mount-monitor, backups, storage and thermal troubleshooting |
+| [Storage](references/storage.md) | ZFS (`zdata`), USB keys, zrepl, CARP VIP, NFS over stunnel, nfs-mount-monitor, backups, quarterly backups, storage and thermal troubleshooting |
 | [k3s cluster](references/k3s.md) | Install, kubeconfig, off-LAN kubectl, ingress (relayd, cert-manager), ArgoCD, etcd recovery, gonf r-node rollout |
 | [Observability](references/observability.md) | Prometheus, Alloy/Loki/Tempo/Grafana state, alerting, FreeBSD node_exporter, Gogios deployment, network-traffic troubleshooting |
 | [Workloads](references/workloads.md) | Immich, Garage (S3), Player, yChat, Forgejo, goprecords/uptimed, reading Miniflux news, refreshing the irregular.ninja photo album |

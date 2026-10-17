@@ -10,11 +10,6 @@
       "forgejo_owner": "snonux",
       "forgejo_owner_type": "organization",
       "optional": true
-    },
-    {
-      "host": "paul@f1.lan:/srv/data/enc/git",
-      "backupLocation": true,
-      "forcePush": true
     }
   ],
   "repositories": [
