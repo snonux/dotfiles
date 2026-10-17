@@ -8,7 +8,7 @@ once (one per parallel worker); the parallelism policy and memory guard live in
 
 Work on each new task **must begin with a fresh context** — a new sub-agent with no prior conversation history. That way the task is executed with clear focus and no carry-over from other work.
 
-**If you are orchestrating via `/work-on-tasks`:** run `ask list start.any:` before checking `ask ready`.
+**If you are orchestrating via the manual [work-on-tasks skill](../../work-on-tasks/SKILL.md):** run `ask list start.any:` before checking `ask ready`.
 
 - **Resume all already-started tasks first**, before selecting anything from `ask ready`. Follow the stalled-task recovery guidance below before editing each one.
   - **Exactly one task to work on in total** (one started, none ready, or none started and one ready) → handle it directly in the orchestrator's own context. Do **not** spawn a sub-agent; the fresh-context overhead is not worth it for a single task.

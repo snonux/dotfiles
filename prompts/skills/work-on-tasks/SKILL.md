@@ -1,23 +1,28 @@
-# /work-on-tasks
+---
+name: work-on-tasks
+description: "Automatically complete started and ready tasks for the current Git project using agent-task-management. Use when explicitly invoked as work-on-tasks, with optional selection strategy, task limit, and concurrency constraints."
+disable-model-invocation: true
+---
 
-**Description:** Automatically work through tasks for the current git project using the `agent-task-management` skill. The command first completes every already-started task, then selects pending tasks, unless the invocation explicitly states otherwise. It delegates to a fresh sub-agent per task when there are 2+ tasks to work on, or implements directly when there is only 1, and auto-progresses until no actionable tasks remain. Independent tasks may run as parallel sub-agents with no fixed cap, guarded by a memory check before each launch, unless an explicit concurrency limit is stated.
+# Work on Tasks
 
-**Parameters:**
+Run only when explicitly requested.
+
+## Parameters
+
 - strategy (optional): How to choose tasks when multiple are available (e.g., "highest-impact", "priority", "due-date", "quick-win")
 - max_tasks (optional): Safety limit for how many tasks to process in one run
 
 Any concurrency limit stated alongside the parameters (e.g. "at most 2 agents", "sequentially") is honored and overrides the parallel default.
 
 **Example usage:**
-- `/work-on-tasks`
-- `/work-on-tasks highest-impact`
-- `/work-on-tasks priority 5`
+- `$work-on-tasks`
+- `$work-on-tasks highest-impact`
+- `$work-on-tasks priority 5`
 
----
+## Workflow
 
-## Prompt
-
-Use the `agent-task-management` skill for this entire workflow.
+Read [agent-task-management](../agent-task-management/SKILL.md) directly and use it for this entire workflow. It owns the task lifecycle, parallelism, memory guard and review rules.
 
 I want you to automatically execute tasks to work for the **current git project** from start to finish. Once one task completes, automatically continue with the next task.
 
@@ -34,9 +39,9 @@ You are the **orchestrator**. You pick tasks, mark them started, launch sub-agen
 
 Whatever mode you are in, you still pick tasks, mark them started/done, commit, and auto-progress.
 
-**Parallelism and memory guard:** The canonical rules live in the `agent-task-management` skill, `references/7-orchestrating-task-batches.md` (see also `2-start-task.md` and `3-complete-task.md`); follow them rather than any copy here. In short:
+**Parallelism and memory guard:** The canonical rules live in the `agent-task-management` skill, [7-orchestrating-task-batches.md](../agent-task-management/references/7-orchestrating-task-batches.md) (see also [2-start-task.md](../agent-task-management/references/2-start-task.md) and [3-complete-task.md](../agent-task-management/references/3-complete-task.md)); follow them rather than any copy here. In short:
 
-- **No fixed cap.** Run as many parallel tasks and sub-agents (implementation, fixing, and review) as is useful. **An explicit limit always wins:** if the user, this command's invocation, or a task states one ("at most 2 agents", "one at a time", "sequentially"), honor it exactly. The `strategy` and `max_tasks` parameters still apply.
+- **No fixed cap.** Run as many parallel tasks and sub-agents (implementation, fixing, and review) as is useful. **An explicit limit always wins:** if the user, this skill's invocation, or a task states one ("at most 2 agents", "one at a time", "sequentially"), honor it exactly. The `strategy` and `max_tasks` parameters still apply.
 - **Several tasks may be started at once** (one per worker). Multiple started tasks are a normal state, not an error.
 - **Do not parallelize conflicting tasks.** Serialize tasks with dependencies, overlapping files/area, or a shared resource (port, database, build directory). If they must overlap, isolate each in its own git worktree (Agent `isolation: "worktree"`). With a shared worktree, each worker stages and commits **only its own files by explicit path** — never `git add -A`, `git add .`, or `git commit -a`.
 - **Memory guard.** Before launching each sub-agent, and again whenever a worker finishes and a slot could be refilled, check available memory (`MemAvailable` floor, share of `MemTotal`, swap use, optionally load average) using the thresholds defined in reference 7. Launch in small waves (one or two workers, let them warm up, re-measure). On memory pressure, stop launching and let running workers finish; if nothing is running and memory is still low, work directly in your own context, one task at a time. Never kill user processes.
@@ -46,12 +51,12 @@ Whatever mode you are in, you still pick tasks, mark them started/done, commit, 
 
 1. **Load project-scoped tasks**:
    - Detect the current project from local git context (`git rev-parse --show-toplevel`)
-   - Run `ask list start.any:` first. **Resume all already-started tasks before selecting anything new** — in parallel (subject to the conflict rules and memory guard), following the stalled-task recovery guidance in the skill (`6-recover-stalled-task.md`) before editing each one. Do not stop or ask because several tasks are started
+   - Run `ask list start.any:` first. **Resume all already-started tasks before selecting anything new** — in parallel (subject to the conflict rules and memory guard), following the stalled-task recovery guidance in the skill ([6-recover-stalled-task.md](../agent-task-management/references/6-recover-stalled-task.md)) before editing each one. Do not stop or ask because several tasks are started
    - Then run `ask ready | head` to list actionable tasks for the remaining free worker slots
    - Ignore completed/deleted tasks and non-actionable blocked items
    - Count the started plus newly selectable tasks to determine the sub-agent threshold above (exactly 1 → work directly; 2+ → delegate per task)
 
-2. **Pick the next task(s)** (default strategy: `{{strategy|highest-impact}}`):
+2. **Pick the next task(s)** (default strategy: `highest-impact`, unless another strategy was supplied):
    - Started tasks are resumed first; then choose new actionable tasks from `ask ready` based on impact, urgency, and clarity, as many as can safely run in parallel
    - Skip ready tasks that conflict with a started or running one (dependencies, same files/area, shared resource); they wait or run in an isolated worktree
    - If two tasks are equivalent, prefer the one that unblocks other work
@@ -84,7 +89,7 @@ Whatever mode you are in, you still pick tasks, mark them started/done, commit, 
 
 5. **Review, close, and record** (per task, as each worker returns):
    - Perform the self-review required by `agent-task-management`, then launch a fresh expert review sub-agent. Instruct the reviewer not to spawn other sub-agents.
-   - The reviewer must check the implementation, test coverage, real behavior assertions, and plausible negative tests against the task's acceptance criteria, and classify every concrete finding as **blocking** or **non-blocking** (definitions in `agent-task-management` `references/3-complete-task.md`, "Review budget and convergence"). It must not add requirements the task did not state.
+   - The reviewer must check the implementation, test coverage, real behavior assertions, and plausible negative tests against the task's acceptance criteria, and classify every concrete finding as **blocking** or **non-blocking** (definitions in `agent-task-management` [3-complete-task.md](../agent-task-management/references/3-complete-task.md), "Review budget and convergence"). It must not add requirements the task did not state.
    - Fix every blocking finding. Fix non-blocking ones inline only when cheap; otherwise drop them or record a follow-up task. In direct mode, fix directly. In delegated mode, send the findings to the task's worker (or a fresh fixing sub-agent); instruct it not to mark the task done or spawn other sub-agents.
    - **Review budget: at most two rounds per task.** Only if the first review reported blocking findings, repeat self-review and launch one more fresh reviewer that confirms the blocking fixes and checks the fix diff for new blocking defects, nothing else. If something blocking remains after round two, fix it and verify it with tests yourself, or record it as a new task/blocker and tell the user; never start a third round.
    - Ensure all final changes are committed before closing the task.
@@ -95,7 +100,7 @@ Whatever mode you are in, you still pick tasks, mark them started/done, commit, 
    - After each task is closed, immediately return to step 1: re-run `ask list start.any:` (resume any started task without a live worker), then select new tasks from `ask ready` for the free slots
    - Stop when:
      - no actionable project tasks remain and no worker is still running, or
-     - `{{max_tasks}}` tasks have been completed (if provided; do not launch more than would exceed it, let running workers finish), or
+     - `max_tasks` tasks have been completed (if provided; do not launch more than would exceed it, let running workers finish), or
      - a sub-agent reports a hard blocker (surface it to the user, let the other running workers finish and be closed out, then stop)
 
 7. **Final report**:
@@ -119,7 +124,7 @@ For a single task the fresh-context overhead is not worth it — the orchestrato
 - Default to autonomous execution.
 - Keep task scope tied to the current project.
 - There is no fixed sub-agent cap, but an explicit limit from the user, the invocation, or a task always wins; honor it exactly.
-- Always run the memory guard (see `agent-task-management` `references/7-orchestrating-task-batches.md`) before launching any implementation, fixing, or review sub-agent, and again when a worker finishes. On memory pressure stop launching and let running workers finish; never kill user processes.
+- Always run the memory guard (see `agent-task-management` [7-orchestrating-task-batches.md](../agent-task-management/references/7-orchestrating-task-batches.md)) before launching any implementation, fixing, or review sub-agent, and again when a worker finishes. On memory pressure stop launching and let running workers finish; never kill user processes.
 - Never run conflicting tasks (dependencies, overlapping files/area, shared resource) in the same worktree at the same time; serialize them or isolate them in separate worktrees. With a shared worktree, stage and commit only in-scope files by explicit path.
 - Never allow task implementation, fixing, or review sub-agents to spawn nested sub-agents; the orchestrator owns all launches.
 - Never implement tasks in the orchestrator's own context **when delegating** (2+ tasks to work on) — always delegate to a sub-agent. When there is exactly 1 task to work on, implement directly instead of spawning a sub-agent.

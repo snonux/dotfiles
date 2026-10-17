@@ -1,10 +1,12 @@
-# /review-changes
-
-**Description:** Review all uncommitted git changes (staged + unstaged), explain what they do and why, assess correctness, and write a review to REVIEW-COMMENTS.md.
-
+---
+name: review-changes
+description: "Review staged and unstaged Git changes, assess correctness, and write REVIEW-COMMENTS.md. Use when explicitly invoked as review-changes to review the current repository before committing."
+disable-model-invocation: true
 ---
 
-## Prompt
+# Review Changes
+
+Run only when explicitly requested.
 
 Review all uncommitted changes in this repository:
 

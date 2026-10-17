@@ -131,7 +131,11 @@ Installed by `home_scripts`. Quick hacks mostly.
 
 - `tmux/tmux.conf` ends with a `%if "#{m:*rocky*,#{host}}"` block that sources `tmux.rocky.conf` (prefix `C-g`, red/orange theme). Same file on every host, tmux picks the overrides. Needs tmux >= 3.0.
 - `home_tmux_rocky` is only a legacy alias of `home_tmux`; old invocations keep working.
-- `prompts/` holds agent `commands/*.md` and `skills/*/`. `~/Notes/Prompts` is a symlink to it, and `home_agents` links it into each agent tool. `prompts/sharable.md` lists the ones fit to share.
+- `prompts/skills/` holds the agent workflows. The former commands are manual-only
+  skills (`are-you-sure`, `review-changes`, `work-on-tasks`); `commands/` is kept
+  empty for agent setup compatibility. `~/Notes/Prompts` is a symlink to
+  `prompts/`, and `home_agents` links it into each agent tool.
+  `prompts/sharable.md` lists the skills fit to share.
 - Source root is `~/git/dotfiles`. From another worktree `gonf.sh` sets `GONF_DOTFILES_ROOT` to that checkout.
 
 ## More

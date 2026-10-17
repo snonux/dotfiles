@@ -1,0 +1,6 @@
+interface:
+  display_name: "Are You Sure"
+  short_description: "Verify recent changes against the intended outcome"
+  default_prompt: "Use $are-you-sure to critically verify the recent changes and their outcomes."
+policy:
+  allow_implicit_invocation: false

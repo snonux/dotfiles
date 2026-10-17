@@ -1,10 +1,12 @@
-# /are-you-sure
-
-**Description:** Critically verify that recent changes actually achieved the intended outcome, and identify any mistakes or regressions before moving on.
-
+---
+name: are-you-sure
+description: "Critically verify recent changes against the original intent and find mistakes, regressions, edge cases, or incomplete work. Use when explicitly invoked as are-you-sure for a final skeptical verification pass."
+disable-model-invocation: true
 ---
 
-## Prompt
+# Are You Sure
+
+Run only when explicitly requested.
 
 Before finalizing, do a critical verification pass on the most recent changes.
 

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Review Changes"
+  short_description: "Review pending Git changes and write review comments"
+  default_prompt: "Use $review-changes to review all uncommitted changes and write REVIEW-COMMENTS.md."
+policy:
+  allow_implicit_invocation: false

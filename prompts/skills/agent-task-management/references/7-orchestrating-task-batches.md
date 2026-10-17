@@ -1,7 +1,7 @@
 # Orchestrating task batches
 
 Use this reference only when selecting, delegating, reviewing, or progressing
-through several tasks, including `/work-on-tasks`. It is the canonical home for
+through several tasks, including the manual [work-on-tasks skill](../../work-on-tasks/SKILL.md). It is the canonical home for
 the parallelism rules and the memory guard; other references link here instead
 of repeating them.
 

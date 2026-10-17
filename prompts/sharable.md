@@ -1,26 +1,10 @@
 # Sharable prompts
 
-./commands/commit-and-push-to-git.md
-./commands/create-command.md
-./commands/create-context.md
-./commands/delete-command.md
-./commands/delete-context.md
-./commands/delete-skill.md
-./commands/load-context.md
-./commands/load-skill.md
-./commands/update-command.md
-./commands/update-context.md
-./commands/update-skill.md
-./commands/review-changes.md
-./commands/are-you-sure.md
-./commands/create-tasks.md
-./commands/create-skill.md
-./commands/work-on-tasks.md
-./commands/tiny-work-on-tasks.md
 ./skills/audit
 ./skills/timesamurai
 ./skills/100-go-mistakes
 ./skills/agent-task-management
+./skills/are-you-sure
 ./skills/auditing-code-quality
 ./skills/bash-best-practices
 ./skills/beyond-solid-principles
@@ -32,7 +16,8 @@
 ./skills/increment-version-and-push
 ./skills/next-auto-task
 ./skills/purge-file-from-git
+./skills/review-changes
 ./skills/run-command
 ./skills/skill-maintenance
 ./skills/solid-principles
-
+./skills/work-on-tasks

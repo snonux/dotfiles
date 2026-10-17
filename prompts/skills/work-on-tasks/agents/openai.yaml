@@ -1,0 +1,6 @@
+interface:
+  display_name: "Work on Tasks"
+  short_description: "Complete project tasks with bounded review cycles"
+  default_prompt: "Use $work-on-tasks to complete actionable tasks for the current Git project."
+policy:
+  allow_implicit_invocation: false
