@@ -10,8 +10,7 @@ Run only when explicitly requested. Invocation authorizes committing the current
 project's pending changes, resolving necessary integration conflicts, and pushing
 the current branch and all tags to all configured upstream repositories. Here,
 upstream repositories means every Git remote and each of its push destinations.
-Work through
-routine conflicts without asking again. Other branches, releases, unrelated
+Work through routine conflicts without asking again. Other branches, releases, unrelated
 repositories, service startup and repository administration are outside this scope.
 
 ## Inspect and checkpoint
