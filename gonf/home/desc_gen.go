@@ -2,6 +2,10 @@
 
 package home
 
+func (HomeTasks) DescAerc() string {
+	return "Installs aerc's connection to Proton Bridge in k3s (Linux, earth)"
+}
+
 func (HomeTasks) DescAgents() string { return "Installs agent command/skill symlinks" }
 
 func (HomeTasks) DescBash() string { return "Installs bash configuration symlinks" }

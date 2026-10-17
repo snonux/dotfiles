@@ -1,0 +1,13 @@
+[Unit]
+Description=Forward local aerc ports to the Proton Bridge k3s service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/kubectl port-forward --address 127.0.0.1 --namespace services service/protonbridge 1143:1143 1025:1025
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

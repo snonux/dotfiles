@@ -40,6 +40,20 @@ Read the f3s [k3s area index](../../f3s/references/k3s.md) for cluster access, A
 node, or control-plane problems. This reference owns only the Proton Bridge/aerc
 path.
 
+## Gonf ownership on earth
+
+Deploy the laptop configuration from `/home/paul/git/dotfiles` with
+`./gonf.sh home_aerc` (also included in `./gonf.sh home`). The Linux/earth-guarded
+recipe is `gonf/home/aerc.go`; non-secret sources are under `aerc/` and
+`systemd-user/protonbridge-k3s-tunnel.service`. Make durable changes there and
+redeploy rather than editing only the installed copies.
+
+The Bridge-generated password remains local and is never packaged into a
+gonf plan. Gonf preserves its content and enforces mode 0600 if it exists.
+The pinned public certificate is versioned in
+`aerc/protonbridge-ca-bundle.pem`; update this source after a verified
+certificate rotation so future deployments retain the new pin.
+
 ## f3s Argo CD deployment
 
 The cluster-side Proton Bridge is a GitOps workload in the `conf` repository,
@@ -272,8 +286,10 @@ timeout 10 /usr/bin/openssl s_client \
   </dev/null 2>/dev/null \
   | /usr/bin/openssl x509 -outform PEM >"$tmp"
 test -s "$tmp"
-install -m 0644 "$tmp" ~/.config/aerc/protonbridge-ca-bundle.pem
+install -m 0644 "$tmp" /home/paul/git/dotfiles/aerc/protonbridge-ca-bundle.pem
 rm -f "$tmp"
+cd /home/paul/git/dotfiles
+./gonf.sh home_aerc
 ```
 
 Then rerun both TLS checks. Keep this file limited to the current Bridge

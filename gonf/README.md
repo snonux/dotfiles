@@ -76,6 +76,22 @@ Use `../gonf.sh <args>` (see [../README.md](../README.md#deploy)). It sets `GONF
 
 `system_fish_shell` installs fish first, then declares `User("paul", WithShell("/usr/bin/fish"), WithManageShell, DependsOn(pkg))`. For an existing account, only its login shell changes; its home, groups and other account settings stay as they are.
 
+`home_aerc` is part of `home`, guarded to Linux and hostname earth. It deploys
+`aerc/accounts.conf`, the pinned public Bridge certificate, `~/bin/aerc` (sets
+`SSL_CERT_FILE`), `~/.protonbridge` (credential-file references), the disabled
+local Bridge autostart entry, and `protonbridge-k3s-tunnel.service`. The user
+service stays enabled and active; changes to its unit trigger daemon-reload
+and restart. Deploy just this setup with `./gonf.sh home_aerc` from the repo root.
+
+Prerequisites are `/usr/bin/aerc`, `/usr/bin/kubectl`, working f3s kube access,
+and the Bridge-generated password in `~/.config/aerc/protonbridge-password`.
+The password is provisioned separately using Bridge's `info` command; gonf
+preserves its content and enforces 0600 when it exists, and never creates an
+empty substitute or includes the password in a plan. The public certificate is
+versioned as `aerc/protonbridge-ca-bundle.pem`: after a verified Bridge
+certificate rotation, update that source and redeploy. Keep `~/bin` before
+`/usr/bin` on PATH. aerc's other UI settings remain local.
+
 ## Tree sync beside flat sync
 
 `SyncDir(dst, glob)` remains useful for flat config directories and matching raw unit files. To deploy nested production scripts as well, `home_scripts` now uses a source tree:

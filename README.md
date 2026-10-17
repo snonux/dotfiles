@@ -22,7 +22,7 @@ My dotfiles, deployed locally or over ssh with [gonf](https://github.com/snonux/
 | `signature/` | mail signature (file) |
 | `ssh/` | `~/.ssh/config` |
 | `sway/`, `waybar/` | sway `config.d/`, waybar config |
-| `systemd-user/` | raw user units: `quicklog-drain` (earth), `goprecords-upload-{earth,zen}`; `home-backup` legacy (removed by gonf) |
+| `systemd-user/` | raw user units: `quicklog-drain` and `protonbridge-k3s-tunnel` (earth), `goprecords-upload-{earth,zen}`; `home-backup` legacy (removed by gonf) |
 | `taskwarrior/` | `taskrc` |
 | `timesamurai/` | timesamurai config |
 | `tmux/` | `tmux.conf`, `tmux.local.conf`, `tmux.rocky.conf` |
@@ -40,6 +40,7 @@ My dotfiles, deployed locally or over ssh with [gonf](https://github.com/snonux/
 ./gonf.sh -list                    # all tasks
 ./gonf.sh -n home                  # dry-run
 ./gonf.sh home                     # unprivileged home configuration
+./gonf.sh home_aerc                # aerc + k3s Proton Bridge tunnel (earth only)
 ./gonf.sh -privilege=sudo home_goprecords_upload # upload timer and its system_uptimed prerequisite (earth/zen)
 ./gonf.sh pkg_opendoas             # opendoas on every Fedora host
 ./gonf.sh pkg_fedora               # Fedora workstation packages (Fedora profile only)

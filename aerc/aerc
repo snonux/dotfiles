@@ -1,0 +1,4 @@
+#!/bin/sh
+
+export SSL_CERT_FILE="$HOME/.config/aerc/protonbridge-ca-bundle.pem"
+exec /usr/bin/aerc "$@"

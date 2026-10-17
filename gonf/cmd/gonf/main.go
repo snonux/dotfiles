@@ -35,6 +35,7 @@ func registerTasks() {
 	// system_uptimed prerequisite of home_goprecords_upload. List members
 	// explicitly so a future home task cannot add privileged work to home.
 	AggregateTasks("home", "Install unprivileged home configuration",
+		"home_aerc",
 		"home_agents",
 		"home_bash",
 		"home_calendar",
