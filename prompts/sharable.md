@@ -25,6 +25,7 @@
 ./skills/bash-best-practices
 ./skills/beyond-solid-principles
 ./skills/c-best-practices
+./skills/commit-all-and-push
 ./skills/commit-skills
 ./skills/find-code-bugs
 ./skills/go-best-practices
