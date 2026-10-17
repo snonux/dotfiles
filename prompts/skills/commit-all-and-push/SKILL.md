@@ -1,6 +1,6 @@
 ---
 name: commit-all-and-push
-description: "Commit all current project changes and synchronize the current branch and all tags to every available Git push destination. Use when explicitly invoked as commit-all-and-push; handles rebases, conflicts, verification, and unavailable mirrors such as Forgejo."
+description: "Commit all current project changes and synchronize the current branch and all tags to all configured upstream Git repositories. Use when explicitly invoked as commit-all-and-push; handles rebases, conflicts, verification, and unavailable upstream repositories."
 disable-model-invocation: true
 ---
 
@@ -8,7 +8,9 @@ disable-model-invocation: true
 
 Run only when explicitly requested. Invocation authorizes committing the current
 project's pending changes, resolving necessary integration conflicts, and pushing
-the current branch and all tags to its configured push destinations. Work through
+the current branch and all tags to all configured upstream repositories. Here,
+upstream repositories means every Git remote and each of its push destinations.
+Work through
 routine conflicts without asking again. Other branches, releases, unrelated
 repositories, service startup and repository administration are outside this scope.
 
@@ -44,10 +46,10 @@ repositories, service startup and repository administration are outside this sco
   Fetch the destination's branch and tags into unique temporary refs so one
   mirror cannot overwrite another mirror's refs or local tags. Inspect configured
   upstream/fetch history when needed to identify published commits.
-- An offline Forgejo mirror must not block available GitHub or other remotes.
+- An unavailable upstream repository must not block synchronization with the others.
   Record offline, archived/read-only and authentication failures separately,
   continue with the reachable writable destinations, and report partial success.
-  Do not power on the homelab, unarchive a repository or change access settings.
+  Do not start remote services, unarchive a repository or change access settings.
   A successful read probe does not prove write access; handle push refusals too.
 - Import collision-free remote-only tags so the final tag set includes every
   reachable destination's tags. Compare the actual tag ref object IDs, including

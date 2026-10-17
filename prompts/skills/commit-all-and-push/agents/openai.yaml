@@ -1,6 +1,6 @@
 interface:
   display_name: "Commit All and Push"
   short_description: "Commit all changes; push the branch and all tags"
-  default_prompt: "Use $commit-all-and-push to commit all project changes, reconcile remote histories, and push the current branch and all tags to every available remote."
+  default_prompt: "Use $commit-all-and-push to commit all project changes, reconcile remote histories, and push the current branch and all tags to all configured upstream repositories."
 policy:
   allow_implicit_invocation: false
