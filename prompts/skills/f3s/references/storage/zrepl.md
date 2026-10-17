@@ -1,7 +1,7 @@
 # zrepl: Continuous ZFS Replication
 
 Continuous ZFS replication for the encrypted NFS dataset (f0 → f1) and the
-standalone FreeBSD dev VM (f3 → f2). Original plan was HAST, replaced by
+standalone FreeBSD and Rocky VMs (f3 → f2). Original plan was HAST, replaced by
 zrepl (`zfs send/recv`) — more reliable and avoids the HAST-induced ZFS
 corruption that hit us during failover testing.
 
@@ -91,13 +91,15 @@ jobs:
           regex: "^zrepl_.*"
 ```
 
-## f2 configuration (sink for f3's freebsd VM)
+## f2 configuration (sink for f3's VM backups)
 
-The sink lives in `zroot/sink` (created before f2 got its zdata SSD; not
-moved):
+The sink lives in `zdata/sink` on f2's second SSD (928 GiB pool). It moved
+from `zroot/sink` on 2026-10-17 after Rocky backup history filled the 472 GiB
+OS pool and r2 stopped reporting to Kubernetes. Keep VM backups off `zroot`,
+which also holds f2's OS and the active r2 virtual disk:
 
 ```sh
-doas zfs create zroot/sink
+doas zfs create -o mountpoint=none zdata/sink
 ```
 
 `/usr/local/etc/zrepl/zrepl.yml`:
@@ -120,10 +122,19 @@ jobs:
     recv:
       placeholder:
         encryption: inherit
-    root_fs: "zroot/sink"
+    root_fs: "zdata/sink"
 ```
 
-Replicated path: `zroot/bhyve/freebsd` → `zroot/sink/f3/zroot/bhyve/freebsd`
+Replicated paths:
+
+- `zroot/bhyve/freebsd` → `zdata/sink/f3/zroot/bhyve/freebsd`
+- `zroot/bhyve/rocky` → `zdata/sink/f3/zroot/bhyve/rocky`
+
+Both VM backups remain encrypted raw receives, with `mountpoint=none` and
+`keylocation=file:///keys/f3.lan.buetow.org:bhyve.key`. Both belong in
+f2's `zfskeys_datasets` (see [USB keys](usb-keys.md)). Inventory, the sink
+root, and snapshot exclusions are managed in `gonf/cluster/freebsd_storage.go`.
+The f3 push job and its WireGuard endpoint stay the same when moving the sink.
 
 Important: do not let `zfs-periodic` snapshot zrepl-managed sender or receiver
 datasets. Snapshot creation should be owned by zrepl. On f2,
@@ -147,7 +158,25 @@ The local zrepl `snap` job on f3 also excludes both VM datasets so they are only
     ...
 ```
 
-The local zrepl `snap` job on f2 also explicitly excludes `zroot/sink<`.
+The local zrepl `snap` job on f2 includes `zdata<` and explicitly excludes
+`zdata/sink<`; the push job owns backup snapshots and their pruning.
+
+After a sink migration, compare completed snapshot GUIDs before removing the
+old copy, then wake `f3_to_f2_freebsd` on f3 and confirm both filesystems
+complete incremental replication. A raw send (`zfs send -w`) preserves the
+encryption lineage required for later raw incrementals. After reboot, check
+both backup keys are available, r2 is Ready, and a fresh replication completes.
+Validated on 2026-10-17: f2 imported both pools, loaded both backup keys,
+autostarted r2, and accepted a Rocky incremental after boot; sender and
+receiver pruning both completed successfully.
+
+The 2026-10-17 migration retained the latest completed Rocky backup and the
+FreeBSD backup history; older Rocky receiver snapshots were removed with
+permission to reclaim space. f3's snapshot retention policy remains
+`last_n: 10` plus `24x1h | 14x1d` on sender and receiver. Snapshot counts do
+not cap bytes: a VM image with heavy write activity can retain hundreds of
+GiB even when its current image is much smaller. Check `usedbysnapshots`,
+`available`, and `zrepl status` on both hosts when capacity is tight.
 
 ## f1 configuration (sink)
 

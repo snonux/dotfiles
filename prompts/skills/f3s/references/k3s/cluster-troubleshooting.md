@@ -1,5 +1,26 @@
 # k3s Troubleshooting
 
+## r2 NotReady when f2's OS pool fills
+
+On 2026-10-17 f3's Rocky VM backup history filled f2's `zroot`, which also
+backs r2's virtual disk. r2 stopped renewing its kubelet lease, SSH reset
+connections, and the guest console showed repeated journald disk I/O errors.
+Freeing host space did not restore the guest immediately. Check `zfs list`
+and `zpool list` on f2 when these symptoms coincide; a pool can report some
+physical free space while datasets have zero available bytes.
+
+Both f3 VM backups now live under `zdata/sink` on f2's larger second SSD.
+See [zrepl](../storage/zrepl.md) for current paths and the migration checks,
+and [safe reboot](../hosts/shutdown-hang.md) before restarting the host.
+
+The affected guest did not complete ACPI shutdown within 240 seconds and
+required a forced stop before f2's reboot. Console SysRq was ineffective
+(bhyve's PS/2 keyboard does not implement Print Screen/SysRq). After boot,
+XFS completed automatic log recovery, k3s started without restarts or error
+entries, r2 returned Ready, and its pending local-volume test pod ran again.
+Check the previous guest boot's kernel journal for NVMe write/I/O errors;
+check the current boot for completed XFS recovery and local API `/readyz`.
+
 ## Etcd Raft Log Corruption Recovery
 
 **Symptom**: k3s crashes on startup with panic:

@@ -16,7 +16,7 @@ Note: original plan was HAST, replaced by **zrepl** (ZFS send/receive) — more 
 
 - [ZFS Pools & Encryption](storage/zfs.md) — `zdata` pool, physical disks, USB-stored keys mounted by `f3skeys` (not `/etc/fstab`), encrypted datasets, boot-time key loading, pool feature flags / `zpool upgrade` state
 - [USB Key Mounting](storage/usb-keys.md) — `f3skeys`, `/usr/local/sbin/f3s-mount-keys`, current `zfskeys_datasets` per f-host, and the removable quarterly `zusb` backup pool (raw key on `/keys/zusb.key`, manual `zusb-load`/`zusb-unload` on all f-hosts)
-- [zrepl Replication](storage/zrepl.md) — `f0 → f1` nfsdata, `f3 → f2` freebsd VM, sink configs, replication liveness check (f0 cron canary on `/data/nfs/nfs.LIVE_CHECK`), troubleshooting, DL-state recovery
+- [zrepl Replication](storage/zrepl.md) — `f0 → f1` nfsdata, `f3 → f2` VM backups on `zdata/sink`, sink configs, replication liveness check (f0 cron canary on `/data/nfs/nfs.LIVE_CHECK`), troubleshooting, DL-state recovery
 - [CARP HA VIP](storage/carp.md) — VIP `192.168.1.138`, `carpcontrol.sh`, mgmt script, auto-failback, SUSPENDED-pool limitation
 - [NFS over stunnel](storage/nfs.md) — NFS server, mutual-TLS stunnel, Rocky client config, `/etc/fstab`, the earth roaming client and its expired-cert fix
 - [nfs-mount-monitor](storage/nfs-mount-monitor.md) — systemd watchdog on r-nodes (mount/stat/write probes, fail counter, cordon-and-reboot escalation)

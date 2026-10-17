@@ -75,7 +75,7 @@ doas sysrc zfskeys_datasets="zdata/enc zdata/enc/nfsdata zroot/bhyve zroot/garag
 doas sysrc zfskeys_datasets="zdata/enc zroot/bhyve zroot/garage zdata/sink/f0/zdata/enc/nfsdata"
 
 # f2
-doas sysrc zfskeys_datasets="zdata/enc zroot/bhyve zroot/garage zroot/sink/f3/zroot/bhyve/freebsd"
+doas sysrc zfskeys_datasets="zdata/enc zroot/bhyve zroot/garage zdata/sink/f3/zroot/bhyve/freebsd zdata/sink/f3/zroot/bhyve/rocky"
 
 # f3
 doas sysrc zfskeys_datasets="zroot/bhyve"
@@ -90,7 +90,9 @@ doas zfs set keylocation=file:///keys/f0.lan.buetow.org:zdata.key \
 
 # f2
 doas zfs set keylocation=file:///keys/f3.lan.buetow.org:bhyve.key \
-  zroot/sink/f3/zroot/bhyve/freebsd
+  zdata/sink/f3/zroot/bhyve/freebsd
+doas zfs set keylocation=file:///keys/f3.lan.buetow.org:bhyve.key \
+  zdata/sink/f3/zroot/bhyve/rocky
 ```
 
 Manual recovery after boot:
@@ -115,9 +117,10 @@ zfs list -H -o name,encryption,keylocation,keystatus,mounted |
 Full reboot validation was run on f0, f1, f2, and f3 on 2026-05-30 after this
 change.
 
-Note: `zroot/sink/f3/zroot/bhyve/freebsd` on f2 has `mountpoint=none`; the
-reboot check expects its key to be `available`, but it is not mounted because it
-has no filesystem mountpoint.
+Both VM backups below `zdata/sink/f3/zroot/bhyve` on f2 have
+`mountpoint=none`; the reboot check expects both keys to be `available`,
+but neither dataset is mounted. The sink moved from `zroot` to `zdata`
+on 2026-10-17; boot key-loading paths must use the new pool.
 
 ## Removable backup pool (`zusb`)
 
