@@ -24,6 +24,14 @@ Follow this workflow in order:
    - Preview first with `./gonf.sh cluster -n frontends frontends_gogios` if unsure.
    - `frontends_gogios` declares `Package("gogios", ..., IsLatest)` with the custom repo `PKG_PATH`, so it installs gogios when absent and runs `pkg_add -u gogios` otherwise. It is the full Gogios setup: the `_gogios` account, runtime/status directories, `gogios.json`, the `check_shuriken_age` plugin (needs the `~/git/shuriken.sh` checkout on the controller) and the `_gogios` crontab. It converges idempotently, so after a package build a rerun normally changes only the package.
 
+## Test ingress domains
+
+Frontend recipe `gonf/frontends/monitoring.go` excludes every site whose name
+ends in `-test.f3s.buetow.org`, including `www.`, `standby.`, `ipv4.` and
+`ipv6.` aliases. Test instances use `X-test` names (`player-test`, not
+`test-player` or `player-testing`). This is a monitoring filter; the domains
+still need their normal DNS, certificates and ingress routing.
+
 ## Notes
 
 - Keep this sequence ordered: build/publish first, install second.

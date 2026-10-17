@@ -10,6 +10,7 @@ Player is deployed on the f3s k3s cluster as a GitOps-managed service.
 - ArgoCD app: `~/git/conf/f3s/argocd-apps/services/player.yaml`
 - External URL: `https://player.f3s.buetow.org`
 - Extra instance URL: `https://xplayer.f3s.buetow.org`
+- Isolated trash-test URL: `https://player-test.f3s.buetow.org` (namespace `player-trash-test`; manifests in `~/git/player/player-server/k8s/test-trash/`)
 - LAN URL: `https://player.f3s.lan.buetow.org`
 
 ArgoCD reads the chart from the in-cluster Forgejo repo:
@@ -34,6 +35,19 @@ pushes; GitHub is the canonical home:
 git push github master
 git push forgejo master
 ```
+
+## Test ingress naming
+
+Use `X-test.f3s.buetow.org` for test instances, with `www.` and `standby.`
+aliases where needed. Gogios excludes only the `-test.f3s.buetow.org` suffix
+from all site checks. DNS, ACME certificates and routing still come from the
+frontend topology in `conf/gonf/frontends/data.go`; the ingress remains in
+the application repo. Use `player-test`, replacing the former `test-player`
+name; use `test` rather than `testing` in test ingress domains. The isolated
+trash browser suite must target this test instance, never production. After
+a rename, verify HTTPS pinned to each frontend gateway: DNS failover can
+select either gateway, so both need the issued certificate rather than a
+placeholder.
 
 ## Build and push a new image
 
