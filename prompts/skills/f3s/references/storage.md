@@ -22,7 +22,7 @@ Note: original plan was HAST, replaced by **zrepl** (ZFS send/receive) — more 
 - [nfs-mount-monitor](storage/nfs-mount-monitor.md) — systemd watchdog on r-nodes (mount/stat/write probes, fail counter, cordon-and-reboot escalation)
 - [Troubleshooting](storage/troubleshooting.md) — NFS issues, ZFS pool SUSPENDED recovery, **thermal** troubleshooting (Beelink S12 Pro)
 - [Backups & Local-Path](storage/backups.md) — S3 Glacier Deep Archive, AWS CLI setup on a FreeBSD host (pkg + `/root/.aws` symlink to `/opt/snonux/secrets/aws.credentials`), when to use `local-path` instead of NFS
-- [Quarterly backups](storage/quarterly-backups.md) — runbook for `~/Notes/Lists/Backup.md` (1 gitsyncer, 2 zrepl sync, 3 `zusb` + enc keys; further steps added as exercised)
+- [Quarterly backups](storage/quarterly-backups.md) — runbook for `~/Notes/Lists/Backup.md` (numbered steps in its Checklist map; renumber that map + `## N.` headings when the procedure changes)
 
 ## Storage Summary
 
