@@ -11,6 +11,27 @@ the result or moving on. Do not abandon a background job mid-run unless the
 user stops it. Short checks (zrepl canary, `zfs list`, `ls`) may stay
 foreground.
 
+**Hourly status (required while waiting):** once `rsync-data-to-zusb`,
+`backup start`, and/or the `zusb` scrub are in flight and the agent is not
+blocked on a user OK, arm a **1h** local loop (`/loop` / monitored shell
+sentinel) and post a short status each tick until those jobs finish (or the
+user stops the loop). Do **not** hold a multi-hour SSH `AwaitShell` for the
+whole backup — use `nohup` on f1 plus hourly check-ins.
+
+Each hourly update should include: whether `backup` / `rsync-data-to-zusb` /
+scrub are still running; latest meaningful `backup start` log lines (normalize
+`\r`); scrub `%` and ETA; `rocky` state. When all three background pieces are
+done, stop the loop and continue with **Verify background jobs… /
+`zusb-unload`**.
+
+```sh
+# local agent loop (1h) — emit sentinel; agent reports status on each tick
+while true; do
+  sleep 3600
+  echo 'AGENT_LOOP_TICK_f3s_quarterly_backup {"prompt":"Hourly f3s quarterly backup status: check backup start, rsync-data-to-zusb, zusb scrub, and rocky on f1; report briefly. Stop this loop when backup+scrub are done and proceed to unload if appropriate."}'
+done
+```
+
 Order matters: on the **f1** backup host, stop the `rocky` bhyve VM first (frees
 RAM/I/O), then sync git from **earth**, confirm f0→f1 zrepl, and mount `zusb`
 on **f1** (later steps treat f1's NFS sink and `/srv/data/enc` as backup
@@ -47,7 +68,7 @@ sections both numbered `3`.
 | 4 | Mount `zusb` on f1 + confirm enc keys | Documented below |
 | 5 | Start `zpool scrub zusb` on f1 | Documented below |
 | 6 | Review k3svolumes **not** covered by `rsync-data-to-zusb` | Documented below |
-| 7 | Sync `worktime` + `recovery` git → f1 zusb | Documented below |
+| 7 | Sync `worktime` + `recovery` + `iq` git → f1 zusb | Documented below |
 | 8 | Run `~/Syncthing/**/rsync-data-to-usb` on earth | Documented below |
 | 9 | `rsync-data-to-zusb` (k3svolumes → zusb) on f1 | Documented below (finish before 10) |
 | 10 | `backup start` on f1 (ZFS snap + S3) | Documented below (after 9 completes) |
@@ -268,55 +289,76 @@ doas zpool status zusb
 Started 2026-10-18 on f1: scrub in progress since 11:45 (pool still has the
 known permanent music-snap data error from before).
 
-## 6. Review k3svolumes **not** covered by `rsync-data-to-zusb`
+## 6. Review k3svolumes coverage (`rsync-data-to-zusb`)
 
 Right after **Start `zpool scrub zusb`**, **before** starting
-`rsync-data-to-zusb`. Compare top-level dirs under `/data/nfs/k3svolumes/` to
-the sources in `/opt/snonux/bin/backup/rsync-data-to-zusb`. Give the user a short
-overview of what is **not** synced to `zusb` and wait for an explicit OK /
-not-OK (do not invent new rsync lines unless asked). Only then proceed to
+`rsync-data-to-zusb`. Compare top-level entries under `/data/nfs/k3svolumes/`
+to the sources in `/opt/snonux/bin/backup/rsync-data-to-zusb`.
+
+**Agent presentation (required):** show the user **two clear Markdown
+tables** in the chat (not a bare comma list). Do not invent new rsync lines
+unless asked. Wait for an explicit OK / not-OK. Only then proceed to
 **`rsync-data-to-zusb`**.
 
+1. **Covered** — one row per script `rsync` line: volume, source path under
+   `k3svolumes/`, destination under `/srv/data/enc/…`, and coverage note
+   (`full` = whole volume root; `partial` = subdirectory only and/or
+   excludes). Deduplicate identical lines (e.g. repeated `opodsync`).
+2. **Not covered** — every top-level name under `k3svolumes/` that never
+   appears as a script source, with `du -sh` size (or `(file)` /
+   `(sentinel)` for non-dirs). Call out large gaps (e.g. `syncthing`).
+
 ```sh
-# on f1 — sources the script rsyncs (first path component under k3svolumes)
-grep -E '^\s*rsync ' /opt/snonux/bin/backup/rsync-data-to-zusb \
-  | sed 's/.*k3svolumes\///;s|/.*||;s| .*||' | sort -u
+# on f1
+SCRIPT=/opt/snonux/bin/backup/rsync-data-to-zusb
 
-# top-level volume dirs
-ls -1 /data/nfs/k3svolumes/ | sort
+# covered: source → dest (keep excludes visible in the partial notes)
+grep -E '^\s*rsync ' "$SCRIPT"
 
-# set difference (not covered)
+# not covered (set difference on first path component)
 comm -23 \
   <(ls -1 /data/nfs/k3svolumes/ | sort) \
-  <(grep -E '^\s*rsync ' /opt/snonux/bin/backup/rsync-data-to-zusb \
+  <(grep -E '^\s*rsync ' "$SCRIPT" \
       | sed 's/.*k3svolumes\///;s|/.*||;s| .*||' | sort -u)
+
+# sizes for not-covered entries
+comm -23 \
+  <(ls -1 /data/nfs/k3svolumes/ | sort) \
+  <(grep -E '^\s*rsync ' "$SCRIPT" \
+      | sed 's/.*k3svolumes\///;s|/.*||;s| .*||' | sort -u) \
+| while read -r name; do
+  p=/data/nfs/k3svolumes/$name
+  if [ -d "$p" ]; then du -sh "$p"
+  elif [ -f "$p" ]; then echo "(file) $name"
+  else echo "(other) $name"
+  fi
+done
 ```
 
-Also call out **partial** coverage when relevant (script does not mirror the
-whole tree): e.g. `player` only selected `libraries/…` trees, `navidrome`
-only `music/`, `immich` excludes `*external-library/videos/*`, `xplayer`
-only `libraries/`.
+Typical **partial** cases: `player` → `libraries/{audiobooks,musicvideos,yoga}`
+only; `xplayer` → `libraries/` only; `navidrome` → `music/` only; `immich`
+excludes `*external-library/videos/*`.
 
 ### Pass criteria
 
-1. User sees the not-covered list (and partial-coverage notes)
+1. User sees both tables (covered with dest + partial notes; not-covered with
+   sizes)
 2. User says OK to proceed, or asks to extend `rsync-data-to-zusb` / run extra
    rsyncs **before** the next step starts the script
 
-Snapshot as of 2026-10-18 — not covered (top-level): `apache`,
-`beets-art`, `bgtutor`, `etcd-snapshots`, `freshrss`, `keybr`, `linkding`,
-`permtest`, `pihole`, `prometheus`, `syncthing`, `ychat`
-(plus sentinel `k3svolumes.DO_NOT_REMOVE` and `shuriken.sh`).
-`argocd` and `protonbridge` → `/srv/data/enc/cloud/` were added to the
-script 2026-10-18. Script lives on **zusb** at
+Snapshot as of 2026-10-19 — not covered (notable sizes): `syncthing` ~146G,
+`prometheus` ~2.6G, `shuriken.sh` ~2.7G, `etcd-snapshots` ~105M, plus small
+`apache`, `beets-art`, `bgtutor`, `freshrss`, `keybr`, `linkding`, `permtest`,
+`pihole`, `ychat`, and non-volume noise (`k3svolumes.DO_NOT_REMOVE`,
+`rsync-backup.sh.*`). Script lives on **zusb** at
 `/opt/snonux/bin/backup/rsync-data-to-zusb` (edit in place on the host that
 has `zusb` loaded).
 
-## 7. Sync `worktime` + `recovery` git → f1 zusb
+## 7. Sync `worktime` + `recovery` + `iq` git → f1 zusb
 
-Before the Syncthing / k3svolumes rsyncs, push the private **worktime** and
-**recovery** repos from **earth** onto the mounted `zusb` git tree on f1.
-Requires **Mount `zusb`…** (so `/srv/data/enc/git` is available).
+Before the Syncthing / k3svolumes rsyncs, push the private **worktime**,
+**recovery**, and **iq** repos from **earth** onto the mounted `zusb` git
+tree on f1. Requires **Mount `zusb`…** (so `/srv/data/enc/git` is available).
 
 **Destination rule:** every private bare mirror lives under
 
@@ -329,6 +371,7 @@ that `private/` path.
 |--------------|-------------|-------------------|
 | `~/git/worktime` | `f1.lan` | `/srv/data/enc/git/private/worktime.git` |
 | `~/git/recovery` | `zusb` | `/srv/data/enc/git/private/recovery.git` |
+| `~/git/iq` | `f1.lan` | `/srv/data/enc/git/private/iq.git` |
 
 ```sh
 # on earth — ensure bare repos exist (once) under private/
@@ -336,12 +379,17 @@ ssh f1.lan 'test -d /srv/data/enc/git/private/worktime.git \
   || git init --bare /srv/data/enc/git/private/worktime.git'
 ssh f1.lan 'test -d /srv/data/enc/git/private/recovery.git \
   || git init --bare /srv/data/enc/git/private/recovery.git'
+ssh f1.lan 'test -d /srv/data/enc/git/private/iq.git \
+  || git init --bare /srv/data/enc/git/private/iq.git'
 
-# confirm remotes point at private/ (fix if not)
+# confirm remotes point at private/ (fix if not; add if missing)
 git -C ~/git/worktime remote get-url f1.lan
 # expect: f1.lan:/srv/data/enc/git/private/worktime.git
 git -C ~/git/recovery remote get-url zusb
 # expect: paul@f1.lan:/srv/data/enc/git/private/recovery.git
+git -C ~/git/iq remote get-url f1.lan
+# expect: f1.lan:/srv/data/enc/git/private/iq.git
+# one-time: git -C ~/git/iq remote add f1.lan f1.lan:/srv/data/enc/git/private/iq.git
 
 # worktime — push all branches + tags
 git -C ~/git/worktime push --all f1.lan
@@ -350,6 +398,10 @@ git -C ~/git/worktime push --tags f1.lan
 # recovery — push all branches + tags
 git -C ~/git/recovery push --all zusb
 git -C ~/git/recovery push --tags zusb
+
+# iq — push all branches + tags
+git -C ~/git/iq push --all f1.lan
+git -C ~/git/iq push --tags f1.lan
 ```
 
 ### Pass criteria
@@ -358,6 +410,7 @@ git -C ~/git/recovery push --tags zusb
 2. Each `push --all` / `push --tags` succeeds (or reports already up-to-date)
 3. `git -C ~/git/worktime fetch f1.lan` and tip matches expectations
 4. `git -C ~/git/recovery fetch zusb` and tip matches expectations
+5. `git -C ~/git/iq fetch f1.lan` and tip matches expectations
 
 Done 2026-10-18 (worktime): branches up-to-date; tag `audit/2026-08-09`
 pushed; `f1.lan/master` at `a3dc7586`.
@@ -365,6 +418,9 @@ pushed; `f1.lan/master` at `a3dc7586`.
 Done 2026-10-18 (recovery): remote URL fixed to `private/recovery.git`;
 bare created there; old `/srv/data/enc/git/recovery.git` removed; `master`
 pushed; `zusb/master` at `5777288` (matches local).
+
+Done 2026-10-19 (iq): bare created at `private/iq.git`; remote `f1.lan`
+added on earth; `main` pushed; `f1.lan/main` at `94b5d6e0` (matches local).
 
 ## 8. Run `~/Syncthing/**/rsync-data-to-usb` on earth
 

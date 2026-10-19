@@ -38,7 +38,7 @@ Network traffic troubleshooting (three files; start with the triage):
 
 - [Network triage](observability/network-triage.md) — the order of attack: is it your network at all, inside the house or the ISP, which host, which pod (the `hostNetwork` cAdvisor trap), which website (Traefik per-service metrics, `exported_service`)
 - [pf label accounting](observability/network-pf-accounting.md) — the coverage gap: traffic Traefik never sees; what already exists, the deployed pf label accounting on the gateways, example PromQL queries
-- [Worked case & traps](observability/network-traps.md) — the crawler that moved (2026-08-19/20) and the relayd block pattern, flaky-registry `imagePullPolicy` trap, IPv4-vs-IPv6 probing, why NFS is usually not it, stale notes
+- [Worked case & traps](observability/network-traps.md) — Forgejo crawler and relayd blocks; recursive directory crawler driving frontend TLS CPU (2026-10-19), persistent pf block and state removal; flaky-registry `imagePullPolicy` trap, IPv4-vs-IPv6 probing, NFS, stale notes
 
 ## Monitoring Scope
 
