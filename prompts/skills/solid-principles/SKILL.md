@@ -7,6 +7,7 @@ description: >
   Supports all five principles or a focused review of one.
 metadata:
   version: "1.0.0"
+disable-model-invocation: true
 ---
 
 # SOLID Principles
