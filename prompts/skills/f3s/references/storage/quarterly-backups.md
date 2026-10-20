@@ -11,6 +11,15 @@ the result or moving on. Do not abandon a background job mid-run unless the
 user stops it. Short checks (zrepl canary, `zfs list`, `ls`) may stay
 foreground.
 
+**Never destroy backup state:** do **not** run `zfs destroy` (or
+`-r` recursive destroy) on `zusb` snapshots, and do **not** delete
+`/backup/backup-state/**/*.UPLOADED` markers, staged `/backup/f3s/…`
+archives, or S3 objects — even if today’s `@YYYYMMDD` snap looks “stale”
+relative to a later rsync, or `backup start` exits early because markers
+already exist. Report the situation and **ask the user**; only destroy or
+clear markers if they explicitly say to. Same rule for `zfs rollback` /
+`zfs hold` changes unless asked.
+
 **Hourly status (required while waiting):** once `rsync-data-to-zusb`,
 `backup start`, and/or the `zusb` scrub are in flight and the agent is not
 blocked on a user OK, arm a **1h** local loop (`/loop` / monitored shell
@@ -20,9 +29,11 @@ whole backup — use `nohup` on f1 plus hourly check-ins.
 
 Each hourly update should include: whether `backup` / `rsync-data-to-zusb` /
 scrub are still running; latest meaningful `backup start` log lines (normalize
-`\r`); scrub `%` and ETA; `rocky` state. When all three background pieces are
-done, stop the loop and continue with **Verify background jobs… /
-`zusb-unload`**.
+`\r`); scrub `%` and ETA; `rocky` state. When background jobs that this session
+started are done (rsync + backup; scrub only if it was started/resumed),
+**stop the loop and immediately continue** with **Verify background jobs… /
+`zusb-unload`** then **Start `rocky`** — do not wait for another user prompt
+unless logs show a blocking failure that needs a decision.
 
 ```sh
 # local agent loop (1h) — emit sentinel; agent reports status on each tick
@@ -66,14 +77,14 @@ sections both numbered `3`.
 | 2 | gitsyncer on earth | Documented below |
 | 3 | Check zrepl f0→f1 in sync | Documented below |
 | 4 | Mount `zusb` on f1 + confirm enc keys | Documented below |
-| 5 | Start `zpool scrub zusb` on f1 | Documented below |
+| 5 | Scrub `zusb` only if last scrub ≥4 months ago | Documented below |
 | 6 | Review k3svolumes **not** covered by `rsync-data-to-zusb` | Documented below |
 | 7 | Sync `worktime` + `recovery` + `iq` git → f1 zusb | Documented below |
 | 8 | Run `~/Syncthing/**/rsync-data-to-usb` on earth | Documented below |
 | 9 | `rsync-data-to-zusb` (k3svolumes → zusb) on f1 | Documented below (finish before 10) |
 | 10 | `backup start` on f1 (ZFS snap + S3) | Documented below (after 9 completes) |
-| 11 | Verify bg jobs done, report log errors, `zusb-unload` | Documented below |
-| 12 | Start `rocky` VM on f1 | Documented below |
+| 11 | Verify bg jobs done, report log errors, `zusb-unload` | Documented below (auto after 10; no extra OK) |
+| 12 | Start `rocky` VM on f1 | Documented below (same turn as 11) |
 | — | Remaining checklist items | Not yet documented here — follow `Backup.md` |
 
 ## 1. Stop `rocky` VM on f1
@@ -260,21 +271,53 @@ doas dd if="$(doas find /srv/data/enc/documents -type f | head -1)" \
 Done 2026-10-17 on f1: load OK; all 15 enc children + non-dataset dirs under
 `enc` readable as root; sample reads OK.
 
-## 5. Start `zpool scrub zusb` on f1
+## 5. Scrub `zusb` only if last scrub ≥4 months ago
 
-Right after **Mount `zusb` on f1 + confirm enc keys** (pool imported). Scrub
-runs in the kernel in the background and survives SSH/laptop disconnect; it
-may overlap **`rsync-data-to-zusb`** or **`backup start`**, but those two
-steps themselves stay **sequential** (rsync first, then backup).
+Right after **Mount `zusb` on f1 + confirm enc keys** (pool imported). Do
+**not** scrub every quarterly session — only when the pool’s last **completed**
+scrub is **at least 4 months** old (or there is no completed-scrub line yet).
+
+If a scrub is already in progress / paused, resume it (`doas zpool scrub zusb`)
+and treat that as the session scrub. If the last completed scrub is newer than
+4 months, **skip** starting a new one and say so in the status update.
+
+When a scrub *is* started or resumed, it may overlap **`rsync-data-to-zusb`**
+or **`backup start`** (those two stay sequential). When skipped, step 11 does
+not wait on scrub.
 
 ```sh
-# on f1 — skip if already scrubbing
-doas zpool status zusb | grep -qi 'scrub in progress' \
-  || doas zpool scrub zusb
-doas zpool status zusb   # expect: scrub in progress since …
+# on f1 — decide whether to scrub
+doas zpool status zusb
+
+# already running or paused → resume / leave running
+if doas zpool status zusb | grep -qiE 'scrub (in progress|paused)'; then
+  doas zpool scrub zusb   # resume if paused; no-op-ish if already running
+  doas zpool status zusb
+  # continue session with scrub in background
+else
+  # last completed scrub date from status, e.g.:
+  #   scan: scrub repaired 0B in … with 0 errors on Mon Oct 19 16:19:26 2026
+  last=$(doas zpool status zusb | sed -n 's/.*scrub repaired.* on //p')
+  if [ -z "$last" ]; then
+    echo 'no completed scrub date found → starting scrub'
+    doas zpool scrub zusb
+  else
+    # FreeBSD date(1): months ago
+    cutoff=$(date -v-4m +%s)
+    last_epoch=$(date -j -f '%a %b %d %T %Y' "$last" +%s)
+    if [ "$last_epoch" -le "$cutoff" ]; then
+      echo "last scrub $last (≥4 months) → starting scrub"
+      doas zpool scrub zusb
+    else
+      echo "last scrub $last (<4 months) → skip scrub this session"
+    fi
+  fi
+  doas zpool status zusb
+fi
 ```
 
-Check later (also in `Backup.md` near the end of the session):
+Check later only if a scrub was started/resumed (also in `Backup.md` near the
+end of the session):
 
 ```sh
 doas zpool status zusb
@@ -283,76 +326,122 @@ doas zpool status zusb
 
 ### Pass criteria
 
-1. `zpool scrub zusb` accepted (or scrub already in progress)
-2. `zpool status zusb` shows `scrub in progress` (or a fresh completed scrub)
+1. Last completed scrub date reported to the user (from `zpool status`)
+2. Scrub started/resumed **only if** already in progress/paused **or** last
+   completed scrub is ≥4 months ago (or unknown); otherwise explicitly skipped
+3. If started: `zpool status` shows `scrub in progress` (or a fresh completed
+   scrub by session end)
 
-Started 2026-10-18 on f1: scrub in progress since 11:45 (pool still has the
-known permanent music-snap data error from before).
+Last completed scrub as of 2026-10-20: **Mon Oct 19 16:19:26 2026** (repaired
+0B; known permanent music-snap data error unchanged). History also shows prior
+starts e.g. 2026-07-20, 2026-04-01.
 
 ## 6. Review k3svolumes coverage (`rsync-data-to-zusb`)
 
-Right after **Start `zpool scrub zusb`**, **before** starting
-`rsync-data-to-zusb`. Compare top-level entries under `/data/nfs/k3svolumes/`
-to the sources in `/opt/snonux/bin/backup/rsync-data-to-zusb`.
+Right after the scrub decision (**Scrub `zusb` only if…**), **before**
+starting `rsync-data-to-zusb`. Diff the live tree under
+`/data/nfs/k3svolumes/` against each `rsync` source in
+`/opt/snonux/bin/backup/rsync-data-to-zusb`.
 
-**Agent presentation (required):** show the user **two clear Markdown
-tables** in the chat (not a bare comma list). Do not invent new rsync lines
-unless asked. Wait for an explicit OK / not-OK. Only then proceed to
-**`rsync-data-to-zusb`**.
+**Agent presentation (required):** show **exact directory paths** — never a
+vague “partial” label alone. Use Markdown tables in the chat. Do not invent
+new rsync lines unless asked. Wait for an explicit OK / not-OK. Only then
+proceed to **`rsync-data-to-zusb`**.
 
-1. **Covered** — one row per script `rsync` line: volume, source path under
-   `k3svolumes/`, destination under `/srv/data/enc/…`, and coverage note
-   (`full` = whole volume root; `partial` = subdirectory only and/or
-   excludes). Deduplicate identical lines (e.g. repeated `opodsync`).
-2. **Not covered** — every top-level name under `k3svolumes/` that never
-   appears as a script source, with `du -sh` size (or `(file)` /
-   `(sentinel)` for non-dirs). Call out large gaps (e.g. `syncthing`).
+Required sections:
+
+1. **Synced (script map)** — one row per unique `rsync` line:
+   `k3svolumes/<source>` → `/srv/data/enc/…`, plus any non-`.stfolder`
+   `--exclude` patterns. Deduplicate identical lines.
+2. **Inside covered volumes — not synced** — for every top-level volume that
+   *appears* in the script, `doas ls` its immediate children (and one level
+   deeper under `libraries/` when the script only picks some library trees).
+   List every child directory that is **not** under any script source path,
+   with `du -sh`. Example: if the script has
+   `player/libraries/yoga/` but not `player/libraries/podcasts/`, podcasts
+   must appear here; also `player/data`, `player/media`, `player/thumbnails`
+   when those exist and are not sources.
+3. **Volumes not in the script at all** — top-level `k3svolumes/` names with
+   no matching source, with `du -sh` (or `(file)` / `(sentinel)`). Call out
+   large gaps.
+
+Whole-volume sources (`…/forgejo/`, `…/immich/`, `…/wallabag`, …) mean every
+child is synced except paths matching an `--exclude`. Call out excludes
+explicitly.
+
+**Immich videos exclude (intentional):** the script uses
+`--exclude '*external-library/videos/*'` on the immich →
+`/srv/data/enc/pictures/immich/` rsync. That tree on NFS
+(`k3svolumes/immich/external-library/videos/`, ~213G) is a **static archive
+already kept on zusb** at
+`/srv/data/enc/videos/immich/external-library/videos/` (same layout / ~same
+size). Do **not** treat it as a coverage gap or add it back to the immich
+rsync unless those two trees have drifted. Immich’s own
+`library/` uploads (including encoded `.mp4`s) are still synced via the
+immich line. A small leftover under
+`pictures/immich/external-library/videos/` on zusb (if present) is stale
+partial data from the pictures path — the canonical copy is under
+`enc/videos/…`.
 
 ```sh
 # on f1
 SCRIPT=/opt/snonux/bin/backup/rsync-data-to-zusb
+BASE=/data/nfs/k3svolumes
 
-# covered: source → dest (keep excludes visible in the partial notes)
 grep -E '^\s*rsync ' "$SCRIPT"
 
-# not covered (set difference on first path component)
-comm -23 \
-  <(ls -1 /data/nfs/k3svolumes/ | sort) \
-  <(grep -E '^\s*rsync ' "$SCRIPT" \
-      | sed 's/.*k3svolumes\///;s|/.*||;s| .*||' | sort -u)
+# volumes touched by the script
+vols=$(grep -E '^\s*rsync ' "$SCRIPT" \
+  | sed 's/.*k3svolumes\///;s|/.*||;s| .*||' | sort -u)
 
-# sizes for not-covered entries
+# for each such volume: children not covered by any source path
+for v in $vols; do
+  doas ls -1 "$BASE/$v" 2>/dev/null | while read -r child; do
+    [ "$child" = .nfs-sentinel ] && continue
+    # covered if any rsync source is exactly $v, $v/, or $v/$child...
+    if grep -E '^\s*rsync ' "$SCRIPT" \
+         | grep -E "k3svolumes/$v(/? |/)" \
+         | grep -qvE "k3svolumes/$v/"; then
+      continue  # whole-volume source
+    fi
+    if grep -E '^\s*rsync ' "$SCRIPT" | grep -qE "k3svolumes/$v/$child(/| |$)"; then
+      # child itself is a source root — if it is libraries, list grandchildren gaps
+      if [ "$child" = libraries ] && [ -d "$BASE/$v/libraries" ]; then
+        doas ls -1 "$BASE/$v/libraries" | while read -r lib; do
+          [ "$lib" = .nfs-sentinel ] && continue
+          grep -E '^\s*rsync ' "$SCRIPT" \
+            | grep -qE "k3svolumes/$v/libraries/$lib(/| |$)" \
+            || doas du -sh "$BASE/$v/libraries/$lib"
+        done
+      fi
+      continue
+    fi
+    doas du -sh "$BASE/$v/$child"
+  done
+done
+
+# volumes with no script source at all
 comm -23 \
-  <(ls -1 /data/nfs/k3svolumes/ | sort) \
-  <(grep -E '^\s*rsync ' "$SCRIPT" \
-      | sed 's/.*k3svolumes\///;s|/.*||;s| .*||' | sort -u) \
+  <(ls -1 "$BASE" | sort) \
+  <(echo "$vols") \
 | while read -r name; do
-  p=/data/nfs/k3svolumes/$name
-  if [ -d "$p" ]; then du -sh "$p"
+  p=$BASE/$name
+  if [ -d "$p" ]; then doas du -sh "$p"
   elif [ -f "$p" ]; then echo "(file) $name"
   else echo "(other) $name"
   fi
 done
 ```
 
-Typical **partial** cases: `player` → `libraries/{audiobooks,musicvideos,yoga}`
-only; `xplayer` → `libraries/` only; `navidrome` → `music/` only; `immich`
-excludes `*external-library/videos/*`.
-
 ### Pass criteria
 
-1. User sees both tables (covered with dest + partial notes; not-covered with
-   sizes)
+1. User sees: synced path→dest table; **exact** unsynced dirs inside covered
+   volumes (with sizes); volumes absent from the script (with sizes)
 2. User says OK to proceed, or asks to extend `rsync-data-to-zusb` / run extra
    rsyncs **before** the next step starts the script
 
-Snapshot as of 2026-10-19 — not covered (notable sizes): `syncthing` ~146G,
-`prometheus` ~2.6G, `shuriken.sh` ~2.7G, `etcd-snapshots` ~105M, plus small
-`apache`, `beets-art`, `bgtutor`, `freshrss`, `keybr`, `linkding`, `permtest`,
-`pihole`, `ychat`, and non-volume noise (`k3svolumes.DO_NOT_REMOVE`,
-`rsync-backup.sh.*`). Script lives on **zusb** at
-`/opt/snonux/bin/backup/rsync-data-to-zusb` (edit in place on the host that
-has `zusb` loaded).
+Script lives on **zusb** at `/opt/snonux/bin/backup/rsync-data-to-zusb` (edit
+in place on the host that has `zusb` loaded).
 
 ## 7. Sync `worktime` + `recovery` + `iq` git → f1 zusb
 
@@ -518,8 +607,10 @@ rides on `zusb/data/opt` (`/opt`), not on the NFS replica.
    Conventions: media libraries → matching
    `/srv/data/enc/{audiobooks,music,musicvideos,yoga,xman,…}`; forgejo →
    `/srv/data/enc/git/forgejo`; many small apps → `/srv/data/enc/cloud/`;
-   immich → `/srv/data/enc/pictures/immich/` (with video exclude). Keep
-   `set -x` at the top; prefer one `rsync` line per source.
+   immich → `/srv/data/enc/pictures/immich/` with
+   `--exclude '*external-library/videos/*'` (static videos already under
+   `/srv/data/enc/videos/immich/external-library/videos/` — see step 6).
+   Keep `set -x` at the top; prefer one `rsync` line per source.
 
 3. **Start** with `nohup` (next subsection).
 
@@ -573,6 +664,13 @@ above). Do **not** start this while that rsync (or its children) is still
 running — snapshots would miss late writes and both jobs fight for disk. Scrub
 may still be in progress; that overlap is allowed.
 
+If `zusb@YYYYMMDD` (or per-dataset `@YYYYMMDD`) **already exists**, or
+`.UPLOADED` markers for today’s incr already exist, **do not** destroy those
+snaps or delete markers to “force a fresh run”. Tell the user what exists and
+wait for instructions. Avoid creating today’s dated snap (e.g. via
+`zusb-unload` / ad-hoc `zfs snapshot`) **before** `rsync-data-to-zusb` has
+finished — that is what makes same-day snaps look premature.
+
 Runs `/opt/snonux/bin/backup/backup start` as root: creates dated ZFS send
 archives under `/backup/<host>/<year>/` and `aws s3 sync`s them to
 `s3://org-buetow-backup/` (Deep Archive). Takes hours — **must keep running on
@@ -624,14 +722,24 @@ command output is in `LOG=` / `/tmp/backup-start.log`.
 3. No hard failure left as the last lines (`error`, traceback, non-zero exit
    without completion); S3 uploads progress or complete for each archive dir
    under `/backup/f3s/<year>/`
+4. When the process has **exited cleanly**, go straight to **step 11** (then
+   **12**) in the same turn — do not stop to ask “all done?” / wait for OK
 
 Started 2026-10-18 on f1 via `nohup` →
 `/tmp/backup-start-20261018-113456.log` (also `/tmp/backup-start.log`).
 
 ## 11. Verify background jobs, report errors, unload `zusb`
 
-Final gate before unplugging the USB disks. Do **not** unload while scrub,
-`rsync-data-to-zusb`, or `backup start` are still running.
+**Auto-continue:** as soon as `backup start` has finished (and
+`rsync-data-to-zusb` earlier; scrub only if this session started/resumed one),
+run this step and **step 12** without waiting for another user message. The
+only user gate in the whole runbook after kickoff is **step 6** (k3svolumes
+coverage OK). Do not invent a second gate here.
+
+Final gate before unplugging the USB disks. Do **not** unload while
+`rsync-data-to-zusb` or `backup start` are still running, or while a scrub
+started/resumed **this session** is still in progress. If scrub was **skipped**
+(last completed scrub newer than 4 months), do not wait on scrub.
 
 ### 1) Check all background work finished
 
@@ -642,13 +750,14 @@ pgrep -lf 'rsync-data-to-zusb' && echo 'rsync-data-to-zusb STILL RUNNING'
 pgrep -lf 'rsync -av --delete.*/(data/nfs/k3svolumes|srv/data/enc)' && echo 'rsync children STILL RUNNING'
 
 doas zpool status zusb
-# scrub done when scan line is: scrub repaired … with N errors on <date>
-# still going: scrub in progress since …
+# if this session started/resumed a scrub:
+#   done when scan line is: scrub repaired … with N errors on <date>
+#   still going: scrub in progress since …
 ```
 
 All of: no backup process, no `rsync-data-to-zusb` (and no leftover k3svolumes
-rsync children), scrub **completed** (not in progress).
-
+rsync children); and if a scrub was started/resumed this session, scrub
+**completed** (not in progress).
 ### 2) Report errors from the logs
 
 ```sh
@@ -669,12 +778,14 @@ doas zpool status -v zusb
 
 Summarize for the user: hard failures vs known noise (e.g. pre-existing
 permanent music-snap data error on `zusb`, transient aws progress lines).
+The known permanent Rihanna music-snap data error is **not** a blocking
+failure — unload anyway. Only pause for the user if backup/rsync logs show a
+**new** hard failure (failed upload, traceback, non-zero exit mid-run).
 
-### 3) Unload only if clean enough
+### 3) Unload when clean enough
 
 If background jobs are done **and** there are no new blocking errors in the
-backup/rsync logs (discuss known pool permanent errors with the user if
-unsure), export and power down the disks:
+backup/rsync logs, export and power down the disks **in this same turn**:
 
 ```sh
 # on f1 as root
@@ -690,18 +801,18 @@ default path.
 
 ### Pass criteria
 
-1. Scrub finished; backup and rsync-data-to-zusb processes gone
+1. Backup and rsync-data-to-zusb processes gone; scrub finished **or** was
+   skipped this session
 2. Log review reported to the user (errors called out explicitly)
-3. `zusb-unload` run only after (1)+(2) with no blocking failures; pool no
-   longer imported
-
-Then continue with **Start `rocky` VM on f1**.
+3. `zusb-unload` run after (1)+(2) with no blocking failures; pool no longer
+   imported
+4. Immediately continue to **Start `rocky` VM on f1** (same turn)
 
 ## 12. Start `rocky` VM on f1
 
-After **Verify background jobs… / `zusb-unload`** (or whenever the quarterly
-session on f1 is otherwise finished), bring the VM back so normal workloads
-resume.
+Right after **`zusb-unload`** succeeds (same turn as step 11). Bring the VM
+back so normal workloads resume — do not leave `rocky` Stopped waiting for
+confirmation.
 
 ```sh
 # on f1
