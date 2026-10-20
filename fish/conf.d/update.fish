@@ -32,7 +32,7 @@ function update::tools
     set -a pids $last_pid
     set -a status_files "$status_dir/goimports"
 
-    for prog in hexai hexai-lsp-server hexai-tmux-action hexai-mcp-server ask
+    for prog in hexai hexai-lsp-server hexai-tmux-action hexai-mcp-server ask nask
         if not test -x $HOME/go/bin/$prog
             echo "Skipping $prog (no binary in $HOME/go/bin)"
             continue
