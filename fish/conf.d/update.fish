@@ -32,9 +32,13 @@ function update::tools
     set -a pids $last_pid
     set -a status_files "$status_dir/goimports"
 
+    set -l has_hexai 0
+    if command -q hexai; or test -x "$HOME/go/bin/hexai"
+        set has_hexai 1
+    end
     for prog in hexai hexai-lsp-server hexai-tmux-action hexai-mcp-server ask nask
-        if not test -x $HOME/go/bin/$prog
-            echo "Skipping $prog (no binary in $HOME/go/bin)"
+        if test $has_hexai -eq 0; and not test -x "$HOME/go/bin/$prog"
+            echo "Skipping $prog (no binary in $HOME/go/bin and hexai is not installed)"
             continue
         end
         echo "Installing/updating $prog from github.com/snonux/hexai/cmd/$prog@latest"
