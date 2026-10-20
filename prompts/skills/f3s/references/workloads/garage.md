@@ -80,7 +80,25 @@ This resolved the external edge path instability.
 - Scrape config for Garage admin endpoints was added under:
   - `f3s/prometheus/additional-scrape-configs.yaml`
   - `f3s/prometheus/manifests/additional-scrape-configs-secret.yaml`
-- Current state observed: targets present but `down` with `connection refused` on `:3903`.
+- All three targets (`192.168.2.13{0,1,2}:3903/metrics`) are `up` (verified
+  2026-10-20). The old `connection refused` came from the IPv6-only admin
+  bind, fixed below.
+
+## Gogios
+
+- Each node has its own check, `Check Garage Health fN.wg0.wan.buetow.org`
+  (task pm3, `addGarageChecks` in conf `gonf/frontends/monitoring.go`):
+  `check_http -H 192.168.2.13N -p 3903 -u /health` over WireGuard.
+- The public `garage.f3s.buetow.org` 403 check alone cannot see a dead node,
+  because relayd forwards to whichever node passes its TCP check.
+- `/health` needs no admin token. It returns 200 while the node has quorum
+  (body `Garage is fully operational`, or a degraded message) and 503
+  without quorum. The check does not match the body text, so one dead node
+  alerts once rather than three times.
+- Each check depends on `Check Ping4 fN.wg0.wan.buetow.org` and pauses while
+  `/tmp/f3s_taken_down` exists. The node list is `garageNodes` in
+  `gonf/frontends/data.go`; keep it in step with `cluster.NameGarage`.
+- Deploy: `./gonf.sh cluster frontends frontends_gogios`.
 
 ## Operational Notes (Important)
 
