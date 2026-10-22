@@ -101,3 +101,30 @@ Retired: it requires pinning the pod to a node (`nodeSelector`), which the
 house rule forbids (Navidrome's r1 pin kept it down for 7h while f1 was off on
 2026-09-25). Keep persistent data on NFS hostPath PVs; use an `emptyDir` for
 disposable caches that are too slow on NFS.
+
+## Earth home-backup and package signing custody
+
+The installed `~/scripts/home-backup` comes from dotfiles
+`scripts/home-backup` (current default: f2 `/data/enc/earth-backup`, encrypted
+ZFS). Its `/git/` exclusion prevents copying the conf checkout's legacy ignored
+signify key and OpenBSD signing VM disk. Since 2026-10-22, the additional
+`f3s-package-signing/` exclusion prevents raw keys and GnuPG state from being
+copied from earth's default or alternate XDG data path inside HOME. Restore
+signing custody from the encrypted foostore vault instead. The installed local
+script was updated, but this task did not execute a backup.
+
+A receiver-side protect filter prevents `--delete-excluded` from silently
+removing existing signing-custody backups: their cleanup requires separate
+explicit approval. Offline actual-rsync coverage lives in dotfiles
+`scripts/tests/home-backup-signing.sh`; ordinary documents still transfer,
+checkout/key/disk payloads do not, and existing private backups remain until
+approved cleanup. Manual/other backup tools must observe the same boundary.
+
+The original full-NFS filename scan found a retained 0644 private key at f0
+`/data/nfs/earthdata/backups/earthhome/git/conf/packages/buildvm/custom-pkg.sec`
+(legacy earthhome backup), plus its public half. This live private copy remains
+pending explicit cleanup approval with fishfinger's `/etc/signify/custom-pkg.sec`.
+Task `xm3` and conf `packages/keys/README.md` own the custody migration and exact
+approval steps. Current-path removal does not revoke copies in ZFS snapshots,
+zrepl replicas, USB quarterly backups or offsite archives. Inventory retention
+and access separately; a reviewed signify trust rotation may be required.

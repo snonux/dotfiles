@@ -62,3 +62,28 @@ foostore recovery backups but did not change any VM or frontend. Approve the
 restart/provision/signature smoke test and subsequent removal of approved
 historical frontend/NFS key copies as one live migration. See
 `~/git/conf/packages/keys/README.md` for exact references and recovery steps.
+
+### Disk, SSH and backup custody gates (2026-10-22)
+
+The VM disk must be an operator-owned regular non-symlink, mode 0600. Setup,
+start, direct expect installation and signing-key installation enforce this;
+the existing stopped disk was corrected locally to 0600. Bootstrap pbuild
+password authentication must be disabled before key transfer: password and
+keyboard-interactive off, root SSH off, AuthenticationMethods publickey, and
+UseDNS no. The installer verifies a fresh key login, global/Match-effective
+settings and active-daemon method advertisements; a missing reload fails.
+Follow the exact two-session hardening/recovery sequence in conf
+`packages/keys/README.md` only after explicit live approval. No VM SSH setting
+was changed in local preparation.
+
+The full original `/data/nfs` filename scan completed and found a retained
+0644 private copy at f0
+`/data/nfs/earthdata/backups/earthhome/git/conf/packages/buildvm/custom-pkg.sec`.
+It remains pending approved cleanup alongside fishfinger's private key. The
+current installed earth home-backup targets f2's encrypted earth-backup;
+`/git/` already excludes the legacy checkout key/disk. A targeted
+`f3s-package-signing/` exclusion now prevents raw new custody/GnuPG backups,
+with receiver protection preserving existing copies for approved cleanup.
+No backup was run. Inventory current backups, replicas and retained snapshots;
+removing one active file cannot establish retirement of historical exposure.
+Signify trust rotation remains a separate reviewed operation.

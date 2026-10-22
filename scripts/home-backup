@@ -34,6 +34,11 @@ declare DRY_RUN=""
 
 # Paths/patterns to exclude from the backup. Patterns are relative to $HOME.
 declare -ra EXCLUDES=(
+  # Signing custody is recovered from the encrypted foostore vault, not
+  # copied as raw private keys/GnuPG state to a home backup. Match any XDG
+  # data location inside HOME, not only the default .local/share path.
+  "f3s-package-signing/"
+
   # --- Explicitly excluded by request ---
   "/git/"
   "/syncthing/"
@@ -124,6 +129,8 @@ main() {
   #   --partial --progress resumable transfers with progress output
   #   --delete             mirror: remove remote files that no longer exist locally
   #   --delete-excluded    also remove previously-backed-up excluded paths
+  #   P signing custody    retain existing remote key copies until separately
+  #                        approved cleanup; exclusion alone would delete them
   #   --human-readable     human-readable sizes
   #   -e ssh               transport over SSH
   rsync \
@@ -134,6 +141,7 @@ main() {
     --human-readable \
     ${DRY_RUN:+$DRY_RUN} \
     -e ssh \
+    --filter='P **/f3s-package-signing/***' \
     "${exclude_args[@]}" \
     "$SRC" \
     "$DEST"
