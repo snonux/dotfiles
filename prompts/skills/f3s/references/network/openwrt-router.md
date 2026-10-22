@@ -49,3 +49,78 @@
 - On AP-only OpenWrt devices, `/tmp/resolv.conf.d/resolv.conf.auto` may be empty until `network.lan.dns` is set.
 - The generated dnsmasq config may still reference `/etc/dnsmasq.servers`; an empty file is sufficient to silence the warning if no custom server list is needed.
 - A missing upstream DNS setting can look like a DNS outage even when the router is otherwise reachable and DHCP is working.
+
+## Security: internet-to-LAN IPv6 (qm3 / audit S1)
+
+Do not assume this OpenWrt AP/bridge is the internet gateway. Read the
+reviewable procedure at `~/git/conf/f3s/docs/router-ipv6-containment.md`
+before changing firewall policy. Router configuration, service reloads and
+other live changes require explicit user approval of the actual device and
+exact diff; keep a second authenticated session and guarded rollback.
+
+Read-only evidence on 2026-10-22:
+
+- `192.168.1.1` is the controller's IPv4 default gateway. HTTP answers with
+  title `GPON Home Gateway`; SSH TCP22 times out. Its OS and IPv6 firewall
+  control plane have not been established. Do not describe it as OpenWrt
+  without further evidence.
+- `192.168.1.101` is confirmed as a TP-Link EAP615-Wall v1 running OpenWrt
+  25.12.2. Its first-seen SSH host identity was accepted with
+  `StrictHostKeyChecking=accept-new` (changed-key protection retained).
+  Key-only root authentication fails, but a matching vault credential
+  allowed read-only inspection using an inherited pipe for the password;
+  no password was displayed or placed in arguments or files.
+- This AP has default IPv4 route via `.1` on `br-lan`, no default IPv6
+  route, and no `network.wan`/`network.wan6` interfaces. Its unused WAN zone
+  (`firewall.@zone[1]`) already has `forward=REJECT`; its only forwarding
+  section is LAN to WAN. Default ICMPv6 rules are present. The active nft
+  forward chain dispatches only `br-lan` after established/related handling.
+  No broad WAN-to-LAN permit was found on this AP. Do not change its unused
+  WAN zone and claim public IPv6 containment; inspect the GPON gateway's
+  actual IPv6 routing/firewall controls first.
+- `br-lan` is a bridge over `lan0` through `lan3`; the live bridge also
+  contains Wi-Fi interfaces `phy0-ap0` and `phy1-ap0`. No pending firewall
+  UCI changes were present during inspection.
+- Blowfish, using public `vio0` via `fe80::1%vio0`, can still connect to
+  f0 TCP22/111/2049, r0 TCP22/111/6443/10250/9100, and pi2 TCP22/53/80 over
+  their global IPv6 addresses. The repo runbook records exact addresses and
+  commands. This is a live exposure baseline, not successful containment.
+- LAN ULA ping works for r0/pi2. f0's ULA is already marked `detached` and
+  does not answer that probe. Blowfish's `wg0` SSH probes to f0/r0 succeed.
+
+Desired policy on the device that actually routes public IPv6: reject new
+WAN-to-LAN IPv6 by default, remove broad IPv6 forwarding/accept exceptions,
+and retain required default ICMPv6 forwarding and established return traffic.
+Preserve LAN-to-WAN, LAN/ULA and WireGuard access. `wan6` may be a network
+within zone `wan`, not a zone by that name. WAN zone `forward=REJECT` alone
+does not override explicit accept/forwarding rules; inspect effective rules.
+Do not disable IPv6 or indiscriminately drop ICMPv6. If the GPON gateway
+enforces this path, use its supported firewall controls instead of editing
+UCI on an AP that the traffic bypasses.
+
+After obtaining access, record actual gateway/AP forwarding roles and the
+exact relevant gateway rule identities before requesting approval. AP policy
+was inspected, but no exact gateway rule diff, private router backup,
+firewall reload or post-change test has been performed. No credential was
+submitted to the unidentified GPON gateway. The task remains open.
+
+Verification from blowfish must show a public route before probing each
+freshly discovered f0/r0/pi2 global IPv6 address:
+
+```sh
+route -n get -inet6 "$address"
+for port in 22 111 2049 6443 10250 9100; do
+    if nc -6 -z -w3 "$address" "$port" >/dev/null 2>&1; then
+        printf 'FAIL: public IPv6 TCP %s is reachable\n' "$port"
+    else
+        printf 'No public IPv6 TCP connection on %s\n' "$port"
+    fi
+done
+```
+
+OpenBSD `nc` takes one port per call. Also recheck pi2 TCP53/80 and the
+audit-exposed dserver TCP2222; inspect router policy/counters for UDP and
+other protocols. Repeat successful LAN/ULA and WireGuard probes before
+confirming the rollback guard. Record dated results and any pre-existing
+failures separately; unsuccessful TCP probes alone do not prove the router
+blocked the traffic.
