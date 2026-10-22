@@ -237,17 +237,42 @@ kubectl get namespaces
 kubectl config set-context --current --namespace=<ns>
 ```
 
-## Host firewall on r0/r1/r2: firewalld is off on purpose
+## Host firewall on r0/r1/r2: separate source guard prepared
 
-Decided/verified 2026-09-25 (audit item 28): `firewalld` is **disabled** on the
-r-nodes, as the WireGuard setup ([wireguard-setup.md](../network/wireguard-setup.md)) prescribes
-and as k3s recommends (firewalld's nftables rules fight kube-proxy/flannel).
-Exposure is acceptable because the nodes sit on the home LAN / WireGuard mesh
-only (the internet reaches workloads solely via the OpenBSD relayd frontends),
-and the listeners that matter are authenticated: 6443 (API), 10250 (kubelet),
-etcd 2379-2381 bound to the wg0 address. Unauthenticated but harmless on the
-LAN: 9100 (node_exporter). Needless: rpcbind on 0.0.0.0:111 — the k3svolumes
-mount is NFSv4 and does not need it; disabling `rpcbind.socket`/`rpcbind` is a
-safe cleanup to try on one node first (confirm the mount survives a remount).
-Re-enabling firewalld would need explicit rules for 6443, 10250, 2379-2381,
-8472/udp (flannel VXLAN), 51820/udp (wg0), 22, 2222 (dserver), 9100.
+The 2026-09-25 decision (task tj2) kept `firewalld` disabled to avoid
+interfering with kube-proxy/flannel. **Its LAN-only exposure assumption is
+false:** audit S1 found globally routed SLAAC addresses reachable from the
+internet. Authentication does not replace a source firewall.
+
+As of 2026-10-22, task sm3 has **prepared, not deployed** a dedicated nftables
+`inet f3s_guard` table. Firewalld remains off; existing KUBE/CNI/flannel tables
+remain owned by k3s. The guard runs on `enp0s5` at prerouting priority -150,
+after conntrack (-200) and before DNAT (-100). This covers host services and
+NodePorts/hostPorts: live IPv4 NodePort 30090 is DNATed to pod port 9090 and
+would bypass an INPUT-only rule. Live IPv6 KUBE-NODEPORTS has no endpoints;
+the pre-DNAT guard also covers future IPv6 DNAT.
+
+LAN IPv4 `192.168.1.0/24` and ULA `fd22:c702:acb7::/64` are trusted on
+`enp0s5`; authenticated traffic on `wg0`, pod interfaces, established replies,
+ICMP, DHCPv6 and the **observed UDP 56709 WireGuard listener** are preserved.
+Do not substitute the older documentation's assumed port 51820. Other new
+traffic to a host's local destination from the physical LAN is dropped,
+including public IPv6 SSH, metrics, kube API/kubelet/controller, rpcbind,
+NodePorts and ingress hostPorts. Existing public connections are preserved
+until they close. A LAN client using a global IPv6 source is also denied:
+use IPv4/ULA service endpoints, or explicitly review a source policy first;
+never trust every globally routed source merely because it arrives on LAN.
+
+See `~/git/conf/f3s/docs/linux-source-firewall.md` for the approval-only,
+one-host rollout: stage the Operational task `rnodes_firewall_stage`, hold
+two independent SSH sessions, arm an independent five-minute rollback,
+verify fresh connections and cluster/NFS health, then confirm from a new
+SSH connection before enabling confirmed-policy persistence. No live nft
+load, service change or rpcbind stop was performed during preparation.
+
+`rnodes_firewall_rpcbind_off` is a separate Operational cleanup, for explicit
+approval after the firewall canary: it requires the deployed NFS mount to
+be NFSv4 and rejects other NFSv3 mounts before masking both rpcbind units.
+Never remount NFS, fail over CARP, restart networking/k3s, or boot recovery
+mode as part of firewall verification. Pi2 has a separate staged `eth0`
+profile alongside firewalld; pi3 remains blocked by SSH task 1g3.
