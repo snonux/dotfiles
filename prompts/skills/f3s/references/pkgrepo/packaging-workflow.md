@@ -24,9 +24,9 @@ make pkg-openbsd NAME=gogios SRC=/home/paul/git/gogios
 ### How it works
 
 1. Cross-compiles on Linux (`GOOS=freebsd/openbsd GOARCH=amd64`)
-2. SCPs binary + packaging script to target host (f0 for FreeBSD, fishfinger for OpenBSD)
+2. SCPs binary + packaging script to target host (f0 for FreeBSD, the local OpenBSD VM on earth for OpenBSD)
 3. Runs the packaging script via SSH (`pkg create` / `pkg_create`)
-4. OpenBSD packages are signed with signify automatically
+4. OpenBSD packages must be signed with signify on the local VM and verified with `pkg_info -C -D SIGNER=custom-pkg` before upload; missing keys or failed signing/verification stop the build
 5. FreeBSD repo metadata is regenerated with `pkg repo`
 6. Packages are copied to the PV at `/data/nfs/k3svolumes/pkgrepo/`
 
@@ -70,20 +70,22 @@ pkg repo output/   # regenerates repo metadata
 doas cp -Rf output/* /data/nfs/k3svolumes/pkgrepo/freebsd/FreeBSD:15:amd64/latest/
 ```
 
-### OpenBSD (on fishfinger)
+### OpenBSD (on the local build VM on earth)
+
+Prefer `make pkg-openbsd` / `make dtail-openbsd`: they assemble, sign, verify
+and retrieve only signed artifacts before publication. For manual work inside
+the VM, first run `pkg_create` into an unsigned staging directory, then:
 
 ```sh
-pkg_create \
-    -D COMMENT="Package description" \
-    -d descfile \
-    -f packing-list \
-    -B stagedir \
-    -p / \
-    output/package-name-1.0.tgz
-# Copy to PV via f0
-scp package.tgz f0.lan.buetow.org:/tmp/
-ssh -p 22 f0.lan.buetow.org "doas cp /tmp/package.tgz /data/nfs/k3svolumes/pkgrepo/openbsd/7.9/packages/amd64/"
+mkdir -p signed
+doas pkg_sign -s signify2 -s /etc/signify/custom-pkg.sec \
+    -o signed output/package-name-1.0.tgz
+pkg_info -C -D SIGNER=custom-pkg signed/package-name-1.0.tgz
 ```
+
+From earth, retrieve **signed/package-name-1.0.tgz** with strict host-key
+checking on port 2222, then transfer that artifact through f0 to the OpenBSD
+PV. The unsigned output directory is never a publication source.
 
 ### NetBSD (on pi0)
 
@@ -123,3 +125,23 @@ it also converges the `_gogios` account, `gogios.json`, plugins and crontab.
 The gonf tasks cover the OpenBSD frontends only: there is no gonf task that
 installs gogios on the FreeBSD hosts f0–f3 (install it by hand with `pkg`
 there if ever needed).
+
+## Signing-key custody and migration status (2026-10-22)
+
+Canonical procedure and committed public halves:
+`~/git/conf/packages/keys/README.md`. Earth owns private custody under
+`~/.local/share/f3s-package-signing` (0700, private files 0600), with exact
+foostore/KeePass recovery references for OpenBSD, FreeBSD RSA and Rocky GPG.
+Vault Password fields contain single-line base64 of the full private files.
+The dedicated local OpenBSD VM may receive the signify key via
+`packages/buildvm/install-signing-key.sh`; no other builder, frontend or NFS
+storage may receive private signing keys. Its SSH forwarding must bind only
+127.0.0.1 and its host key must already be verified in known_hosts.
+
+Local tooling and public keys are prepared. Explicit live approval remains
+required to restart/provision the VM, verify a package, and remove historical
+private copies from frontends/NFS after confirming recovery. Frontend clients
+retain public trust only. The old signify identity has been preserved for
+compatibility; reduced custody does not revoke previously copied keys.
+FreeBSD/Rocky signing and client enforcement are later tasks (`ym3`, `zm3`,
+`0n3`); existing publication recipes remain unsigned there until that rollout.

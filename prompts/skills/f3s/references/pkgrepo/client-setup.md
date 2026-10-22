@@ -64,9 +64,9 @@ doas pkg_add -u <package>    # update to latest version
 
 Two things needed:
 
-1. **Signify public key** — copy from an existing host:
+1. **Signify public key** — use the committed public half from conf:
    ```sh
-   scp rex@fishfinger.buetow.org:/etc/signify/custom-pkg.pub /tmp/
+   cp ~/git/conf/packages/keys/openbsd-custom-pkg.pub /tmp/custom-pkg.pub
    scp /tmp/custom-pkg.pub rex@<newhost>:/tmp/
    ssh rex@<newhost> "doas cp /tmp/custom-pkg.pub /etc/signify/custom-pkg.pub"
    ```
@@ -92,7 +92,7 @@ base `pkg_add -u` after sysupgrade, `PKG_PATH` must be unset or start with
 ### Package signing
 
 OpenBSD packages are signed with `signify(1)` via `pkg_sign`:
-- **Private key**: `/etc/signify/custom-pkg.sec` on fishfinger (build host)
+- **Private key**: earth private custody + foostore recovery; `/etc/signify/custom-pkg.sec` only in the dedicated local OpenBSD build VM after approved migration. Frontends retain public trust only. See `~/git/conf/packages/keys/README.md` for pending live cleanup and recovery.
 - **Public key**: `/etc/signify/custom-pkg.pub` on all OpenBSD clients
 - Signing happens automatically during `make pkg-openbsd` / `make pkg`
 - `pkg_add` verifies the signature — no `-D unsigned` needed

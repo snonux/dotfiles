@@ -9,9 +9,10 @@ Scripts in `~/git/conf/packages/buildvm/`.
 ```sh
 cd ~/git/conf/packages/buildvm
 
-# Fetch signify keys from fishfinger
-scp rex@fishfinger.buetow.org:/etc/signify/custom-pkg.sec .
-scp rex@fishfinger.buetow.org:/etc/signify/custom-pkg.pub .
+# Restore private custody from foostore on earth, following
+# ~/git/conf/packages/keys/README.md; never retrieve keys from frontends/NFS.
+# Verify the VM host key at its console and enroll it in known_hosts
+# before provisioning (StrictHostKeyChecking=yes).
 
 ./setup.sh       # downloads ISO, runs fully automated install (~5 min)
 ./provision.sh   # installs Go, git, gmake, signify keys, SSH keys
@@ -27,8 +28,8 @@ make dtail-openbsd   # auto-starts VM if needed, then builds
 make buildvm-stop    # shut down when done
 ```
 
-VM specs: headless, SSH on `localhost:2222`, 1 GB RAM, 2 CPUs, 4 GB disk.
-Username: `pbuild` (password: `build123`). SSH key installed by `provision.sh`.
+VM specs: headless, SSH forwarded on **127.0.0.1:2222 only**, 1 GB RAM, 2 CPUs, 4 GB disk. An older running VM must be restarted after approval to pick up the loopback binding.
+Username: `pbuild` (bootstrap password: `build123`). SSH key installed by `provision.sh`; the local VM is a trusted signing boundary and must never expose this bootstrap login to the LAN.
 
 Source is synced via `git archive HEAD | ssh ... tar -x` — not `scp -r` — to avoid filling `/tmp` with build artifacts and test data (full repo with benchmarks exceeds the 4 GB disk).
 
@@ -45,3 +46,19 @@ Source is synced via `git archive HEAD | ssh ... tar -x` — not `scp -r` — to
   `setup.sh` + `provision.sh` (the 7.9 install ran unattended unchanged)
 - After CONGRATULATIONS, choose shell (`s`) not reboot — the CD is still attached; configure wheel group via `chroot /mnt`
 - Username `build` is rejected ("not a usable loginname") — use `pbuild`
+
+## Signing custody
+
+Both pure-Go OpenBSD packaging and DTail packaging/signing run here, then
+`pkg_info -C -D SIGNER=custom-pkg` verifies artifacts before upload. Missing
+keys fail the build. `install-signing-key.sh` installs the existing signify
+identity from earth's private custody and the public half committed under
+`packages/keys/`; it checks local privacy, uses verified SSH stdin, stages only
+in root-owned `/etc/signify`, and refuses to replace different existing keys.
+It can run independently of full provisioning, after explicit live approval.
+
+No frontend is a private-key source. The 2026-10-22 local preparation created
+foostore recovery backups but did not change any VM or frontend. Approve the
+restart/provision/signature smoke test and subsequent removal of approved
+historical frontend/NFS key copies as one live migration. See
+`~/git/conf/packages/keys/README.md` for exact references and recovery steps.

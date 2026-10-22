@@ -47,7 +47,7 @@ Custom FreeBSD, OpenBSD, NetBSD, and Rocky Linux package repository served from 
 | `gonf/frontends/monitoring.go` (task `frontends_pkg_repo`) | Adds `PKG_PATH` to root's `.profile` on OpenBSD frontends |
 | `packages/Makefile` | Cross-compiles, packages, and uploads for all OSes |
 | `packages/scripts/pkg-freebsd.sh` | Runs on f0 via SSH: `pkg create` + `pkg repo` + copy to PV |
-| `packages/scripts/pkg-openbsd.sh` | Runs on fishfinger via SSH: `pkg_create` + signify signing |
+| `packages/scripts/pkg-openbsd.sh` | Runs on the local OpenBSD VM on earth: mandatory `pkg_create` + signify signing + expected-signer verification |
 | `packages/scripts/pkg-dtail-openbsd.sh` | DTail multi-binary OpenBSD packaging |
 | `packages/scripts/pkg-dtail-freebsd.sh` | DTail multi-binary FreeBSD packaging |
 | `packages/scripts/pkg-dtail-netbsd.sh` | DTail multi-binary NetBSD packaging (runs on pi0 via SSH: `pkg_create` + `pkg_summary.gz`) |
@@ -58,7 +58,8 @@ Custom FreeBSD, OpenBSD, NetBSD, and Rocky Linux package repository served from 
 | Host | Access | Root | Notes |
 |------|--------|------|-------|
 | f0 (FreeBSD, NFS) | `ssh -p 22 f0.lan.buetow.org` | `doas` | PV is local; default shell is **csh** |
-| fishfinger (OpenBSD) | `ssh rex@fishfinger.buetow.org` | `doas` | OpenBSD packages built here, then copied to f0 PV |
+| local OpenBSD build VM | `ssh -o StrictHostKeyChecking=yes -p 2222 pbuild@localhost` | `doas` | Builds/signs on earth; only verified packages go to f0 PV |
+| fishfinger (OpenBSD) | `ssh rex@fishfinger.buetow.org` | `doas` | Package client/public trust only after approved custody migration |
 | blowfish (OpenBSD) | `ssh rex@blowfish.buetow.org` | `doas` | Same setup as fishfinger |
 | pi0 (NetBSD) | `ssh -p 22 paul@pi0.lan.buetow.org` | `doas` | NetBSD packages assembled here (`pkg_create`), then copied to f0 PV; non-interactive SSH PATH lacks `/usr/sbin` (`pkg_*` live there) |
 
@@ -78,3 +79,22 @@ kubectl -n infra rollout status deployment/pkgrepo
 - **NetBSD**: packages unsigned; `pkg_add` works with a direct package URL, `pkg_summary.gz` alongside the packages enables pkgin; package versions must not contain dashes (`4.3.2-ng` → `4.3.2ng`); `+BUILD_INFO` (`MACHINE_ARCH`/`OS_VERSION`) is checked by `pkg_add` on install, which is why packages are assembled natively on pi0
 - **Rocky Linux**: standard DNF layout; unsigned repo (`gpgcheck=0`); architecture-specific paths (`x86_64` / `aarch64`)
 - **FreeBSD csh**: default shell is csh — avoid inline one-liners with `||`, `&&`, `!`, or multi-line quoting over SSH; use piped `/bin/sh` or separate SSH invocations
+
+## Private signing-key boundary
+
+Private custody is on earth outside Git (`~/.local/share/f3s-package-signing`,
+0700; keys 0600), with encrypted foostore/KeePass recovery copies. Only the
+local OpenBSD build VM receives the signify private key, via SSH stdin into
+root-owned private files. The VM's QEMU SSH forwarding binds 127.0.0.1 only;
+key installation and packaging require a verified SSH host key. Internet
+frontends, production builders, the package PV/NFS and nginx receive public
+keys or signed artifacts only. Public halves and exact recovery instructions
+live in conf `packages/keys/`.
+
+As of 2026-10-22 the local implementation and FreeBSD/Rocky public halves are
+prepared; no live migration or trust enforcement was performed. Explicit
+approval is required to restart/provision the VM, verify signed packages and
+remove historical frontend/NFS private copies. The OpenBSD signer identity is
+unchanged. FreeBSD/Rocky remain unsigned until follow-up tasks `ym3`, `zm3`,
+`0n3` complete signing and client enforcement. Custody reduction alone cannot
+revoke previous private-key copies; evaluate signify rotation separately.
