@@ -50,7 +50,9 @@ Source is synced via `git archive HEAD | ssh ... tar -x` — not `scp -r` — to
 ## Signing custody
 
 Both pure-Go OpenBSD packaging and DTail packaging/signing run here, then
-`pkg_info -C -D SIGNER=custom-pkg` verifies artifacts before upload. Missing
+standalone `signify -Vz -p /etc/signify/custom-pkg.pub -x "$artifact"
+>/dev/null` verifies the complete compressed artifact against the pinned key
+before upload. `pkg_info -C` is informational only. Missing
 keys fail the build. `install-signing-key.sh` installs the existing signify
 identity from earth's private custody and the public half committed under
 `packages/keys/`; it checks local privacy, uses verified SSH stdin, stages only
@@ -87,3 +89,8 @@ with receiver protection preserving existing copies for approved cleanup.
 No backup was run. Inventory current backups, replicas and retained snapshots;
 removing one active file cannot establish retirement of historical exposure.
 Signify trust rotation remains a separate reviewed operation.
+
+Native artifact acceptance is still unrun while the VM is stopped: a valid
+package must pass standalone pinned-key verification; unsigned, wrong-signer
+and late-stream corruption (after 64 KiB compressed data) must fail before
+upload. Offline test doubles only establish command/failure propagation.

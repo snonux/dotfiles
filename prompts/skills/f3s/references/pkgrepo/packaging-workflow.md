@@ -26,7 +26,7 @@ make pkg-openbsd NAME=gogios SRC=/home/paul/git/gogios
 1. Cross-compiles on Linux (`GOOS=freebsd/openbsd GOARCH=amd64`)
 2. SCPs binary + packaging script to target host (f0 for FreeBSD, the local OpenBSD VM on earth for OpenBSD)
 3. Runs the packaging script via SSH (`pkg create` / `pkg_create`)
-4. OpenBSD packages must be signed with signify on the local VM and verified with `pkg_info -C -D SIGNER=custom-pkg` before upload; missing keys or failed signing/verification stop the build
+4. OpenBSD packages must be signed with signify on the local VM and verified in full with standalone `signify -Vz -p /etc/signify/custom-pkg.pub -x "$artifact" >/dev/null` before upload; missing keys or failed signing/verification stop the build
 5. FreeBSD repo metadata is regenerated with `pkg repo`
 6. Packages are copied to the PV at `/data/nfs/k3svolumes/pkgrepo/`
 
@@ -80,12 +80,17 @@ the VM, first run `pkg_create` into an unsigned staging directory, then:
 mkdir -p signed
 doas pkg_sign -s signify2 -s /etc/signify/custom-pkg.sec \
     -o signed output/package-name-1.0.tgz
-pkg_info -C -D SIGNER=custom-pkg signed/package-name-1.0.tgz
+signify -Vz -p /etc/signify/custom-pkg.pub \
+    -x signed/package-name-1.0.tgz >/dev/null
 ```
 
 From earth, retrieve **signed/package-name-1.0.tgz** with strict host-key
 checking on port 2222, then transfer that artifact through f0 to the OpenBSD
 PV. The unsigned output directory is never a publication source.
+`pkg_info -C` is metadata display, not a pinned-key/full-stream verification
+gate. Native acceptance remains pending live approval: valid succeeds;
+unsigned, different signer and corruption after 64 KiB of the compressed
+artifact must fail. See conf `packages/keys/README.md` for the full checklist.
 
 ### NetBSD (on pi0)
 

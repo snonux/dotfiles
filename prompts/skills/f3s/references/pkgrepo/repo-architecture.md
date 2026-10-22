@@ -47,7 +47,7 @@ Custom FreeBSD, OpenBSD, NetBSD, and Rocky Linux package repository served from 
 | `gonf/frontends/monitoring.go` (task `frontends_pkg_repo`) | Adds `PKG_PATH` to root's `.profile` on OpenBSD frontends |
 | `packages/Makefile` | Cross-compiles, packages, and uploads for all OSes |
 | `packages/scripts/pkg-freebsd.sh` | Runs on f0 via SSH: `pkg create` + `pkg repo` + copy to PV |
-| `packages/scripts/pkg-openbsd.sh` | Runs on the local OpenBSD VM on earth: mandatory `pkg_create` + signify signing + expected-signer verification |
+| `packages/scripts/pkg-openbsd.sh` | Runs on the local OpenBSD VM on earth: mandatory `pkg_create` + signing + standalone `signify -Vz -p` pinned-key/full-stream verification |
 | `packages/scripts/pkg-dtail-openbsd.sh` | DTail multi-binary OpenBSD packaging |
 | `packages/scripts/pkg-dtail-freebsd.sh` | DTail multi-binary FreeBSD packaging |
 | `packages/scripts/pkg-dtail-netbsd.sh` | DTail multi-binary NetBSD packaging (runs on pi0 via SSH: `pkg_create` + `pkg_summary.gz`) |
@@ -123,3 +123,9 @@ with receiver protection preserving existing copies for approved cleanup.
 No backup was run. Inventory current backups, replicas and retained snapshots;
 removing one active file cannot establish retirement of historical exposure.
 Signify trust rotation remains a separate reviewed operation.
+
+Publication verification uses standalone `signify -Vz -p
+/etc/signify/custom-pkg.pub -x "$artifact" >/dev/null`. `pkg_info -C` only
+reports metadata and is not an acceptance gate. Native valid, unsigned,
+wrong-signer and corruption-after-64-KiB acceptance checks remain pending
+live approval; local tests only cover orchestration/failure propagation.
