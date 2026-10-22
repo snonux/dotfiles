@@ -94,3 +94,15 @@ Native artifact acceptance is still unrun while the VM is stopped: a valid
 package must pass standalone pinned-key verification; unsigned, wrong-signer
 and late-stream corruption (after 64 KiB compressed data) must fail before
 upload. Offline test doubles only establish command/failure propagation.
+
+### Console for approved SSH migration
+
+Normal `start.sh` uses `-serial null`; it has no recovery console. The canonical
+conf `packages/keys/README.md` now gives a foreground `-nographic` boot using
+the same 0600-checked disk and 127.0.0.1-only SSH forward. Use that approved
+boot instead of also launching start.sh, retain the serial terminal and both
+key-authenticated SSH sessions, and compare the guest console's public host-key
+fingerprint before SSH hardening. Existing `[localhost]:2222` enrollment has
+ED25519 fingerprint `SHA256:aSnoB4ODENkoR3gcSr+1k+aOhgXyH64KOjsXfnYzjUY`;
+this is prior enrollment, not fresh verification of the stopped guest. Never
+bypass host checks or replace enrolled keys automatically. No VM boot was run.

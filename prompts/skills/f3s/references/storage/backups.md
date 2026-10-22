@@ -128,3 +128,12 @@ Task `xm3` and conf `packages/keys/README.md` own the custody migration and exac
 approval steps. Current-path removal does not revoke copies in ZFS snapshots,
 zrepl replicas, USB quarterly backups or offsite archives. Inventory retention
 and access separately; a reviewed signify trust rotation may be required.
+
+Read-only follow-up on 2026-10-22 confirmed f2 `zdata/enc/earth-backup` mounted
+with its key available, and no active `.local/share/f3s-package-signing/`
+custody/GnuPG directory, legacy `git/conf/packages/buildvm/custom-pkg.sec`, or
+VM qcow2 at that backup root. XDG_DATA_HOME was unset on earth; no separate
+configured custom-XDG custody path was identified. These scoped absence checks
+do not cover renamed copies, snapshots or replicas. The known active private
+copies awaiting approval remain fishfinger's key and the f0 legacy NFS key;
+no deletion, backup run or historical purge was performed.
