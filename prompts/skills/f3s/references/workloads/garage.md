@@ -10,7 +10,7 @@ Garage S3 runs as a 3-node cluster on FreeBSD hosts `f0`, `f1`, and `f2`.
 - Admin/metrics: `:3903`
 - Layout capacity target: `f0=8`, `f1=8`, `f2=4` (same ratio currently applied)
 - Zone: currently all in `dc1`
-- Garage version: `cargo:2.3.0`
+- Garage version: `cargo:2.4.1` (native inspection 2026-10-23)
 - `replication_factor = 3`, `consistency_mode = "consistent"`, S3 region `garage`
 - `root_domain = ".garage.f3s.buetow.org"` — enables virtual-hosted-style
   addressing, see [garage-s3-addressing.md](garage-s3-addressing.md)
@@ -99,6 +99,27 @@ This resolved the external edge path instability.
   `/tmp/f3s_taken_down` exists. The node list is `garageNodes` in
   `gonf/frontends/data.go`; keep it in step with `cluster.NameGarage`.
 - Deploy: `./gonf.sh cluster frontends frontends_gogios`.
+
+## Prepared admin/metrics hardening (cn3; not deployed)
+
+The prepared conf change binds admin/metrics to each node's WireGuard IP and
+requires a dedicated metrics token from `Infra/garage-metrics` (Password field).
+The existing RPC/S3 identity, addresses, local storage and layout are preserved.
+The TOML remains 0640 root:garage and is marked secret-bearing. Prometheus gets
+an external `monitoring/garage-metrics` Secret, key `token`, mounted at
+`/etc/prometheus/secrets/garage-metrics/token`; public scrape configs contain
+only that file reference. Unauthenticated metrics return 403 on tested Garage
+2.4.1; unauthenticated `/health` stays available for Gogios.
+
+The exact machine credential is not yet available and the Kubernetes Secret
+is absent. No credential or deployment was created during preparation.
+`scripts/provision-metrics-secret.py` in conf's `f3s/garage` defaults to checking;
+`--apply` creates only an absent Secret and refuses replacement. Provision and
+verify it before publishing the Prometheus mount/config change. That rollout
+restarts Prometheus; then deploy Garage one node at a time, checking all three
+nodes/metrics/S3 after each. `just deploy` now requires one explicit f-host.
+Follow `conf/f3s/garage/admin-metrics.md` for status, review/approval, rollback
+and actual acceptance; this section does not authorize deployment.
 
 ## Operational Notes (Important)
 
