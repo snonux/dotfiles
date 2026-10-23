@@ -39,3 +39,22 @@ still need their normal DNS, certificates and ingress routing.
 - `pkg_add -u` only recognizes a new version as an update candidate if its `@comment pkgpath=... ftp=no` annotation matches the installed package's. The packaging script (`~/git/conf/packages/scripts/pkg-openbsd.sh`) passes `pkg_create -D FULLPKGPATH=local/<name>` (gogios 1.4.5+, since 2026-08-13; dtail uses the same scheme since 2026-09-26). An installed package without it needs one forced reinstall (`doas pkg_delete gogios && doas pkg_add gogios-<version>` with the custom `PKG_PATH`).
 - A plain `doas pkg_add -u` needs `PKG_PATH="installpath:<custom repo>"` (set in root's and rex's `.profile` by `frontends_pkg_repo`); with only `/etc/installurl` it prints `Couldn't find updates for ... gogios-<version>`.
 - Building for FreeBSD (if ever needed) uses the equivalent `make pkg-freebsd NAME=gogios SRC=/home/paul/git/gogios`, or `make pkg ...` for both OSes. There is no gonf task that installs Gogios on FreeBSD hosts (`frontends_gogios` covers the OpenBSD frontends only), so a FreeBSD install is a manual `doas pkg install gogios`.
+
+## Protected cluster mute marker (dn3 proposal)
+
+The prepared dn3 configuration moves the marker to
+`/var/db/f3s/monitoring/f3s_taken_down`. Its parent is mode 0750,
+`f3sctl:_gogios`, under root-owned `/var/db/f3s`; only the restricted f3sctl
+writer can create/remove it. Gogios can inspect but cannot create it.
+`/etc/rc.local` clears it on gateway reboot, preserving the previous temporary
+mute behavior. The bare SSH verbs remain unchanged; SSH authentication is not
+modified. The f3sctl inventory metadata is updated in its own repository.
+
+Both config and helper must be deployed together during an approved window
+without power/mute jobs. `frontends_low_risk` applies the scoped config, helper,
+permissions and access-log changes. NRPE retirement uses the separate
+operational `frontends_retire_nrpe` task after acceptance. Normal `frontends_gogios`
+also installs the protected mute helper and uses mode 0640 `root:_gogios` for
+its configuration, so later applies preserve the policy. Consult
+`conf/frontends/docs/low-risk-hardening.md` for actual rollout status and gates;
+this skill entry is preparation, not evidence of a live deployment.

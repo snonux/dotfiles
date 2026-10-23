@@ -36,25 +36,24 @@ Use either as a ProxyJump host.
 The f-hosts allow SSH as **`paul`** (not `root`). Use `doas` on the host for
 privileged commands.
 
-Interactive:
+Connect from the laptop using ProxyJump; authentication stays on the laptop:
 
 ```sh
-ssh -A rex@fishfinger.buetow.org   # -A forwards your agent for the next hop
-ssh paul@f0.wg0                    # from fishfinger, over the WireGuard mesh
-doas some-privileged-command       # passwordless doas is configured
+ssh -o ForwardAgent=no -J rex@fishfinger.buetow.org paul@f0.wg0
+# Run doas on the destination host when needed.
 ```
 
-One-shot from the laptop (handy for scripts/automation):
+One-shot from the laptop:
 
 ```sh
-ssh -A -J rex@fishfinger.buetow.org paul@f0.wg0 "sh -c 'hostname; doas freebsd-version'"
+ssh -o ForwardAgent=no -J rex@fishfinger.buetow.org paul@f0.wg0 "sh -c 'hostname; doas freebsd-version'"
 ```
 
 Use `f0.wg0` / `f1.wg0` / `f2.wg0` / `f3.wg0` — the WireGuard hostnames as
 seen from the gateway. `f3.wg0` resolves to `192.168.2.133`:
 
 ```sh
-ssh -A -J rex@fishfinger.buetow.org paul@192.168.2.133   # f3 direct via WireGuard
+ssh -o ForwardAgent=no -J rex@fishfinger.buetow.org paul@192.168.2.133   # f3 direct via WireGuard
 ```
 
 (Previously the f3↔GW WireGuard tunnel was broken due to key mismatches; fixed
@@ -67,23 +66,24 @@ The k3s Rocky VMs (`r0`–`r2`) and the standalone `rocky` VM allow SSH as
 for the cluster-access workflow.
 
 ```sh
-ssh -A -J rex@fishfinger.buetow.org root@r0.wg0 "kubectl get nodes"
-ssh -A -J rex@fishfinger.buetow.org root@rocky.wg0 "hostname"
+ssh -o ForwardAgent=no -J rex@fishfinger.buetow.org root@r0.wg0 "kubectl get nodes"
+ssh -o ForwardAgent=no -J rex@fishfinger.buetow.org root@rocky.wg0 "hostname"
 ```
 
 ### Reaching Pis
 
 ```sh
-ssh -A -J rex@fishfinger.buetow.org paul@pi0.wg0
+ssh -o ForwardAgent=no -J rex@fishfinger.buetow.org paul@pi0.wg0
 ```
 
 ## Notes
 
-- `ssh -A` (agent forwarding) is required so the `rex@fishfinger` → `paul@fN.wg0`
-  hop can authenticate. Make sure the right key is loaded (`ssh-add -l`).
+- ProxyJump opens a transport through the gateway; the laptop authenticates
+  both hops without forwarding its agent. Keep the required keys loaded locally
+  (`ssh-add -l`).
 - `blowfish.buetow.org` works as a drop-in replacement if fishfinger is unavailable.
-- On a fresh laptop, accept host keys on first connect:
-  `-o StrictHostKeyChecking=accept-new` on both hops.
+- On a fresh laptop, verify both hosts’ fingerprints through an existing
+  trusted source before adding them to known_hosts. Keep host-key checks enabled.
 - The f-hosts use `tcsh` as paul's shell — wrap multi-statement commands in
   `sh -c '...'` to avoid tcsh-specific syntax errors.
 - The `rex` user on the gateways is the SSH user for the jump; it has no
