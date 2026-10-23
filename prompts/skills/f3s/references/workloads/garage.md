@@ -25,12 +25,14 @@ Garage S3 runs as a 3-node cluster on FreeBSD hosts `f0`, `f1`, and `f2`.
 - Service enabled:
   - `garage_enable=YES` in `/etc/rc.conf`
 - Config deployed by the gonf task `garage_config` (cluster `garage` = f0–f2,
-  `paul@…:22` + doas, parallel 1):
+  `paul@…:22` + doas; deploy one node and verify health before the next):
   - `gonf/garage/garage.go` (the recipe)
   - `f3s/garage/etc/garage.toml.tmpl` (one template for all three nodes;
     per-node `rpc_public_addr` comes from the inventory)
-  - `f3s/garage/Justfile` (`just -f f3s/garage/Justfile deploy` runs
-    `./gonf.sh cluster garage garage_config`)
+  - Prepared `f3s/garage/Justfile` uses
+    `just -f f3s/garage/Justfile deploy f2` for one selected node; `f0` and `f1`
+    are also accepted. Complete the approved cn3 credential/Prometheus sequence
+    before using this prepared deployment recipe.
   - Configuration only: the package, `garage` group, `/var/db/garage` and the
     cluster layout are provisioning steps outside gonf. Garage restarts only
     when the rendered config changed.
@@ -143,7 +145,8 @@ When `https://garage.f3s.buetow.org` is broken, use this order:
    - `ssh -p 22 paul@f0.lan.buetow.org 'doas garage stats -a'`
 2. Confirm Garage listeners are on IPv4 on all nodes:
    - `ssh -p 22 paul@fN.lan.buetow.org 'sockstat -4 -l | grep 3900'`
-   - Expected: `*:3900` (and similarly `*:3903` for admin)
+   - Expected S3: `*:3900`. Admin currently uses `*:3903`; after the approved
+     cn3 rollout, expect only that node's `192.168.2.13N:3903` WireGuard address.
 3. Confirm edge hosts can reach WireGuard backends:
    - from `fishfinger` and `blowfish`: `nc -zvw2 192.168.2.13{0,1,2} 3900`
 4. Confirm relayd syntax and reload state:
@@ -156,6 +159,8 @@ When `https://garage.f3s.buetow.org` is broken, use this order:
    - execute the authenticated PUT/LIST command from [garage-commands.md](garage-commands.md)
 7. If listeners are wrong or config drifted:
    - fix the template `f3s/garage/etc/garage.toml.tmpl` (or the per-host inventory value in `gonf/cluster/cluster.go`)
-   - redeploy: `just -f f3s/garage/Justfile deploy`
+   - after approval and the cn3 credential/Prometheus prerequisites, redeploy
+     one selected node, for example `just -f f3s/garage/Justfile deploy f2`;
+     verify health/quorum/S3/metrics before any other node
 8. If relay changes were made:
    - redeploy the frontends from the conf repo (`./gonf.sh cluster frontends frontends_nsd frontends_httpd frontends_relayd`) and rerun the ACME flow (`frontends_acme frontends_acme_invoke`, then `frontends_relayd`) if keypair errors appear.
