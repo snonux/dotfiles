@@ -38,6 +38,9 @@ test (cat "$TEST_ROOT/attached") = 'adhoc'
 or fail "existing directory was not passed to tmux without a names file"
 command rm "$TEST_ROOT/attached"
 
+mkdir -p "$HOME/git/iq"
+printf 'iq table of contents\n' >"$HOME/git/iq/AGENTS.md"
+
 printf 'first choice\nproject with spaces\nalready-listed\nlast choice\n' >"$HOME/.tmpnewnames"
 mkdir -p "$TMPUTILS_DIR/already-listed" "$TMPUTILS_DIR/existing-only"
 
@@ -56,6 +59,12 @@ test (pwd) = "$TMPUTILS_DIR/project with spaces"
 or fail "selected directory was not entered"
 test -d .git
 or fail "selected directory was not initialized as a git repository"
+test -f AGENTS.md
+or fail "new directory did not get an AGENTS.md with ~/git/iq present"
+string match -q "*$HOME/git/iq/AGENTS.md*" <AGENTS.md
+or fail "AGENTS.md does not reference the iq knowledge base"
+test ! -f "$TMPUTILS_DIR/existing-only/AGENTS.md"
+or fail "existing directory gained an AGENTS.md"
 test (cat "$TEST_ROOT/attached") = 'project with spaces'
 or fail "selected name was not passed to tmux"
 string match -q -e '[new]      first choice' <"$TEST_ROOT/fzf-input"

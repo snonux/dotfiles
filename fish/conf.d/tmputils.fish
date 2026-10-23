@@ -8,8 +8,22 @@ function tmpdir::make
         mkdir -p $dir
         cd $dir
         git init
+        tmpdir::agents_md
         cd -
     end
+end
+
+function tmpdir::agents_md
+    set -l iq_dir "$HOME/git/iq"
+    if not test -d "$iq_dir"
+        return
+    end
+    printf '%s\n' \
+        '# Scratch' \
+        '' \
+        'Temporary scratch directory.' \
+        '' \
+        "See also the personal knowledge base at $iq_dir/AGENTS.md — follow its table of contents and load context progressively." >AGENTS.md
 end
 
 function tmpdir
