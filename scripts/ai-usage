@@ -1,0 +1,198 @@
+#!/usr/bin/env bash
+# ai-usage — print AI subscription usage, starting with Codex.
+#
+# This is deliberately a separate, one-shot app-server client rather than a
+# parser for Codex's TUI or session-log files. Its default output is a
+# coloured terminal summary. Machine-readable JSON remains available:
+#
+#   ai-usage --format json | jq -r '.rateLimits.primary.usedPercent'
+#
+# Usage:
+#   ai-usage [--format text|json|remaining] [--color auto|always|never]
+#
+# Requires: codex (signed in with ChatGPT) and jq.
+
+set -euo pipefail
+
+format=text
+color=auto
+
+usage() {
+  sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+die() {
+  printf 'ai-usage: %s\n' "$*" >&2
+  exit 1
+}
+
+while (($#)); do
+  case "$1" in
+    --format)
+      (($# >= 2)) || die '--format needs an argument'
+      format=$2
+      shift 2
+      ;;
+    --format=*)
+      format=${1#*=}
+      shift
+      ;;
+    --json)
+      format=json
+      shift
+      ;;
+    --color)
+      (($# >= 2)) || die '--color needs an argument'
+      color=$2
+      shift 2
+      ;;
+    --color=*)
+      color=${1#*=}
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      die "unknown argument: $1"
+      ;;
+  esac
+done
+
+case "$format" in
+  json|text|remaining) ;;
+  *) die "unknown format: $format (use json, text, or remaining)" ;;
+esac
+
+case "$color" in
+  auto|always|never) ;;
+  *) die "unknown color mode: $color (use auto, always, or never)" ;;
+esac
+
+command -v codex >/dev/null || die 'codex is not on PATH'
+command -v jq >/dev/null || die 'jq is not on PATH'
+
+# The app-server protocol is shipped by the installed Codex CLI.  Reading its
+# account/rateLimits endpoint keeps the ChatGPT authentication token inside
+# Codex; this script never reads or prints credentials.
+coproc CODEX_APP_SERVER { exec timeout 15s codex app-server --stdio; }
+server_pid=$CODEX_APP_SERVER_PID
+server_in=${CODEX_APP_SERVER[1]}
+server_out=${CODEX_APP_SERVER[0]}
+
+cleanup() {
+  exec {server_in}>&- 2>/dev/null || true
+  exec {server_out}<&- 2>/dev/null || true
+  wait "$server_pid" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+read_response() {
+  local wanted_id=$1 line
+
+  while IFS= read -r line <&"$server_out"; do
+    if jq -e --argjson wanted_id "$wanted_id" \
+      '.id == $wanted_id' >/dev/null <<<"$line"; then
+      printf '%s\n' "$line"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+printf '%s\n' \
+  '{"id":1,"method":"initialize","params":{"clientInfo":{"name":"ai-usage","version":"1.0.0"}}}' \
+  >&"$server_in"
+read_response 1 >/dev/null || die 'could not initialize the Codex app server'
+
+printf '%s\n' \
+  '{"id":2,"method":"account/rateLimits/read","params":{"excludeResetCreditDetails":true}}' \
+  >&"$server_in"
+response=$(read_response 2) || die 'could not read Codex rate limits'
+
+# accountId is not useful to a shell prompt and is deliberately excluded.
+result=$(jq -e '.result | del(.accountId)' <<<"$response") \
+  || die 'Codex returned an unexpected rate-limit response'
+
+colorize=no
+if [ "$color" = always ] || { [ "$color" = auto ] && [ -t 1 ]; }; then
+  colorize=yes
+fi
+
+if [ "$colorize" = yes ]; then
+  reset=$'\033[0m'
+  bold=$'\033[1m'
+  dim=$'\033[2m'
+  cyan=$'\033[36m'
+  green=$'\033[32m'
+  yellow=$'\033[33m'
+  red=$'\033[31m'
+else
+  reset=
+  bold=
+  dim=
+  cyan=
+  green=
+  yellow=
+  red=
+fi
+
+print_text() {
+  local plan used reset_at remaining filled empty i bar usage_color
+  local summary
+
+  summary=$(jq -r '
+    .rateLimits.primary as $primary
+    | if $primary == null then empty else
+        [
+          (.rateLimits.planType // "unknown"),
+          $primary.usedPercent,
+          ($primary.resetsAt
+            | if . == null then "unknown" else todateiso8601 end)
+        ] | @tsv
+      end
+  ' <<<"$result")
+
+  if [ -z "$summary" ]; then
+    printf '%sCodex usage unavailable%s\n' "$yellow" "$reset"
+    return
+  fi
+
+  IFS=$'\t' read -r plan used reset_at <<<"$summary"
+  remaining=$((100 - used))
+  filled=$((remaining / 10))
+  empty=$((10 - filled))
+
+  if ((remaining >= 50)); then
+    usage_color=$green
+  elif ((remaining >= 20)); then
+    usage_color=$yellow
+  else
+    usage_color=$red
+  fi
+
+  bar=
+  for ((i = 0; i < filled; i++)); do bar+='█'; done
+  for ((i = 0; i < empty; i++)); do bar+='░'; done
+
+  printf '%s%sCodex usage%s %s(%s)%s\n' \
+    "$bold" "$cyan" "$reset" "$dim" "$plan" "$reset"
+  printf '  %s[%s%s%s]%s %s%3d%%%s left %s· %d%% used%s\n' \
+    "$dim" "$usage_color" "$bar" "$dim" "$reset" \
+    "$usage_color" "$remaining" "$reset" "$dim" "$used" "$reset"
+  printf '  %s↳ resets %s%s\n' "$dim" "$reset_at" "$reset"
+}
+
+case "$format" in
+  json)
+    printf '%s\n' "$result"
+    ;;
+  remaining)
+    jq -r '.rateLimits.primary | 100 - .usedPercent' <<<"$result"
+    ;;
+  text)
+    print_text
+    ;;
+esac
