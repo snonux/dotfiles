@@ -61,6 +61,7 @@ both frontend cutovers passed real Pi0/Pi1 restricted SSH mute/unmute cycles
 and native permission checks. Config/helper, SSH policies and httpd PIDs were
 verified together; unrelated monitoring plugins remain after unused NRPE
 retirement. Two fresh normal monitoring cycles passed after a transient TLS
-check failure cleared naturally. The uploader change is deployed to nine hosts;
-Pi3 runtime approval and the remaining normal upload observations are still
-pending, so dn3 as a whole remains open.
+check failure cleared naturally. All nine updated uploader hosts passed their
+next ordinary HTTP204 upload with advancing nonempty records, including
+f0-f3/Pi2 at 16:00 UTC. Pi3 remains unchanged pending separate runtime-bootstrap
+approval, so dn3 as a whole remains open.
