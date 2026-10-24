@@ -40,9 +40,9 @@ still need their normal DNS, certificates and ingress routing.
 - A plain `doas pkg_add -u` needs `PKG_PATH="installpath:<custom repo>"` (set in root's and rex's `.profile` by `frontends_pkg_repo`); with only `/etc/installurl` it prints `Couldn't find updates for ... gogios-<version>`.
 - Building for FreeBSD (if ever needed) uses the equivalent `make pkg-freebsd NAME=gogios SRC=/home/paul/git/gogios`, or `make pkg ...` for both OSes. There is no gonf task that installs Gogios on FreeBSD hosts (`frontends_gogios` covers the OpenBSD frontends only), so a FreeBSD install is a manual `doas pkg install gogios`.
 
-## Protected cluster mute marker (dn3 proposal)
+## Protected cluster mute marker (deployed 2026-10-24)
 
-The prepared dn3 configuration moves the marker to
+Both frontends now use the marker at
 `/var/db/f3s/monitoring/f3s_taken_down`. Its parent is mode 0750,
 `f3sctl:_gogios`, under root-owned `/var/db/f3s`; only the restricted f3sctl
 writer can create/remove it. Gogios can inspect but cannot create it.
@@ -57,4 +57,10 @@ operational `frontends_retire_nrpe` task after acceptance. Normal `frontends_gog
 also installs the protected mute helper and uses mode 0640 `root:_gogios` for
 its configuration, so later applies preserve the policy. Consult
 `conf/frontends/docs/low-risk-hardening.md` for actual rollout status and gates;
-this skill entry is preparation, not evidence of a live deployment.
+both frontend cutovers passed real Pi0/Pi1 restricted SSH mute/unmute cycles
+and native permission checks. Config/helper, SSH policies and httpd PIDs were
+verified together; unrelated monitoring plugins remain after unused NRPE
+retirement. Two fresh normal monitoring cycles passed after a transient TLS
+check failure cleared naturally. The uploader change is deployed to nine hosts;
+Pi3 runtime approval and the remaining normal upload observations are still
+pending, so dn3 as a whole remains open.
