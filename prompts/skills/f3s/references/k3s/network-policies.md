@@ -99,11 +99,12 @@ remove its policies. Preserve the separately managed Prometheus boundary.
 
 Node/hostNetwork traffic, authenticated exec/port-forward and labels that an
 administrator can impersonate are not isolated by this mechanism. Cluster
-NodePort SNAT can admit an ordinary pod under a trusted node/CNI identity for
-registry, Bridge, Forgejo SSH or Anki; task co3 owns that remaining bypass.
+NodePort SNAT originally admitted an ordinary pod under a trusted node/CNI
+identity for registry, Bridge, Forgejo SSH or Anki; co3 now guards that path
+on all three nodes. Non-pod SNAT and node/hostNetwork trust still remain.
 Database Service/Pod denial is separate and still mandatory.
 
-Task co3 has a prepared, fresh-reviewed fix, **not deployed**: the separate
+Task co3 was approved and deployed on 2026-10-24: the separate
 `inet f3s_nodeport_guard` table filters ordinary pod sources before source-node
 masquerading and NodePort DNAT. It must run on every r-node; destination-only
 filtering misses source-node masquerading. It preserves existing non-pod LAN/WG
@@ -111,7 +112,7 @@ clients, including laptop `.200` and phone `.201`, node-local registry pulls,
 Cluster Services and third-party egress. It does not replace sm3's separate
 host-source firewall or broaden forwarded-header trust.
 
-The concrete plan is in conf's `f3s/docs/nodeport-pod-source-guard.md`.
+The rollout record and maintenance procedure are in conf's `f3s/docs/nodeport-pod-source-guard.md`.
 After explicit approval only, stage and activate r0, r1, r2 serially, retaining
 two independent SSH transports and the five-minute PID1 rollback on each host.
 Confirmation requires real denials and existing-client health first. Final
@@ -120,8 +121,14 @@ endpoint transition, native counters and normal monitoring. This uses owned
 canaries, without moving an existing application. Remove only owned temporary
 resources and the added test port; preserve the separately owned 6n3/7n3
 policies and all unrelated nft tables. Isolated kernel/helper tests and review
-have passed; host timer behavior, real endpoint transitions and actual laptop/
-phone tunnel packets are not yet claimed verified.
+have passed. Live acceptance verified real five-minute PID1 timer arming and
+second-session confirmation, 180 NodePort plus 90 CNI denials, native CRI pulls,
+three real Kubernetes endpoint placements and gateway/client/monitoring health.
+No live timer expiry or reboot was induced. All temporary resources and the
+30417 set elements were removed, and staging converged without changes.
+Actual laptop/phone tunnel packets remain for device-side verification.
+Two distinct normal active/passive monitoring cycles passed after cleanup,
+with critical/unknown/stale zero and only the pre-existing failed-Job warning.
 
 ## Verified scope and remaining checks
 
@@ -141,6 +148,7 @@ NodePort31637 checks use its ready endpoint node. The three read proxies retain
 their per-node availability. Do not assume every node runs Traefik.
 
 The known co3 bypass was reproduced from an ordinary r0 pod through r1
-NodePorts30001/30222/30143/30025/30800. Direct Service/Pod denials do not remove
-that source-translation exception. Actual laptop/phone tunnel tests remain for
-when those devices are used.
+NodePorts30001/30222/30143/30025/30800 before co3. The later co3 rollout closed
+that ordinary-pod path using the separate guard; direct receiver policies alone
+were insufficient. Actual laptop/phone tunnel tests remain for when those
+devices are used.
