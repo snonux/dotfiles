@@ -29,10 +29,10 @@ Garage S3 runs as a 3-node cluster on FreeBSD hosts `f0`, `f1`, and `f2`.
   - `gonf/garage/garage.go` (the recipe)
   - `f3s/garage/etc/garage.toml.tmpl` (one template for all three nodes;
     per-node `rpc_public_addr` comes from the inventory)
-  - Prepared `f3s/garage/Justfile` uses
+  - `f3s/garage/Justfile` uses
     `just -f f3s/garage/Justfile deploy f2` for one selected node; `f0` and `f1`
-    are also accepted. Complete the approved cn3 credential/Prometheus sequence
-    before using this prepared deployment recipe.
+    are also accepted. Keep the cn3 credential/Prometheus prerequisites and
+    serial health gates when using this deployment recipe.
   - Configuration only: the package, `garage` group, `/var/db/garage` and the
     cluster layout are provisioning steps outside gonf. Garage restarts only
     when the rendered config changed.
@@ -102,26 +102,30 @@ This resolved the external edge path instability.
   `gonf/frontends/data.go`; keep it in step with `cluster.NameGarage`.
 - Deploy: `./gonf.sh cluster frontends frontends_gogios`.
 
-## Prepared admin/metrics hardening (cn3; not deployed)
+## Admin/metrics hardening (cn3; deployed 2026-10-24)
 
-The prepared conf change binds admin/metrics to each node's WireGuard IP and
+The approved conf change binds admin/metrics to each node's WireGuard IP and
 requires a dedicated metrics token from `Infra/garage-metrics` (Password field).
 The existing RPC/S3 identity, addresses, local storage and layout are preserved.
 The TOML remains 0640 root:garage and is marked secret-bearing. Prometheus gets
 an external `monitoring/garage-metrics` Secret, key `token`, mounted at
 `/etc/prometheus/secrets/garage-metrics/token`; public scrape configs contain
-only that file reference. Unauthenticated metrics return 403 on tested Garage
-2.4.1; unauthenticated `/health` stays available for Gogios.
+only that file reference. Production Garage 2.4.1 returns 403 for missing or
+wrong metrics tokens; unauthenticated `/health` remains available for Gogios.
 
-The exact machine credential is not yet available and the Kubernetes Secret
-is absent. No credential or deployment was created during preparation.
+The dedicated vault entry and external Kubernetes Secret were provisioned
+with approval; exact readback/reuse checks passed without displaying values.
 `scripts/provision-metrics-secret.py` in conf's `f3s/garage` defaults to checking;
 `--apply` creates only an absent Secret and refuses replacement. Provision and
 verify it before publishing the Prometheus mount/config change. That rollout
 restarts Prometheus; then deploy Garage one node at a time, checking all three
-nodes/metrics/S3 after each. `just deploy` now requires one explicit f-host.
-Follow `conf/f3s/garage/admin-metrics.md` for status, review/approval, rollback
-and actual acceptance; this section does not authorize deployment.
+nodes/metrics/S3 after each. This sequence completed f2, f1, then f0, with
+accepted rollback guards, unchanged RPC/storage/layout and native 0640
+root:garage TOMLs. Fresh authenticated scrapes, actual Gogios health checks,
+trusted S3 listing/object reads and zero-change reapplication passed.
+`just deploy` requires one explicit f-host. Follow
+`conf/f3s/garage/admin-metrics.md` for rollback and the acceptance record;
+this section does not authorize future changes.
 
 ## Operational Notes (Important)
 
@@ -145,8 +149,8 @@ When `https://garage.f3s.buetow.org` is broken, use this order:
    - `ssh -p 22 paul@f0.lan.buetow.org 'doas garage stats -a'`
 2. Confirm Garage listeners are on IPv4 on all nodes:
    - `ssh -p 22 paul@fN.lan.buetow.org 'sockstat -4 -l | grep 3900'`
-   - Expected S3: `*:3900`. Admin currently uses `*:3903`; after the approved
-     cn3 rollout, expect only that node's `192.168.2.13N:3903` WireGuard address.
+   - Expected S3: `*:3900`. Admin must use only that node's
+     `192.168.2.13N:3903` WireGuard address; a wildcard admin listener is drift.
 3. Confirm edge hosts can reach WireGuard backends:
    - from `fishfinger` and `blowfish`: `nc -zvw2 192.168.2.13{0,1,2} 3900`
 4. Confirm relayd syntax and reload state:
