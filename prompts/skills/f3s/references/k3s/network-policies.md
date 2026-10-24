@@ -103,6 +103,26 @@ NodePort SNAT can admit an ordinary pod under a trusted node/CNI identity for
 registry, Bridge, Forgejo SSH or Anki; task co3 owns that remaining bypass.
 Database Service/Pod denial is separate and still mandatory.
 
+Task co3 has a prepared, fresh-reviewed fix, **not deployed**: the separate
+`inet f3s_nodeport_guard` table filters ordinary pod sources before source-node
+masquerading and NodePort DNAT. It must run on every r-node; destination-only
+filtering misses source-node masquerading. It preserves existing non-pod LAN/WG
+clients, including laptop `.200` and phone `.201`, node-local registry pulls,
+Cluster Services and third-party egress. It does not replace sm3's separate
+host-source firewall or broaden forwarded-header trust.
+
+The concrete plan is in conf's `f3s/docs/nodeport-pod-source-guard.md`.
+After explicit approval only, stage and activate r0, r1, r2 serially, retaining
+two independent SSH transports and the five-minute PID1 rollback on each host.
+Confirmation requires real denials and existing-client health first. Final
+acceptance includes bounded temporary probes, a temporary NodePort30417
+endpoint transition, native counters and normal monitoring. This uses owned
+canaries, without moving an existing application. Remove only owned temporary
+resources and the added test port; preserve the separately owned 6n3/7n3
+policies and all unrelated nft tables. Isolated kernel/helper tests and review
+have passed; host timer behavior, real endpoint transitions and actual laptop/
+phone tunnel packets are not yet claimed verified.
+
 ## Verified scope and remaining checks
 
 Every namespace passed 18 actual positive-before and 18 denied-after TCP cases
