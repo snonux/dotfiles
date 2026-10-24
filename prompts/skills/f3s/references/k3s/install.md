@@ -237,20 +237,24 @@ kubectl get namespaces
 kubectl config set-context --current --namespace=<ns>
 ```
 
-## Host firewall on r0/r1/r2: separate source guard prepared
+## Host firewall on r0/r1/r2: r0 source-guard canary confirmed
 
 The 2026-09-25 decision (task tj2) kept `firewalld` disabled to avoid
 interfering with kube-proxy/flannel. **Its LAN-only exposure assumption is
 false:** audit S1 found globally routed SLAAC addresses reachable from the
 internet. Authentication does not replace a source firewall.
 
-As of 2026-10-22, task sm3 has **prepared, not deployed** a dedicated nftables
-`inet f3s_guard` table. Firewalld remains off; existing KUBE/CNI/flannel tables
+As of 2026-10-24, task sm3 has deployed and confirmed the dedicated nftables
+`inet f3s_guard` table on **r0 only**; r1/r2 remain pending separate approval.
+The accepted source is conf `a54265e`. Firewalld remains off; existing KUBE/CNI/flannel tables
 remain owned by k3s. The guard runs on `enp0s5` at prerouting priority -150,
 after conntrack (-200) and before DNAT (-100). This covers host services and
-NodePorts/hostPorts: live IPv4 NodePort 30090 is DNATed to pod port 9090 and
-would bypass an INPUT-only rule. Live IPv6 KUBE-NODEPORTS has no endpoints;
-the pre-DNAT guard also covers future IPv6 DNAT.
+NodePorts/hostPorts: NodePort traffic is DNATed and forwarded to a pod, so
+an INPUT-only rule is insufficient. IPv6 KUBE-NODEPORTS has no endpoints;
+the pre-DNAT guard also covers future IPv6 DNAT. The separately deployed co3
+`inet f3s_nodeport_guard` runs at priority -151 on all three r-nodes. Its
+policy, files, rollback state and boot service remain independent and must
+be preserved during every sm3 operation.
 
 LAN IPv4 `192.168.1.0/24` and ULA `fd22:c702:acb7::/64` are trusted on
 `enp0s5`; authenticated traffic on `wg0`, pod interfaces, established replies,
@@ -267,12 +271,33 @@ See `~/git/conf/f3s/docs/linux-source-firewall.md` for the approval-only,
 one-host rollout: stage the Operational task `rnodes_firewall_stage`, hold
 two independent SSH sessions, arm an independent five-minute rollback,
 verify fresh connections and cluster/NFS health, then confirm from a new
-SSH connection before enabling confirmed-policy persistence. No live nft
-load, service change or rpcbind stop was performed during preparation.
+SSH connection before enabling confirmed-policy persistence. Retain the
+normal root-SSH plus sudo privilege path; allow existing PAM delays to
+finish before starting the timed window, without changing authentication.
+
+The r0 canary armed its real five-minute PID-1 rollback timer and confirmed
+from the second transport after 16.991 seconds. Six previously reachable
+public IPv6 host services became blocked; all ten deny probes failed and
+the source drop counter increased. LAN/ULA, both frontend WG clients, pod
+DNS/cross-node traffic, NFS, API/etcd, registry and normal LAN ingress
+retained their measured behavior. All 30 ordinary-pod protected-NodePort
+probes stayed denied and the co3 policy was unchanged. k3s and rpcbind states
+were unchanged. Seven r0 monitoring targets scraped successfully afterward;
+both normal Gogios reports refreshed with no critical/unknown/stale checks.
+The one temporary probe was deleted with its UID precondition.
+
+The guard is boot-enabled with a confirmed policy, but production reboot
+persistence and timer-triggered rollback were not exercised. Laptop `.200`
+and phone `.201` tunnel packets are still untested; do not equate frontend
+WG probes with device-side verification. Preserve existing measured denials
+for direct laptop LAN access to the Prometheus/Forgejo NodePorts. Full sm3
+is unfinished; approval of r0 does not authorize another host or rpcbind cleanup.
 
 `rnodes_firewall_rpcbind_off` is a separate Operational cleanup, for explicit
 approval after the firewall canary: it requires the deployed NFS mount to
 be NFSv4 and rejects other NFSv3 mounts before masking both rpcbind units.
 Never remount NFS, fail over CARP, restart networking/k3s, or boot recovery
 mode as part of firewall verification. Pi2 has a separate staged `eth0`
-profile alongside firewalld; pi3 remains blocked by SSH task 1g3.
+profile alongside firewalld. Pi3 was unreachable during the October 22
+inspection but later accepted SSH; its native firewall profile still needs
+inspection and separate approval. Do not power-cycle it for this task.
