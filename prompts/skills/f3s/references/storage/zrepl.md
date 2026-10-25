@@ -70,6 +70,7 @@ jobs:
     filesystems:
       "zroot/bhyve/freebsd": true   # development FreeBSD VM
       "zroot/bhyve/rocky": true     # plain Rocky Linux VM
+      "zroot/bhyve/homelabfs-lab<": true # parent + all test VM datasets
     send:
       encrypted: true
     snapshotting:
@@ -129,6 +130,7 @@ Replicated paths:
 
 - `zroot/bhyve/freebsd` → `zdata/sink/f3/zroot/bhyve/freebsd`
 - `zroot/bhyve/rocky` → `zdata/sink/f3/zroot/bhyve/rocky`
+- `zroot/bhyve/homelabfs-lab` and all descendants → `zdata/sink/f3/zroot/bhyve/homelabfs-lab` (added 2026-10-25)
 
 Both VM backups remain encrypted raw receives, with `mountpoint=none` and
 `keylocation=file:///keys/f3.lan.buetow.org:bhyve.key`. Both belong in
@@ -146,7 +148,7 @@ weekly_zfs_snapshot_enable="NO"
 monthly_zfs_snapshot_enable="NO"
 ```
 
-The local zrepl `snap` job on f3 also excludes both VM datasets so they are only snapshotted by the push job:
+The local zrepl `snap` job on f3 excludes the two development VM datasets and the HomelabFS lab subtree so they are only snapshotted by the push job:
 
 ```yaml
   - name: local_zfs_snapshots
@@ -155,6 +157,7 @@ The local zrepl `snap` job on f3 also excludes both VM datasets so they are only
       "zroot<": true
       "zroot/bhyve/freebsd": false
       "zroot/bhyve/rocky": false
+      "zroot/bhyve/homelabfs-lab<": false
     ...
 ```
 
@@ -313,3 +316,35 @@ doas service zrepl start
 
 If ZFS commands still hang after stopping zrepl, a reboot of f1 is required.
 The NFS data is still available on f0 so k3s is unaffected during f1 recovery.
+
+## HomelabFS test infrastructure copy
+
+Added on 2026-10-25 to the existing ten-minute f3 push job: the complete
+`zroot/bhyve/homelabfs-lab<` subtree, including hfs-test0, hfs-test1 and
+hfs-test2. The parent contains the preparation manifest/public host keys;
+each guest dataset contains its configuration and OS/ZFS data disk pair.
+The copy is on f2's `zdata` pool, not its OS/active-r2 pool. The lab is
+excluded from local snapshot creation on f3; prior local snapshots are
+not deleted by this change. Retention is the same as Rocky.
+
+Do not register received datasets as runnable VMs. Recovery requires fencing
+the old guests, making writable recovery copies, reconstructing the `hfslab`
+datastore and isolated bridge (172.31.253.1/24), and checking host RAM. f2
+already runs r2: storing backups does not authorize stopping r2 or booting
+three more guests. See `~/git/homelabfs/docs/Lab-replication.md` for recovery
+steps and validation evidence. Running-VM snapshots are not guest-quiesced;
+this is a periodic recovery copy, not automatic failover.
+
+The lab parent and each of the three received guest datasets are separate
+encryption roots. All four are configured with
+`keylocation=file:///keys/f3.lan.buetow.org:bhyve.key` and listed in f2's
+`zfskeys_datasets`. The recursive replication filter includes new descendants
+automatically; register newly received encryption roots in the managed key
+inventory before relying on automatic key loading for them.
+
+Validation: first full lab copy completed at 11:53:21 EET on 2026-10-25;
+a one-off `zrepl_verify_20261025_095352` snapshot completed incrementally
+at 11:53:54. All eight GUIDs (two snapshots × four lab datasets) matched.
+`zfs load-key -n` verified the existing f3 key against each received root.
+Received datasets stayed unmounted; Rocky remained running and lab VMs
+stayed stopped. No restore boot was performed.
