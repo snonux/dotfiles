@@ -1,0 +1,6 @@
+interface:
+  display_name: "IQ"
+  short_description: "Load relevant IQ knowledge progressively"
+  default_prompt: "Use $iq to consult the relevant knowledge in my IQ database."
+policy:
+  allow_implicit_invocation: true
