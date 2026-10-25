@@ -18,7 +18,9 @@ and WireGuard IPs are in the [hub table](../SKILL.md#quick-reference-host-ips).
 - [WireGuard troubleshooting](network/wireguard-troubleshooting.md) — `reload` vs `restart` when adding peers, a regenerated keypair breaking the tunnel, dual `0.0.0.0/0` on roaming clients
 - [Remote Access](network/remote-access.md) — reaching f-hosts, r-VMs, rocky, and Pis from outside the LAN via fishfinger/blowfish ProxyJump; user/key requirements per host type; f3 WireGuard caveat
 
-LAN router:
+LAN addressing and routers:
+
+- [LAN address inventory](network/lan-addresses.md) — static-name inventory, Vivacom/OpenWrt DHCP pools, reservations, and dated active/previously observed addresses
 
 - [OpenWrt router](network/openwrt-router.md) — diagnosing and repairing DNS, DHCP and AP/bridge problems on the OpenWrt box at `192.168.1.101` (dnsmasq `REFUSED` / `EDE: Not Ready`, empty `resolv.conf.auto`, missing upstream DNS); no credentials stored
 

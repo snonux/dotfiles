@@ -13,6 +13,14 @@
 - User: `root`
 - Password: not stored in this reference
 
+## IPv4 DHCP and upstream gateway
+
+The upstream ISP router is **Vivacom at 192.168.1.1**. OpenWrt is an AP/bridge
+at `.101`; both serve DHCP on the same LAN. See the
+[LAN address inventory](lan-addresses.md) for pool boundaries, reservations,
+and dated evidence. OpenWrt's pool was changed and verified on 2026-10-25 to
+`.200–.239` (`dhcp.lan.start=200`, `dhcp.lan.limit=40`), with a one-hour lease.
+
 ## Instructions
 
 1. Never store or embed passwords in this reference. If SSH access is needed, use key-based auth or ask the user for credentials at runtime.

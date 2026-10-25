@@ -32,7 +32,7 @@ Do not read a whole area directory up front. Follow a cross-area link only when 
 |------------|--------|
 | [Physical hosts](references/hosts.md) | Beelink hardware, FreeBSD base setup and upgrades, UPS, Shelly plugs (fans, AC), JetKVM, console resolution, shutdown hangs, safe reboot, kernel panics |
 | [bhyve VMs](references/vms.md) | vm-bhyve, the r0–r2 Rocky guests, NVMe disk fix, bootstrapping a new Rocky guest, the FreeBSD VM and backup-restore test on f3 |
-| [Network](references/network.md) | WireGuard mesh (topology, per-OS setup, generator, troubleshooting), off-LAN access via fishfinger/blowfish, OpenWrt router DNS/DHCP repair |
+| [Network](references/network.md) | WireGuard mesh (topology, per-OS setup, generator, troubleshooting), off-LAN access via fishfinger/blowfish, OpenWrt router DNS/DHCP repair, LAN address inventory and DHCP pools |
 | [Storage](references/storage.md) | ZFS (`zdata`), USB keys, zrepl, CARP VIP, NFS over stunnel, nfs-mount-monitor, backups, quarterly backups, storage and thermal troubleshooting |
 | [k3s cluster](references/k3s.md) | Install, kubeconfig, off-LAN kubectl, ingress (relayd, cert-manager), namespace NetworkPolicies, ArgoCD, etcd recovery, gonf r-node rollout |
 | [Observability](references/observability.md) | Prometheus, Alloy/Loki/Tempo/Grafana state, alerting, FreeBSD node_exporter, Gogios deployment, network-traffic troubleshooting |
@@ -48,6 +48,12 @@ This table is the canonical host/IP inventory; every area links back here.
 
 | Host | Role | LAN IP | WireGuard IP |
 |------|------|--------|--------------|
+| Vivacom router | ISP gateway and DHCP server | 192.168.1.1 | — |
+| OpenWrt AP | TP-Link EAP615-Wall; DHCP server | 192.168.1.101 | — |
+| zen | Local hosts-file mapping; allocation method unverified | 192.168.1.13 | — |
+| shelly1 | Rack fan plug; local hosts-file mapping | 192.168.1.28 | — |
+| shelly2 | Shelly plug; local hosts-file mapping | 192.168.1.29 | — |
+| freebsd / fbsd | FreeBSD VM; local hosts-file mapping | 192.168.1.139 | 192.168.2.202 |
 | f0 | FreeBSD host | 192.168.1.130 | 192.168.2.130 |
 | f1 | FreeBSD host | 192.168.1.131 | 192.168.2.131 |
 | f2 | FreeBSD host | 192.168.1.132 | 192.168.2.132 |
@@ -65,6 +71,11 @@ This table is the canonical host/IP inventory; every area links back here.
 | pi1 | Raspberry Pi 3, **NetBSD 11.0** (evbarm-aarch64), static `f3s.buetow.org` backend | 192.168.1.126 | 192.168.2.204 |
 | pi2 | Raspberry Pi 3, Rocky Linux 9, Pi-hole (Docker, host net) | 192.168.1.127 | — |
 | pi3 | Raspberry Pi 3, Rocky Linux 9, Pi-hole (Docker, host net) | 192.168.1.128 | — |
+
+For DHCP pools, reservations, live-scan observations and addresses that did not
+respond, read [LAN address inventory](references/network/lan-addresses.md).
+The additional local names above were reconciled with `/etc/hosts` on 2026-10-25;
+a hosts-file mapping alone does not establish static configuration on the device.
 
 ## Config Repository
 
