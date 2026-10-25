@@ -237,15 +237,15 @@ kubectl get namespaces
 kubectl config set-context --current --namespace=<ns>
 ```
 
-## Host firewall on r0/r1/r2: r0 source-guard canary confirmed
+## Host firewall on r0/r1/r2: r0/r1 source guard confirmed
 
 The 2026-09-25 decision (task tj2) kept `firewalld` disabled to avoid
 interfering with kube-proxy/flannel. **Its LAN-only exposure assumption is
 false:** audit S1 found globally routed SLAAC addresses reachable from the
 internet. Authentication does not replace a source firewall.
 
-As of 2026-10-24, task sm3 has deployed and confirmed the dedicated nftables
-`inet f3s_guard` table on **r0 only**; r1/r2 remain pending separate approval.
+As of 2026-10-25, task sm3 has deployed and confirmed the dedicated nftables
+`inet f3s_guard` table on **r0 and r1**; r2 remains pending separate approval.
 The accepted source is conf `a54265e`. Firewalld remains off; existing KUBE/CNI/flannel tables
 remain owned by k3s. The guard runs on `enp0s5` at prerouting priority -150,
 after conntrack (-200) and before DNAT (-100). This covers host services and
@@ -286,12 +286,22 @@ were unchanged. Seven r0 monitoring targets scraped successfully afterward;
 both normal Gogios reports refreshed with no critical/unknown/stale checks.
 The one temporary probe was deleted with its UID precondition.
 
+R1 followed on October 25 using the same reviewed assets. Two normal
+SSH/sudo transports initialized before the timer; confirmation from the second
+transport completed in 15.403 seconds. Fresh LAN/ULA SSH, frontend WG,
+public IPv6 denials, pod/API/DNS/NFS checks and seven fresh r1 monitoring
+scrapes passed. Co3, k3s and rpcbind were unchanged. A separate MotionEye
+pod and policy appeared after confirmation; every baseline pod and policy
+was preserved. The temporary probe and both admin channels were cleaned up.
+No SSH/PAM changes were needed; the previously observed long login delay
+did not recur. See the conf runbook for the full evidence and limitations.
+
 The guard is boot-enabled with a confirmed policy, but production reboot
 persistence and timer-triggered rollback were not exercised. Laptop `.200`
 and phone `.201` tunnel packets are still untested; do not equate frontend
 WG probes with device-side verification. Preserve existing measured denials
 for direct laptop LAN access to the Prometheus/Forgejo NodePorts. Full sm3
-is unfinished; approval of r0 does not authorize another host or rpcbind cleanup.
+is unfinished; approval of r0/r1 does not authorize another host or rpcbind cleanup.
 
 `rnodes_firewall_rpcbind_off` is a separate Operational cleanup, for explicit
 approval after the firewall canary: it requires the deployed NFS mount to
