@@ -70,6 +70,17 @@ On `--generate`, Gemtexter expands it into the `## Table of Contents` heading pl
   update every `=> ./old-folder/` link in the post.
 - Resize large images for web (longest side ~1200px, JPEG quality 85) so the
   post stays fast to load.
+- **Compact screenshot rows.** For related phone or watch screenshots, default
+  to two or more side by side instead of stacking each capture vertically.
+  Use two portrait phone screens per row; group watch screens by device or
+  workflow, usually two or three per row. Keep text readable at the rendered
+  article width, with small gaps and a caption identifying the left-to-right
+  order. A single screenshot may stand alone when its detail needs the space.
+  Gemtext image links render as separate blocks, so use one contact-sheet image
+  or self-contained SVG layout embedding the original captures per row. Preserve
+  the original screenshots and their aspect ratios; don't fabricate or redraw
+  their UI. Link the row asset from the `.gmi.tpl`, regenerate with Gemtexter,
+  and inspect the HTML at desktop and narrow widths before finishing.
 - **Image density.** Prose-heavy posts with long `##` sections benefit from at
   least one image or diagram per major section. Walls of text without visual
   anchors feel dense; when a section runs to several screens of prose, propose

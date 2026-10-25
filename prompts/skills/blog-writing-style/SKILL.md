@@ -106,6 +106,8 @@ A human has to be able to read the post top to bottom:
 - Define jargon and abbreviations on first use.
 - Prefer real SVG diagrams over ASCII box diagrams and text tables.
 - Keep plain command output as text. Use real screenshots only for TUIs and colored dashboards.
+- Group related phone and watch screenshots into compact rows of two or more;
+  follow the screenshot-row guidance in the shared gemtext conventions.
 
 Details, the headless screenshot recipe and examples are in
 [references/structure-and-visuals.md](references/structure-and-visuals.md).
