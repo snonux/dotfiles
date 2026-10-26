@@ -71,6 +71,8 @@ Whatever mode you are in, you still pick tasks, mark them started/done, commit, 
    - Implement the task yourself in the orchestrator's own context.
    - Run `ask info <id>` to load the full description and annotations.
    - Run `ask annotate <id> "<progress notes>"` as you work.
+   - Identify the next observable outcome and the cheapest faithful check for
+     it. Make and verify one coherent change before expanding the scope.
    - Complete all implementation, tests, and a git commit.
    - Then proceed to step 5 (you mark the task done yourself).
 
@@ -85,6 +87,11 @@ Whatever mode you are in, you still pick tasks, mark them started/done, commit, 
      - Instruction to **not spawn other sub-agents**; the orchestrator owns the review cycle
    - Run the memory guard before each launch and launch in small waves; do not launch a worker for a task that conflicts with a running one (serialize it, or give it its own worktree)
    - Each sub-agent must complete all implementation, tests, and a git commit before returning
+
+   - Give each worker the same outcome-first instruction: use a focused check
+     for each coherent change, and reserve shared expensive suites and device
+     sessions for the orchestrator's integration pass. This does not waive
+     task-specific acceptance requirements.
    - Wait for workers to finish; as each one returns, re-check memory and refill the free slot from the remaining started/ready tasks, then handle that worker in step 5 while the others keep running
 
 5. **Review, close, and record** (per task, as each worker returns):
@@ -92,6 +99,10 @@ Whatever mode you are in, you still pick tasks, mark them started/done, commit, 
    - The reviewer must check the implementation, test coverage, real behavior assertions, and plausible negative tests against the task's acceptance criteria, and classify every concrete finding as **blocking** or **non-blocking** (definitions in `agent-task-management` [3-complete-task.md](../agent-task-management/references/3-complete-task.md), "Review budget and convergence"). It must not add requirements the task did not state.
    - Fix every blocking finding. Fix non-blocking ones inline only when cheap; otherwise drop them or record a follow-up task. In direct mode, fix directly. In delegated mode, send the findings to the task's worker (or a fresh fixing sub-agent); instruct it not to mark the task done or spawn other sub-agents.
    - **Review budget: at most two rounds per task.** Only if the first review reported blocking findings, repeat self-review and launch one more fresh reviewer that confirms the blocking fixes and checks the fix diff for new blocking defects, nothing else. If something blocking remains after round two, fix it and verify it with tests yourself, or record it as a new task/blocker and tell the user; never start a third round.
+   - If two fixes based on the same assumption fail the same check, pause that
+     retry path and write down the shared assumption. Inspect the actual state
+     and boundary behavior before another fix or full rerun. Distinguish a
+     product defect from a test-driver, fixture, or resource failure in the notes.
    - Ensure all final changes are committed before closing the task.
    - Run `ask done <id>` to mark the task complete
    - Run `ask annotate <id> "<summary of what was delivered>"` if the sub-agent did not already add a final annotation

@@ -8,6 +8,11 @@ dependencies inline during creation with `depends:<id>,...`.
 
 - **When creating a new task, always check whether the new task depends on other (existing) tasks.** If it does, add those dependencies inline with `depends:<id>,...` while creating the task.
 - **Create tasks in smaller chunks that fit into the context window.** Break work into multiple tasks so that each task's scope, description, and required context (refs, files, docs) can fit in one context window when the agent works on it with a fresh context. Do not create single tasks that would require more context than available.
+- Give each task one observable outcome and the smallest credible verification
+  for that outcome. Split a broad implementation from its final multi-platform
+  acceptance when the latter needs separate fixtures or long-running devices;
+  preserve dependencies and every required platform check. Avoid repeating the
+  same acceptance journey in each dependent task.
 - **Every task MUST have at least one tag** for sub-project/feature/area (e.g. `+integrationtests`, `+flamegraph`, `+bpf`, `+cli`, `+refactor`, `+bugfix`). **Tag names cannot contain hyphens (`-`)**; use camelCase or concatenated words instead (e.g. `+bugfix` not `+bug-fix`).
 - **After creating a task, add annotation** — one with the agent workflow reminder:
   ```

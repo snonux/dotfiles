@@ -82,6 +82,11 @@ a new defect, use these same rules to add its task without repeating the sweep.
 Do not create the standalone bug-sweep closure gate or tagging task: workflow
 §5–6 below owns close-out after all finding tasks exist.
 
+For recurring failures, trace the shared premise before proposing another local
+guard or retry. Identify the input, state transition, and observable result at
+the boundary where the behavior goes wrong. Prefer a focused behavioral
+reproduction when practical; a concrete reachable failure path is also evidence.
+
 #### C. Design and Conventions
 
 Load **beyond-solid-principles** and consider its ten lenses at the target's
@@ -94,6 +99,14 @@ Review Go conventions using the already-loaded **go-best-practices** and
 relevant **100-go-mistakes** references. Apply the shared evidence rules;
 separate convention differences from correctness defects. Use one design
 finding for an underlying problem, even when multiple lenses describe it.
+
+Look for domain states the code permits but the product forbids, repeated
+validation of the same input after its entry boundary, non-idempotent retry
+paths, and shared mutable state that could be separated. Recommend removal of
+unneeded code or indirection before adding a new abstraction. Use complexity,
+duplication, coverage, or mutation tools only when available and likely to
+resolve a specific risk; their scores are investigation signals, not universal
+pass/fail thresholds.
 
 For large scopes, sub-agents may review distinct modules or risks. Give them
 the shared rules, existing findings and check results, and the §5–6 ownership

@@ -34,7 +34,16 @@ Work in this order unless the user specifies otherwise:
 4. **APIs and boundaries**: validation, authz, injection (SQL/XSS/command), deserialization, file path traversal.
 5. **Observability**: misleading logs, swallowed errors, metrics that lie.
 
+At each relevant boundary, check that external input is validated once, retry
+or restart cannot duplicate an effect, and unrelated operations do not share
+mutable state unnecessarily. When several symptoms depend on the same premise,
+trace that premise to its source before proposing more guards or retries.
+
 Only report something as a **bug** if you can point to **symptom or failure mode** (wrong output, crash, security gap, data loss) and **location** (file + symbol or line range). Separate **spec uncertainty** from **code defect**; file the latter as tasks, note the former in prose.
+Use a focused test through the affected public behavior when practical, and
+observe it fail for the expected reason. A concrete reachable failure path is
+enough when an honest automated test would be impractical. Do not use coverage,
+complexity, duplication, or mutation scores alone as bug evidence.
 
 ### 3. One task per bug (mandatory)
 

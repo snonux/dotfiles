@@ -23,6 +23,8 @@ File size, layer or method counts, folder layout, coverage percentages,
 single-implementation interfaces, and absence of a named pattern are investigation
 signals, not findings on their own. Cite the actual requirement and impact for
 convention findings; local preferences do not make code defective.
+Complexity, duplication, and mutation scores likewise direct attention to code;
+they do not establish a defect without a failing behavior or concrete cost.
 
 Use these severity levels for design and convention findings:
 
@@ -49,6 +51,11 @@ Choose the smallest practical remedy and state how to verify it. Both adding
 and removing abstractions need a benefit that outweighs their cost; testability,
 isolation, and stable contracts can justify an interface with one implementation.
 Reference heuristics and remedies do not override these rules.
+Prefer a test that enters through the affected public boundary and checks an
+observable result. If a faithful automated test is impractical, name the
+manual or integration check instead of adding a test that merely mirrors the
+implementation. For repeated failures, address the common cause rather than
+filing separate tasks for each symptom.
 
 ### Finding Format
 
