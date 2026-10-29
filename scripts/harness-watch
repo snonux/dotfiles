@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# harness-watch: nudge coding-agent harness panes in tmux that stall with
+# "Selected model is at capacity". Watches every pane of every tmux session
+# whose name starts with "A-" and sends "continue" + Enter when the message
+# appears, at most once per pane per interval.
+
+readonly SESSION_PREFIX='A-'
+readonly PATTERN='Selected model is at capacity'
+readonly SEND_TEXT='continue'
+readonly INTERVAL=1800 # seconds between sweeps (30 minutes)
+# Panes running one of these foreground commands are never nudged:
+# interactive shells (typing into them could execute commands) and pi
+# (agent chats that merely *quote* the capacity line would false-positive).
+readonly SKIP_COMMANDS='fish zsh bash sh csh tcsh ksh dash pi'
+readonly STATE_DIR="${HOME}/.cache/harness-watch"
+readonly LOG="${STATE_DIR}/watch.log"
+readonly PIDFILE="${STATE_DIR}/watch.pid"
+
+mkdir -p "$STATE_DIR"
+
+_log() {
+    printf '%s %s\n' "$(date '+%F %T')" "$*" >>"$LOG"
+}
+
+_running() {
+    # Prints the daemon pid if it is running, nothing otherwise.
+    if [[ ! -f "$PIDFILE" ]]; then
+        return 1
+    fi
+    local pid
+    pid=$(<"$PIDFILE")
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+        printf '%s' "$pid"
+        return 0
+    fi
+    return 1
+}
+
+_check_pane() {
+    local -r session=$1 pane=$2
+    local out
+    out=$(tmux capture-pane -p -t "$pane" 2>/dev/null) || return 0
+    if [[ "$out" != *"$PATTERN"* ]]; then
+        return 0
+    fi
+    local -r cooldown="${STATE_DIR}/cooldown.${pane#%}"
+    local now last=0
+    now=$(date +%s)
+    if [[ -f "$cooldown" ]]; then
+        last=$(<"$cooldown")
+    fi
+    if (( now - last < INTERVAL )); then
+        return 0
+    fi
+    tmux send-keys -t "$pane" -- "$SEND_TEXT" 2>/dev/null || return 0
+    sleep 0.2
+    tmux send-keys -t "$pane" Enter 2>/dev/null || return 0
+    printf '%s\n' "$now" >"$cooldown"
+    _log "${session}${pane}: capacity detected, sent '${SEND_TEXT}'"
+    printf '%s%s: capacity detected, sent continue\n' "$session" "$pane"
+}
+
+_sweep() {
+    local session pane cmd
+    while read -r session pane cmd; do
+        [[ -n "$pane" ]] || continue
+        case " ${SKIP_COMMANDS} " in
+            *" ${cmd} "*) continue ;;
+        esac
+        _check_pane "$session" "$pane"
+    done < <(tmux list-panes -a \
+        -F '#{session_name} #{pane_id} #{pane_current_command}' 2>/dev/null \
+        | awk -v p="$SESSION_PREFIX" 'index($1, p) == 1' || true)
+}
+
+_daemon() {
+    mkdir -p "$STATE_DIR"
+    printf '%s\n' "$$" >"$PIDFILE"
+    trap 'rm -f "$PIDFILE"; _log "watcher stopped"; exit 0' TERM INT
+    _log "watcher started (sessions '${SESSION_PREFIX}*', every ${INTERVAL}s)"
+    while true; do
+        _sweep
+        # sleep in the background so TERM interrupts wait immediately,
+        # otherwise the trap is deferred until sleep finishes.
+        sleep "$INTERVAL" &
+        wait $!
+    done
+}
+
+_start() {
+    if pid=$(_running); then
+        echo "already running (pid ${pid})"
+        return 0
+    fi
+    rm -f "$PIDFILE"
+    nohup setsid --fork "$0" _daemon </dev/null >>"$LOG" 2>&1 &
+    # Wait for the daemon to publish its pid.
+    local i=0
+    while (( i < 20 )); do
+        if pid=$(_running); then
+            echo "started (pid ${pid})"
+            return 0
+        fi
+        sleep 0.1
+        (( i += 1 ))
+    done
+    echo "failed to start, see $LOG" >&2
+    return 1
+}
+
+_stop() {
+    if pid=$(_running); then
+        kill "$pid"
+        # Wait for the daemon to exit so an immediate start cannot race it.
+        local i=0
+        while kill -0 "$pid" 2>/dev/null && (( i < 50 )); do
+            sleep 0.1
+            (( i += 1 ))
+        done
+        echo "stopped (pid ${pid})"
+    else
+        echo "not running"
+    fi
+}
+
+_status() {
+    if pid=$(_running); then
+        echo "running (pid ${pid})"
+    else
+        echo "not running"
+    fi
+    echo "watched panes:"
+    tmux list-panes -a -F '#{session_name} #{pane_id} #{pane_current_command}' 2>/dev/null \
+        | awk -v p="$SESSION_PREFIX" -v skip=" ${SKIP_COMMANDS} " \
+            'index($1, p) == 1 {
+                cmd = "  " $1 $2
+                if (index(skip, " " $3 " ") > 0)
+                    cmd = cmd " (skipped: " $3 ")"
+                print cmd
+            }' || echo "  (none)"
+}
+
+case ${1:-} in
+    start) _start ;;
+    stop) _stop ;;
+    status) _status ;;
+    once) _sweep ;;
+    _daemon) _daemon ;;
+    *)
+        echo "usage: $0 {start|stop|status|once}" >&2
+        exit 2
+        ;;
+esac
