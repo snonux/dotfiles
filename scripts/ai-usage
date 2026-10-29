@@ -1,16 +1,22 @@
 #!/usr/bin/env bash
-# ai-usage — print AI subscription usage, starting with Codex.
+# ai-usage — print AI subscription usage for Codex and Claude Code.
 #
-# This is deliberately a separate, one-shot app-server client rather than a
-# parser for Codex's TUI or session-log files. Its default output is a
-# coloured terminal summary. Machine-readable JSON remains available:
+# Codex limits are read through the local Codex app server, so the ChatGPT
+# authentication token never leaves Codex. Claude Code limits come from the
+# Anthropic usage API (the same one Claude Code's own /usage view uses) with
+# the OAuth token Claude Code stores on sign-in; the token is read only to
+# build the request header and is never printed.
 #
-#   ai-usage --format json | jq -r '.rateLimits.primary.usedPercent'
+# The default output is a coloured terminal summary. Machine-readable JSON
+# remains available, with one top-level object per provider:
+#
+#   ai-usage --format json | jq -r '.claude.five_hour.utilization'
 #
 # Usage:
 #   ai-usage [--format text|json|remaining] [--color auto|always|never]
 #
-# Requires: codex (signed in with ChatGPT) and jq.
+# Requires: jq; codex (signed in with ChatGPT) and/or Claude Code (signed in
+# with a Claude subscription). The Claude section also needs curl.
 
 set -euo pipefail
 
@@ -70,25 +76,33 @@ case "$color" in
   *) die "unknown color mode: $color (use auto, always, or never)" ;;
 esac
 
-command -v codex >/dev/null || die 'codex is not on PATH'
 command -v jq >/dev/null || die 'jq is not on PATH'
 
-# The app-server protocol is shipped by the installed Codex CLI.  Reading its
-# account/rateLimits endpoint keeps the ChatGPT authentication token inside
-# Codex; this script never reads or prints credentials.
-coproc CODEX_APP_SERVER { exec timeout 15s codex app-server --stdio; }
-server_pid=$CODEX_APP_SERVER_PID
-server_in=${CODEX_APP_SERVER[1]}
-server_out=${CODEX_APP_SERVER[0]}
+# ---------- Codex ----------
 
-cleanup() {
-  exec {server_in}>&- 2>/dev/null || true
-  exec {server_out}<&- 2>/dev/null || true
-  wait "$server_pid" 2>/dev/null || true
+# Each provider section leaves either a JSON document in <provider>_json or
+# a reason in <provider>_error, never both empty.
+
+codex_json=
+codex_error=
+server_pid=
+server_in=
+server_out=
+
+_codex_cleanup() {
+  if [ -n "${server_in:-}" ]; then
+    exec {server_in}>&- 2>/dev/null || true
+  fi
+  if [ -n "${server_out:-}" ]; then
+    exec {server_out}<&- 2>/dev/null || true
+  fi
+  if [ -n "$server_pid" ]; then
+    wait "$server_pid" 2>/dev/null || true
+  fi
 }
-trap cleanup EXIT
+trap _codex_cleanup EXIT
 
-read_response() {
+_codex_read_response() {
   local wanted_id=$1 line
 
   while IFS= read -r line <&"$server_out"; do
@@ -102,19 +116,107 @@ read_response() {
   return 1
 }
 
-printf '%s\n' \
-  '{"id":1,"method":"initialize","params":{"clientInfo":{"name":"ai-usage","version":"1.0.0"}}}' \
-  >&"$server_in"
-read_response 1 >/dev/null || die 'could not initialize the Codex app server'
+if ! command -v codex >/dev/null 2>&1; then
+  codex_error='codex is not on PATH'
+else
+  coproc CODEX_APP_SERVER { exec timeout 15s codex app-server --stdio; }
+  server_pid=$CODEX_APP_SERVER_PID
+  server_in=${CODEX_APP_SERVER[1]}
+  server_out=${CODEX_APP_SERVER[0]}
 
-printf '%s\n' \
-  '{"id":2,"method":"account/rateLimits/read","params":{"excludeResetCreditDetails":true}}' \
-  >&"$server_in"
-response=$(read_response 2) || die 'could not read Codex rate limits'
+  if printf '%s\n' \
+      '{"id":1,"method":"initialize","params":{"clientInfo":{"name":"ai-usage","version":"2.0.0"}}}' \
+      >&"$server_in" \
+    && _codex_read_response 1 >/dev/null \
+    && printf '%s\n' \
+      '{"id":2,"method":"account/rateLimits/read","params":{"excludeResetCreditDetails":true}}' \
+      >&"$server_in" \
+    && codex_raw=$(_codex_read_response 2) \
+    && codex_json=$(jq -e '.result | del(.accountId)' <<<"$codex_raw"); then
+    :
+  else
+    codex_json=
+    codex_error='could not read Codex rate limits'
+  fi
+fi
 
-# accountId is not useful to a shell prompt and is deliberately excluded.
-result=$(jq -e '.result | del(.accountId)' <<<"$response") \
-  || die 'Codex returned an unexpected rate-limit response'
+# ---------- Claude Code ----------
+
+claude_json=
+claude_error=
+claude_plan=unknown
+claude_config_dir=${CLAUDE_CONFIG_DIR:-$HOME/.claude}
+claude_credentials=$claude_config_dir/.credentials.json
+
+_claude_fetch() {
+  local token body status config
+
+  token=$(jq -r '.claudeAiOauth.accessToken // empty' "$claude_credentials" 2>/dev/null) \
+    || { claude_error='could not read the Claude Code credentials'; return 1; }
+  [ -n "$token" ] || { claude_error='Claude Code is not signed in'; return 1; }
+  claude_plan=$(jq -r '.claudeAiOauth.subscriptionType // "unknown"' \
+    "$claude_credentials" 2>/dev/null) || claude_plan=unknown
+
+  # The token travels to curl through stdin, not the command line, so it
+  # never shows up in /proc/<pid>/cmdline or process listings.
+  config=$(printf 'url = "https://api.anthropic.com/api/oauth/usage"
+max-time = "15"
+silent
+show-error
+user-agent = "ai-usage/2.0"
+write-out = "\\n%%{http_code}"
+header = "Authorization: Bearer %s"
+header = "anthropic-beta: oauth-2025-04-20"
+header = "anthropic-version: 2023-06-01"
+header = "x-app: cli"' "$token")
+
+  body=$(curl --config - <<<"$config") \
+    || { claude_error='could not reach the Anthropic usage API'; return 1; }
+
+  status=${body##*$'\n'}
+  body=${body%$'\n'*}
+
+  case $status in
+    200) ;;
+    401|403)
+      claude_error='the Claude subscription is not usable (re-sign-in or check billing)'
+      return 1
+      ;;
+    429)
+      claude_error='the Anthropic usage API is rate limiting requests'
+      return 1
+      ;;
+    *)
+      claude_error="the Anthropic usage API returned HTTP $status"
+      return 1
+      ;;
+  esac
+
+  # Claude Code itself only accepts a body that carries at least one of
+  # these top-level window keys; anything else is an in-band error.
+  if claude_json=$(jq -e '
+      select(type == "object")
+      | select(has("five_hour") or has("seven_day")
+          or has("seven_day_oauth_apps") or has("seven_day_opus")
+          or has("seven_day_sonnet") or has("cinder_cove")
+          or has("wattle_ember") or has("extra_usage") or has("limits"))
+    ' <<<"$body" 2>/dev/null); then
+    return 0
+  fi
+  claude_json=
+  claude_error='Claude returned an unexpected usage response'
+  return 1
+}
+
+if [ ! -r "$claude_credentials" ]; then
+  claude_error='Claude Code is not signed in'
+elif ! command -v curl >/dev/null 2>&1; then
+  claude_error='curl is not on PATH'
+else
+  _claude_fetch || true
+fi
+
+# ---------- output ----------
 
 colorize=no
 if [ "$color" = always ] || { [ "$color" = auto ] && [ -t 1 ]; }; then
@@ -139,29 +241,13 @@ else
   red=
 fi
 
-print_text() {
-  local plan used reset_at remaining filled empty i bar usage_color
-  local summary
+bar=
+usage_color=
 
-  summary=$(jq -r '
-    .rateLimits.primary as $primary
-    | if $primary == null then empty else
-        [
-          (.rateLimits.planType // "unknown"),
-          $primary.usedPercent,
-          ($primary.resetsAt
-            | if . == null then "unknown" else todateiso8601 end)
-        ] | @tsv
-      end
-  ' <<<"$result")
+# _bar N — fill $bar (10 blocks) and $usage_color for N percent remaining.
+_bar() {
+  local -i remaining=$1 filled empty i
 
-  if [ -z "$summary" ]; then
-    printf '%sCodex usage unavailable%s\n' "$yellow" "$reset"
-    return
-  fi
-
-  IFS=$'\t' read -r plan used reset_at <<<"$summary"
-  remaining=$((100 - used))
   filled=$((remaining / 10))
   empty=$((10 - filled))
 
@@ -176,6 +262,41 @@ print_text() {
   bar=
   for ((i = 0; i < filled; i++)); do bar+='█'; done
   for ((i = 0; i < empty; i++)); do bar+='░'; done
+}
+
+print_codex_text() {
+  local plan used reset_at remaining summary
+
+  if [ -n "$codex_error" ]; then
+    printf '%sCodex usage unavailable%s (%s)\n' \
+      "$yellow" "$reset" "$codex_error"
+    return
+  fi
+
+  summary=$(jq -r '
+    .rateLimits.primary as $primary
+    | if $primary == null then empty else
+        [
+          (.rateLimits.planType // "unknown"),
+          ($primary.usedPercent | if . == null then "" else floor end),
+          ($primary.resetsAt
+            | if . == null then "unknown" else todateiso8601 end)
+        ] | join("|")
+      end
+  ' <<<"$codex_json") || summary=
+
+  if [ -z "$summary" ]; then
+    printf '%sCodex usage unavailable%s\n' "$yellow" "$reset"
+    return
+  fi
+
+  IFS='|' read -r plan used reset_at <<<"$summary"
+  if [ -z "$used" ]; then
+    printf '%sCodex usage unavailable%s\n' "$yellow" "$reset"
+    return
+  fi
+  remaining=$((100 - used))
+  _bar "$remaining"
 
   printf '%s%sCodex usage%s %s(%s)%s\n' \
     "$bold" "$cyan" "$reset" "$dim" "$plan" "$reset"
@@ -185,12 +306,122 @@ print_text() {
   printf '  %s↳ resets %s%s\n' "$dim" "$reset_at" "$reset"
 }
 
+print_claude_text() {
+  local plan used5 reset5 used7 reset7 remaining summary
+
+  if [ -n "$claude_error" ]; then
+    printf '%sClaude usage unavailable%s (%s)\n' \
+      "$yellow" "$reset" "$claude_error"
+    return
+  fi
+
+  summary=$(jq -r --arg plan "$claude_plan" '
+    def iso:
+      if . == null then "unknown"
+      elif type == "number" then todate
+      else . end;
+    [
+      $plan,
+      (.five_hour.utilization
+        | if . == null then "" else floor end),
+      (.five_hour.resets_at | iso),
+      (.seven_day.utilization
+        | if . == null then "" else floor end),
+      (.seven_day.resets_at | iso)
+    ] | join("|")
+  ' <<<"$claude_json") || summary=
+
+  IFS='|' read -r plan used5 reset5 used7 reset7 <<<"$summary"
+
+  printf '%s%sClaude usage%s %s(%s)%s\n' \
+    "$bold" "$cyan" "$reset" "$dim" "$plan" "$reset"
+
+  if [ -n "$used5" ]; then
+    remaining=$((100 - used5))
+    _bar "$remaining"
+    printf '  5h %s[%s%s%s]%s %s%3d%%%s left %s· %d%% used%s\n' \
+      "$dim" "$usage_color" "$bar" "$dim" "$reset" \
+      "$usage_color" "$remaining" "$reset" "$dim" "$used5" "$reset"
+    printf '     %s↳ resets %s%s\n' "$dim" "$reset5" "$reset"
+  fi
+
+  if [ -n "$used7" ]; then
+    remaining=$((100 - used7))
+    _bar "$remaining"
+    printf '  7d %s[%s%s%s]%s %s%3d%%%s left %s· %d%% used%s\n' \
+      "$dim" "$usage_color" "$bar" "$dim" "$reset" \
+      "$usage_color" "$remaining" "$reset" "$dim" "$used7" "$reset"
+    printf '     %s↳ resets %s%s\n' "$dim" "$reset7" "$reset"
+  fi
+
+  if [ -z "$used5" ] && [ -z "$used7" ]; then
+    printf '  %sno subscription usage data%s\n' "$dim" "$reset"
+  fi
+}
+
+print_text() {
+  print_codex_text
+  printf '\n'
+  print_claude_text
+}
+
+print_json() {
+  local codex_arg claude_arg
+
+  if [ -n "$codex_json" ]; then
+    codex_arg=$codex_json
+  else
+    codex_arg=$(jq -cn --arg error "$codex_error" '{error: $error}')
+  fi
+
+  if [ -n "$claude_json" ]; then
+    claude_arg=$claude_json
+  else
+    claude_arg=$(jq -cn --arg error "$claude_error" '{error: $error}')
+  fi
+
+  jq -n --argjson codex "$codex_arg" --argjson claude "$claude_arg" \
+    '{codex: $codex, claude: $claude}'
+}
+
+print_remaining() {
+  local used
+
+  if [ -n "$codex_error" ]; then
+    printf 'ai-usage: Codex unavailable (%s)\n' "$codex_error" >&2
+  else
+    used=$(jq -r '.rateLimits.primary
+      | if . == null or .usedPercent == null then empty
+        else 100 - (.usedPercent | floor) end' <<<"$codex_json" 2>/dev/null) || true
+    if [ -n "$used" ]; then
+      printf 'codex %d\n' "$used"
+    else
+      printf 'ai-usage: Codex usage data unavailable\n' >&2
+    fi
+  fi
+
+  if [ -n "$claude_error" ]; then
+    printf 'ai-usage: Claude unavailable (%s)\n' "$claude_error" >&2
+  else
+    used=$(jq -r '.five_hour.utilization
+      | if . == null then empty else floor end' <<<"$claude_json" 2>/dev/null) || true
+    if [ -n "$used" ]; then
+      printf 'claude 5h %d\n' "$((100 - used))"
+    fi
+    used=$(jq -r '.seven_day.utilization
+      | if . == null then empty else floor end' <<<"$claude_json" 2>/dev/null) || true
+    if [ -n "$used" ]; then
+      printf 'claude 7d %d\n' "$((100 - used))"
+    fi
+  fi
+}
+
 case "$format" in
   json)
-    printf '%s\n' "$result"
+    print_json
     ;;
   remaining)
-    jq -r '.rateLimits.primary | 100 - .usedPercent' <<<"$result"
+    print_remaining
     ;;
   text)
     print_text

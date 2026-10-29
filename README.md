@@ -110,7 +110,7 @@ Installed by `home_scripts`. Quick hacks mostly.
 | `ai` | editor AI prompt: `hx.hexai-prompt`, or `hx.nvim-copilot-prompt` on macOS |
 | `audit-due` | lists git repos due for a code audit (churn since last `audit/<date>` tag) |
 | `brokenlinkfinder` | crawls a site for broken links (Ruby) |
-| `ai-usage` | prints subscription usage (currently Codex); JSON and a remaining percentage are available for a shell prompt/status bar |
+| `ai-usage` | prints subscription usage (Codex and Claude Code); JSON and per-window remaining percentages are available for a shell prompt/status bar |
 | `gvim` | opens helix in a new ghostty window (qutebrowser editor hook) |
 | `home-backup` | rsyncs `$HOME` to a remote host, with excludes; manual (timer removed by `home_systemd_user`) |
 | `hx.prompt` | reads a prompt in a tmux split with helix |
