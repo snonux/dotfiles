@@ -49,6 +49,7 @@ func registerTasks() {
 		"home_lazygit",
 		"home_notes",
 		"home_opencode",
+		"home_pi",
 		"home_pipewire",
 		"home_quickedit",
 		"home_scripts",

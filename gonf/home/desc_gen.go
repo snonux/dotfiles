@@ -36,6 +36,8 @@ func (HomeTasks) DescNotes() string { return "Ensures ~/Notes exists" }
 
 func (HomeTasks) DescOpencode() string { return "Installs ~/.config/opencode" }
 
+func (HomeTasks) DescPi() string { return "Installs Pi symlinks" }
+
 func (HomeTasks) DescPipewire() string {
 	return "Installs pipewire high-res config (Linux, hostname earth)"
 }

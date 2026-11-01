@@ -28,6 +28,13 @@ func (HomeTasks) Helix() {
 	config("helix")
 }
 
+// Pi installs Pi symlinks
+func (HomeTasks) Pi() {
+	LinkIfExists(DestHome(".pi"), DestHome("git/hypr/pi"))
+}
+
+func (HomeTasks) OptsPi() TaskOptions { return TaskOptions{WhenLinux()} }
+
 // Ghostty installs ~/.config/ghostty.
 func (HomeTasks) Ghostty() {
 	config("ghostty")
