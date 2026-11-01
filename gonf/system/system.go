@@ -11,15 +11,20 @@ import (
 
 // System contains root-owned configuration outside the package database.
 // Per-task Opts* guards pick the host: Hosts and Wireguard are earth-only;
-// Uptimed runs on earth and zen; FishShell on earth, zen and rocky.
+// Uptimed and Timezone run on earth and zen; FishShell on earth, zen and
+// rocky.
 type System struct {
 	RequiresRoot
 }
 
 const (
 	etcHosts     = "/etc/hosts"
+	etcLocaltime = "/etc/localtime"
 	wireGuardDir = "/etc/wireguard"
 	uptimedConf  = "/etc/uptimed.conf"
+
+	// timeZone is the fleet's zone: the laptops live in Sofia, Bulgaria.
+	timeZone = "Europe/Sofia"
 )
 
 // wireGuardConfigs are the tunnel configs gonf keeps private. Their content
@@ -103,4 +108,19 @@ func (System) OptsFishShell() TaskOptions {
 func (System) FishShell() {
 	pkg := Package("fish")
 	User("paul", WithShell("/usr/bin/fish"), WithManageShell, DependsOn(pkg))
+}
+
+func (System) OptsTimezone() TaskOptions {
+	return TaskOptions{WhenLinux(), WhenHostnameIn("earth", "zen")}
+}
+
+// Timezone points /etc/localtime at Europe/Sofia (earth, zen).
+//
+// Timezone writes the same ../usr/share/zoneinfo/Europe/Sofia symlink
+// timedatectl set-timezone writes, so a zone changed by hand (or left
+// behind while roaming) is repointed on the next apply. The link resource
+// repoints an existing symlink in place and refuses a dangling target;
+// the clock itself stays NTP-managed and is not touched.
+func (System) Timezone() {
+	Symlink(etcLocaltime, "../usr/share/zoneinfo/"+timeZone)
 }

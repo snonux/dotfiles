@@ -28,8 +28,8 @@ func registerTasks() {
 	Alias("home_tmux_rocky", "Legacy alias for home_tmux (rocky overrides load from tmux.conf)", "home_tmux")
 	RegisterMethods(pkg.Pkg{}, WhenProfile("fedora")) // pkg_*
 	// system_hosts / system_wireguard are earth-only (Opts*); system_uptimed
-	// also applies on zen (OptsUptimed WhenHostnameIn); system_fish_shell
-	// on earth, zen and rocky (OptsFishShell).
+	// and system_timezone also apply on zen (WhenHostnameIn);
+	// system_fish_shell on earth, zen and rocky (OptsFishShell).
 	RegisterMethods(system.System{}) // system_*
 	// Keep the unprivileged home deploy independent of the privileged
 	// system_uptimed prerequisite of home_goprecords_upload. List members

@@ -44,7 +44,7 @@ My dotfiles, deployed locally or over ssh with [gonf](https://github.com/snonux/
 ./gonf.sh -privilege=sudo home_goprecords_upload # upload timer and its system_uptimed prerequisite (earth/zen)
 ./gonf.sh pkg_opendoas             # opendoas on every Fedora host
 ./gonf.sh pkg_fedora               # Fedora workstation packages (Fedora profile only)
-./gonf.sh -privilege=sudo system_hosts system_wireguard system_uptimed system_fish_shell
+./gonf.sh -privilege=sudo system_hosts system_wireguard system_uptimed system_fish_shell system_timezone
 ./gonf.sh home_helix home_tmux     # single tasks
 ./gonf.sh -profile=freebsd home    # override profile detection
 ./gonf.sh push paul@rocky home     # remote: plan streamed over ssh
@@ -94,6 +94,7 @@ Guards are serializable and evaluated on the destination (gonf >= v0.19.0), so a
 | `pkg_taskwarrior` | installs Taskwarrior 3.x (`task`); privileged | profile fedora |
 | `system_fish_shell` | installs `fish`, sets paul's login shell to `/usr/bin/fish`; privileged | hostname earth, zen or rocky |
 | `system_hosts` | owns the `# BEGIN GONF fleet` block of `/etc/hosts` (LAN + wg0 mesh rows), 0644 root:root; lines outside the block stay; privileged | hostname earth |
+| `system_timezone` | points `/etc/localtime` at `Europe/Sofia` (the `timedatectl set-timezone` symlink); the NTP clock is not touched; privileged | hostname earth or zen |
 | `system_uptimed` | installs `uptimed`, deploys `/etc/uptimed.conf`, enables the daemon; privileged | hostname earth or zen |
 | `system_wireguard` | `/etc/wireguard` 0700, existing `wg0.conf`/`wg1.conf` 0600 root:root; enables matching units at boot only, never changes content or runtime state; privileged | hostname earth |
 
