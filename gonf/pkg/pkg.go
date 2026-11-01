@@ -59,6 +59,9 @@ func (Pkg) Helix() {
 // hosts that still carry it instead of merely no longer installing it.
 // aerc is part of the set, converging home_aerc's /usr/bin/aerc prerequisite
 // with the workstation packages instead of leaving it to a manual install.
+// gron is gone: Fedora retired its package, so the entry would fail every
+// dnf apply; reinstall with "go install github.com/tomnomnom/gron@latest"
+// if it is ever needed again.
 // opendoas lives in Opendoas; fzf and zoxide in FishTools; task in Taskwarrior;
 // helix in Helix.
 func (Pkg) Fedora() {
@@ -76,7 +79,6 @@ func (Pkg) Fedora() {
 		"golang",
 		"gopls",
 		"gpaste",
-		"gron",
 		"htop",
 		"java-latest-openjdk-devel",
 		"lynx",
