@@ -57,6 +57,8 @@ func (Pkg) Helix() {
 // deployment tool: every Rexfile it used to run (this repo's and conf's) has
 // been ported to gonf and retired, so an explicit absent resource converges
 // hosts that still carry it instead of merely no longer installing it.
+// aerc is part of the set, converging home_aerc's /usr/bin/aerc prerequisite
+// with the workstation packages instead of leaving it to a manual install.
 // opendoas lives in Opendoas; fzf and zoxide in FishTools; task in Taskwarrior;
 // helix in Helix.
 func (Pkg) Fedora() {
@@ -68,6 +70,7 @@ func (Pkg) Fedora() {
 		"syncthing",
 		"ncdu",
 		"ack",
+		"aerc",
 		"bat",
 		"ctags",
 		"golang",
