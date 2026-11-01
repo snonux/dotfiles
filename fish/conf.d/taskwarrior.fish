@@ -1003,6 +1003,7 @@ if not set -q QUICKLOG_HEADLESS
     abbr -a log 'task add +log'
     abbr -a track 'taskwarrior::add::track'
     abbr -a ti 'taskwarrior::invoke; tasksamurai due.before:today+7d'
+    abbr -a qi taskwarrior::quicklog_import
     abbr -a ts tasksamurai
     abbr tpt taskwarrior::project_tasks
     abbr tsp taskwarrior::project_tasks::tasksamurai
