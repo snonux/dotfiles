@@ -58,36 +58,53 @@ function update::tools
         set -a status_files "$status_dir/$prog"
     end
 
-    update::record_status "$status_dir/cursor-agent" cursor-agent update &
-    set -a pids $last_pid
-    set -a status_files "$status_dir/cursor-agent"
+    if command -q cursor-agent
+        echo 'Updating cursor-agent'
+        update::record_status "$status_dir/cursor-agent" cursor-agent update &
+        set -a pids $last_pid
+        set -a status_files "$status_dir/cursor-agent"
+    else
+        echo 'Skipping cursor-agent (not installed)'
+    end
 
-    echo 'Updating claude'
-    update::record_status "$status_dir/claude" claude update &
-    set -a pids $last_pid
-    set -a status_files "$status_dir/claude"
+    if command -q claude
+        echo 'Updating claude'
+        update::record_status "$status_dir/claude" claude update &
+        set -a pids $last_pid
+        set -a status_files "$status_dir/claude"
+    else
+        echo 'Skipping claude (not installed)'
+    end
 
     if test (uname) = Linux
-        echo "Installing/updating @openai/codex globally via npm"
-        # doas npm uninstall -g @openai/codex
-        doas npm install -g @openai/codex
-        or set failed 1
+        if command -q doas; and command -q npm
+            echo "Installing/updating @openai/codex globally via npm"
+            # doas npm uninstall -g @openai/codex
+            doas npm install -g @openai/codex
+            or set failed 1
+
+            echo "installing/updating pi-coding-agent globally via npm"
+            doas npm install -g @earendil-works/pi-coding-agent
+            or set failed 1
+        else
+            echo 'Skipping global npm installs (no doas or no npm)'
+        end
 
         # echo "Installing/updating @google/gemini-cli globally via npm"
         # # doas npm uninstall -g @google/gemini-cli
         # doas npm install -g @google/gemini-cli
 
-        echo "Installing/updating @ampcode/cli via yarn"
-        yarn global add @ampcode/cli
-        or set failed 1
+        if command -q yarn
+            echo "Installing/updating @ampcode/cli via yarn"
+            yarn global add @ampcode/cli
+            or set failed 1
+        else
+            echo 'Skipping @ampcode/cli (no yarn)'
+        end
 
         # echo "Installing/updating opencode-ai globally via npm"
         # # doas npm uninstall -g opencode-ai
         # doas npm install -g opencode-ai
-
-        echo "installing/updating pi-coding-agent globally via npm"
-        doas npm install -g @earendil-works/pi-coding-agent
-        or set failed 1
     end
 
     for pid in $pids

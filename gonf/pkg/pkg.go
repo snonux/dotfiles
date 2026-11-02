@@ -87,6 +87,7 @@ func (Pkg) Fedora() {
 		"perl-File-Slurp",
 		"ripgrep",
 		"ruby",
+		"sqlite",
 		"strace",
 		"tig",
 		"tmux",

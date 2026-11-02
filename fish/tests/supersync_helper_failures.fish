@@ -178,12 +178,14 @@ printf '%s\n' \
     >"$TEST_ROOT/bin/go"
 printf '%s\n' '#!/usr/bin/env sh' 'exit 0' >"$TEST_ROOT/bin/cursor-agent"
 printf '%s\n' '#!/usr/bin/env sh' 'exit 0' >"$TEST_ROOT/bin/claude"
+printf '%s\n' '#!/usr/bin/env sh' 'exit 0' >"$TEST_ROOT/bin/npm"
+printf '%s\n' '#!/usr/bin/env sh' 'exit 0' >"$TEST_ROOT/bin/yarn"
 printf '%s\n' \
     '#!/usr/bin/env sh' \
     'if [ "$TEST_FAIL" = doas ] && [ "$4" = @openai/codex ]; then exit 9; fi' \
     'exit 0' \
     >"$TEST_ROOT/bin/doas"
-chmod +x "$TEST_ROOT/bin/go" "$TEST_ROOT/bin/cursor-agent" "$TEST_ROOT/bin/claude" "$TEST_ROOT/bin/doas"
+chmod +x "$TEST_ROOT/bin/go" "$TEST_ROOT/bin/cursor-agent" "$TEST_ROOT/bin/claude" "$TEST_ROOT/bin/npm" "$TEST_ROOT/bin/yarn" "$TEST_ROOT/bin/doas"
 functions -e update::tools
 source (dirname (status filename))/../conf.d/update.fish
 or fail "could not restore update::tools"
