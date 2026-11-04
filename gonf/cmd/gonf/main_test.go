@@ -115,15 +115,19 @@ func checkHomeAndUploadPlans(t *testing.T) {
 	}
 
 	checkScriptsPlan(t, home, store)
-	checkSystemPlans(t)
 
 	upload, err := api.RecordPlanTo("upload-test", plan.NewMemoryStore(), "home_goprecords_upload")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []string{"Package[uptimed]", "Service[uptimed]"} {
-		if !hasElevatedID(upload, id) {
-			t.Errorf("upload omits privileged prerequisite %s", id)
+	for _, op := range upload {
+		if op.Elevate {
+			t.Errorf("upload contains privileged operation %s", op.ID)
+		}
+	}
+	for _, task := range api.Tasks() {
+		if strings.HasPrefix(task.Name, "pkg_") || strings.HasPrefix(task.Name, "system_") {
+			t.Errorf("system task remains registered in dotfiles: %s", task.Name)
 		}
 	}
 	if !hasPlanPath(upload, "/.local/bin/goprecords-upload-client.sh") {
@@ -134,15 +138,6 @@ func checkHomeAndUploadPlans(t *testing.T) {
 func hasPlanPath(ops []plan.Op, suffix string) bool {
 	for _, op := range ops {
 		if strings.HasSuffix(op.Path, suffix) {
-			return true
-		}
-	}
-	return false
-}
-
-func hasElevatedID(ops []plan.Op, id string) bool {
-	for _, op := range ops {
-		if op.ID == id && op.Elevate {
 			return true
 		}
 	}
@@ -189,45 +184,6 @@ func checkScriptsPlan(t *testing.T, ops []plan.Op, store *plan.MemoryStore) {
 		t.Fatal("quicklog tree must own its 0750 mode and depend on main sync")
 	}
 	t.Fatal("home omits scripts tree")
-}
-
-func checkSystemPlans(t *testing.T) {
-	t.Helper()
-	ops, err := api.RecordPlanTo("system-test", plan.NewMemoryStore(), "system_wireguard", "system_fish_shell")
-	if err != nil {
-		t.Fatal(err)
-	}
-	services := 0
-	user := false
-	guard := ""
-	for _, op := range ops {
-		if op.Op == plan.KindWhenBegin && strings.HasPrefix(op.ID, "when.path_exists:") {
-			guard = strings.TrimPrefix(op.ID, "when.path_exists:")
-		}
-		if op.Op == plan.KindWhenEnd {
-			guard = ""
-		}
-		if op.Op == plan.KindCommand {
-			t.Errorf("system task still shells out: %s", op.ID)
-		}
-		if op.Op == plan.KindService {
-			services++
-			conf := "/etc/wireguard/" + strings.TrimPrefix(op.Name, "wg-quick@") + ".conf"
-			if !op.EnableOnly || !op.Elevate || guard != conf || op.Restart || op.Reload {
-				t.Errorf("tunnel service escaped enable-only config guard: %+v, guard %s", op, guard)
-			}
-		}
-		if op.ID == "User[paul]" {
-			user = true
-			want := plan.UserPayload{Shell: "/usr/bin/fish", ManageShell: true}
-			if !reflect.DeepEqual(plan.PayloadOf[plan.UserPayload](op), want) || !op.Elevate || !reflect.DeepEqual(op.Deps, []string{"Package[fish]"}) {
-				t.Errorf("fish changes more than shell or lacks package dependency: %+v", op)
-			}
-		}
-	}
-	if services != 2 || !user {
-		t.Errorf("system plans: services=%d, user=%t", services, user)
-	}
 }
 
 func checkQuicklogTree(t *testing.T, op plan.Op, store *plan.MemoryStore) {

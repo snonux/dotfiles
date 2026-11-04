@@ -16,9 +16,7 @@ My dotfiles, deployed locally or over ssh with [gonf](https://github.com/snonux/
 | `hexai/` | hexai config |
 | `lazygit/` | lazygit config |
 | `opencode/` | opencode config |
-| `opendoas/` | `/etc/doas.conf` (`permit nopass :wheel`) for Fedora |
 | `pipewire/` | high-res `pipewire.conf` (earth only) |
-| `uptimed/` | `uptimed.conf` template (`LOG_MAXIMUM_ENTRIES=0`) for earth and zen |
 | `signature/` | mail signature (file) |
 | `ssh/` | `~/.ssh/config` |
 | `sway/`, `waybar/` | sway `config.d/`, waybar config |
@@ -41,10 +39,8 @@ My dotfiles, deployed locally or over ssh with [gonf](https://github.com/snonux/
 ./gonf.sh -n home                  # dry-run
 ./gonf.sh home                     # unprivileged home configuration
 ./gonf.sh home_aerc                # aerc + k3s Proton Bridge tunnel (earth only)
-./gonf.sh -privilege=sudo home_goprecords_upload # upload timer and its system_uptimed prerequisite (earth/zen)
-./gonf.sh pkg_opendoas             # opendoas on every Fedora host
-./gonf.sh pkg_fedora               # Fedora workstation packages (Fedora profile only)
-./gonf.sh -privilege=sudo system_hosts system_wireguard system_uptimed system_fish_shell system_timezone
+./gonf.sh home_goprecords_upload # user upload timer; apply conf system_uptimed first (earth/zen)
+(cd ~/git/conf && ./gonf.sh -privilege=sudo workstation) # system configuration and Fedora packages
 ./gonf.sh home_helix home_tmux     # single tasks
 ./gonf.sh -profile=freebsd home    # override profile detection
 ./gonf.sh push paul@rocky home     # remote: plan streamed over ssh
@@ -67,7 +63,7 @@ Guards are serializable and evaluated on the destination (gonf >= v0.19.0), so a
 | `home_fish_completions` | syncs `~/.config/fish/completions` | all |
 | `home_ghostty` | syncs `~/.config/ghostty` | all |
 | `home_gitconfig` | global git config (user, delta, difftastic, `hx` editor) | all but macOS |
-| `home_goprecords_upload` | hourly user timer uploading uptimed stats to goprecords; Needs `system_uptimed`; earth also imports mega-m3-pro | Linux, hostname earth or zen |
+| `home_goprecords_upload` | hourly user timer uploading uptimed stats to goprecords; apply conf's `system_uptimed` first; earth also imports mega-m3-pro | Linux, hostname earth or zen |
 | `home_gitsyncer` | symlinks `~/.config/gitsyncer` | all |
 | `home_helix` | syncs `~/.config/helix` | all |
 | `home_hexai` | syncs `~/.config/hexai` | Linux |
@@ -87,20 +83,10 @@ Guards are serializable and evaluated on the destination (gonf >= v0.19.0), so a
 | `home_tmux` | syncs `~/.config/tmux` | all |
 | `home_tmux_rocky` | alias of `home_tmux` | all |
 | `home_vale` | symlinks `~/.vale.ini` | all |
-| `pkg_fedora` | installs the workstation package set, removes `Rex`; privileged | profile fedora |
-| `pkg_fish_tools` | installs `fzf` and `zoxide`; privileged | profile fedora |
-| `pkg_helix` | installs `helix` (`hx`); privileged | profile fedora |
-| `pkg_opendoas` | installs `opendoas` and `/etc/doas.conf` (`permit nopass :wheel`); privileged | profile fedora |
-| `pkg_taskwarrior` | installs Taskwarrior 3.x (`task`); privileged | profile fedora |
-| `system_fish_shell` | installs `fish`, sets paul's login shell to `/usr/bin/fish`; privileged | hostname earth, zen or rocky |
-| `system_hosts` | owns the `# BEGIN GONF fleet` block of `/etc/hosts` (LAN + wg0 mesh rows), 0644 root:root; lines outside the block stay; privileged | hostname earth |
-| `system_timezone` | points `/etc/localtime` at `Europe/Sofia` (the `timedatectl set-timezone` symlink); the NTP clock is not touched; privileged | hostname earth or zen |
-| `system_uptimed` | installs `uptimed`, deploys `/etc/uptimed.conf`, enables the daemon; privileged | hostname earth or zen |
-| `system_wireguard` | `/etc/wireguard` 0700, existing `wg0.conf`/`wg1.conf` 0600 root:root; enables matching units at boot only, never changes content or runtime state; privileged | hostname earth |
 
 Profile detection reads `/etc/os-release`; macOS reports `darwin`. FreeBSD has neither, so pass `-profile=freebsd`.
 
-macOS works for a local run on the Mac and for `push you@mac home`: destination paths are recorded as `${HOME}/...` and expand to `/Users/<you>` there. There is no package or launchd backend, so `pkg_fedora` and `home_systemd_user` skip on a Mac. Symlink tasks (`home_bash`, `home_fish`, `home_gitsyncer`, `home_vale`, `home_agents`) point into `~/git/dotfiles` and `~/Notes/Prompts` on the destination, so a Mac needs those checkouts. lazygit on macOS reads `~/Library/Application Support/lazygit` unless `XDG_CONFIG_HOME` is set.
+macOS works for a local run on the Mac and for `push you@mac home`: destination paths are recorded as `${HOME}/...` and expand to `/Users/<you>` there. There is no launchd backend, so `home_systemd_user` skips on a Mac. Symlink tasks (`home_bash`, `home_fish`, `home_gitsyncer`, `home_vale`, `home_agents`) point into `~/git/dotfiles` and `~/Notes/Prompts` on the destination, so a Mac needs those checkouts. lazygit on macOS reads `~/Library/Application Support/lazygit` unless `XDG_CONFIG_HOME` is set.
 
 ## Scripts
 

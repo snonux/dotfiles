@@ -2,7 +2,6 @@ package home
 
 import (
 	"github.com/snonux/dotfiles/gonf/paths"
-	"github.com/snonux/dotfiles/gonf/system"
 	. "github.com/snonux/gonf/api"
 )
 
@@ -267,16 +266,16 @@ func (HomeTasks) SystemdUser() {
 }
 
 func (HomeTasks) OptsGoprecordsUpload() TaskOptions {
-	// Needs system_uptimed so daemon + upload stay one apply on earth/zen.
-	return TaskOptions{WhenLinux(), WhenHostnameIn("earth", "zen"), Needs(system.System.Uptimed)}
+	// Apply conf's system_uptimed first; the daemon is managed separately.
+	return TaskOptions{WhenLinux(), WhenHostnameIn("earth", "zen")}
 }
 
 // GoprecordsUpload installs the hourly uptimed upload to goprecords (earth, zen).
 //
 // GoprecordsUpload installs the POSIX upload client under ~/.local/bin and the
 // matching user systemd oneshot+timer. earth also runs the Mac/worktime
-// mega-m3-pro import (second ExecStart). Needs system_uptimed (daemon half of
-// the pair). Tokens stay out of git: ~/.config/goprecords-upload-<host>/token.
+// mega-m3-pro import (second ExecStart). Apply conf's system_uptimed first.
+// Tokens stay out of git: ~/.config/goprecords-upload-<host>/token.
 func (HomeTasks) GoprecordsUpload() {
 	EnsureDir(DestHome(".local/bin"), WithMode(0o755))
 	script := InstallFile(DestHome(".local/bin/goprecords-upload-client.sh"),
