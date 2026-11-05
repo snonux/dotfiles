@@ -124,7 +124,7 @@ Typical lines: `%0: capacity stall detected, sent 'continue'` and
 | Item | Value |
 |------|-------|
 | TMUX socket | `/tmp/tmux-$(id -u)/default` |
-| Pane targeting | `pane_current_command == codex` in session `homelabfs` |
+| Pane targeting | `pane_current_command == codex`, optionally narrowed by `CODEX_PATH` (exact `pane_current_path`); `CODEX_SESSION=all` searches every session |
 | Capacity marker | `Selected model is at capacity` |
 | Busy gate | `esc to interrupt` visible → skip |
 | Idle gate | `Ask Codex to do anything` placeholder visible |
@@ -136,8 +136,16 @@ Typical lines: `%0: capacity stall detected, sent 'continue'` and
 ## Caveats
 
 - Multiple codex sessions can run at once (e.g. a `conf` session beside
-  `homelabfs`); scope the watcher to the requested session — the
-  `CODEX_SESSION` env var in the script selects it.
+  `homelabfs`); scope each watcher with `CODEX_SESSION`/`CODEX_PATH` in its
+  service file. As of 2026-11-05 `earth` runs two units on the shared script:
+  `codex-capacity-continue.service` (`CODEX_SESSION=all`,
+  `CODEX_PATH=~/git/homelabfs`) and `codex-capacity-continue-conf.service`
+  (`CODEX_SESSION=all`, `CODEX_PATH=~/git/conf`), each with a 30-min timer.
+  Scoping by path with `CODEX_SESSION=all` survives session renames — the
+  original session-scoped watcher silently stopped working when the
+  `homelabfs` session was renamed to `player`.
+- A user-paused goal (`Goal paused (/goal resume)`) never matches the capacity
+  marker, so the watcher leaves it alone; only capacity stalls are resumed.
 - The capacity error can recur on every turn; the 30-minute watcher retries
   automatically, and the resend guard prevents double-queueing.
 - `send-keys` into a busy codex can queue a turn (backpressure); the
