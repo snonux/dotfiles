@@ -13,58 +13,8 @@
     }
   ],
   "repositories": [
-    "pages",
-    "foo.zone",
-    "terraform",
-    "dotfiles",
-    "conf",
-    "gogios",
-    "ychat",
-    "gos",
-    "wireguardmeshgenerator",
-    "photoalbum",
-    "gemtexter",
-    "rcm",
-    "vs-sim",
-    "perldaemon",
-    "pwgrep",
-    "guprecords",
-    "ioriot",
-    "ior",
-    "xerl",
-    "gorum",
-    "hsbot",
-    "staticfarm-apache-handlers",
-    "muttdelay",
-    "netdiff",
-    "pingdomfetch",
-    "japi",
-    "jsmstrade",
-    "netcalendar",
-    "gotop",
-    "awksite",
-    "dyndns",
-    "template",
-    "katana",
-    "rubyfy",
-    "debroid",
-    "geheim",
-    "loadbars",
-    "fype",
-    "ipv6test",
-    "foostats",
-    "docker-radicale-server",
-    "playground",
-    "sway-autorotate",
-    "Adv360-Pro-ZMK",
-    "randomjournalpage",
-    "failunderd",
-    "perl-c-fibonacci",
-    "perl-poetry",
-    "cpuinfo",
-    "quicklog",
-    "gonf",
-    "syncmaster"
+    "dtail",
+    "quicklogger"
   ],
   "skip_releases": {
     "fapi": [
@@ -74,14 +24,16 @@
   "exclude_from_showcase": [
     "bratwurstmitsenf",
     "Adv360-Pro-ZMK",
-    "katana",
-    "pages",
-    "nvim"
+    "nvim",
+    "jailman",
+    "playground",
+    "perl-c-fibonacci"
   ],
   "exclude_branches": [
     "^codex/"
   ],
   "showcase_stats_branches": {
     "foo.zone": "content-gemtext"
-  }
+  },
+  "sync_all_github_repos": true
 }
