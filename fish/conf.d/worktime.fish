@@ -27,7 +27,7 @@ function worktime::login
     if test -z "$what"
         set what work
     end
-    touch ~/.wtloggedin
+    # timesamurai itself creates ~/.wtloggedin (general.login_marker)
     timesamurai work start $what
     worktime::wisdom_reminder
 end
@@ -39,10 +39,7 @@ function worktime::logout
         set what work
     end
 
-    if test -f ~/.wtloggedin
-        rm ~/.wtloggedin
-    end
-
+    # timesamurai itself removes the login marker (general.login_marker)
     timesamurai work stop $what
     worktime::report
 end
