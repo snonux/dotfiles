@@ -1,6 +1,6 @@
 set -gx WORKTIME_DIR ~/git/worktime
 
-if test (uname) = Darwin -a ! -f ~/.wtloggedin
+if test (uname) = Darwin -a ! -f ~/.tsloggedin
     echo "Warn: Not logged in, run wtlogin"
 end
 
@@ -27,7 +27,7 @@ function worktime::login
     if test -z "$what"
         set what work
     end
-    # timesamurai itself creates ~/.wtloggedin (general.login_marker)
+    # timesamurai itself creates ~/.tsloggedin (general.login_marker)
     timesamurai work start $what
     worktime::wisdom_reminder
 end
@@ -49,7 +49,7 @@ function worktime::edit
 end
 
 function worktime::report
-    if test -f ~/.wtloggedin
+    if test -f ~/.tsloggedin
         if test -f ~/.wtmaster
             timesamurai work report $argv | tee $WORKTIME_DIR/report.txt
         else
