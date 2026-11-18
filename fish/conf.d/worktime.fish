@@ -5,63 +5,27 @@ if test (uname) = Darwin -a ! -f ~/.tsloggedin
 end
 
 function worktime::add
-    set -l seconds $argv[1]
-    set -l what $argv[2]
-    set -l descr $argv[3]
-
-    if test -z "$what"
-        set what work
-    end
-
-    if test -z "$descr"
-        timesamurai work add "$seconds"s $what
-    else
-        timesamurai work add "$seconds"s $what --descr "$descr"
-    end
-
-    worktime::report
+    echo deprecated use timesamurai work add SECONDS work
 end
 
 function worktime::login
-    set -l what $argv[1]
-    if test -z "$what"
-        set what work
-    end
-    # timesamurai itself creates ~/.tsloggedin (general.login_marker)
-    timesamurai work start $what
-    worktime::wisdom_reminder
+    echo deprecated use timesamurai work start work
 end
 
 function worktime::logout
-    set -l what $argv[1]
-
-    if test -z "$what"
-        set what work
-    end
-
-    # timesamurai itself removes the login marker (general.login_marker)
-    timesamurai work stop $what
-    worktime::report
+    echo deprecated use timesamurai work stop
 end
 
 function worktime::edit
-    timesamurai work edit $argv
+    echo deprecated use timesamurai work edit
 end
 
 function worktime::report
-    if test -f ~/.tsloggedin
-        if test -f ~/.wtmaster
-            timesamurai work report $argv | tee $WORKTIME_DIR/report.txt
-        else
-            timesamurai work report $argv
-        end
-        worktime::wisdom_reminder
-    end
+    echo deprecated use timesamurai work report
 end
 
 function worktime::status
-    worktime::report
-    timesamurai work status
+    echo deprecated use timesamurai work status
 end
 
 function worktime::sync
