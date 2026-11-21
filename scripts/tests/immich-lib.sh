@@ -26,18 +26,12 @@ fail() {
 bash -n "$IMMICH_LIB" || fail "bash -n failed"
 shellcheck -x -S warning "$IMMICH_LIB" || fail "shellcheck failed"
 
-grep -Eq '^[[:space:]]*source[[:space:]].*f3s-hosts\.sh' "$IMMICH_LIB" \
-    || fail "immich.sh must source f3s-hosts.sh"
-grep -q 'curl_immich' "$IMMICH_LIB" || fail "missing curl_immich"
-grep -q 'detect_immich_url' "$IMMICH_LIB" || fail "missing detect_immich_url"
-grep -q '_account_api_key' "$IMMICH_LIB" || fail "missing _account_api_key"
-
-# Drivers must consume the shared lib (not re-embed URL/failover/key helpers).
-for consumer in "$IMMICH_UPLOAD" "$IMMICH_EXPORT"; do
-    grep -Eq '^[[:space:]]*source[[:space:]].*lib/immich\.sh' "$consumer" \
-        || fail "$(basename "$consumer") does not source lib/immich.sh"
-done
-# Drivers must not redefine detect/reachable (DRY).
+# Helper names and the f3s-hosts.sh source are not grepped: the checks
+# below call every helper and compare the URL defaults with the inventory.
+# That each driver sources this lib is kept in immich-upload.sh and
+# immich-export.sh.
+# Kept as a source check: drivers must not redefine detect/reachable (DRY).
+# A redefined copy behaves the same today, so only the source shows it.
 for consumer in "$IMMICH_UPLOAD" "$IMMICH_EXPORT"; do
     if grep -Eq '^[[:space:]]*(detect_immich_url|immich_reachable|curl_immich|_safe_account_name|_account_api_key)\(\)' \
         "$consumer"; then
@@ -65,6 +59,21 @@ env -u IMMICH_LAN_URL -u IMMICH_PUBLIC_URL -u IMMICH_URL -u _IMMICH_LIB_SOURCED 
             || { echo "public default != inventory: ${IMMICH_PUBLIC_URL@Q}" >&2; exit 1; }
     ' bash "$IMMICH_LIB" \
     || fail "inventory URL default check failed"
+
+# The defaults follow lib/f3s-hosts.sh, not a copy of its values: the
+# unmodified lib beside a stub inventory with other URLs picks those up.
+mkdir -p "$TEST_ROOT/layout"
+cp "$IMMICH_LIB" "$TEST_ROOT/layout/immich.sh"
+printf '%s\n' \
+    "F3S_IMMICH_LAN_URL='http://stub-lan.test'" \
+    "F3S_IMMICH_PUBLIC_URL='https://stub-public.test'" \
+    >"$TEST_ROOT/layout/f3s-hosts.sh"
+# shellcheck disable=SC2016 # the child bash expands these, not this one
+stub_urls=$(env -u IMMICH_LAN_URL -u IMMICH_PUBLIC_URL -u _IMMICH_LIB_SOURCED \
+    bash -c 'source "$1"; printf "%s %s" "$IMMICH_LAN_URL" "$IMMICH_PUBLIC_URL"' \
+    bash "$TEST_ROOT/layout/immich.sh") || fail "stub-inventory source failed"
+[[ "$stub_urls" == 'http://stub-lan.test https://stub-public.test' ]] \
+    || fail "URL defaults do not come from f3s-hosts.sh: ${stub_urls@Q}"
 
 # Env overrides inventory defaults.
 (
