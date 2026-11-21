@@ -1,6 +1,7 @@
 ---
 name: shuriken
 description: "Generates a lean shuriken photo album (no tarball, no stats site, no per-photo details pages) from a directory of photos and publishes it to /var/www/html/fotos on pi0.lan and pi1.lan. Use when asked to build and publish a photo album from an input directory. Triggers on: shuriken album, generate photo album, publish fotos, new photo album."
+disable-model-invocation: true
 ---
 
 # Shuriken photo album
@@ -70,6 +71,6 @@ Without either of the first two, a non-empty `DIST_DIR` aborts the run.
   rsyncs with `--rsync-path='doas /usr/pkg/bin/rsync'`; no `mkdir`/`chown`
   step is needed. `pi0.lan` goes first because `pi1.lan` mirrors pi0's docroot
   hourly with `--delete` and re-owns `fotos` to root; details in the
-  [`f3s` skill](../f3s/references/raspberry-pi/netbsd-bozohttpd.md).
+  IQ database, `~/git/iq/topics/infra/f3s/raspberry-pi/netbsd-bozohttpd.md` (through the [iq skill](../iq/SKILL.md)).
 - **Never `shuriken --sync` here.** That publishes to the `SYNC_DESTINATIONS`
   of a config file, which this workflow does not use.

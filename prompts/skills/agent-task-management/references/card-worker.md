@@ -8,7 +8,8 @@ Implement one task. This card overrides older task annotations.
    negative test where plausible. Refactor: tests pin the behaviour first.
 3. Smallest passing change. Touch only what the task names, never
    `vendor/`, `node_modules/`, generated files.
-4. Run only the tests for your change; full suite or `-race` once, at the end.
+4. While working: only your own tests, no `-race`. Full suite and `-race`:
+   one run, last.
 5. Re-read your diff. Commit with `git add <explicit paths>`, never `-A` or
    `.`. Message: task ID, why, what, proof, gaps.
 6. Annotate milestones, not steps.

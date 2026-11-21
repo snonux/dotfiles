@@ -25,7 +25,7 @@ Everything before the delete step is read-only.
 
 Related skills, not duplicated here:
 
-- Forgejo access, ports and exposure: [`f3s` Forgejo reference](../f3s/references/workloads/forgejo.md)
+- Forgejo access, ports and exposure: the f3s Forgejo reference in the IQ database, `~/git/iq/topics/infra/f3s/workloads/forgejo.md` (through the [iq skill](../iq/SKILL.md))
 - Forge endpoints and owners come from `~/.config/gitsyncer/config.json`
   (`scripts/forge.py` reads them; do not hardcode the Forgejo host or port).
 
@@ -40,6 +40,7 @@ is fish). They need `gh` (logged in as the repo owner) and `git`.
 | `collect_remote.py defaults` | lists repos whose default branch is not main/master, and whether main/master exists | no |
 | `make_candidates.py <datadir> <out.txt>` | classifies branches into DELETE CANDIDATES and REVIEW sections | no |
 | `delete_merged.py <out.txt> [--delete]` | re-verifies, then deletes the `fully merged into main\|master` rows; dry run without `--delete` | only with `--delete` |
+| `tests/collect_all_test.sh [path/to/collect_all.sh]` | regression test for `collect_all.sh` using local stub collectors; touches no forge | no |
 
 ## Workflow
 

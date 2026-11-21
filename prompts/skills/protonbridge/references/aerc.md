@@ -36,7 +36,7 @@ selects the healthy pod and the setup survives r0/r1/r2 placement changes.
 | k3s Service | `/home/paul/git/conf/f3s/protonbridge/helm-chart/templates/service.yaml` |
 | Argo CD Application | `/home/paul/git/conf/f3s/argocd-apps/services/protonbridge.yaml` |
 
-Read the f3s [k3s area index](../../f3s/references/k3s.md) for cluster access, Argo CD,
+Read the f3s k3s area index in the IQ database, `~/git/iq/topics/infra/f3s/k3s.md` (through the [iq skill](../../iq/SKILL.md)), for cluster access, Argo CD,
 node, or control-plane problems. This reference owns only the Proton Bridge/aerc
 path.
 

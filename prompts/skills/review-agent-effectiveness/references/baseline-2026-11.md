@@ -94,6 +94,32 @@ results, hence the "n/a" lines.
 - **Size budget.** The skill audit script warns above 200 words for cards
   and 1,500 for other skill files.
 
+## First live run of the cards (2026-11-21)
+
+A four-task Go test project, run with Sonnet sub-agents and `ask` v0.45.1.
+An orchestrator followed the orchestrator card; three workers and two
+reviewers got only their pasted card. Then one Sonnet agent ran
+`work-on-tasks` alone, with no sub-agents, for the last two tasks.
+
+| Check | Result |
+|---|---|
+| Tasks finished / parked correctly | 4 of 4 finished; the task that needed a decision was parked with a one-line question, and the run stopped while its dependent waited |
+| Tool errors across 6 agents | 0 |
+| Skill files read by workers and reviewers | none beyond the pasted card (reviewers ran `crap-check.sh`) |
+| Skill files read by the solo agent | `work-on-tasks/SKILL.md`, the three cards, `8-blocked-and-handoff.md` |
+| `ask info` calls per agent and task | 1 |
+| Workers running `ask start`, `ask done`, push, or sub-agents; `git add -A` | none |
+| `Red first:` annotation and commit message with why, what, proof | every task |
+| `ask` inside a linked worktree | worked (one worker ran there) |
+| Review rounds | 1 per task, all PASS |
+| Time per task | 13 to 34 seconds per worker, 12 to 17 per reviewer |
+
+One slip: a worker ran `-race` three times where the card said once. Rule 4
+of the worker card was reworded afterwards ("While working: only your own
+tests, no `-race`"). The harness's refusals of complex commands inside
+harness-isolated worktrees were not exercised, because the test worktree was
+created by hand outside the session's repository.
+
 ## What should move by the next review
 
 - Skill words read per agent: well below 1,000 for Codex.

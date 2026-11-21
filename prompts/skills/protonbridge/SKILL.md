@@ -32,4 +32,4 @@ Load the one that matches the task:
 - The password lives in one place only: `~/.config/aerc/protonbridge-password` (mode `0600`); refreshing it is in the aerc reference
 - `Connection refused` on 1143 means the tunnel is down: see the aerc reference
 - `no such user` right after a Bridge pod restart usually clears by itself within a few minutes
-- Cluster access, Argo CD and node problems: the f3s [k3s area index](../f3s/references/k3s.md)
+- Cluster access, Argo CD and node problems: the f3s k3s area index in the IQ database, `~/git/iq/topics/infra/f3s/k3s.md` (load it through the [iq skill](../iq/SKILL.md))
