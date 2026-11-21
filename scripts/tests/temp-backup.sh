@@ -525,4 +525,44 @@ for ((i = 0; i < ${#buggy_argv[@]}; i++)); do
 done
 ((saw_split == 1)) || fail "buggy repro did not word-split as expected"
 
+# --- hg4: two sources with the same remote leaf share DEST/<leaf>. ---
+# With --delete the second rsync would wipe files only the first has; without
+# it, same-named files overwrite each other. Refuse before any rsync runs.
+declare -r DUP_A="$TEST_ROOT/dup-a/Notes"
+declare -r DUP_B="$TEST_ROOT/dup-b/Notes"
+mkdir -p "$DUP_A" "$DUP_B"
+
+# assert_dup_refused ERRFILE ARGS... — run must fail, name both, no rsync.
+assert_dup_refused() {
+    local -r errfile="$1"
+    shift
+    reset_calls
+    if "$TEMP_BACKUP" "$@" 2>"$errfile"; then
+        fail "duplicate remote leaf accepted: ${*@Q}"
+    fi
+    grep -qi 'same remote folder' "$errfile" \
+        || fail "duplicate leaf error unclear: $(cat "$errfile")"
+    grep -Fq "$DUP_A" "$errfile" \
+        || fail "duplicate leaf error misses first source: $(cat "$errfile")"
+    grep -Fq "$DUP_B" "$errfile" \
+        || fail "duplicate leaf error misses second source: $(cat "$errfile")"
+    [[ "$(call_count)" -eq 0 ]] \
+        || fail "rsync ran despite duplicate remote leaf: ${*@Q}"
+}
+
+assert_dup_refused "$TEST_ROOT/err_dup_delete" --delete "$DUP_A" "$DUP_B"
+assert_dup_refused "$TEST_ROOT/err_dup_plain" "$DUP_A" "$DUP_B"
+# Trailing slash on one side must not hide the clash (both leaves are Notes).
+assert_dup_refused "$TEST_ROOT/err_dup_slash" -n "${DUP_A}/" "$DUP_B"
+
+# --- hg4 negative: distinct leaves under the same parent names still sync ---
+declare -r DISTINCT_B="$TEST_ROOT/dup-b/Other"
+mkdir -p "$DISTINCT_B"
+reset_calls
+"$TEMP_BACKUP" --delete "$DUP_A" "$DISTINCT_B" \
+    || fail "distinct remote leaves refused"
+[[ "$(call_count)" -eq 2 ]] || fail "expected 2 rsync calls, got $(call_count)"
+assert_rsync_shape 0 "${DUP_A}/" "mock.host:tempbackup/Notes" yes
+assert_rsync_shape 1 "${DISTINCT_B}/" "mock.host:tempbackup/Other" yes
+
 printf 'temp-backup test: ok\n'
