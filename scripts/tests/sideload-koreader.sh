@@ -4,7 +4,8 @@
 # Quoting on [[ -f "$APK" ]] is required hygiene (ShellCheck SC2086, consistent
 # path handling, and prevention of future [ -f $APK ] misuse). Bash [[ does not
 # word-split or pathname-expand the unquoted operand the way [ does, so this
-# suite does not claim a bash [[ word-split failure for spaced paths.
+# suite does not claim a bash [[ word-split failure for spaced paths; it runs
+# the script on spaced and glob-character paths instead of grepping it.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -99,21 +100,10 @@ push_argv() {
 bash -n "$SIDELOAD" || fail "bash -n failed"
 shellcheck -x "$SIDELOAD" || fail "shellcheck failed"
 
-# Structural guards: APK assignment and -f check must quote the path.
-# shellcheck disable=SC2016
-grep -Fq 'declare -r APK="$1"' "$SIDELOAD" \
-    || fail 'missing quoted declare -r APK="$1"'
-# shellcheck disable=SC2016
-grep -Fq '[[ -f "$APK" ]]' "$SIDELOAD" \
-    || fail 'missing quoted [[ -f "$APK" ]] check'
-# shellcheck disable=SC2016
-if grep -Eq '\[\[ -f \$APK \]\]' "$SIDELOAD"; then
-    fail 'pre-fix unquoted [[ -f $APK ]] still present'
-fi
-# shellcheck disable=SC2016
-if grep -Eq 'declare -r APK=\$1' "$SIDELOAD"; then
-    fail 'pre-fix unquoted declare -r APK=$1 still present'
-fi
+# No source-text checks for the quoting: the runs below hand APK paths with
+# spaces and a glob character to the script and check that the -f test and
+# adb push see them intact; a later '[ -f $APK ]' rewrite would fail them
+# (and shellcheck's SC2086).
 
 declare -r SPACE_APK="$TEST_ROOT/dir with spaces/KOReader release.apk"
 mkdir -p "$(dirname "$SPACE_APK")"
