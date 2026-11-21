@@ -123,6 +123,7 @@ skills_for_lang() {
 # repo, leaving every later repo untagged.
 bootstrap_repo() {
   local line sha date tag
+  # shellcheck disable=SC2310 # read-only lookup; empty output = no marker
   line=$(last_audit_marker || true)
   read -r sha date <<<"$line"
   if [ -z "$sha" ]; then
@@ -151,6 +152,7 @@ scan_repo() {
   fi
 
   local line
+  # shellcheck disable=SC2310 # read-only lookup; empty output = no marker
   line=$(last_audit_marker || true)
   if [ -n "$line" ]; then
     sha=${line%% *}; date=${line##* }

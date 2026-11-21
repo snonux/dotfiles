@@ -124,6 +124,9 @@ else
   server_in=${CODEX_APP_SERVER[1]}
   server_out=${CODEX_APP_SERVER[0]}
 
+  # _codex_read_response is read-only and its status is the answer: any
+  # failure in this chain lands in the else branch as codex_error.
+  # shellcheck disable=SC2310
   if printf '%s\n' \
       '{"id":1,"method":"initialize","params":{"clientInfo":{"name":"ai-usage","version":"2.0.0"}}}' \
       >&"$server_in" \
@@ -213,6 +216,9 @@ if [ ! -r "$claude_credentials" ]; then
 elif ! command -v curl >/dev/null 2>&1; then
   claude_error='curl is not on PATH'
 else
+  # Read-only; every failing step sets claude_error explicitly, which the
+  # output reports, so set -e being off here hides nothing.
+  # shellcheck disable=SC2310
   _claude_fetch || true
 fi
 

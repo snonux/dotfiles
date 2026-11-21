@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2310
+# (Test harness: run_dedup's status under if/! is the assertion itself;
+# same policy as tests/.shellcheckrc.)
+#
 # Exercise the fish dedup helpers without invoking real sudo.
 set -euo pipefail
 

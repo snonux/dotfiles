@@ -285,6 +285,9 @@ import_notes() {
       continue
     fi
 
+    # run_fish_import is one command (fish import under timeout); its status
+    # decides ack true/false, so set -e being off here hides nothing.
+    # shellcheck disable=SC2310
     if printf '%s\n' "$content" | run_fish_import; then
       _emit_ack "$key" true >&"${DARTPROC[1]}"
       imported=$((imported + 1))

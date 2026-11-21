@@ -90,6 +90,7 @@ _daemon() {
 }
 
 _start() {
+    # shellcheck disable=SC2310 # pure predicate: non-zero = not running
     if pid=$(_running); then
         echo "already running (pid ${pid})"
         return 0
@@ -99,6 +100,7 @@ _start() {
     # Wait for the daemon to publish its pid.
     local i=0
     while (( i < 20 )); do
+        # shellcheck disable=SC2310 # pure predicate: non-zero = not running
         if pid=$(_running); then
             echo "started (pid ${pid})"
             return 0
@@ -111,6 +113,7 @@ _start() {
 }
 
 _stop() {
+    # shellcheck disable=SC2310 # pure predicate: non-zero = not running
     if pid=$(_running); then
         kill "$pid"
         # Wait for the daemon to exit so an immediate start cannot race it.
@@ -126,6 +129,7 @@ _stop() {
 }
 
 _status() {
+    # shellcheck disable=SC2310 # pure predicate: non-zero = not running
     if pid=$(_running); then
         echo "running (pid ${pid})"
     else
