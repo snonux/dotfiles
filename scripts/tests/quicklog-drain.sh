@@ -194,4 +194,102 @@ for target in "$QUICKLOG_DRAIN" "$QUICKLOG_DRAIN_WRAPPER"; do
         || fail "preset PROGRAM ignored by ${target##*/}: $(cat "$TEST_ROOT/drain.out")"
 done
 
+# --- pg4: main's options and modes, pinned before main was split ---
+# A second fake dart logs every call (pub get included) to args.log in the
+# repo, streams nothing, and exits with the number in dart-rc if present.
+cat >"$QL_BIN/dart-args" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>args.log
+[[ -f dart-rc ]] && exit "$(cat dart-rc)"
+exit 0
+EOF
+chmod +x "$QL_BIN/dart-args"
+
+# run_args ARGS... — run the drain with dart-args; sets args_rc and leaves
+# the dart calls in args.log, stdout in drain.out, stderr in drain.err.
+run_args() {
+    : >"$QL_REPO/args.log"
+    args_rc=0
+    env -u PROGRAM \
+        HOME="$QL_HOME" PATH="$QL_BIN:$PATH" \
+        XDG_RUNTIME_DIR="$TEST_ROOT/run" \
+        QUICKLOG_CREDS="$TEST_ROOT/creds.env" QUICKLOG_REPO="$QL_REPO" \
+        QUICKLOG_DART="$QL_BIN/dart-args" QUICKLOG_FISH_CONF_DIR="$QL_CONF" \
+        "$QUICKLOG_DRAIN" "$@" \
+        </dev/null >"$TEST_ROOT/drain.out" 2>"$TEST_ROOT/drain.err" \
+        || args_rc=$?
+}
+
+# expect_args WANT_RC WANT_DART_CALLS ARGS... — run_args, then compare the
+# exit status and the exact dart call log (one call per line).
+expect_args() {
+    local -r want_rc="$1" want_calls="$2"
+    shift 2
+    run_args "$@"
+    [[ "$args_rc" -eq "$want_rc" ]] \
+        || fail "pg4 '$*': want rc $want_rc, got $args_rc: $(cat "$TEST_ROOT/drain.err")"
+    [[ "$(cat "$QL_REPO/args.log")" == "$want_calls" ]] \
+        || fail "pg4 '$*': dart calls changed: $(cat "$QL_REPO/args.log")"
+}
+
+declare -r D='run bin/quicklog_drain.dart'
+expect_args 0 "$D --dest /x --dry-run --force --limit 2 --only a,b" \
+    --dest /x --dry-run --force --limit 2 --only a,b
+expect_args 0 "$D --dest /y --limit 3 --only k" --dest=/y --limit=3 --only=k
+expect_args 0 "$D --dest /z" --dest /z
+expect_args 0 "$D --import --dry-run --limit 2 --only k" --dry-run --limit 2 --only k
+expect_args 0 "$D --import --dry-run" --dry-run
+expect_args 0 "pub get
+$D --import --limit 5 --only k" --limit 5 --only k
+grep -Fxq 'quicklog-drain: imported=0 kept=0 dart_rc=0' "$TEST_ROOT/drain.out" \
+    || fail "pg4: empty import summary changed: $(cat "$TEST_ROOT/drain.out")"
+
+# The dart status is the script's status in every mode; a failed pub get is
+# ignored (the fake fails it too, as dart-rc applies to every call).
+printf '7\n' >"$QL_REPO/dart-rc"
+expect_args 7 "$D --dest /x" --dest /x
+expect_args 7 "$D --import --dry-run" --dry-run
+expect_args 1 "pub get
+$D --import"
+grep -Fxq 'quicklog-drain: imported=0 kept=0 dart_rc=7' "$TEST_ROOT/drain.out" \
+    || fail "pg4: failed import summary changed: $(cat "$TEST_ROOT/drain.out")"
+rm -f "$QL_REPO/dart-rc"
+
+# Usage errors exit 64 before any dart call; --help exits 0. Both print the
+# usage text to stderr.
+for bad in '--dest' '--limit' '--limit 0' '--limit x' '--limit=0' '--limit=' \
+    '--only' '--only=' '--bogus'; do
+    # shellcheck disable=SC2086 # split the option string on purpose
+    expect_args 64 '' $bad
+    grep -Fq 'Usage: quicklog-drain [--dry-run]' "$TEST_ROOT/drain.err" \
+        || fail "pg4 '$bad': no usage on stderr: $(cat "$TEST_ROOT/drain.err")"
+done
+expect_args 64 '' --only ''
+expect_args 0 '' --help
+grep -Fq 'Usage: quicklog-drain [--dry-run]' "$TEST_ROOT/drain.err" \
+    || fail "pg4 --help: no usage on stderr"
+expect_args 64 '' --force
+[[ "$(cat "$TEST_ROOT/drain.err")" == 'quicklog-drain: --force only applies with --dest' ]] \
+    || fail "pg4 --force: message changed: $(cat "$TEST_ROOT/drain.err")"
+
+# Missing credentials stop the run (set -e) before any dart call.
+mv "$TEST_ROOT/creds.env" "$TEST_ROOT/creds.env.off"
+expect_args 1 '' --dry-run
+grep -Fxq "quicklog-drain: missing $TEST_ROOT/creds.env" "$TEST_ROOT/drain.err" \
+    || fail "pg4: missing-creds message changed: $(cat "$TEST_ROOT/drain.err")"
+mv "$TEST_ROOT/creds.env.off" "$TEST_ROOT/creds.env"
+
+# Import modes report notes stranded by the retired staging flow; --dest
+# does not.
+mkdir -p "$QL_HOME/Notes/Quicklog"
+: >"$QL_HOME/Notes/Quicklog/ql-old.md"
+expect_args 0 "$D --import --dry-run" --dry-run
+grep -Fq "quicklog-drain: found 1 stranded note(s) in $QL_HOME/Notes/Quicklog" \
+    "$TEST_ROOT/drain.err" \
+    || fail "pg4: stranded notes not reported: $(cat "$TEST_ROOT/drain.err")"
+expect_args 0 "$D --dest /x" --dest /x
+[[ ! -s "$TEST_ROOT/drain.err" ]] \
+    || fail "pg4: --dest reported stranded notes: $(cat "$TEST_ROOT/drain.err")"
+rm -rf "$QL_HOME/Notes"
+
 printf 'quicklog-drain test: ok\n'
