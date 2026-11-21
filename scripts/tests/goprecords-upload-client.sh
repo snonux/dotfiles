@@ -37,50 +37,9 @@ sh -n "$CLIENT" || fail "sh -n failed"
 # POSIX sh script: shellcheck as dash/sh dialect.
 shellcheck -s sh "$CLIENT" || fail "shellcheck failed"
 
-# --- Structural guards ---
-grep -Eq '^set -eu$' "$CLIENT" \
-    || fail "missing set -eu (POSIX strict mode)"
-grep -Fq -- '--connect-timeout' "$CLIENT" \
-    || fail "missing --connect-timeout"
-grep -Fq -- '--max-time' "$CLIENT" \
-    || fail "missing --max-time"
-grep -Fq -- '--retry' "$CLIENT" \
-    || fail "missing --retry (bounded transient retry)"
-grep -Fq -- '--retry-delay' "$CLIENT" \
-    || fail "missing --retry-delay"
-grep -Fq -- '--retry-max-time' "$CLIENT" \
-    || fail "missing --retry-max-time (wall-clock retry ceiling)"
-grep -Fq 'GOPRECORDS_CONNECT_TIMEOUT' "$CLIENT" \
-    || fail "missing GOPRECORDS_CONNECT_TIMEOUT override"
-grep -Fq 'GOPRECORDS_MAX_TIME' "$CLIENT" \
-    || fail "missing GOPRECORDS_MAX_TIME override"
-grep -Fq 'GOPRECORDS_CURL_RETRY_MAX_TIME' "$CLIENT" \
-    || fail "missing GOPRECORDS_CURL_RETRY_MAX_TIME override"
-
-# Negative structural: bare curl -fsS PUT without timeouts must not remain.
-# Require connect/max/retry flags in the same curl invocation block as -X PUT.
-upload_block=$(
-    awk '
-        /^upload\(\)/ { in_fn=1 }
-        in_fn && /^}/ { print; exit }
-        in_fn { print }
-    ' "$CLIENT"
-)
-printf '%s\n' "$upload_block" | grep -Fq -- '--connect-timeout' \
-    || fail "upload() lacks --connect-timeout"
-printf '%s\n' "$upload_block" | grep -Fq -- '--max-time' \
-    || fail "upload() lacks --max-time"
-printf '%s\n' "$upload_block" | grep -Fq -- '--retry' \
-    || fail "upload() lacks --retry"
-printf '%s\n' "$upload_block" | grep -Fq -- '--retry-delay' \
-    || fail "upload() lacks --retry-delay"
-printf '%s\n' "$upload_block" | grep -Fq -- '--retry-max-time' \
-    || fail "upload() lacks --retry-max-time"
-# Must not use unbounded --retry-all-errors (would retry 401s forever-ish).
-if printf '%s\n' "$upload_block" | grep -Fq -- '--retry-all-errors'; then
-    fail "upload() must not use --retry-all-errors"
-fi
-
+# Kept as source checks: documentation has no behaviour to run. The flags
+# and defaults the budget describes are checked through _main further down
+# (see run_main_spy); strict mode by the errexit run there.
 # Wall-clock budget must be documented in the client header comments.
 grep -Fq 'Wall-clock budget' "$CLIENT" \
     || fail "missing wall-clock budget documentation comment"
@@ -489,6 +448,77 @@ grep -Fxq 'auth=Bearer fake"tok\enheader = "X-Evil: 1"' "$auth_log" \
 if grep -q '^evil=.' "$auth_log"; then
     fail "a token line break became a config line: $(cat "$auth_log")"
 fi
+
+# --- _main with a curl spy: flags, env overrides, defaults, errexit ---
+# _main puts /bin and /usr/bin before the caller's PATH, so a fake curl on
+# PATH would be shadowed by the real one. Instead a fresh bash sources the
+# client (its top level reads the GOPRECORDS_* env as in production), turns
+# curl into a shell function, which wins over any PATH lookup, and runs
+# _main. The spy logs one argv line per call, drains the config on stdin,
+# and returns SPY_RC.
+# run_main_spy LOG [VAR=VALUE...]
+run_main_spy() {
+    local -r log="$1"
+    shift
+    : >"$log"
+    # shellcheck disable=SC2016 # the child bash expands these
+    env -i \
+        PATH="/bin:/usr/bin" \
+        HOME="$TEST_ROOT/home" \
+        GOPRECORDS_HOST=earth \
+        GOPRECORDS_TOKEN_FILE="$token_dir/token" \
+        GOPRECORDS_RECORDS_FILE="$records_file" \
+        SPY_LOG="$log" \
+        "$@" \
+        bash -c '
+GOPRECORDS_UPLOAD_LIB=yes . "$1"
+curl() { printf "%s\n" "$*" >>"$SPY_LOG"; cat >/dev/null; return "${SPY_RC:-0}"; }
+_main
+' bash "$CLIENT"
+}
+
+# assert_every_call LOG LABEL FLAG_AND_VALUE... — every logged curl call
+# carries each given flag with its value, and there is at least one call.
+assert_every_call() {
+    local -r log="$1" label="$2"
+    shift 2
+    grep -q "/upload/earth/records" "$log" \
+        || fail "$label: no records upload: $(cat "$log")"
+    local want
+    for want in "$@"; do
+        if grep -Fv -- " $want " "$log" | grep -q .; then
+            fail "$label: a curl call lacks '$want': $(cat "$log")"
+        fi
+    done
+    if grep -Fq -- '--retry-all-errors' "$log"; then
+        fail "$label: --retry-all-errors would retry 401s"
+    fi
+}
+
+spy_log="$TEST_ROOT/main-spy.log"
+run_main_spy "$spy_log" || fail "_main spy run (defaults) failed"
+# Defaults documented as the wall-clock budget: 10s connect, 60s per
+# transfer, 2 retries 1s apart, 180s total retry ceiling.
+assert_every_call "$spy_log" defaults \
+    '--connect-timeout 10' '--max-time 60' '--retry 2' \
+    '--retry-delay 1' '--retry-max-time 180'
+run_main_spy "$spy_log" \
+    GOPRECORDS_CONNECT_TIMEOUT=7 GOPRECORDS_MAX_TIME=11 \
+    GOPRECORDS_CURL_RETRIES=3 GOPRECORDS_CURL_RETRY_DELAY=4 \
+    GOPRECORDS_CURL_RETRY_MAX_TIME=99 \
+    || fail "_main spy run (overrides) failed"
+assert_every_call "$spy_log" overrides \
+    '--connect-timeout 7' '--max-time 11' '--retry 3' \
+    '--retry-delay 4' '--retry-max-time 99'
+# set -e: the first failed upload stops _main with curl's status.
+set +e
+run_main_spy "$spy_log" SPY_RC=22
+spy_fail_rc=$?
+set -e
+[[ "$spy_fail_rc" -eq 22 ]] \
+    || fail "_main after a failed upload: want rc 22, got $spy_fail_rc"
+[[ "$(wc -l <"$spy_log")" -eq 1 ]] \
+    || fail "_main kept uploading after a failure: $(cat "$spy_log")"
 
 # --- Negative _main: missing records file override ---
 set +e
