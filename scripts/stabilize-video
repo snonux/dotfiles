@@ -20,7 +20,9 @@
 # duration/size sanity check (ratios must be positive numbers; non-numeric,
 # empty, N/A, or ≤0 durations fail closed — refuse delete).
 #
-# Delete policy:
+# Delete policy (both paths delete only through _delete_source_if_safe:
+# duration/size sanity, then a path-specific identity recheck right before
+# rm, so the shared rule is coded once):
 #   • Fresh encode in this run: also require the ephemeral pass1 TRF path
 #     still present (presence / defense-in-depth only — not content↔source
 #     binding). Unique keys + _assert_unique_trfs prevent wrong-transform
@@ -241,6 +243,20 @@ _is_positive_number() {
   awk -v n="$v" 'BEGIN { exit !(n > 0) }'
 }
 
+# True when both DELETE_MIN_*_RATIO env values are positive numbers;
+# otherwise prints the refusal for SRC (invalid/empty ratios fail closed).
+_delete_ratios_valid() {
+  local -r src="$1"
+  if ! _is_positive_number "$DELETE_MIN_DUR_RATIO" \
+    || ! _is_positive_number "$DELETE_MIN_SIZE_RATIO"; then
+    echo "stabilize-video: sanity check failed (invalid" \
+      "DELETE_MIN_DUR_RATIO='${DELETE_MIN_DUR_RATIO}' or" \
+      "DELETE_MIN_SIZE_RATIO='${DELETE_MIN_SIZE_RATIO}')" \
+      "for $src — keeping source" >&2
+    return 1
+  fi
+}
+
 # True when out looks sane vs src (duration + size) before deleting source.
 # Fail closed: non-numeric / empty / N/A / ≤0 durations, or invalid/empty
 # DELETE_MIN_*_RATIO env, must refuse delete (never treat as OK).
@@ -250,14 +266,7 @@ _delete_sanity_ok() {
   local -i src_bytes out_bytes
   local src_rc=0 out_rc=0
 
-  if ! _is_positive_number "$DELETE_MIN_DUR_RATIO" \
-    || ! _is_positive_number "$DELETE_MIN_SIZE_RATIO"; then
-    echo "stabilize-video: sanity check failed (invalid" \
-      "DELETE_MIN_DUR_RATIO='${DELETE_MIN_DUR_RATIO}' or" \
-      "DELETE_MIN_SIZE_RATIO='${DELETE_MIN_SIZE_RATIO}')" \
-      "for $src — keeping source" >&2
-    return 1
-  fi
+  _delete_ratios_valid "$src" || return 1
 
   set +e
   src_dur=$(_probe_duration "$src")
@@ -297,26 +306,66 @@ _delete_sanity_ok() {
   return 0
 }
 
-# Pass1 + pass2 + verify (+ optional delete) for sources in nameref $1.
-# Increments nameref integer $2 on verify failures. Returns 1 on pass1/pass2
-# hard failures (caller should exit).
-_encode_verify_delete() {
-  local -n _evd_todo=$1
-  local -n _evd_verify_fail=$2
-  local -A encode_fp=()
-  local src base trf out partial sid cur_fp
-  local fail=0
-  local -i enc_rc probe_rc decode_rc max_jobs
-  local src_h out_h dur
+# Probe duration and full-decode OUT. Prints the duration; returns non-zero
+# when either the probe or the decode fails. Both steps always run, and
+# failures are returned rather than tripping set -e, so callers can still
+# discard a bad final or report it before moving on.
+_verify_out() {
+  local -r out="$1"
+  local dur rc=0
+  dur=$(_probe_duration "$out") || rc=1
+  ffmpeg -v error -i "$out" -f null - >/dev/null 2>&1 || rc=1
+  printf '%s\n' "$dur"
+  return "$rc"
+}
 
-  [[ ${#_evd_todo[@]} -gt 0 ]] || return 0
-  _assert_unique_trfs "${_evd_todo[@]}" || return 1
+# Identity check for a fresh encode: source content still equals FP (the
+# fingerprint taken at encode start).
+_fingerprint_is() {
+  local -r src="$1" fp="$2"
+  [[ "$(_src_fingerprint "$src")" == "$fp" ]]
+}
 
-  max_jobs=$(_pass1_max_jobs)
+# Identity check for inspect-then-delete: OUT is still current for SRC
+# (source not newer, .srcid still matches).
+_out_current_for_source() {
+  ! _out_stale_for_source "$1" "$2"
+}
+
+# The one delete gate shared by both paths: rm SRC only after the
+# duration/size sanity check of OUT passes and, immediately before rm,
+# the identity command "$@" still succeeds (TOCTOU recheck). Each path
+# passes its own identity check (fresh: _fingerprint_is; inspect:
+# _out_current_for_source) and handles refusals itself.
+# Sets _delete_verdict to deleted, sanity (refused; message already
+# printed) or identity (changed; nothing printed, caller decides keep vs
+# re-encode) and always returns 0. The verdict travels in a variable, not
+# the exit status, so callers run this outside any conditional and the rm
+# keeps the caller's errexit state: off on the fresh path (main runs
+# _encode_verify_delete in a || list), on for inspect-then-delete.
+_delete_verdict=""
+_delete_source_if_safe() {
+  local -r src="$1" out="$2"
+  shift 2
+  _delete_verdict=sanity
+  _delete_sanity_ok "$src" "$out" || return 0
+  _delete_verdict=identity
+  "$@" || return 0
+  rm -f -- "$src"
+  _delete_verdict=deleted
+  echo "    deleted source: $src"
+}
+
+# Pass 1 for all sources: throttled parallel motion detection.
+# Returns 1 when any job failed.
+_run_pass1() {
+  local src base trf pid
+  local -i fail=0 max_jobs
   local -a pass1_pids=()
+  max_jobs=$(_pass1_max_jobs)
   echo ""
   echo "==> Pass 1: motion detection (up to ${max_jobs} parallel)"
-  for src in "${_evd_todo[@]}"; do
+  for src in "$@"; do
     # Cap CPU/RAM: wait -n frees a slot before launching the next _pass1.
     # Do not tally failures here — jobs -rp misses finished-but-unreaped
     # children; the pid loop below reaps every job exactly once.
@@ -333,7 +382,6 @@ _encode_verify_delete() {
     ) &
     pass1_pids+=("$!")
   done
-  local pid
   for pid in "${pass1_pids[@]}"; do
     wait "$pid" || ((++fail))
   done
@@ -341,16 +389,27 @@ _encode_verify_delete() {
     echo "stabilize-video: pass 1 failed for $fail clip(s)" >&2
     return 1
   fi
+}
 
+# Pass 2 for sources in nameref $1: serial encode via .partial + rename.
+# Records each source's encode-start fingerprint in assoc nameref $2.
+# Returns 1 on the first encode failure (caller should exit).
+_run_pass2() {
+  local -n _p2_todo=$1
+  local -n _p2_fp=$2
+  local src base trf out partial
+  local -i enc_rc
   echo ""
   echo "==> Pass 2: stabilize + encode ($(_vaapi_label))"
-  for src in "${_evd_todo[@]}"; do
+  for src in "${_p2_todo[@]}"; do
     base=$(_base "$src")
     trf=$(_trf_for "$src")
     out=$(_outfor "$src")
     partial=$(_partial_for "$out")
     # Fingerprint at encode start — .srcid binds to this identity.
-    encode_fp[$src]=$(_src_fingerprint "$src")
+    # _p2_fp is an assoc array via nameref; shellcheck cannot see that.
+    # shellcheck disable=SC2004
+    _p2_fp[$src]=$(_src_fingerprint "$src")
     echo "  [P2] $src -> $out"
     rm -f -- "$partial"
     set +e
@@ -366,71 +425,93 @@ _encode_verify_delete() {
     fi
     mv -f -- "$partial" "$out"
   done
+}
+
+# Verify one fresh encode of SRC (encode-start fingerprint FP) and, with
+# --delete-source, delete the master through _delete_source_if_safe.
+# Increments nameref integer $3 on decode errors. Fresh-encode gates, in
+# order: decode OK, source unchanged since encode start, live pass1 TRF
+# present; only then is .srcid written. Always returns 0. Runs with
+# errexit off, as before the split: main calls _encode_verify_delete in a
+# || list.
+_verify_fresh() {
+  local -r src="$1" fp="$2"
+  local -n _vf_fail=$3
+  local base out trf sid src_h out_h dur
+  base=$(_base "$src")
+  out=$(_outfor "$src")
+  trf=$(_trf_for "$src")
+  sid=$(_srcid_for "$out")
+  src_h=$(du -h "$src" | cut -f1)
+  out_h=$(du -h "$out" | cut -f1)
+  if ! dur=$(_verify_out "$out"); then
+    printf '  %-28s %s -> %s  DECODE ERROR\n' "$base" "$src_h" "$out_h" >&2
+    rm -f -- "$out" "$sid"
+    ((++_vf_fail))
+    return 0
+  fi
+  # Fingerprint-only mid-encode change detect: do not use [[ -nt ]] here
+  # — a replaced master is often intentionally newer than the new out.
+  # Do not write .srcid until TRF gate passes (else a missing-TRF keep
+  # would enable a later inspect-then-delete that skips the TRF check).
+  if ! _fingerprint_is "$src" "$fp"; then
+    rm -f -- "$sid"
+    printf '  %-28s %s -> %s  (%ss, decode OK; source changed — keeping source)\n' \
+      "$base" "$src_h" "$out_h" "$dur" >&2
+    return 0
+  fi
+  if [[ ! -f "$trf" ]]; then
+    # Presence check only (defense-in-depth): TRF path gone after a
+    # decode-OK output — do not claim content↔source binding here.
+    # Drop any leftover sidecar so a later --delete-source cannot
+    # inspect-delete without a fresh encode + live TRF.
+    rm -f -- "$sid"
+    printf '  %-28s %s -> %s  (%ss, decode OK; missing TRF — keeping source)\n' \
+      "$base" "$src_h" "$out_h" "$dur" >&2
+    return 0
+  fi
+  # Sidecar binds out to encode-start identity only after TRF OK.
+  printf '%s\n' "$fp" >"$sid"
+  printf '  %-28s %s -> %s  (%ss, decode OK)\n' "$base" "$src_h" "$out_h" "$dur"
+  _fresh_delete_or_keep "$src" "$out" "$fp"
+}
+
+# Last step of a verified fresh encode: keep SRC by default; with
+# --delete-source go through _delete_source_if_safe, rechecking the
+# encode-start fingerprint FP right before rm. A changed source is kept
+# (no re-encode: the out already matches what was encoded). Returns 0.
+_fresh_delete_or_keep() {
+  local -r src="$1" out="$2" fp="$3"
+  if [[ "$DELETE_SOURCE" != yes ]]; then
+    echo "    keeping source (default; pass --delete-source to remove)"
+    return 0
+  fi
+  _delete_source_if_safe "$src" "$out" _fingerprint_is "$src" "$fp"
+  if [[ "$_delete_verdict" == identity ]]; then
+    echo "    refuse delete (TOCTOU: source changed) — keeping: $src"
+  fi
+  return 0
+}
+
+# Pass1 + pass2 + verify (+ optional delete) for sources in nameref $1.
+# Increments nameref integer $2 on verify failures. Returns 1 on pass1/pass2
+# hard failures (caller should exit).
+_encode_verify_delete() {
+  local -n _evd_todo=$1
+  local -n _evd_verify_fail=$2
+  local -A encode_fp=()
+  local src
+
+  [[ ${#_evd_todo[@]} -gt 0 ]] || return 0
+  _assert_unique_trfs "${_evd_todo[@]}" || return 1
+  _run_pass1 "${_evd_todo[@]}" || return 1
+  _run_pass2 _evd_todo encode_fp || return 1
 
   # Verify fresh encodes decode cleanly; TRF presence gates delete.
-  # Probe/decode failures must not abort under set -e before we discard
-  # a bad final — otherwise junk remains and callers see false success.
   echo ""
   echo "==> Verify"
   for src in "${_evd_todo[@]}"; do
-    base=$(_base "$src")
-    out=$(_outfor "$src")
-    trf=$(_trf_for "$src")
-    sid=$(_srcid_for "$out")
-    src_h=$(du -h "$src" | cut -f1)
-    out_h=$(du -h "$out" | cut -f1)
-    set +e
-    dur=$(_probe_duration "$out")
-    probe_rc=$?
-    ffmpeg -v error -i "$out" -f null - >/dev/null 2>&1
-    decode_rc=$?
-    set -e
-    if ((probe_rc != 0 || decode_rc != 0)); then
-      printf '  %-28s %s -> %s  DECODE ERROR\n' \
-        "$base" "$src_h" "$out_h" >&2
-      rm -f -- "$out" "$sid"
-      ((++_evd_verify_fail))
-      continue
-    fi
-    # Fingerprint-only mid-encode change detect: do not use [[ -nt ]] here
-    # — a replaced master is often intentionally newer than the new out.
-    # Do not write .srcid until TRF gate passes (else a missing-TRF keep
-    # would enable a later inspect-then-delete that skips the TRF check).
-    cur_fp=$(_src_fingerprint "$src")
-    if [[ "$cur_fp" != "${encode_fp[$src]}" ]]; then
-      rm -f -- "$sid"
-      printf '  %-28s %s -> %s  (%ss, decode OK; source changed — keeping source)\n' \
-        "$base" "$src_h" "$out_h" "$dur" >&2
-      continue
-    fi
-    if [[ ! -f "$trf" ]]; then
-      # Presence check only (defense-in-depth): TRF path gone after a
-      # decode-OK output — do not claim content↔source binding here.
-      # Drop any leftover sidecar so a later --delete-source cannot
-      # inspect-delete without a fresh encode + live TRF.
-      rm -f -- "$sid"
-      printf '  %-28s %s -> %s  (%ss, decode OK; missing TRF — keeping source)\n' \
-        "$base" "$src_h" "$out_h" "$dur" >&2
-      continue
-    fi
-    # Sidecar binds out to encode-start identity only after TRF OK.
-    printf '%s\n' "${encode_fp[$src]}" >"$sid"
-    printf '  %-28s %s -> %s  (%ss, decode OK)\n' \
-      "$base" "$src_h" "$out_h" "$dur"
-    if [[ "$DELETE_SOURCE" != yes ]]; then
-      echo "    keeping source (default; pass --delete-source to remove)"
-      continue
-    fi
-    if ! _delete_sanity_ok "$src" "$out"; then
-      continue
-    fi
-    # Fresh-encode TOCTOU: recheck fingerprint immediately before rm.
-    if [[ "$(_src_fingerprint "$src")" != "${encode_fp[$src]}" ]]; then
-      echo "    refuse delete (TOCTOU: source changed) — keeping: $src"
-      continue
-    fi
-    rm -f -- "$src"
-    echo "    deleted source: $src"
+    _verify_fresh "$src" "${encode_fp[$src]}" _evd_verify_fail
   done
   return 0
 }
@@ -480,6 +561,118 @@ EOF
   done
 }
 
+# Plan one source into todo (nameref $2) or delete_only (nameref $3).
+# Skip only decodable finals with matching .srcid that are not older than
+# their source (unless --delete-source → inspect-then-delete). Stale -nt or
+# identity mismatch → re-encode. Drop stale partials and undecodable
+# leftovers so a failed prior run can retry.
+_plan_one() {
+  local -r src="$1"
+  local -n _po_todo=$2
+  local -n _po_delete_only=$3
+  local out partial sid
+  out=$(_outfor "$src")
+  partial=$(_partial_for "$out")
+  sid=$(_srcid_for "$out")
+  rm -f -- "$partial"
+  if [[ -f "$out" ]]; then
+    if _output_decodes "$out"; then
+      if [[ -f "$src" ]] && _out_stale_for_source "$src" "$out"; then
+        if _source_newer_than_out "$src" "$out"; then
+          echo "  re-encode (source newer than out): $src"
+        else
+          echo "  re-encode (source identity mismatch): $src"
+        fi
+        # Fall through to todo — do not skip or inspect-then-delete.
+      elif [[ "$DELETE_SOURCE" == yes && -f "$src" ]]; then
+        echo "  inspect-then-delete: $out"
+        _po_delete_only+=("$src")
+        return 0
+      else
+        echo "  skip (exists): $out"
+        return 0
+      fi
+    else
+      echo "  discard (undecodable): $out"
+      rm -f -- "$out" "$sid"
+    fi
+  fi
+  _po_todo+=("$src")
+}
+
+# Inspect-then-delete one SRC whose out survived from a prior keep-default
+# run. No live TRF from this run — require decode + duration/size + .srcid
+# via _delete_source_if_safe. Identity changes (before verify or in the
+# TOCTOU recheck right before rm) queue SRC into nameref $2 for a late
+# re-encode; decode errors increment nameref integer $3 and keep both
+# files. Always returns 0: it runs with errexit on (as the inline loop in
+# main did), so a non-zero return would abort the run.
+_inspect_one() {
+  local -r src="$1"
+  local -n _io_late=$2
+  local -n _io_fail=$3
+  local base out src_h out_h dur
+  base=$(_base "$src")
+  out=$(_outfor "$src")
+  if [[ ! -f "$src" ]]; then
+    echo "  skip (source already gone): $src"
+    return 0
+  fi
+  if _out_stale_for_source "$src" "$out"; then
+    echo "  refuse delete (source changed since plan) — queue re-encode: $src"
+    _io_late+=("$src")
+    return 0
+  fi
+  src_h=$(du -h "$src" | cut -f1)
+  out_h=$(du -h "$out" | cut -f1)
+  if ! dur=$(_verify_out "$out"); then
+    printf '  %-28s %s -> %s  DECODE ERROR — keeping source\n' \
+      "$base" "$src_h" "$out_h" >&2
+    # Do not rm a previously skip-worthy final here; only refuse delete.
+    ((++_io_fail))
+    return 0
+  fi
+  printf '  %-28s %s -> %s  (%ss, decode OK; no TRF gate)\n' \
+    "$base" "$src_h" "$out_h" "$dur"
+  # TOCTOU: source may have been replaced during a sibling encode.
+  _delete_source_if_safe "$src" "$out" _out_current_for_source "$src" "$out"
+  if [[ "$_delete_verdict" == identity ]]; then
+    echo "  refuse delete (TOCTOU: source changed) — queue re-encode: $src"
+    _io_late+=("$src")
+  fi
+  return 0
+}
+
+# Inspect-then-delete every source in nameref $1, then late re-encode the
+# ones whose identity changed meanwhile. Decode errors increment nameref
+# integer $2. Exits 1 on a hard encode failure, as main did inline; main
+# calls it outside any conditional so errexit stays on for the per-file
+# steps, unchanged from before the split.
+_inspect_phase() {
+  local -n _ip_delete_only=$1
+  local -n _ip_fail=$2
+  local -a late_todo=()
+  local src
+  echo ""
+  echo "==> Inspect-then-delete (existing output, --delete-source)"
+  for src in "${_ip_delete_only[@]}"; do
+    _inspect_one "$src" late_todo _ip_fail
+  done
+  if [[ ${#late_todo[@]} -gt 0 ]]; then
+    echo ""
+    echo "==> Late re-encode (source changed during inspect-then-delete)"
+    _encode_verify_delete late_todo _ip_fail || exit 1
+  fi
+}
+
+# Print the run header (clip count, device, quality, delete mode).
+_print_header() {
+  echo "stabilize-video: ${#_mov_files[@]} clip(s) to process"
+  echo "  device : $VADEVICE"
+  echo "  quality: $QUALITY (vaapi: $_vaapi_ok)"
+  echo "  delete : $DELETE_SOURCE"
+}
+
 main() {
   _parse_cli "$@" || exit 1
   _collect_mov_files "${_cli_paths[@]+"${_cli_paths[@]}"}" || exit 1
@@ -490,121 +683,28 @@ main() {
   fi
 
   _detect_vaapi
+  _print_header
 
-  echo "stabilize-video: ${#_mov_files[@]} clip(s) to process"
-  echo "  device : $VADEVICE"
-  echo "  quality: $QUALITY (vaapi: $_vaapi_ok)"
-  echo "  delete : $DELETE_SOURCE"
-
-  # Build the work list. Skip only decodable finals with matching .srcid
-  # that are not older than their source (unless --delete-source →
-  # inspect-then-delete). Stale -nt or identity mismatch → re-encode.
-  # Drop stale partials and undecodable leftovers so a failed prior run
-  # can retry.
-  local -a todo=()
-  local -a delete_only=()
+  local -a todo=() delete_only=()
+  local -i verify_fail=0
+  local src
   trf_dir=$(mktemp -d -t stabilize-video.XXXXXX)
   trap '[[ -n "$trf_dir" ]] && rm -rf "$trf_dir"' EXIT
 
-  local src out partial sid
   for src in "${_mov_files[@]}"; do
-    out=$(_outfor "$src")
-    partial=$(_partial_for "$out")
-    sid=$(_srcid_for "$out")
-    rm -f -- "$partial"
-    if [[ -f "$out" ]]; then
-      if _output_decodes "$out"; then
-        if [[ -f "$src" ]] && _out_stale_for_source "$src" "$out"; then
-          if _source_newer_than_out "$src" "$out"; then
-            echo "  re-encode (source newer than out): $src"
-          else
-            echo "  re-encode (source identity mismatch): $src"
-          fi
-          # Fall through to todo — do not skip or inspect-then-delete.
-        elif [[ "$DELETE_SOURCE" == yes && -f "$src" ]]; then
-          echo "  inspect-then-delete: $out"
-          delete_only+=("$src")
-          continue
-        else
-          echo "  skip (exists): $out"
-          continue
-        fi
-      else
-        echo "  discard (undecodable): $out"
-        rm -f -- "$out" "$sid"
-      fi
-    fi
-    todo+=("$src")
+    _plan_one "$src" todo delete_only
   done
-
   if [[ ${#todo[@]} -eq 0 && ${#delete_only[@]} -eq 0 ]]; then
     echo "stabilize-video: nothing to do (all outputs present)" >&2
     exit 0
   fi
 
-  local -i verify_fail=0
-  local -a late_todo=()
-
   if [[ ${#todo[@]} -gt 0 ]]; then
     _encode_verify_delete todo verify_fail || exit 1
   fi
 
-  # Inspect-then-delete: prior keep-default left a good out + source.
-  # No live TRF from this run — require decode + duration/size + .srcid.
-  # TOCTOU: recheck stale/identity immediately before rm; queue re-encode.
   if [[ ${#delete_only[@]} -gt 0 ]]; then
-    echo ""
-    echo "==> Inspect-then-delete (existing output, --delete-source)"
-    local base src_h out_h dur
-    local -i probe_rc decode_rc
-    for src in "${delete_only[@]}"; do
-      base=$(_base "$src")
-      out=$(_outfor "$src")
-      if [[ ! -f "$src" ]]; then
-        echo "  skip (source already gone): $src"
-        continue
-      fi
-      if _out_stale_for_source "$src" "$out"; then
-        echo "  refuse delete (source changed since plan) — queue re-encode: $src"
-        late_todo+=("$src")
-        continue
-      fi
-      src_h=$(du -h "$src" | cut -f1)
-      out_h=$(du -h "$out" | cut -f1)
-      set +e
-      dur=$(_probe_duration "$out")
-      probe_rc=$?
-      ffmpeg -v error -i "$out" -f null - >/dev/null 2>&1
-      decode_rc=$?
-      set -e
-      if ((probe_rc != 0 || decode_rc != 0)); then
-        printf '  %-28s %s -> %s  DECODE ERROR — keeping source\n' \
-          "$base" "$src_h" "$out_h" >&2
-        # Do not rm a previously skip-worthy final here; only refuse delete.
-        ((++verify_fail))
-        continue
-      fi
-      printf '  %-28s %s -> %s  (%ss, decode OK; no TRF gate)\n' \
-        "$base" "$src_h" "$out_h" "$dur"
-      if ! _delete_sanity_ok "$src" "$out"; then
-        continue
-      fi
-      # TOCTOU: source may have been replaced during a sibling encode.
-      if _out_stale_for_source "$src" "$out"; then
-        echo "  refuse delete (TOCTOU: source changed) — queue re-encode: $src"
-        late_todo+=("$src")
-        continue
-      fi
-      rm -f -- "$src"
-      echo "    deleted source: $src"
-    done
-  fi
-
-  if [[ ${#late_todo[@]} -gt 0 ]]; then
-    echo ""
-    echo "==> Late re-encode (source changed during inspect-then-delete)"
-    todo=("${late_todo[@]}")
-    _encode_verify_delete todo verify_fail || exit 1
+    _inspect_phase delete_only verify_fail
   fi
 
   echo ""
