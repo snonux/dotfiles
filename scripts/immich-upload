@@ -191,9 +191,14 @@ upload_file() {
 
     info "Uploading: $filename"
 
+    # tmpfile is removed explicitly at the end of this function. No RETURN
+    # trap: one set inside a function stays set and fires again when the
+    # caller (main, bulk_upload) returns, where the local tmpfile is gone,
+    # so set -u aborted with "tmpfile: unbound variable" (exit 1). Every
+    # path through here reaches that rm (curl failure is caught; set -e
+    # exits the shell, which a RETURN trap would not have covered anyway).
     local tmpfile form_asset
     tmpfile=$(mktemp)
-    trap 'rm -f "$tmpfile"' RETURN
 
     # Quoted @path + disposition filename= for curl multipart parsing;
     # also send Immich DTO filename via --form-string (quote-safe).
@@ -335,7 +340,11 @@ main() {
         # Directory: collect image files recursively
         local files_list
         files_list=$(mktemp)
-        trap 'rm -f "$files_list"' EXIT
+        # Expand the path now: the EXIT trap fires after main has returned,
+        # when the local files_list no longer exists and set -u would abort
+        # with "files_list: unbound variable" (exit 1).
+        # shellcheck disable=SC2064 # early expansion is intended
+        trap "rm -f ${files_list@Q}" EXIT
 
         info "Scanning directory: $src"
         find "$src" -type f -regextype posix-extended -iregex ".*$IMAGE_EXTENSIONS" -print > "$files_list"

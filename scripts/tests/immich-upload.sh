@@ -314,4 +314,57 @@ if _duplicate_ids_from_response "$resp_noid" >/dev/null 2>&1; then
     fail "duplicate result missing id was accepted"
 fi
 
+# --- Entry point (eg4): main must exit 0 after a successful upload ---
+# A RETURN trap set inside upload_file used to fire again when its caller
+# (main, or bulk_upload) returned; tmpfile is local to upload_file, so under
+# set -u that second firing aborted with "tmpfile: unbound variable" (rc 1).
+# Run main in a child bash with a fake curl first on PATH (never the real
+# server) and stub out the API-key load and URL detection.
+fake_bin="$TEST_ROOT/fake-bin"
+mkdir -p "$fake_bin"
+cat >"$fake_bin/curl" <<'SH'
+#!/usr/bin/env bash
+# Fake curl: bulk-upload-check reports no duplicates; /api/assets answers 201.
+out=""
+url=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -o) out="$2"; shift 2 ;;
+        *) url="$1"; shift ;;
+    esac
+done
+case "$url" in
+    */api/assets/bulk-upload-check) printf '%s\n' '{"results":[]}' ;;
+    */api/assets)
+        [[ -n "$out" ]] && printf '%s\n' '{"status":"created"}' >"$out"
+        printf '201'
+        ;;
+    *) exit 7 ;;
+esac
+SH
+chmod +x "$fake_bin/curl"
+upload_src="$TEST_ROOT/upload-src"
+mkdir -p "$upload_src"
+printf 'entry-point-bytes\n' >"$upload_src/photo.jpg"
+
+# run_main TARGET STDERR_FILE — run immich-upload's main on TARGET.
+run_main() {
+    # shellcheck disable=SC2016 # $1/$2 expand in the child bash
+    PATH="$fake_bin:$PATH" bash -c '
+source "$1"
+_account_api_key() { echo fake-key; }
+detect_immich_url() { IMMICH_URL=http://immich.invalid; }
+main "$2"
+' _ "$IMMICH_UPLOAD" "$1" >/dev/null 2>"$2"
+}
+
+for target in "$upload_src/photo.jpg" "$upload_src"; do
+    err_file="$TEST_ROOT/main.stderr"
+    run_main "$target" "$err_file" \
+        || fail "main ${target@Q} exited non-zero: $(<"$err_file")"
+    if grep -q 'unbound variable' "$err_file"; then
+        fail "main ${target@Q} hit unbound variable: $(<"$err_file")"
+    fi
+done
+
 printf 'immich-upload test: ok\n'
