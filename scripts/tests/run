@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+# Single entry point for the scripts/ test suite (task mg4).
+#
+# Runs, one line per check:
+#   * every scripts/tests/*.sh (with bash) and scripts/tests/*.rb (with ruby),
+#   * the sandboxed end-to-end harnesses listed in SANDBOXED_E2E,
+#   * shellcheck -x over every Bash/sh script under scripts/ (top level,
+#     lib/, quicklog/, tests/). Optional checks such as
+#     check-set-e-suppressed come from scripts/.shellcheckrc, so linting
+#     one file by hand applies the same rules.
+# Then prints a summary and exits 1 if any check failed, 0 otherwise.
+#
+# Before this runner each test shellchecked only its own target, so scripts
+# without a test (audit-due, screenshot, ...) were never linted at all.
+#
+# Production-touching suites are excluded on purpose: quicklog-drain-e2e and
+# quicklog/e2e/run default to "all", which includes the live-s3 phases that
+# use the production Garage bucket and the drain timer. Only the
+# protocol-fake entry (no S3) runs here.
+#
+# Usage: scripts/tests/run [SCRIPTS_DIR]
+#   SCRIPTS_DIR defaults to the scripts/ directory that holds this runner.
+#   tests/runner.sh passes a temporary tree to check the runner itself.
+#   Set RUN_VERBOSE=1 to print the full log of failing checks instead of
+#   the last 20 lines.
+set -euo pipefail
+
+# Relative to SCRIPTS_DIR. A missing entry counts as a failure, so renaming
+# a harness cannot silently drop it from the suite.
+declare -ra SANDBOXED_E2E=(
+    dedup-e2e
+    stabilize-video-e2e
+    taskwarrior-export-e2e
+    quicklog/e2e/protocol-fake
+)
+
+declare -i PASSED=0
+declare -i FAILED=0
+declare -a FAILED_NAMES=()
+LOG_DIR=''
+
+cleanup() {
+    [[ -n "$LOG_DIR" ]] && rm -rf "$LOG_DIR"
+    return 0
+}
+
+# Run one check with its output captured; print PASS/FAIL and, on failure,
+# the tail of the log. The command is always an external program, so set -e
+# suppression inside "if" does not hide anything here.
+run_check() {
+    local -r name="$1"
+    shift
+    local -r log="${LOG_DIR}/check.log"
+    if "$@" >"$log" 2>&1; then
+        PASSED+=1
+        printf 'PASS  %s\n' "$name"
+        return 0
+    fi
+    FAILED+=1
+    FAILED_NAMES+=("$name")
+    printf 'FAIL  %s\n' "$name"
+    if [[ "${RUN_VERBOSE:-0}" == 1 ]]; then
+        sed 's/^/      | /' "$log"
+    else
+        tail -n 20 "$log" | sed 's/^/      | /'
+    fi
+}
+
+# True for files shellcheck should lint: a bash/sh shebang, or a .sh name
+# (sourced libraries carry a "# shellcheck shell=bash" directive instead).
+is_shell_script() {
+    local -r file="$1"
+    local first_line
+    [[ "$file" == *.sh ]] && return 0
+    first_line="$(head -n 1 "$file")"
+    [[ "$first_line" =~ ^\#!.*(bash|/sh|env\ sh)([[:space:]]|$) ]]
+}
+
+# Print every shell script below SCRIPTS_DIR, relative to REPO_ROOT, sorted.
+list_shell_scripts() {
+    local file rel
+    while IFS= read -r -d '' file; do
+        rel="${file#"$REPO_ROOT"/}"
+        # shellcheck disable=SC2310 # pure predicate: a failure means "skip"
+        if is_shell_script "$file"; then
+            printf '%s\n' "$rel"
+        fi
+    # Prune hidden names below SCRIPTS_DIR only: a "-path '*/.*'" filter
+    # would also match the checkout path (.claude/worktrees/...) and
+    # silently lint nothing.
+    done < <(find "$SCRIPTS_DIR" -mindepth 1 -name '.*' -prune \
+        -o -type f -print0 | sort -z)
+}
+
+run_unit_tests() {
+    local file
+    for file in "$SCRIPTS_DIR"/tests/*.sh; do
+        [[ -e "$file" ]] || continue
+        run_check "test  ${file#"$REPO_ROOT"/}" bash "$file"
+    done
+    for file in "$SCRIPTS_DIR"/tests/*.rb; do
+        [[ -e "$file" ]] || continue
+        run_check "test  ${file#"$REPO_ROOT"/}" ruby "$file"
+    done
+}
+
+run_e2e_tests() {
+    local entry
+    for entry in "${SANDBOXED_E2E[@]}"; do
+        if [[ ! -f "$SCRIPTS_DIR/$entry" ]]; then
+            run_check "e2e   ${entry} (missing)" false
+            continue
+        fi
+        run_check "e2e   ${SCRIPTS_DIR#"$REPO_ROOT"/}/$entry" \
+            bash "$SCRIPTS_DIR/$entry"
+    done
+}
+
+run_shellcheck() {
+    local rel
+    local -a scripts=()
+    mapfile -t scripts < <(list_shell_scripts)
+    # An empty list means discovery broke, not that all is clean.
+    if (( ${#scripts[@]} == 0 )); then
+        run_check 'lint  (no shell scripts found)' false
+    fi
+    for rel in "${scripts[@]}"; do
+        run_check "lint  ${rel}" shellcheck -x "$rel"
+    done
+}
+
+main() {
+    SCRIPTS_DIR="$(cd "${1:-"$(dirname "${BASH_SOURCE[0]}")/.."}" && pwd)"
+    REPO_ROOT="$(dirname "$SCRIPTS_DIR")"
+    declare -gr SCRIPTS_DIR REPO_ROOT
+    LOG_DIR="$(mktemp -d)"
+    trap cleanup EXIT
+    # The scripts' "source=" lint directives are relative to the repo root.
+    cd "$REPO_ROOT"
+
+    run_unit_tests
+    run_e2e_tests
+    run_shellcheck
+
+    printf '\n%d passed, %d failed\n' "$PASSED" "$FAILED"
+    if (( FAILED > 0 )); then
+        printf 'failed: %s\n' "${FAILED_NAMES[@]}"
+        return 1
+    fi
+}
+
+main "$@"

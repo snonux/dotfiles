@@ -57,13 +57,20 @@ env -C "$REPO" -i HOME="$REAL_HOME" PATH="$CHILD_PATH" \
 assert_rc "parsed, fails on missing creds: --import --only 'a, b'" 1 "$rc"
 
 if systemctl --user is-active --quiet quicklog-drain.timer; then
+  # shellcheck disable=SC2034 # read by live-s3.sh and common.sh (sourced)
   TIMER_WAS_ACTIVE=true
   echo "quicklog-drain.timer is active — it will be stopped for the test"
 fi
 
+# The *_BEFORE fingerprints are compared in isolation.sh, which run sources
+# after this file, so shellcheck cannot see the reads.
+# shellcheck disable=SC2034
 REAL_DB_BEFORE=$(real_db_fingerprint)
+# shellcheck disable=SC2034
 REAL_DB_SEM_BEFORE=$(real_db_semantics)
+# shellcheck disable=SC2034
 REAL_NOTES_BEFORE=$(real_notes_fingerprint)
+# shellcheck disable=SC2034
 REAL_STAMP_BEFORE=$(real_due_stamp_fingerprint)
 BUCKET_BEFORE=$(bucket_keys | sort)
 

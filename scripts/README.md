@@ -2,6 +2,11 @@
 
 Mostly quick-n-dirty ones!
 
+`tests/run` runs the whole suite: every `tests/*.sh` and `tests/*.rb`, the
+sandboxed e2e harnesses, and `shellcheck -x` over every Bash script. It
+prints one line per check and exits non-zero if any fails. The live-S3
+quicklog e2e touches production and is never run by it.
+
 `ai-usage` prints a coloured terminal summary of subscription usage for
 both the signed-in ChatGPT account's Codex rate limits and the signed-in
 Claude Code subscription (5-hour and 7-day windows). Use `--format json` for

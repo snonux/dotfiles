@@ -52,6 +52,7 @@ TS_MAIN=1790000000
 TS_MISSING=1790000001
 TS_COLLISION=1790000002
 
+# shellcheck disable=SC2329 # invoked by the EXIT trap below
 cleanup() {
   [[ -n "$SAN" && -d "$SAN" ]] && rm -rf "$SAN"
 }
@@ -102,6 +103,7 @@ chmod +x "$SAN/binA/hostname" "$SAN/binB/hostname"
 # Fake `task` for the empty-export phase: count says 1, export writes nothing
 # and exits 0, delete must never run (marker file stays absent).
 FAKE_TASK_MARKER="$SAN/fake-task-delete-marker"
+# shellcheck disable=SC2016 # $* expands in the fake, not here
 printf '#!/bin/sh\ncase "$*" in\n  *count*) echo 1 ;;\n  *export*) exit 0 ;;\n  *delete*) : >"$FAKE_TASK_MARKER" ;;\nesac\nexit 0\n' \
   >"$SAN/bin/task"
 chmod +x "$SAN/bin/task"
@@ -124,7 +126,7 @@ say "phase 1: export success path"
 
 tw "$SAN/home" "$SAN/taskdata" add "e2e pending alpha" +e2e >/dev/null
 tw "$SAN/home" "$SAN/taskdata" add "e2e completed alpha" +e2e >/dev/null
-tw "$SAN/home" "$SAN/taskdata" rc.confirmation=off '/e2e completed alpha/' done >/dev/null
+tw "$SAN/home" "$SAN/taskdata" rc.confirmation=off '/e2e completed alpha/' 'done' >/dev/null
 assert_eq "one pending +e2e task staged" \
   "$(tw "$SAN/home" "$SAN/taskdata" +e2e status:pending count)" 1
 assert_eq "one completed +e2e task staged" \

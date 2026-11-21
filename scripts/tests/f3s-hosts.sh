@@ -88,6 +88,7 @@ code_match "$WOL_F3S" 'F0_IP="\$\{F3S_HOST_IP\[f0\]\}"' \
 # pihole must use inventory DNS string, not a private literal list.
 code_match "$PIHOLE" '^PIHOLE_DNS="192\.168\.1\.' \
     && fail "pihole-dns-toggle still hardcodes PIHOLE_DNS literals"
+# shellcheck disable=SC2016 # literal $ in the regex, not an expansion
 code_match "$PIHOLE" 'PIHOLE_DNS="\$F3S_PIHOLE_DNS"' \
     || fail "pihole-dns-toggle must set PIHOLE_DNS from F3S_PIHOLE_DNS"
 

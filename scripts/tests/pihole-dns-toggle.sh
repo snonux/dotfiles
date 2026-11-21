@@ -49,6 +49,7 @@ fi
 # Prefer direct greps (avoid pipefail+SIGPIPE from grep -q early-close).
 grep -Eq '^[[:space:]]*source[[:space:]].*lib/f3s-hosts\.sh' "$TARGET" \
     || fail "must source lib/f3s-hosts.sh"
+# shellcheck disable=SC2016 # literal $ in the regex, not an expansion
 grep -Eq '^PIHOLE_DNS="\$F3S_PIHOLE_DNS"' "$TARGET" \
     || fail "PIHOLE_DNS must be set from F3S_PIHOLE_DNS"
 if grep -Eq '^PIHOLE_DNS="192\.168\.1\.' "$TARGET"; then

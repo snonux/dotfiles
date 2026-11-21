@@ -142,6 +142,7 @@ grep -q 'ql_e2e::write_dummy_creds' "$E2E_DIR/common.sh" \
 # Cross-phase wipe lives in run orchestration, not parser-local.
 grep -q 'ql_e2e::reset_sandbox_taskdata' "$E2E_DIR/run" \
     || die "run missing reset_sandbox_taskdata orchestration"
+# shellcheck disable=SC2016 # literal $ in the regex, not an expansion
 if grep -qE 'rm -rf "\$SAN/taskdata"' "$E2E_DIR/parser-local.sh"; then
     die "parser-local still wipes sandbox taskdata (belongs in run)"
 fi
