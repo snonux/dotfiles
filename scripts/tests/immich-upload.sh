@@ -324,7 +324,10 @@ fake_bin="$TEST_ROOT/fake-bin"
 mkdir -p "$fake_bin"
 cat >"$fake_bin/curl" <<'SH'
 #!/usr/bin/env bash
-# Fake curl: bulk-upload-check reports no duplicates; /api/assets answers 201.
+# Fake curl: bulk-upload-check reports no duplicates; /api/assets answers
+# with the HTTP code in FAKE_UPLOAD_CODE (default 201), or fails like a
+# connection error (exit 7, no output) when FAKE_UPLOAD_CODE=curl-error.
+code="${FAKE_UPLOAD_CODE:-201}"
 out=""
 url=""
 while [[ $# -gt 0 ]]; do
@@ -336,8 +339,9 @@ done
 case "$url" in
     */api/assets/bulk-upload-check) printf '%s\n' '{"results":[]}' ;;
     */api/assets)
-        [[ -n "$out" ]] && printf '%s\n' '{"status":"created"}' >"$out"
-        printf '201'
+        [[ "$code" == curl-error ]] && exit 7
+        [[ -n "$out" ]] && printf '%s\n' '{"status":"fake"}' >"$out"
+        printf '%s' "$code"
         ;;
     *) exit 7 ;;
 esac
@@ -365,6 +369,25 @@ for target in "$upload_src/photo.jpg" "$upload_src"; do
     if grep -q 'unbound variable' "$err_file"; then
         fail "main ${target@Q} hit unbound variable: $(<"$err_file")"
     fi
+done
+
+# --- Entry point (fg4): failed uploads must make main exit non-zero ---
+# upload_file used to only warn on a curl error or a non-2xx reply and
+# return 0, so a run where every upload failed still exited 0.
+for target in "$upload_src/photo.jpg" "$upload_src"; do
+    for code in 200 201; do
+        err_file="$TEST_ROOT/main.stderr"
+        FAKE_UPLOAD_CODE=$code run_main "$target" "$err_file" \
+            || fail "main ${target@Q} (HTTP $code) exited non-zero: $(<"$err_file")"
+    done
+    for code in 500 curl-error; do
+        err_file="$TEST_ROOT/main.stderr"
+        if FAKE_UPLOAD_CODE=$code run_main "$target" "$err_file"; then
+            fail "main ${target@Q} (${code}) exited 0 although the upload failed"
+        fi
+        grep -q '1 upload(s) failed' "$err_file" \
+            || fail "main ${target@Q} (${code}) printed no failure count: $(<"$err_file")"
+    done
 done
 
 printf 'immich-upload test: ok\n'

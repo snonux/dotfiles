@@ -5,6 +5,8 @@
 # If <file_or_directory> is a single file, upload just that file.
 # If it is a directory, recursively find all image files and upload them.
 # Duplicates are detected via the bulk-upload-check API before uploading.
+# Exits non-zero, after a summary naming the failed count, when any upload
+# fails (curl error or an HTTP reply other than 200/201).
 
 set -euo pipefail
 
@@ -174,6 +176,10 @@ for item in results:
 # Upload a single file
 # ------------------------------------------------------------------
 
+# Returns 0 when the server answers 201 (uploaded) or 200 (duplicate) and
+# 1 on a curl error or any other HTTP code, so callers can count failures.
+# Callers run it as `upload_file ... || ...`, which turns set -e off inside
+# this function; steps that used to rely on set -e check their status here.
 upload_file() {
     local file="$1"
     local api_key="$2"
@@ -181,7 +187,10 @@ upload_file() {
     local filename
     filename=$(basename "$file")
     local checksum
-    checksum=$(file_sha1 "$file")
+    checksum=$(file_sha1 "$file") || {
+        warn "  Failed to checksum: $filename"
+        return 1
+    }
 
     local fileCreatedAt fileModifiedAt
     local timestamps
@@ -195,10 +204,12 @@ upload_file() {
     # trap: one set inside a function stays set and fires again when the
     # caller (main, bulk_upload) returns, where the local tmpfile is gone,
     # so set -u aborted with "tmpfile: unbound variable" (exit 1). Every
-    # path through here reaches that rm (curl failure is caught; set -e
-    # exits the shell, which a RETURN trap would not have covered anyway).
+    # path after mktemp reaches that rm (curl failure is caught).
     local tmpfile form_asset
-    tmpfile=$(mktemp)
+    tmpfile=$(mktemp) || {
+        warn "  mktemp failed for: $filename"
+        return 1
+    }
 
     # Quoted @path + disposition filename= for curl multipart parsing;
     # also send Immich DTO filename via --form-string (quote-safe).
@@ -210,7 +221,7 @@ upload_file() {
     # correct and future-proof. Duplicate detection is done server-side via the
     # x-immich-checksum header (and the bulk-upload-check pre-pass), which
     # returns HTTP 200 {"status":"duplicate"} instead of 201 {"status":"created"}.
-    local http_code
+    local http_code rc=0
     http_code=$(curl_immich "$CURL_DOWNLOAD_TIMEOUT" -s -o "$tmpfile" \
         -w '%{http_code}' -X POST \
         -H "x-api-key: $api_key" \
@@ -227,12 +238,15 @@ upload_file() {
         info "  Uploaded: $filename"
     elif [[ "$http_code" == "000" ]]; then
         warn "  Failed to upload: $filename (curl error)"
+        rc=1
     else
         warn "  Unexpected response $http_code for: $filename"
         cat "$tmpfile" >&2 || true
+        rc=1
     fi
 
     rm -f "$tmpfile"
+    return "$rc"
 }
 
 # ------------------------------------------------------------------
@@ -297,15 +311,23 @@ bulk_upload() {
         return
     fi
 
-    # Upload missing files
+    # Upload missing files, counting failures (like immich-export's
+    # download_assets) so a run with failed uploads does not exit 0.
     local n=0
+    local -i failed=0
     while IFS= read -r file; do
         ((n++)) || true
         echo "[$n/$missing_count] $file"
-        upload_file "$file" "$api_key"
+        upload_file "$file" "$api_key" || ((failed++)) || true
     done < "$tmp_missing"
 
     rm -f "$tmp_json" "$tmp_json.json" "$tmp_missing" "$tmp_missing.exists"
+
+    # Dies here rather than returning non-zero: main would have to call
+    # bulk_upload in a `||` context, which turns set -e off inside it.
+    if ((failed > 0)); then
+        die "$failed upload(s) failed (of $missing_count attempted)"
+    fi
 }
 
 # ------------------------------------------------------------------
@@ -335,7 +357,7 @@ main() {
     if [[ -f "$src" ]]; then
         # Single file upload
         info "Uploading single file: $src"
-        upload_file "$src" "$api_key"
+        upload_file "$src" "$api_key" || die "1 upload(s) failed (of 1 attempted)"
     elif [[ -d "$src" ]]; then
         # Directory: collect image files recursively
         local files_list
