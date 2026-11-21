@@ -132,7 +132,30 @@ test_shellcheck_finding() {
     assert_out 'SC2086' 'shellcheck finding'
 }
 
+# The real scripts/.shellcheckrc must make the runner flag a function
+# called under 'if' (set -e suppressed, SC2310), and the real
+# tests/.shellcheckrc must keep that optional check off for tests.
+test_set_e_suppressed_rc() {
+    local -r t="$TEST_ROOT/rc"
+    # shellcheck disable=SC2016 # the $ belongs to the generated script
+    local -r body='set -euo pipefail
+check() { [[ -n "${1:-}" ]]; }
+if check "$@"; then echo yes; fi'
+    make_tree "$t"
+    cp -- "$SCRIPT_DIR/../.shellcheckrc" "$t/scripts/.shellcheckrc"
+    cp -- "$SCRIPT_DIR/.shellcheckrc" "$t/scripts/tests/.shellcheckrc"
+    write_script "$t/scripts/uses-predicate" "$body"
+    write_script "$t/scripts/tests/uses-predicate.sh" "$body"
+    run_runner "$t"
+    (( RC != 0 )) || fail 'rc: unsuppressed SC2310 site passed:
+'"$OUT"
+    assert_out 'FAIL  lint  scripts/uses-predicate' 'rc'
+    assert_out 'SC2310' 'rc'
+    assert_out 'PASS  lint  scripts/tests/uses-predicate.sh' 'rc'
+}
+
 test_clean_tree_passes
+test_set_e_suppressed_rc
 test_failing_unit_test
 test_failing_ruby_test
 test_missing_e2e

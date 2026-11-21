@@ -1,0 +1,10 @@
+# ShellCheck settings for scripts/tests/ (task mg4).
+#
+# ShellCheck uses the nearest .shellcheckrc only, so this file keeps
+# scripts/.shellcheckrc's check-set-e-suppressed away from the tests. In a
+# test, helpers called under if/||/&& are the assertions themselves and
+# every outcome is checked explicitly; flagging them (about 150 sites)
+# would be noise. The top-level *-e2e harnesses follow the same policy with
+# a file-wide "disable=SC2310" directive.
+#
+# Default checks still apply. Empty on purpose: no optional checks.

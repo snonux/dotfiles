@@ -1,0 +1,10 @@
+# ShellCheck settings for everything under scripts/ (task mg4).
+#
+# The scripts rely on "set -euo pipefail" to stop on failures, but bash
+# ignores set -e inside a function called from if, !, && or ||, and inside
+# $(...) without inherit_errexit. That is how immich-export reported
+# "Export complete" after a failed discovery (dg4). This optional check
+# flags such call sites (SC2310, SC2311). Each one either gets an explicit
+# status check, or an inline "# shellcheck disable=SC2310" with a reason when
+# the function is a pure predicate whose non-zero status is an answer.
+enable=check-set-e-suppressed
