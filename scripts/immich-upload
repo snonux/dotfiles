@@ -184,12 +184,10 @@ for item in results:
 # Callers run it as `upload_file ... || ...`, which turns set -e off inside
 # this function; steps that used to rely on set -e check their status here.
 upload_file() {
-    local file="$1"
-    local api_key="$2"
+    local file="$1" api_key="$2"
+    local filename checksum
     _assert_safe_path "$file"
-    local filename
     filename=$(basename "$file")
-    local checksum
     # Status checked right here (sha1sum | awk under pipefail).
     # shellcheck disable=SC2310
     checksum=$(file_sha1 "$file") || {
@@ -197,8 +195,7 @@ upload_file() {
         return 1
     }
 
-    local fileCreatedAt fileModifiedAt
-    local timestamps
+    local fileCreatedAt fileModifiedAt timestamps
     # Without this check a failed date uploaded empty timestamps.
     # shellcheck disable=SC2310
     timestamps=$(file_timestamps "$file") || {
@@ -215,35 +212,65 @@ upload_file() {
     # caller (main, bulk_upload) returns, where the local tmpfile is gone,
     # so set -u aborted with "tmpfile: unbound variable" (exit 1). Every
     # path after mktemp reaches that rm (curl failure is caught).
-    local tmpfile form_asset
+    local tmpfile
     tmpfile=$(mktemp) || {
         warn "  mktemp failed for: $filename"
         return 1
     }
 
+    local http_code rc=0
+    # _post_asset always succeeds and prints the HTTP code (000 = curl error).
+    # shellcheck disable=SC2311
+    http_code=$(_post_asset "$api_key" "$file" "$filename" "$checksum" \
+        "$fileCreatedAt" "$fileModifiedAt" "$tmpfile")
+    # Explicit status: upload_file runs with set -e off (see above).
+    # shellcheck disable=SC2310
+    _report_upload_reply "$http_code" "$filename" "$tmpfile" || rc=1
+
+    rm -f "$tmpfile"
+    return "$rc"
+}
+
+# _post_asset API_KEY FILE FILENAME CHECKSUM CREATED MODIFIED BODY_FILE —
+# POST one asset to /api/assets, saving the reply body to BODY_FILE, and
+# print the HTTP code on stdout ("000" when curl itself failed). Split out
+# of upload_file, which captures the code with $(...).
+#
+# Immich 3.x dropped the deviceAssetId/deviceId columns (migration
+# DropDeviceIdAndDeviceAssetId). The /api/assets endpoint still tolerates
+# those multipart fields but ignores them, so they are removed here to stay
+# correct and future-proof. Duplicate detection is done server-side via the
+# x-immich-checksum header (and the bulk-upload-check pre-pass), which
+# returns HTTP 200 {"status":"duplicate"} instead of 201 {"status":"created"}.
+_post_asset() {
+    local -r api_key="$1" file="$2" filename="$3" checksum="$4"
+    local -r created="$5" modified="$6" body_file="$7"
+    local form_asset http_code
+
     # Quoted @path + disposition filename= for curl multipart parsing;
     # also send Immich DTO filename via --form-string (quote-safe).
     form_asset=$(_curl_form_file_field assetData "$file" "$filename")
 
-    # Immich 3.x dropped the deviceAssetId/deviceId columns (migration
-    # DropDeviceIdAndDeviceAssetId). The /api/assets endpoint still tolerates
-    # those multipart fields but ignores them, so they are removed here to stay
-    # correct and future-proof. Duplicate detection is done server-side via the
-    # x-immich-checksum header (and the bulk-upload-check pre-pass), which
-    # returns HTTP 200 {"status":"duplicate"} instead of 201 {"status":"created"}.
-    local http_code rc=0
     # curl_immich_key keeps the API key off curl's argv (see lib); the
     # multipart body comes from -F/--form-string, so curl's stdin is free.
-    # Its status is curl's and is handled below (000 = curl error).
+    # Its status is curl's and is handled right here (000 = curl error).
     # shellcheck disable=SC2310
     http_code=$(curl_immich_key "$CURL_DOWNLOAD_TIMEOUT" "$api_key" \
-        -s -o "$tmpfile" -w '%{http_code}' -X POST \
+        -s -o "$body_file" -w '%{http_code}' -X POST \
         -H "x-immich-checksum: $checksum" \
         -F "$form_asset" \
         --form-string "filename=$filename" \
-        --form-string "fileCreatedAt=$fileCreatedAt" \
-        --form-string "fileModifiedAt=$fileModifiedAt" \
+        --form-string "fileCreatedAt=$created" \
+        --form-string "fileModifiedAt=$modified" \
         "$IMMICH_URL/api/assets" 2>/dev/null) || { http_code="000"; }
+    printf '%s\n' "$http_code"
+}
+
+# _report_upload_reply HTTP_CODE FILENAME BODY_FILE — log the outcome of
+# one upload. Returns 0 for 200 (duplicate) and 201 (uploaded), 1 for a
+# curl error (000) or any other code, whose reply body goes to stderr.
+_report_upload_reply() {
+    local -r http_code="$1" filename="$2" body_file="$3"
 
     if [[ "$http_code" == "200" ]]; then
         info "  Skipped (duplicate): $filename"
@@ -251,20 +278,79 @@ upload_file() {
         info "  Uploaded: $filename"
     elif [[ "$http_code" == "000" ]]; then
         warn "  Failed to upload: $filename (curl error)"
-        rc=1
+        return 1
     else
         warn "  Unexpected response $http_code for: $filename"
-        cat "$tmpfile" >&2 || true
-        rc=1
+        cat "$body_file" >&2 || true
+        return 1
     fi
-
-    rm -f "$tmpfile"
-    return "$rc"
 }
 
 # ------------------------------------------------------------------
 # Bulk upload with duplicate checking
 # ------------------------------------------------------------------
+#
+# bulk_upload runs with set -e on (main calls it plainly) and calls the
+# three helpers below plainly too, so a failed sha1sum, JSON build or
+# duplicate check still stops the run exactly as when they were inline.
+
+# _checksum_records FILES_LIST OUT — append "sha1<TAB>path" for every path
+# in FILES_LIST to OUT. Dies on a path with newline/tab.
+_checksum_records() {
+    local -r files_list="$1" out="$2"
+    local checksum
+    # 'file' stays a global, as it was in bulk_upload's loop.
+    while IFS= read -r file; do
+        _assert_safe_path "$file"
+        checksum=$(file_sha1 "$file")
+        printf '%s\t%s\n' "$checksum" "$file" >> "$out"
+    done < "$files_list"
+}
+
+# _fetch_duplicate_ids API_KEY RECORDS OUT — ask bulk-upload-check which of
+# the checksum<TAB>path RECORDS the server already has and write their
+# paths (the ids we sent), one per line, to OUT. Writes the request body to
+# RECORDS.json, which the caller removes. Dies if the check or the parse
+# fails, so a failed check never turns every file into an upload.
+_fetch_duplicate_ids() {
+    local -r api_key="$1" records="$2" out="$3"
+
+    # Build the bulk-upload-check JSON via json.dumps (safe for " \ etc.)
+    _build_bulk_check_json < "$records" > "$records.json"
+
+    info "Checking for duplicates on server..."
+    local response
+    # Key off curl's argv via curl_immich_key; the body is read from a file.
+    # shellcheck disable=SC2310 # status is curl's; failure dies right here
+    response=$(curl_immich_key -f "$CURL_SEARCH_TIMEOUT" "$api_key" -X POST \
+        -H "Content-Type: application/json" \
+        -d @"$records.json" \
+        "$IMMICH_URL/api/assets/bulk-upload-check" 2>/dev/null) \
+        || die "bulk-upload-check failed"
+
+    # Parse the response to find which files are duplicates.
+    # Response: { "results": [{ "id": "...", "action": "reject", "reason": "duplicate", ... }] }
+    local resp_file
+    resp_file=$(mktemp)
+    printf '%s\n' "$response" > "$resp_file"
+    # shellcheck disable=SC2310 # a single python3 call; failure dies here
+    _duplicate_ids_from_response "$resp_file" > "$out" \
+        || die "failed to parse bulk-upload-check response"
+    rm -f "$resp_file"
+}
+
+# _missing_files RECORDS DUPLICATES OUT — append to OUT every path from the
+# checksum<TAB>path RECORDS that is not listed in DUPLICATES.
+_missing_files() {
+    local -r records="$1" duplicates="$2" out="$3"
+    local checksum
+    # 'file' stays a global, as it was in bulk_upload's loop.
+    while IFS=$'\t' read -r checksum file; do
+        if ! grep -Fxq "$file" "$duplicates"; then
+            echo "$file" >> "$out"
+        fi
+    done < "$records"
+}
 
 bulk_upload() {
     local api_key="$1"
@@ -279,42 +365,10 @@ bulk_upload() {
     tmp_missing=$(mktemp)
 
     info "Computing SHA1 checksums for $total file(s)..."
-    while IFS= read -r file; do
-        _assert_safe_path "$file"
-        local checksum
-        checksum=$(file_sha1 "$file")
-        printf '%s\t%s\n' "$checksum" "$file" >> "$tmp_json"
-    done < "$files_list"
+    _checksum_records "$files_list" "$tmp_json"
 
-    # Build the bulk-upload-check JSON via json.dumps (safe for " \ etc.)
-    _build_bulk_check_json < "$tmp_json" > "$tmp_json.json"
-
-    info "Checking for duplicates on server..."
-    local response
-    # Key off curl's argv via curl_immich_key; the body is read from a file.
-    # shellcheck disable=SC2310 # status is curl's; failure dies right here
-    response=$(curl_immich_key -f "$CURL_SEARCH_TIMEOUT" "$api_key" -X POST \
-        -H "Content-Type: application/json" \
-        -d @"$tmp_json.json" \
-        "$IMMICH_URL/api/assets/bulk-upload-check" 2>/dev/null) \
-        || die "bulk-upload-check failed"
-
-    # Parse the response to find which files are duplicates.
-    # Response: { "results": [{ "id": "...", "action": "reject", "reason": "duplicate", ... }] }
-    local resp_file
-    resp_file=$(mktemp)
-    printf '%s\n' "$response" > "$resp_file"
-    # shellcheck disable=SC2310 # a single python3 call; failure dies here
-    _duplicate_ids_from_response "$resp_file" > "$tmp_missing.exists" \
-        || die "failed to parse bulk-upload-check response"
-    rm -f "$resp_file"
-
-    # Build the missing files list
-    while IFS=$'\t' read -r checksum file; do
-        if ! grep -Fxq "$file" "$tmp_missing.exists"; then
-            echo "$file" >> "$tmp_missing"
-        fi
-    done < "$tmp_json"
+    _fetch_duplicate_ids "$api_key" "$tmp_json" "$tmp_missing.exists"
+    _missing_files "$tmp_json" "$tmp_missing.exists" "$tmp_missing"
 
     missing_count=$(wc -l < "$tmp_missing" | awk '{print $1}')
     local dup_count=$(( total - missing_count ))
@@ -344,6 +398,33 @@ bulk_upload() {
     if ((failed > 0)); then
         die "$failed upload(s) failed (of $missing_count attempted)"
     fi
+}
+
+# upload_directory API_KEY DIR — collect the image files below DIR
+# recursively and hand them to bulk_upload. Dies when there are none.
+# main calls it plainly, so set -e applies as it did in main's branch.
+upload_directory() {
+    local -r api_key="$1" src="$2"
+    local files_list
+    files_list=$(mktemp)
+    # Expand the path now: the EXIT trap fires after this function has
+    # returned, when the local files_list no longer exists and set -u
+    # would abort with "files_list: unbound variable" (exit 1).
+    # shellcheck disable=SC2064 # early expansion is intended
+    trap "rm -f ${files_list@Q}" EXIT
+
+    info "Scanning directory: $src"
+    find "$src" -type f -regextype posix-extended -iregex ".*$IMAGE_EXTENSIONS" -print > "$files_list"
+
+    local count
+    count=$(wc -l < "$files_list" | awk '{print $1}')
+    if [[ "$count" -eq 0 ]]; then
+        die "No image files found in: $src"
+    fi
+    info "Found $count image file(s)"
+
+    bulk_upload "$api_key" "$files_list"
+    rm -f "$files_list"
 }
 
 # ------------------------------------------------------------------
@@ -376,27 +457,7 @@ main() {
         # shellcheck disable=SC2310 # upload_file checks each step itself
         upload_file "$src" "$api_key" || die "1 upload(s) failed (of 1 attempted)"
     elif [[ -d "$src" ]]; then
-        # Directory: collect image files recursively
-        local files_list
-        files_list=$(mktemp)
-        # Expand the path now: the EXIT trap fires after main has returned,
-        # when the local files_list no longer exists and set -u would abort
-        # with "files_list: unbound variable" (exit 1).
-        # shellcheck disable=SC2064 # early expansion is intended
-        trap "rm -f ${files_list@Q}" EXIT
-
-        info "Scanning directory: $src"
-        find "$src" -type f -regextype posix-extended -iregex ".*$IMAGE_EXTENSIONS" -print > "$files_list"
-
-        local count
-        count=$(wc -l < "$files_list" | awk '{print $1}')
-        if [[ "$count" -eq 0 ]]; then
-            die "No image files found in: $src"
-        fi
-        info "Found $count image file(s)"
-
-        bulk_upload "$api_key" "$files_list"
-        rm -f "$files_list"
+        upload_directory "$api_key" "$src"
     else
         die "Unsupported path type: $src"
     fi
