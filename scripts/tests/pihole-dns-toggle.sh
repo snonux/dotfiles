@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Checks for scripts/pihole-dns-toggle strict-mode + set -u smoke (task x33).
+# Checks for scripts/pihole-dns-toggle strict-mode + set -u smoke (task x33)
+# and argument validation: unknown args and --help never touch nmcli (ig4).
+# nmcli is always a logging fake on PATH; real DNS is never changed.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -86,12 +88,63 @@ case "$1" in
             exit 0
         fi
         ;;
+    con)
+        # con mod / con up: the DNS-changing calls. Only logged, never real.
+        case "${2:-}" in
+            mod|up) exit 0 ;;
+        esac
+        ;;
 esac
 
 printf 'nmcli mock: unhandled args: %s\n' "$*" >&2
 exit 99
 EOF
 chmod +x "$TEST_ROOT/bin/nmcli"
+
+# run_target <name> [args...]: run the script against the mock nmcli with
+# a fresh call log; sets run_status, output in $TEST_ROOT/<name>.{out,err}.
+run_target() {
+    local name="$1"
+    shift
+    : >"$NMCLI_LOG"
+    set +e
+    PATH="$TEST_ROOT/bin:/usr/bin:/bin" NMCLI_LOG="$NMCLI_LOG" \
+        "$TARGET" "$@" >"$TEST_ROOT/$name.out" 2>"$TEST_ROOT/$name.err"
+    run_status=$?
+    set -e
+}
+
+NMCLI_LOG="$TEST_ROOT/nmcli.log"
+
+# ig4: an unknown argument (typo) must print usage and exit 2 without any
+# nmcli call; -h/--help prints usage and exits 0. Previously both fell into
+# the toggle arm and rewrote DNS. Arguments are validated before the OS
+# gate, so these checks run on any distro.
+for bad_arg in bogus stauts -x; do
+    run_target unknown "$bad_arg"
+    ((run_status == 2)) \
+        || fail "'$bad_arg' exited $run_status, want 2"
+    grep -Fq 'Usage:' "$TEST_ROOT/unknown.err" \
+        || fail "'$bad_arg' did not print usage on stderr"
+    if [[ -s "$NMCLI_LOG" ]]; then
+        fail "'$bad_arg' called nmcli: $(cat "$NMCLI_LOG")"
+    fi
+done
+for help_arg in -h --help help; do
+    run_target help "$help_arg"
+    ((run_status == 0)) \
+        || fail "'$help_arg' exited $run_status, want 0"
+    grep -Fq 'Usage:' "$TEST_ROOT/help.out" \
+        || fail "'$help_arg' did not print usage on stdout"
+    if [[ -s "$NMCLI_LOG" ]]; then
+        fail "'$help_arg' called nmcli: $(cat "$NMCLI_LOG")"
+    fi
+done
+run_target extra status bogus
+((run_status == 2)) || fail "two arguments exited $run_status, want 2"
+if [[ -s "$NMCLI_LOG" ]]; then
+    fail "two arguments called nmcli: $(cat "$NMCLI_LOG")"
+fi
 
 # Skip OS gate when not on Fedora (script requires /etc/fedora-release).
 if [[ ! -f /etc/fedora-release ]]; then
@@ -100,7 +153,22 @@ if [[ ! -f /etc/fedora-release ]]; then
     exit 0
 fi
 
-NMCLI_LOG="$TEST_ROOT/nmcli.log"
+# Negative for ig4: 'toggle' and no argument still toggle (mock reports
+# Pi-hole disabled, so both must enable it via con mod + con up).
+for toggle_args in toggle ''; do
+    if [[ -n "$toggle_args" ]]; then
+        run_target toggle "$toggle_args"
+    else
+        run_target toggle
+    fi
+    ((run_status == 0)) \
+        || fail "toggle '${toggle_args}' exited $run_status: $(cat "$TEST_ROOT/toggle.err")"
+    grep -Fq 'con mod Wired connection 1 ipv4.ignore-auto-dns yes' "$NMCLI_LOG" \
+        || fail "toggle '${toggle_args}' did not enable Pi-hole DNS"
+    grep -Fq 'con up Wired connection 1' "$NMCLI_LOG" \
+        || fail "toggle '${toggle_args}' did not bring the connection up"
+done
+
 : >"$NMCLI_LOG"
 set +e
 PATH="$TEST_ROOT/bin:/usr/bin:/bin" NMCLI_LOG="$NMCLI_LOG" \
