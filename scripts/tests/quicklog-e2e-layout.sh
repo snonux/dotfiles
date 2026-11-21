@@ -35,25 +35,16 @@ bash -n "$E2E_DIR/run" || die "bash -n run failed"
 bash -n "$E2E_DIR/protocol-fake" || die "bash -n protocol-fake entry failed"
 bash -n "$E2E_DIR/live-s3" || die "bash -n live-s3 entry failed"
 
-# Package layout: drain + e2e under scripts/quicklog/; thin top-level wrappers.
-grep -q 'quicklog/drain' "$DRAIN_WRAPPER" \
-    || die "drain wrapper does not exec quicklog/drain"
-grep -q 'quicklog/e2e/run' "$E2E_WRAPPER" \
-    || die "e2e wrapper does not exec quicklog/e2e/run"
-
-# PROGRAM via export (exec -a does not change bash argv0 for scripts).
-grep -q 'PROGRAM:=quicklog-drain' "$DRAIN_WRAPPER" \
-    || die "drain wrapper missing PROGRAM=quicklog-drain"
-grep -qE 'PROGRAM:=quicklog-drain-e2e' "$E2E_WRAPPER" \
-    || die "e2e wrapper missing PROGRAM=quicklog-drain-e2e"
-grep -qE 'PROGRAM:=quicklog-drain-e2e' "$E2E_DIR/run" \
-    || die "run missing default PROGRAM=quicklog-drain-e2e"
-if grep -qE 'PROGRAM=\$\{0##\*/\}' "$E2E_DIR/run"; then
-    die "run still derives PROGRAM from \$0 (breaks under thin wrappers)"
-fi
-if grep -q 'exec -a' "$E2E_WRAPPER" "$E2E_DIR/protocol-fake" "$E2E_DIR/live-s3" \
-    "$DRAIN_WRAPPER"; then
-    die "wrappers still rely on exec -a for PROGRAM"
+# Package layout and PROGRAM: not grepped. tests/quicklog-drain.sh runs the
+# drain wrapper (reaches quicklog/drain, names itself quicklog-drain); the
+# unknown-mode runs below call quicklog/e2e/run directly and through the
+# thin e2e wrapper and require the quicklog-drain-e2e prefix (a PROGRAM
+# taken from $0 would say "run").
+# Kept as a source check: the protocol-fake and live-s3 convenience entries
+# always start a phase (live Garage / the real drain timer), so their
+# PROGRAM cannot be observed here; exec -a does not set it for scripts.
+if grep -q 'exec -a' "$E2E_DIR/protocol-fake" "$E2E_DIR/live-s3"; then
+    die "convenience entries still rely on exec -a for PROGRAM"
 fi
 # WRAPPER_ENV must pin PROGRAM=quicklog-drain so env (no -i) does not leak
 # the harness PROGRAM=quicklog-drain-e2e into drain Usage/errors.
@@ -161,7 +152,8 @@ wc -l <"$DRAIN_WRAPPER" | awk '$1 > 20 { exit 1 }' \
 
 # Helpful unknown-mode path (no Garage): should fail fast with usage, not hang.
 out="$E2E_DIR/../.layout-test-out.$$"
-if "$E2E_DIR/run" not-a-mode >"$out" 2>&1; then
+# env -u PROGRAM: the default must come from the scripts, not the caller.
+if env -u PROGRAM "$E2E_DIR/run" not-a-mode >"$out" 2>&1; then
     rm -f "$out"
     die "run accepted unknown mode"
 fi
@@ -179,7 +171,7 @@ grep -q 'quicklog-drain-e2e: unknown mode' "$out" || {
 rm -f "$out"
 
 # Via thin wrapper, same PROGRAM contract.
-if "$E2E_WRAPPER" not-a-mode >"$out" 2>&1; then
+if env -u PROGRAM "$E2E_WRAPPER" not-a-mode >"$out" 2>&1; then
     rm -f "$out"
     die "e2e wrapper accepted unknown mode"
 fi
