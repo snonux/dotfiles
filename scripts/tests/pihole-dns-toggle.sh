@@ -238,6 +238,125 @@ fi
 grep -Fq 'connection show --active' "$NMCLI_LOG" \
     || fail "failing mock nmcli was not asked for active connections"
 
+# --- pg4: every action's exact nmcli calls and output, pinned before
+# main's split. Two active connections (plus loopback and a VPN, which are
+# ignored); PG4_ENABLED=yes makes both report Pi-hole DNS as configured;
+# PG4_NOCONN=1 lists no usable connection.
+mkdir -p "$TEST_ROOT/pg4bin"
+cat >"$TEST_ROOT/pg4bin/nmcli" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >>"${NMCLI_LOG:?}"
+case "$1" in
+    -t)
+        printf '%s\n' 'lo:lo:loopback' 'vpn:tun0:vpn'
+        [[ -n "${PG4_NOCONN:-}" ]] && exit 0
+        printf '%s\n' 'A:eth0:802-3-ethernet' 'B:wlan0:802-11-wireless'
+        ;;
+    -g)
+        if [[ "${PG4_ENABLED:-}" == yes ]]; then
+            case "$2" in
+                ipv4.ignore-auto-dns) echo yes ;;
+                ipv4.dns) echo "${PG4_DNS// /,}" ;;
+            esac
+        else
+            case "$2" in
+                ipv4.ignore-auto-dns) echo no ;;
+                ipv4.dns) echo '' ;;
+            esac
+        fi
+        ;;
+    dev) printf '%s\n' 'GENERAL.DEVICE:   eth0' 'IP4.DNS[1]:   192.168.1.1' ;;
+    con) ;;
+    *) exit 99 ;;
+esac
+EOF
+chmod +x "$TEST_ROOT/pg4bin/nmcli"
+G=$'\033[0;32m' Y=$'\033[1;33m' R=$'\033[0;31m' N=$'\033[0m'
+pg4_show="
+${Y}Current DNS configuration:${N}
+eth0: 192.168.1.1"
+pg4_on="${Y}Enabling Pi-hole DNS for connection: A${N}
+${Y}Enabling Pi-hole DNS for connection: B${N}
+${G}✓ Pi-hole DNS enabled${N}
+DNS servers: $inv_dns"
+pg4_off="${Y}Disabling Pi-hole DNS for connection: A${N}
+${Y}Disabling Pi-hole DNS for connection: B${N}
+${G}✓ Pi-hole DNS disabled (using DHCP DNS)${N}"
+pg4_list='-t -f NAME,DEVICE,TYPE connection show --active'
+pg4_mod_on="con mod A ipv4.dns $inv_dns
+con mod A ipv4.ignore-auto-dns yes
+con up A
+con mod B ipv4.dns $inv_dns
+con mod B ipv4.ignore-auto-dns yes
+con up B"
+# 'ipv4.dns ""' logs with a trailing space ("$*" of an empty last arg).
+SP=' '
+pg4_mod_off="con mod A ipv4.dns${SP}
+con mod A ipv4.ignore-auto-dns no
+con up A
+con mod B ipv4.dns${SP}
+con mod B ipv4.ignore-auto-dns no
+con up B"
+pg4_query_a='-g ipv4.ignore-auto-dns connection show A
+-g ipv4.dns connection show A'
+pg4_query_b='-g ipv4.ignore-auto-dns connection show B
+-g ipv4.dns connection show B'
+
+# expect_pg4 ENABLED WANT_RC WANT_CALLS WANT_OUT ARGS... — run the script
+# with the pg4 mock and compare status, exact nmcli calls and stdout.
+expect_pg4() {
+    local -r enabled="$1" want_rc="$2" want_calls="$3" want_out="$4"
+    shift 4
+    : >"$NMCLI_LOG"
+    local -i rc=0
+    PATH="$TEST_ROOT/pg4bin:/usr/bin:/bin" NMCLI_LOG="$NMCLI_LOG" \
+        PG4_ENABLED="$enabled" PG4_DNS="$inv_dns" \
+        "$TARGET" "$@" >"$TEST_ROOT/pg4.out" 2>"$TEST_ROOT/pg4.err" || rc=$?
+    ((rc == want_rc)) || fail "pg4 '$*': want rc $want_rc, got $rc: $(cat "$TEST_ROOT/pg4.err")"
+    [[ "$(cat "$NMCLI_LOG")" == "$want_calls" ]] \
+        || fail "pg4 '$*': nmcli calls changed: $(cat "$NMCLI_LOG")"
+    [[ "$(cat "$TEST_ROOT/pg4.out")" == "$want_out" ]] \
+        || fail "pg4 '$*': stdout changed: $(cat "$TEST_ROOT/pg4.out")"
+}
+pg4_active='Active connections: A B'
+expect_pg4 no 0 "$pg4_list
+$pg4_mod_on
+dev show" "$pg4_active
+$pg4_on
+$pg4_show" enable
+expect_pg4 yes 0 "$pg4_list
+$pg4_mod_off
+dev show" "$pg4_active
+$pg4_off
+$pg4_show" off
+expect_pg4 yes 0 "$pg4_list
+$pg4_query_a
+$pg4_query_b
+dev show" "$pg4_active
+${G}Pi-hole DNS is currently ENABLED${N}
+$pg4_show" status
+expect_pg4 no 0 "$pg4_list
+$pg4_query_a
+dev show" "$pg4_active
+${Y}Pi-hole DNS is currently DISABLED${N}
+$pg4_show" status
+expect_pg4 yes 0 "$pg4_list
+$pg4_query_a
+$pg4_query_b
+$pg4_mod_off
+dev show" "$pg4_active
+$pg4_off
+$pg4_show" toggle
+expect_pg4 no 0 "$pg4_list
+$pg4_query_a
+$pg4_mod_on
+dev show" "$pg4_active
+$pg4_on
+$pg4_show"
+PG4_NOCONN=1 expect_pg4 no 1 "$pg4_list" \
+    "${R}Error: No active network connection found${N}" on
+
 # Unbound-variable smoke: script already runs under set -u; a clean status
 # exit means no unbound refs on the exercised path.
 printf 'pihole-dns-toggle tests passed\n'
