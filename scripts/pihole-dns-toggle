@@ -178,8 +178,18 @@ main() {
         exit 1
     fi
 
+    load_connections
+    echo "Active connections: ${CONNECTIONS[*]}"
+    run_action "$ACTION"
+}
+
+# load_connections — fill the global array CONNECTIONS with the active
+# Ethernet/Wi-Fi connections, or exit 1 when there is none. Called plainly
+# from main, so set -e still ends the script on a failed nmcli listing.
+load_connections() {
     # Active connections into a temp file so nmcli failures fail closed under
-    # set -e (process substitution would mask them).
+    # set -e (process substitution would mask them). connections_list stays
+    # a global, as it was in main, so the EXIT trap can always expand it.
     connections_list="$(mktemp)"
     trap 'rm -f "$connections_list"' EXIT
     get_active_connections >"$connections_list"
@@ -191,11 +201,14 @@ main() {
         echo -e "${RED}Error: No active network connection found${NC}"
         exit 1
     fi
+}
 
-    echo "Active connections: ${CONNECTIONS[*]}"
-
-    # Dispatch the action validated by parse_action.
-    case "$ACTION" in
+# run_action ACTION — carry out the action validated by parse_action on
+# every connection in CONNECTIONS, then show the resulting DNS servers.
+# Called plainly from main, so set -e applies as it did there.
+run_action() {
+    local -r action="$1"
+    case "$action" in
         on|enable)
             enable_pihole "${CONNECTIONS[@]}"
             show_status
