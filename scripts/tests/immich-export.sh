@@ -100,7 +100,7 @@ grep -Eq 'curl_immich -f "\$CURL_DOWNLOAD_TIMEOUT"' "$IMMICH_EXPORT" \
 # shellcheck disable=SC2016
 grep -Eq 'curl_immich -f "\$CURL_SEARCH_TIMEOUT"' "$IMMICH_EXPORT" \
     || fail "search missing curl_immich -f CURL_SEARCH_TIMEOUT"
-grep -q 'failed (download errors)' "$IMMICH_EXPORT" \
+grep -q 'failed (download/write errors)' "$IMMICH_EXPORT" \
     || fail "Done summary missing failed download count"
 grep -q 'failed == 0 && collided == 0' "$IMMICH_EXPORT" \
     || fail "download_assets must fail when failed or collided"
@@ -516,7 +516,7 @@ set -e
     || fail "download failure should make download_assets exit non-zero"
 grep -q 'failed to download' "$TEST_ROOT/err-fail" \
     || fail "missing download failure message: $(cat "$TEST_ROOT/err-fail")"
-grep -q '1 failed (download errors)' "$TEST_ROOT/out-fail" \
+grep -q '1 failed (download/write errors)' "$TEST_ROOT/out-fail" \
     || fail "Done summary missing failed count: $(cat "$TEST_ROOT/out-fail")"
 [[ ! -e "$ACCOUNT_DIR/${ID_FAIL}_failme.jpg" ]] \
     || fail "failed download must not leave destination file"
@@ -1095,5 +1095,68 @@ grep -q 'API key file is empty' "$TEST_ROOT/err-dg4-emptykey" \
 if grep -q 'search/metadata' "$CURL_SPY_LOG"; then
     fail "dg4 emptykey: searched with an empty API key"
 fi
+
+# --- sg4: local write failures are failures, not refusals ---
+# An unwritable account directory makes every mktemp fail. That used to be
+# counted as 'refused' and the run still printed 'Export complete' (exit 0).
+printf 'dg4-key\n' >"$DG4_HOME/.immich_dg4user_key"
+DG4_PAGE2=ok
+export DG4_PAGE2
+declare -r SG4_RO_DIR="$TEST_ROOT/dg4-dest-sg4ro/dg4user"
+mkdir -p "$SG4_RO_DIR"
+chmod 555 "$SG4_RO_DIR"
+# root (or odd filesystems) ignore mode 555; only assert where writes fail.
+if sg4_probe=$(mktemp -p "$SG4_RO_DIR" 2>/dev/null); then
+    rm -f -- "$sg4_probe"
+    printf 'immich-export test: SKIP sg4 unwritable-dest check: mode 555 does not block writes here (uid %s)\n' "$(id -u)" >&2
+else
+    : >"$CURL_SPY_LOG"
+    _dg4_run sg4ro
+    [[ "$dg4_rc" -ne 0 ]] \
+        || fail "sg4: unwritable account dir must exit non-zero: $(cat "$TEST_ROOT/out-dg4-sg4ro")"
+    if grep -q 'Export complete' "$TEST_ROOT/out-dg4-sg4ro"; then
+        fail "sg4: reported 'Export complete' although nothing could be written"
+    fi
+    grep -q '0 refused' "$TEST_ROOT/out-dg4-sg4ro" \
+        || fail "sg4: write failures counted as refused: $(cat "$TEST_ROOT/out-dg4-sg4ro")"
+    grep -q '2 failed' "$TEST_ROOT/out-dg4-sg4ro" \
+        || fail "sg4: write failures not counted as failed: $(cat "$TEST_ROOT/out-dg4-sg4ro")"
+    grep -q 'export failed for account' "$TEST_ROOT/err-dg4-sg4ro" \
+        || fail "sg4: missing account-failure message: $(cat "$TEST_ROOT/err-dg4-sg4ro")"
+fi
+chmod 755 "$SG4_RO_DIR"
+
+# sg4 negative: a dest that appears between the pre-rename check and the
+# rename (mv -n declines) is a genuine refusal: counted as refused, the
+# existing file is kept, no temp is left behind, and the run still succeeds.
+# GNU mv -n exits 0 when it declines, so the script must notice by itself.
+# A wrapper mv plants the dest right before the real mv runs.
+declare -r SG4_MV_BIN="$TEST_ROOT/sg4-mv-bin"
+mkdir -p "$SG4_MV_BIN"
+SG4_REAL_MV=$(command -v mv)
+export SG4_REAL_MV
+cat >"$SG4_MV_BIN/mv" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'planted\n' >"${*: -1}"
+exec "$SG4_REAL_MV" "$@"
+EOF
+chmod +x "$SG4_MV_BIN/mv"
+: >"$CURL_SPY_LOG"
+sg4_saved_path="$PATH"
+PATH="$SG4_MV_BIN:$PATH"
+_dg4_run sg4race
+PATH="$sg4_saved_path"
+[[ "$dg4_rc" -eq 0 ]] \
+    || fail "sg4 race: refused rename must not fail the run: $(cat "$TEST_ROOT/err-dg4-sg4race")"
+grep -q 'Export complete' "$TEST_ROOT/out-dg4-sg4race" \
+    || fail "sg4 race: missing 'Export complete': $(cat "$TEST_ROOT/out-dg4-sg4race")"
+grep -q '0 downloaded.* 2 refused.* 0 failed' "$TEST_ROOT/out-dg4-sg4race" \
+    || fail "sg4 race: declined renames must count as refused: $(cat "$TEST_ROOT/out-dg4-sg4race")"
+[[ "$(cat "$TEST_ROOT/dg4-dest-sg4race/dg4user/${ID_OK}_p1.jpg")" == 'planted' ]] \
+    || fail "sg4 race: existing dest was overwritten"
+sg4_left=$(find "$TEST_ROOT/dg4-dest-sg4race/dg4user" -maxdepth 1 -name '.immich-export.*' | wc -l)
+[[ "$sg4_left" -eq 0 ]] \
+    || fail "sg4 race: declined rename left $sg4_left temp file(s) behind"
 
 printf 'immich-export test: ok\n'
