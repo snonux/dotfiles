@@ -427,6 +427,39 @@ shutdown_host() {
     fi
 }
 
+# shutdown_fleet_hosts WITH_PIS — ask f0/f1/f2 (and with WITH_PIS=yes the
+# four Pis) to shut down. Every host is tried even after a failure; returns
+# 1 if any of them did not accept. Split out of shutdown_fleet, which calls
+# it under '||': each shutdown is already '|| failed=1', so set -e being
+# off there changes nothing.
+# shellcheck disable=SC2310 # both helpers return explicit statuses
+shutdown_fleet_hosts() {
+    local -r with_pis=$1
+    local -i failed=0
+
+    shutdown_bhyve_host "f0" "$F0_IP" || failed=1
+    shutdown_bhyve_host "f1" "$F1_IP" || failed=1
+    shutdown_bhyve_host "f2" "$F2_IP" || failed=1
+
+    if [[ "$with_pis" == yes ]]; then
+        shutdown_pi_hosts || failed=1
+    fi
+    return "$failed"
+}
+
+# shutdown_pi_hosts — ask all four Pis to shut down, trying every one even
+# after a failure; returns 1 if any did not accept. Shared by
+# shutdown_fleet_hosts and the shutdown-pis action.
+# shellcheck disable=SC2310 # shutdown_host returns an explicit status
+shutdown_pi_hosts() {
+    local -i failed=0
+    shutdown_host "pi0" "$PI0_IP" || failed=1
+    shutdown_host "pi1" "$PI1_IP" || failed=1
+    shutdown_host "pi2" "$PI2_IP" || failed=1
+    shutdown_host "pi3" "$PI3_IP" || failed=1
+    return "$failed"
+}
+
 # shutdown_fleet [--with-pis]
 # Shared Beelink (f0/f1/f2) shutdown path used by both "shutdown" and
 # "shutdown-all". Umounts NFS, mutes Gogios (best-effort), shuts hosts,
@@ -459,16 +492,7 @@ shutdown_fleet() {
     # must not abort the privileged host shutdown (pre-set -e behaviour).
     mute_gogios || true
 
-    shutdown_bhyve_host "f0" "$F0_IP" || failed=1
-    shutdown_bhyve_host "f1" "$F1_IP" || failed=1
-    shutdown_bhyve_host "f2" "$F2_IP" || failed=1
-
-    if [[ "$with_pis" == yes ]]; then
-        shutdown_host "pi0" "$PI0_IP" || failed=1
-        shutdown_host "pi1" "$PI1_IP" || failed=1
-        shutdown_host "pi2" "$PI2_IP" || failed=1
-        shutdown_host "pi3" "$PI3_IP" || failed=1
-    fi
+    shutdown_fleet_hosts "$with_pis" || failed=1
 
     if (( failed != 0 )); then
         if [[ "$with_pis" == yes ]]; then
@@ -490,15 +514,81 @@ shutdown_fleet() {
     return 0
 }
 
+# wake_all — the "all" action: rack fans on, wake f0/f1/f2, then un-mute
+# Gogios, and print the final banner. Returns 1 if the fans could not be
+# switched on (nothing is woken then) or any WoL send failed. main calls it
+# plainly, so set -e applies here exactly as it did in main's case arm.
+# shellcheck disable=SC2310 # every helper below returns an explicit status
+wake_all() {
+    # Set when the wake continues past a WoL failure so the final banner
+    # reports partial/failure instead of unconditional success.
+    local -i wake_failed=0
+
+    # Power on the rack fans before booting the hosts.
+    shelly_set "true" || return 1
+    # WoL failures must not skip remaining hosts or the unmute step
+    # (pre-set -e behaviour). Helpers still print clear errors and
+    # return non-zero; we only suppress abort here.
+    wake "f0" "$F0_MAC" || wake_failed=1
+    wake "f1" "$F1_MAC" || wake_failed=1
+    wake "f2" "$F2_MAC" || wake_failed=1
+    if (( wake_failed != 0 )); then
+        echo "⚠️  At least one WoL send failed; continuing with un-mute." >&2
+    fi
+    # Counterpart to the mute in the shutdown path below. Only the "all"
+    # wake clears it: waking a single host would un-mute alerts for the
+    # others that are still down.
+    unmute_gogios || true
+
+    echo ""
+    if (( wake_failed != 0 )); then
+        echo "⚠️  WoL incomplete — at least one packet failed to send."
+        echo "  Check which hosts came up, then try: ssh ${SSH_USER}@${F0_IP}"
+        return 1
+    fi
+    print_wol_sent
+}
+
+# print_wol_sent — success banner once the WoL packets went out.
+print_wol_sent() {
+    echo "✓ WoL packets sent. Machines should boot in a few seconds."
+    echo "  Wait ~30 seconds, then try: ssh ${SSH_USER}@${F0_IP}"
+}
+
+# shutdown_f3 — the shutdown-f3 action. Umounts local NFS filesystems
+# first and aborts if any are stuck: f3 does not host the NFS CARP VIP
+# (that is f0/f1), but umounting first is still the safe default to avoid
+# stale state. Returns 1 on any failure; main runs it under '||' and each
+# step is explicitly checked.
+# shellcheck disable=SC2310 # both helpers return explicit statuses
+shutdown_f3() {
+    echo "Checking for locally mounted NFS filesystems..."
+    umount_nfs_mounts || return 1
+    shutdown_bhyve_host "f3" "$F3_IP" || return 1
+    echo ""
+    echo "✓ Shutdown command sent to f3."
+}
+
+# shutdown_pis — the shutdown-pis action. Raspberry Pis do not serve NFS,
+# so no umount check is needed here. Returns 1 if any Pi did not accept;
+# main runs it under '||'.
+# shellcheck disable=SC2310 # shutdown_pi_hosts returns an explicit status
+shutdown_pis() {
+    if ! shutdown_pi_hosts; then
+        echo "✗ At least one Pi did not accept its shutdown command."
+        return 1
+    fi
+    echo ""
+    echo "✓ Shutdown commands sent to all Pis."
+}
+
 # Same as shutdown_fleet: each helper main calls under '||' returns an
 # explicit status from checked steps. Re-check that when adding a callee.
+# The single-host wakes and wake_all stay plain calls on purpose: under
+# set -e a failed WoL send stops the script before the success banner.
 # shellcheck disable=SC2310
 main() {
     local ACTION="${1:-all}"
-    local pi_shutdown_failed=0
-    # Set when the all-path wake continues past a WoL failure so the final
-    # banner reports partial/failure instead of unconditional success.
-    local -i wake_failed=0
 
     case "$ACTION" in
         f0)
@@ -514,50 +604,19 @@ main() {
             wake "f3" "$F3_MAC"
             ;;
         all|"")
-            # Power on the rack fans before booting the hosts.
-            shelly_set "true" || exit 1
-            # WoL failures must not skip remaining hosts or the unmute step
-            # (pre-set -e behaviour). Helpers still print clear errors and
-            # return non-zero; we only suppress abort here.
-            wake "f0" "$F0_MAC" || wake_failed=1
-            wake "f1" "$F1_MAC" || wake_failed=1
-            wake "f2" "$F2_MAC" || wake_failed=1
-            if (( wake_failed != 0 )); then
-                echo "⚠️  At least one WoL send failed; continuing with un-mute." >&2
-            fi
-            # Counterpart to the mute in the shutdown path below. Only the "all"
-            # wake clears it: waking a single host would un-mute alerts for the
-            # others that are still down.
-            unmute_gogios || true
+            wake_all
+            exit $?
             ;;
         shutdown|poweroff|down)
             shutdown_fleet || exit 1
             exit 0
             ;;
         shutdown-f3|poweroff-f3|down-f3)
-            # Umount local NFS filesystems first; abort if any are stuck.
-            # f3 does not host the NFS CARP VIP (that is f0/f1), but umounting
-            # first is still the safe default to avoid stale state.
-            echo "Checking for locally mounted NFS filesystems..."
-            umount_nfs_mounts || exit 1
-            shutdown_bhyve_host "f3" "$F3_IP" || exit 1
-            echo ""
-            echo "✓ Shutdown command sent to f3."
+            shutdown_f3 || exit 1
             exit 0
             ;;
         shutdown-pis)
-            # Raspberry Pis do not serve NFS, so no umount check is needed here.
-            pi_shutdown_failed=0
-            shutdown_host "pi0" "$PI0_IP" || pi_shutdown_failed=1
-            shutdown_host "pi1" "$PI1_IP" || pi_shutdown_failed=1
-            shutdown_host "pi2" "$PI2_IP" || pi_shutdown_failed=1
-            shutdown_host "pi3" "$PI3_IP" || pi_shutdown_failed=1
-            if [[ $pi_shutdown_failed -ne 0 ]]; then
-                echo "✗ At least one Pi did not accept its shutdown command."
-                exit 1
-            fi
-            echo ""
-            echo "✓ Shutdown commands sent to all Pis."
+            shutdown_pis || exit 1
             exit 0
             ;;
         shutdown-all)
@@ -571,13 +630,7 @@ main() {
     esac
 
     echo ""
-    if (( wake_failed != 0 )); then
-        echo "⚠️  WoL incomplete — at least one packet failed to send."
-        echo "  Check which hosts came up, then try: ssh ${SSH_USER}@${F0_IP}"
-        exit 1
-    fi
-    echo "✓ WoL packets sent. Machines should boot in a few seconds."
-    echo "  Wait ~30 seconds, then try: ssh ${SSH_USER}@${F0_IP}"
+    print_wol_sent
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
