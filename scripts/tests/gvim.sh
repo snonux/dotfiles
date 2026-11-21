@@ -79,9 +79,7 @@ if "$GVIM" unused "" 2>/dev/null; then
     fail "gvim succeeded with empty file path"
 fi
 
-# Structural guard: must not interpolate FILE_PATH inside a shell string.
-if grep -Eq 'hx[[:space:]]+\$\{?FILE_PATH' "$GVIM"; then
-    fail "gvim still embeds FILE_PATH in a shell string for hx"
-fi
+# No source grep for 'hx $FILE_PATH' in a string: the argv checks above
+# (hx, --, the path as one separate argument) fail on that form.
 
 printf 'gvim test: ok\n'
