@@ -37,11 +37,34 @@ screenshot::to_clipboard() {
     fi
 }
 
+# screenshot::capture MODE OUT — run flameshot in MODE (full, screen or
+# gui), saving to OUT. Returns 1 when nothing was written. main calls it
+# plainly, so a failing flameshot still stops the script via set -e and a
+# return of 1 still ends it with status 1.
+screenshot::capture() {
+    local -r mode=$1 out=$2
+    local -a cmd
+
+    case "$mode" in
+        full)   cmd=(flameshot full -p "$out") ;;
+        screen) cmd=(flameshot screen -p "$out") ;;
+        gui)    cmd=(flameshot gui -p "$out") ;;
+    esac
+
+    "${cmd[@]}"
+
+    # flameshot gui exits 0 without writing anything when the selection is
+    # aborted; there is nothing to copy or report then.
+    if [[ ! -s "$out" ]]; then
+        echo 'screenshot: nothing captured' >&2
+        return 1
+    fi
+}
+
 screenshot::main() {
     local mode=full
     local clipboard=no
     local out
-    local -a cmd
 
     # The clipboard flag comes first so the mode/output-path parsing below
     # stays positional.
@@ -67,21 +90,7 @@ screenshot::main() {
 
     out=${1:-$HOME/Pictures/Screenshot-$(date +%Y%m%d-%H%M%S).png}
     mkdir -p "$(dirname "$out")"
-
-    case "$mode" in
-        full)   cmd=(flameshot full -p "$out") ;;
-        screen) cmd=(flameshot screen -p "$out") ;;
-        gui)    cmd=(flameshot gui -p "$out") ;;
-    esac
-
-    "${cmd[@]}"
-
-    # flameshot gui exits 0 without writing anything when the selection is
-    # aborted; there is nothing to copy or report then.
-    if [[ ! -s "$out" ]]; then
-        echo 'screenshot: nothing captured' >&2
-        return 1
-    fi
+    screenshot::capture "$mode" "$out"
 
     if [[ "$clipboard" == yes ]]; then
         screenshot::to_clipboard "$out"
