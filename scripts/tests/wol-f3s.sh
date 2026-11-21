@@ -641,4 +641,114 @@ mapfile -t wake_hosts <"$MAIN_WAKE_LOG"
     || fail "wake host order unexpected: ${wake_hosts[*]@Q}"
 [[ -s "$MAIN_UNMUTE_LOG" ]] || fail "f0 wake failure skipped unmute_gogios"
 
+# --- pg4: main's other actions and shutdown_fleet's exits, pinned before
+# the split. Uses the stubs above; each check redefines what it needs.
+# pg4_main ARGS... — run main (or with PG4_FN set, that function) and keep
+# its combined output in pg4_out and status in pg4_ec.
+pg4_main() {
+    pg4_out="$("${PG4_FN:-main}" "$@" 2>&1)" && pg4_ec=0 || pg4_ec=$?
+}
+declare -r PG4_LOG="$TEST_ROOT/pg4.log"
+umount_nfs_mounts() { printf 'umount\n' >>"$PG4_LOG"; return "${PG4_UMOUNT_RC:-0}"; }
+mute_gogios() { printf 'mute\n' >>"$PG4_LOG"; return 0; }
+shutdown_bhyve_host() {
+    printf 'bhyve %s %s\n' "$1" "$2" >>"$PG4_LOG"
+    [[ "$1" != "${PG4_FAIL_HOST:-}" ]]
+}
+shutdown_host() {
+    printf 'host %s %s\n' "$1" "$2" >>"$PG4_LOG"
+    [[ "$1" != "${PG4_FAIL_HOST:-}" ]]
+}
+shelly_set() { printf 'shelly %s\n' "$1" >>"$PG4_LOG"; return "${PG4_SHELLY_RC:-0}"; }
+wake() { printf 'wake %s %s\n' "$1" "$2" >>"$PG4_LOG"; return 0; }
+unmute_gogios() { printf 'unmute\n' >>"$PG4_LOG"; return 0; }
+
+# expect_pg4 WANT_EC WANT_LOG WANT_OUT ARGS... — run pg4_main ARGS and
+# compare status, the exact stub call log and the exact output.
+expect_pg4() {
+    local -r want_ec="$1" want_log="$2" want_out="$3"
+    shift 3
+    : >"$PG4_LOG"
+    pg4_main "$@"
+    (( pg4_ec == want_ec )) \
+        || fail "pg4 ${PG4_FN:-main} $*: want exit $want_ec, got $pg4_ec: ${pg4_out@Q}"
+    [[ "$(cat "$PG4_LOG")" == "$want_log" ]] \
+        || fail "pg4 ${PG4_FN:-main} $*: calls changed: $(cat "$PG4_LOG")"
+    [[ "$pg4_out" == "$want_out" ]] \
+        || fail "pg4 ${PG4_FN:-main} $*: output changed: ${pg4_out@Q}"
+}
+
+pg4_ok_banner="
+✓ WoL packets sent. Machines should boot in a few seconds.
+  Wait ~30 seconds, then try: ssh ${SSH_USER}@${F0_IP}"
+expect_pg4 0 "wake f3 $F3_MAC" "$pg4_ok_banner" f3
+expect_pg4 0 "shelly true
+wake f0 $F0_MAC
+wake f1 $F1_MAC
+wake f2 $F2_MAC
+unmute" "$pg4_ok_banner"
+PG4_SHELLY_RC=1 expect_pg4 1 'shelly true' '' all
+expect_pg4 1 '' \
+    "Usage: $0 [f0|f1|f2|f3|all|shutdown|shutdown-f3|shutdown-pis|shutdown-all]" bogus
+
+expect_pg4 0 "umount
+bhyve f3 $F3_IP" "Checking for locally mounted NFS filesystems...
+
+✓ Shutdown command sent to f3." shutdown-f3
+PG4_UMOUNT_RC=1 expect_pg4 1 'umount' \
+    'Checking for locally mounted NFS filesystems...' down-f3
+PG4_FAIL_HOST=f3 expect_pg4 1 "umount
+bhyve f3 $F3_IP" 'Checking for locally mounted NFS filesystems...' poweroff-f3
+
+pg4_pis="host pi0 $PI0_IP
+host pi1 $PI1_IP
+host pi2 $PI2_IP
+host pi3 $PI3_IP"
+expect_pg4 0 "$pg4_pis" '
+✓ Shutdown commands sent to all Pis.' shutdown-pis
+PG4_FAIL_HOST=pi1 expect_pg4 1 "$pg4_pis" \
+    '✗ At least one Pi did not accept its shutdown command.' shutdown-pis
+
+pg4_beelinks="bhyve f0 $F0_IP
+bhyve f1 $F1_IP
+bhyve f2 $F2_IP"
+pg4_check='Checking for locally mounted NFS filesystems...'
+PG4_FN=shutdown_fleet
+expect_pg4 0 "umount
+mute
+$pg4_beelinks
+$pg4_pis
+shelly false" "$pg4_check
+
+✓ Shutdown commands sent to all machines." --with-pis
+PG4_UMOUNT_RC=1 expect_pg4 1 'umount' "$pg4_check"
+PG4_FAIL_HOST=pi3 expect_pg4 1 "umount
+mute
+$pg4_beelinks
+$pg4_pis" "$pg4_check
+✗ At least one machine did not accept shutdown; leaving rack fans on." --with-pis
+PG4_FAIL_HOST=f0 expect_pg4 1 "umount
+mute
+$pg4_beelinks" "$pg4_check
+✗ At least one Beelink did not complete shutdown; leaving rack fans on."
+PG4_SHELLY_RC=1 expect_pg4 1 "umount
+mute
+$pg4_beelinks
+shelly false" "$pg4_check"
+expect_pg4 2 '' 'shutdown_fleet: unknown option: --bogus' --bogus
+unset PG4_FN
+
+# A failed single-host wake stops the real script (set -e) before the
+# success banner. Run as its own process: inside this test main runs under
+# '&&', where set -e is off.
+declare -r PG4_BIN="$TEST_ROOT/pg4-bin"
+mkdir -p "$PG4_BIN"
+printf '#!/bin/sh\nexit 1\n' >"$PG4_BIN/wol"
+chmod +x "$PG4_BIN/wol"
+pg4_out="$(PATH="$PG4_BIN:$PATH" bash "$WOL_F3S" f1 2>&1)" && pg4_ec=0 || pg4_ec=$?
+(( pg4_ec == 1 )) || fail "pg4: failed single wake must exit 1, got $pg4_ec"
+[[ "$pg4_out" == "Sending WoL packet to f1 ($F1_MAC)...
+  ✗ Failed to send WoL packet to f1 ($F1_MAC)" ]] \
+    || fail "pg4: failed single wake output changed: ${pg4_out@Q}"
+
 printf 'wol-f3s test: ok\n'
