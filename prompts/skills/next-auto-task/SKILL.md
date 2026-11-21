@@ -31,7 +31,7 @@ Every ready pick in this skill must use `due-window:7.days`. Plain `ask ready +a
    - Read `agent-task-management`'s [card-orchestrator.md](../agent-task-management/references/card-orchestrator.md) and [card-worker.md](../agent-task-management/references/card-worker.md); they are the task lifecycle.
    - Run `ask list start.any: +auto` in the current git repository first. Resume every started `+auto` task before selecting another one (see **Started tasks** below).
    - Only when no `+auto` task is started, find the next due-window-eligible ready `+auto` task with `ask ready +auto due-window:7.days` (sorted by priority, then urgency).
-   - If there is a started or eligible ready `+auto` task here, work on it as the cards describe, then **Post-completion: commit, push, version**. Do not look across other projects while this project still has a started or eligible `+auto` task (see **When to stop**).
+   - If there is a started or eligible ready `+auto` task here, work on it as the cards describe, then **Post-completion: commit, push, version**. Finish this project's post-completion steps before you leave it (see **When to stop**). Tasks in other repositories do not conflict with this one, so when you orchestrate workers you may start an eligible `+auto` task in another project while this project's workers are still running; each project keeps its own post-completion.
 
 2. **Fall back to `+auto` tasks across projects.**
    - If the current project has no available due-window-eligible `+auto` agent task, run:
@@ -120,6 +120,7 @@ This skill inserts a step before the orchestrator card's "take the next task": a
      git push -u origin HEAD
      ```
 
+   - If the push is rejected because the remote moved on: `git fetch`, then rebase only when the task's commits are the only local ones, rerun the task's tests if the incoming commits touch the same files, and push again. Otherwise report it and leave the branch unpushed.
    - Never `--force` unless the user explicitly asked.
    - **Darwin + `~/git/dotfiles`:** never push (pull-only).
    - If there is no remote or push fails, report it to the user (and annotate if a pending task ID still exists); do not hide a failed push.

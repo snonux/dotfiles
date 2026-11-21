@@ -69,7 +69,9 @@ time in the orchestrator's own context.
   context and start builds, then measure again.
 - Cap build-heavy workers (large compiles, `-race` suites, emulators,
   container or VM builds) at about one per two cores, even when memory
-  allows more. Oversubscription causes timeouts and flaky tests that cost
+  allows more. Other sessions count too: if `uptime` shows a load average
+  well above the core count, hold build-heavy workers until one of yours
+  finishes; light workers (reviews, small script fixes) can still start. Oversubscription causes timeouts and flaky tests that cost
   more than the parallelism saves.
 - If the machine gets sluggish while workers run, stop launching and let
   them finish. Never kill user processes, and never stop a worker mid-edit
@@ -105,6 +107,17 @@ The prompt for every task worker is short and fixed:
 2. the absolute path of the project root, and whether the worker runs in its
    own git worktree;
 3. the full text of [card-worker.md](card-worker.md), pasted in.
+
+After the card, add what only you know about this task:
+
+- **where the worker's shell starts.** If it is not the project root (a task
+  in another repository), say so and tell it to begin commands with
+  `cd <root> &&`; `ask` only finds the task from inside its project;
+- **what must not be touched for real:** the live service, device, account or
+  data the code talks to, and what to use instead (the fakes the tests use);
+- **for a reviewer of a task without a code diff** (an audit, a chore across
+  repositories, a deployment, retaken pictures): what the deliverable is and
+  where to find it, and the two or three things most likely to be wrong.
 
 Paste the card rather than telling the worker to go and read files. Session
 history showed that workers act on the prompt and the task annotations and

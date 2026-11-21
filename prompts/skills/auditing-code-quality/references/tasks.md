@@ -69,6 +69,20 @@ ask add "+code-quality Fix foo"         # wrong: hyphenated tag rejected by ask
 ask add "+codequality -p M Fix foo"     # wrong: everything in one quoted arg
 ```
 
+**Inherit `+auto`.** If the audit's own task carries the `+auto` tag, add
+`+auto` to every task this audit creates (findings, gate, tagging), so the
+same unattended run that did the audit also works through its findings.
+
+**Findings that turn up later.** Workers and reviewers find more defects
+while fixing (in the first run: a second cause of a symptom, a wrong `mv -n`
+assumption, a race in another function). Each gets its own task with the
+same annotations, and is added to the gate so the audit cannot close without
+it:
+
+```bash
+ask dep add <gate-id> <new-task-id>
+```
+
 ## 5. Create the Audit-Closure Gate Task (mandatory)
 
 After **all** audit tasks (bug tasks from **find-code-bugs** + design/convention

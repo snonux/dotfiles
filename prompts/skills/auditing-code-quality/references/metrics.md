@@ -123,7 +123,11 @@ findings.
 Annotate the §5 gate task with the baseline so the comparison works days later
 in a fresh context ([tasks.md](tasks.md#5-create-the-audit-closure-gate-task-mandatory)):
 
-- the exact hotspot command from §1 (`crap-check.sh --all`), and
+- the exact hotspot command from §1 (`crap-check.sh --all`). For a language
+  without a CRAP tool (Bash, Ruby), rank by function length and branch count
+  and record the **exact command or script** used, in the report and here;
+  a description is not enough, because the gate has to reproduce the same
+  numbers on the pre-audit commit before it can compare. And
 - the baseline rows: the top 10, plus every function that a finding task targets.
 
 When the gate becomes READY, re-run the same commands and match rows by file

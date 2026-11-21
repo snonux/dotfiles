@@ -71,7 +71,11 @@ pushes. The orchestrator, or an agent working alone, does every step.
 4. **Fix every blocking finding**, in new commits. A reply without a code
    change is acceptable only when it shows the finding is not a defect.
    Non-blocking findings are fixed inline when cheap, otherwise dropped or
-   recorded as a follow-up task; they never trigger another round.
+   recorded as a follow-up task; they never trigger another round. A
+   suggestion to delete or weaken a test or a check is never "cheap": verify
+   its claim yourself (does something else really cover it?) or drop it. In
+   the first real run, a reviewer's "these two checks are duplicates" was
+   passed on unverified and cost the second review round.
 5. **Second round only if round one had blocking findings.** It confirms the
    fixes and checks the fix diff for new blocking defects, nothing else.
    **At most two rounds.** If something blocking remains, fix it and verify
