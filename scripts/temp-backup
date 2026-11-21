@@ -120,49 +120,51 @@ _validate_dest() {
     fi
 }
 
-# Each source lands in DEST/<basename>, so two sources with the same leaf
-# (e.g. ~/a/Notes and ~/b/Notes) would share one remote folder: with --delete
-# the later rsync wipes files only the earlier source has; without it,
-# same-named files overwrite each other. Refuse rather than pick a renaming
-# scheme: it loses no data and the user can rename or run twice with -d.
-_refuse_duplicate_leaf() {
-    local -n _seen="$1"
-    local -r dir="$2" name="$3"
-    if [[ -n "${_seen[$name]+set}" ]]; then
-        printf 'temp-backup: sources %s and %s would sync into the same remote folder %s; refusing (back them up separately, e.g. with different -d)\n' \
-            "${_seen[$name]}" "$dir" "${DEST%/}/${name}" >&2
+# Checks for one source on its own: exists, is a directory, is not root.
+_validate_source_dir() {
+    local -r dir="$1"
+    local resolved
+    if [[ ! -e "$dir" ]]; then
+        printf 'temp-backup: source does not exist: %s\n' "$dir" >&2
         exit 1
     fi
-    _seen[$name]="$dir"
+    if [[ ! -d "$dir" ]]; then
+        printf 'temp-backup: source is not a directory: %s\n' "$dir" >&2
+        exit 1
+    fi
+    # Reject filesystem root. On Linux, cd // && pwd -P can print //
+    # (POSIX quirk), so == / alone misses it; any all-slashes path is root.
+    resolved="$(cd -- "$dir" && pwd -P)"
+    if [[ -z "${resolved//\/}" ]]; then
+        printf 'temp-backup: refusing filesystem root as source: %s\n' \
+            "$dir" >&2
+        exit 1
+    fi
 }
 
+# Validates every source before any rsync runs (a later bad source must not
+# leave an earlier --delete sync half done).
+#
+# Each source lands in DEST/<basename>, so two sources with the same leaf
+# (e.g. ~/a/Notes and ~/b/Notes, or one dir given twice) would share one
+# remote folder: with --delete the later rsync wipes files only the earlier
+# source has; without it, same-named files overwrite each other. Refuse
+# rather than pick a renaming scheme: it loses no data and the user can
+# rename or run twice with different -d. The check is inline (no helper with
+# a nameref) so shellcheck can see seen_leaf is an associative array.
 _validate_sources() {
     local -n _dirs="$1"
-    local dir resolved name
-    # Filled through the nameref in _refuse_duplicate_leaf (SC2034 can't see it).
-    # shellcheck disable=SC2034
+    local dir name
     local -A seen_leaf=()
     for dir in "${_dirs[@]}"; do
-        if [[ ! -e "$dir" ]]; then
-            printf 'temp-backup: source does not exist: %s\n' "$dir" >&2
-            exit 1
-        fi
-        if [[ ! -d "$dir" ]]; then
-            printf 'temp-backup: source is not a directory: %s\n' "$dir" >&2
-            exit 1
-        fi
-        # Reject filesystem root. On Linux, cd // && pwd -P can print //
-        # (POSIX quirk), so == / alone misses it; any all-slashes path is root.
-        resolved="$(cd -- "$dir" && pwd -P)"
-        if [[ -z "${resolved//\/}" ]]; then
-            printf 'temp-backup: refusing filesystem root as source: %s\n' \
-                "$dir" >&2
-            exit 1
-        fi
-        # Validate remote leaf early (before any --delete rsync), and make
-        # sure no two sources map to the same DEST/<leaf>.
+        _validate_source_dir "$dir"
         name="$(_remote_basename "$dir")"
-        _refuse_duplicate_leaf seen_leaf "$dir" "$name"
+        if [[ -n "${seen_leaf[$name]+set}" ]]; then
+            printf 'temp-backup: sources %s and %s would sync into the same remote folder %s; refusing (back them up separately, e.g. with different -d)\n' \
+                "${seen_leaf[$name]}" "$dir" "${DEST%/}/${name}" >&2
+            exit 1
+        fi
+        seen_leaf[$name]="$dir"
     done
 }
 
