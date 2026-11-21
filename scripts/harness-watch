@@ -132,6 +132,10 @@ _status() {
         echo "not running"
     fi
     echo "watched panes:"
+    # awk prints "(none)" itself in END when no pane matched. A trailing
+    # "|| echo" cannot do that: awk exits 0 on zero matches, so it would only
+    # fire when tmux fails. If tmux fails (no server), awk sees no input and
+    # has already printed "(none)"; "|| true" just stops pipefail aborting.
     tmux list-panes -a -F '#{session_name} #{pane_id} #{pane_current_command}' 2>/dev/null \
         | awk -v p="$SESSION_PREFIX" -v skip=" ${SKIP_COMMANDS} " \
             'index($1, p) == 1 {
@@ -139,7 +143,9 @@ _status() {
                 if (index(skip, " " $3 " ") > 0)
                     cmd = cmd " (skipped: " $3 ")"
                 print cmd
-            }' || echo "  (none)"
+                found = 1
+            }
+            END { if (!found) print "  (none)" }' || true
 }
 
 case ${1:-} in
