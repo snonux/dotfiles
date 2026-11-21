@@ -22,6 +22,20 @@ Any concurrency limit stated alongside the parameters (e.g. "at most 2 agents",
 - `$work-on-tasks highest-impact`
 - `$work-on-tasks priority 5`
 
+## No sub-agent tool?
+
+If your harness cannot spawn sub-agents (common with small local models), use
+this short path and ignore everything below about workers and reference 7:
+
+1. `ask list start.any:` and resume a started task; otherwise take the first
+   task from `ask ready | head`.
+2. Follow the "Short version" in [2-start-task.md](../agent-task-management/references/2-start-task.md).
+3. Follow the "Short version" in [3-complete-task.md](../agent-task-management/references/3-complete-task.md),
+   applying [3b-review-checklist.md](../agent-task-management/references/3b-review-checklist.md)
+   to your own work in place of a reviewer.
+4. Repeat from step 1 until no task is left or `max_tasks` is reached, then
+   write the final report (step 8 of the loop below).
+
 ## Where the rules live
 
 Read [agent-task-management](../agent-task-management/SKILL.md) directly and
@@ -34,6 +48,7 @@ the reference is authoritative:
 - Parallelism, conflict rules, memory guard, worker prompt, optional cloud
   workers, worktree cleanup: [7-orchestrating-task-batches.md](../agent-task-management/references/7-orchestrating-task-batches.md)
 - Completion criteria, review budget, in-scope commits: [3-complete-task.md](../agent-task-management/references/3-complete-task.md)
+- What a reviewer checks and reports: [3b-review-checklist.md](../agent-task-management/references/3b-review-checklist.md)
 - Resuming stalled tasks: [6-recover-stalled-task.md](../agent-task-management/references/6-recover-stalled-task.md)
 
 ## Your role: orchestrator
@@ -81,7 +96,7 @@ sub-agents; you own every launch.
      small waves. As each worker returns, refill its slot from the remaining
      tasks and handle the returned task in step 5.
 5. **Review and close** each task as it finishes: self-review, then a fresh
-   reviewer under the review budget in reference 3 (at most two rounds, the
+   reviewer given `3b-review-checklist.md`, under the review budget in reference 3 (at most two rounds, the
    second only for blocking findings). Fix blocking findings yourself in direct
    mode, or send them to the worker or a fresh fixer in delegated mode. Commit
    in-scope changes, run `ask done <id>`, and add a final annotation if the

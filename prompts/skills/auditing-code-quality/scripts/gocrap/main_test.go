@@ -199,7 +199,7 @@ func TestRankAndReport(t *testing.T) {
 		t.Fatalf("rank = %v, want [high mid]", ranked)
 	}
 	var buf bytes.Buffer
-	printReport(&buf, ranked)
+	printReport(&buf, ranked, false)
 	want := "CRAP\tCC\tCOV%\tLOCATION\tFUNC\n30.0\t5\t-\tb.go:1\thigh\n12.0\t3\t-\tc.go:1\tmid\n"
 	if buf.String() != want {
 		t.Errorf("report:\n%s\nwant:\n%s", buf.String(), want)
@@ -212,7 +212,7 @@ func TestRankAndReport(t *testing.T) {
 func TestRun(t *testing.T) {
 	root := writeModule(t)
 	var buf bytes.Buffer
-	if err := run(&buf, root, "", "", 1, 0); err != nil {
+	if _, err := run(&buf, root, "", "", 1, 0, 0); err != nil {
 		t.Fatal(err)
 	}
 	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
@@ -223,21 +223,21 @@ func TestRun(t *testing.T) {
 
 func TestRunErrors(t *testing.T) {
 	notModule := t.TempDir()
-	if err := run(io.Discard, notModule, "cover.out", "", 0, 0); err == nil {
+	if _, err := run(io.Discard, notModule, "cover.out", "", 0, 0, 0); err == nil {
 		t.Error("-cover outside a module root should fail")
 	}
 	root := writeModule(t)
-	if err := run(io.Discard, root, filepath.Join(root, "missing.out"), "", 0, 0); err == nil {
+	if _, err := run(io.Discard, root, filepath.Join(root, "missing.out"), "", 0, 0, 0); err == nil {
 		t.Error("missing coverprofile should fail")
 	}
-	if err := run(io.Discard, root, "", "HEAD", 0, 0); err == nil {
+	if _, err := run(io.Discard, root, "", "HEAD", 0, 0, 0); err == nil {
 		t.Error("-changed outside a git repository should fail")
 	}
 	bad := filepath.Join(root, "p", "broken.go")
 	if err := os.WriteFile(bad, []byte("package p\nfunc {"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := run(io.Discard, root, "", "", 0, 0); err == nil {
+	if _, err := run(io.Discard, root, "", "", 0, 0, 0); err == nil {
 		t.Error("unparsable source should fail")
 	}
 }
@@ -251,5 +251,48 @@ func TestRankTieBreakIsNumeric(t *testing.T) {
 	got := rank(funcs, 0, 0)
 	if got[0].name != "a99" || got[1].name != "b3" || got[2].name != "b10" {
 		t.Errorf("tie order = %v, want a99, b3, b10", got)
+	}
+}
+
+func TestOffenders(t *testing.T) {
+	funcs := []fn{
+		{name: "ok", crap: 5},
+		{name: "new", crap: 40, cc: 6},
+		{name: "grew", crap: 40, cc: 6, baseCC: 3, hasBase: true},
+		{name: "old", crap: 40, cc: 6, baseCC: 6, hasBase: true},
+	}
+	names := func(fs []fn) string {
+		var n []string
+		for _, f := range fs {
+			n = append(n, f.name)
+		}
+		return strings.Join(n, ",")
+	}
+	if got := names(offenders(funcs, 30, false)); got != "new,grew,old" {
+		t.Errorf("whole-module offenders = %s", got)
+	}
+	if got := names(offenders(funcs, 30, true)); got != "new,grew" {
+		t.Errorf("changed-mode offenders = %s, want new,grew (old was only touched)", got)
+	}
+}
+
+func TestRunFailOver(t *testing.T) {
+	root := writeModule(t)
+	bad, err := run(io.Discard, root, "", "", 0, 0, 6)
+	if err != nil || len(bad) != 2 {
+		t.Errorf("limit 6 on two CRAP-6 functions: bad=%v err=%v", bad, err)
+	}
+	if bad, _ := run(io.Discard, root, "", "", 0, 0, 7); len(bad) != 0 {
+		t.Errorf("limit 7 should pass, got %v", bad)
+	}
+}
+
+func TestFileComplexities(t *testing.T) {
+	got := fileComplexities([]byte("package p\nfunc A(x bool) { if x {} }\nfunc (t *T) B() {}\n"))
+	if got["A"] != 2 || got["(*T).B"] != 1 {
+		t.Errorf("fileComplexities = %v", got)
+	}
+	if len(fileComplexities([]byte("not go"))) != 0 || len(fileComplexities(nil)) != 0 {
+		t.Error("unparsable or missing base source should yield no functions")
 	}
 }

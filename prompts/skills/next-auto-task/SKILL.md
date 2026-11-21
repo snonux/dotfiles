@@ -81,15 +81,12 @@ Every ready pick in this skill must use `due-window:7.days`. Plain `ask ready +a
 ## Started tasks
 
 A started `+auto` task always resumes, whatever its due date, and before any
-ready task is selected. Several started `+auto` tasks are a normal state (an
-interrupted parallel run leaves them behind), not an error. Count them with
-the ready tasks you would pick and apply the threshold in
-`agent-task-management` [2-start-task.md](../agent-task-management/references/2-start-task.md):
-exactly one task → work directly; two or more → one worker per task, subject
-to the parallelism rules and memory guard in
-[7-orchestrating-task-batches.md](../agent-task-management/references/7-orchestrating-task-batches.md).
-Workers may be cloud agents when available and suitable ("Cloud workers"
-there); that is optional. Recover each started task with
+ready task is selected. Several started `+auto` tasks are normal (an
+interrupted parallel run leaves them behind), not an error: resume all of
+them. How many to run at once, and whether to use workers, is decided by the
+"Short version" in `agent-task-management`
+[7-orchestrating-task-batches.md](../agent-task-management/references/7-orchestrating-task-batches.md)
+(no sub-agent tool: one at a time, oldest first). Recover each one with
 [6-recover-stalled-task.md](../agent-task-management/references/6-recover-stalled-task.md)
 before editing it.
 

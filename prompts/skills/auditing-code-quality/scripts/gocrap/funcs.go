@@ -23,6 +23,8 @@ type fn struct {
 	cov                float64
 	covKnown           bool
 	crap               float64
+	baseCC             int  // complexity at the -changed revision
+	hasBase            bool // false when the function did not exist there
 }
 
 // crap computes the CRAP score. Unknown coverage counts as zero.
@@ -172,11 +174,59 @@ func rank(funcs []fn, top int, minScore float64) []fn {
 }
 
 // printReport writes a tab-separated table that pastes cleanly into task
-// annotations and can be diffed between baseline and re-check.
-func printReport(w io.Writer, funcs []fn) {
-	fmt.Fprintln(w, "CRAP\tCC\tCOV%\tLOCATION\tFUNC")
-	for _, f := range funcs {
-		fmt.Fprintf(w, "%.1f\t%d\t%s\t%s\t%s\n",
-			f.crap, f.cc, fmtCov(f.cov, f.covKnown), f.location, f.name)
+// annotations and can be diffed between baseline and re-check. With withBase
+// (the -changed mode) it adds BASECC, the function's complexity at the base
+// revision, or "new" when it did not exist there.
+func printReport(w io.Writer, funcs []fn, withBase bool) {
+	if withBase {
+		fmt.Fprintln(w, "CRAP\tCC\tBASECC\tCOV%\tLOCATION\tFUNC")
+	} else {
+		fmt.Fprintln(w, "CRAP\tCC\tCOV%\tLOCATION\tFUNC")
 	}
+	for _, f := range funcs {
+		base := ""
+		if withBase {
+			base = "new\t"
+			if f.hasBase {
+				base = fmt.Sprintf("%d\t", f.baseCC)
+			}
+		}
+		fmt.Fprintf(w, "%.1f\t%d\t%s%s\t%s\t%s\n",
+			f.crap, f.cc, base, fmtCov(f.cov, f.covKnown), f.location, f.name)
+	}
+}
+
+// offenders returns the functions that break the limit. For a whole-module
+// run that is every function at or above it. In -changed mode a function only
+// offends when the change is responsible: it is new, or its complexity grew.
+// A function that was already over the limit and was merely touched passes.
+func offenders(funcs []fn, limit float64, withBase bool) []fn {
+	var out []fn
+	for _, f := range funcs {
+		if f.crap < limit {
+			continue
+		}
+		if withBase && f.hasBase && f.cc <= f.baseCC {
+			continue
+		}
+		out = append(out, f)
+	}
+	return out
+}
+
+// fileComplexities parses Go source and returns each function's complexity
+// by name. Unparsable source yields an empty map: the base version of a file
+// may legitimately be broken or absent.
+func fileComplexities(src []byte) map[string]int {
+	out := map[string]int{}
+	file, err := parser.ParseFile(token.NewFileSet(), "base.go", src, 0)
+	if err != nil {
+		return out
+	}
+	for _, decl := range file.Decls {
+		if fd, ok := decl.(*ast.FuncDecl); ok && fd.Body != nil {
+			out[funcName(fd)] = complexity(fd)
+		}
+	}
+	return out
 }

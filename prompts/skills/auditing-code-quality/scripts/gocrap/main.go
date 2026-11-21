@@ -21,7 +21,12 @@
 //
 // -changed REV keeps only functions whose lines differ between REV and the
 // working tree (`git diff REV`). Task reviews use it to apply a CRAP limit to
-// the code a change touched rather than to the whole codebase.
+// the code a change touched rather than to the whole codebase. The BASECC
+// column then shows each function's complexity at REV ("new" if absent).
+//
+// -fail-over N exits with status 2 when a function scores N or more. With
+// -changed only functions that are new or whose complexity grew count, so a
+// reviewer can use the exit status directly as a pass/fail check.
 package main
 
 import (
@@ -37,38 +42,53 @@ func main() {
 	top := flag.Int("top", 20, "print only the N highest scores (0 = all)")
 	minScore := flag.Float64("min", 0, "print only functions scoring at least this")
 	changed := flag.String("changed", "", "only functions changed since this git revision")
+	failOver := flag.Float64("fail-over", 0, "exit 2 if a function scores at least this (0 = off)")
 	flag.Parse()
 
-	if err := run(os.Stdout, *root, *cover, *changed, *top, *minScore); err != nil {
+	bad, err := run(os.Stdout, *root, *cover, *changed, *top, *minScore, *failOver)
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "gocrap:", err)
 		os.Exit(1)
+	}
+	if len(bad) > 0 {
+		for _, f := range bad {
+			fmt.Fprintf(os.Stderr, "gocrap: FAIL %s %s CRAP %.1f (limit %.0f)\n", f.location, f.name, f.crap, *failOver)
+		}
+		os.Exit(2)
 	}
 }
 
 // run loads the profile (if any), scores every function under root, keeps
-// only changed ones when rev is set, and prints the ranking to w.
-func run(w io.Writer, root, cover, rev string, top int, minScore float64) error {
+// only changed ones when rev is set, and prints the ranking to w. It returns
+// the functions that break failOver (none when failOver is 0). The limit is
+// checked on all scored functions, not only the -top rows that are printed.
+func run(w io.Writer, root, cover, rev string, top int, minScore, failOver float64) ([]fn, error) {
 	var prof profile
 	if cover != "" {
 		modPath, err := modulePath(root)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if prof, err = loadProfile(cover, modPath); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	funcs, err := collectFuncs(root, prof)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if rev != "" {
 		ch, err := gitChanges(root, rev)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		funcs = keepChanged(funcs, ch)
+		addBase(root, rev, funcs)
 	}
-	printReport(w, rank(funcs, top, minScore))
-	return nil
+	var bad []fn
+	if failOver > 0 {
+		bad = offenders(funcs, failOver, rev != "")
+	}
+	printReport(w, rank(funcs, top, minScore), rev != "")
+	return bad, nil
 }

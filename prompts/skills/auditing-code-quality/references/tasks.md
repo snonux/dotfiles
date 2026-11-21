@@ -94,7 +94,7 @@ it with the closure checklist so a fresh-context agent can finish verification:
   scope, to re-run when this task becomes READY (the language's
   build/test/lint/gofmt-equivalents; for Go: `go build ./...`, `go vet ./...`,
   `go test -race ./...`, `gofmt -l .`, `errcheck ./...`).
-- The metrics baseline from pass A: the exact hotspot commands and the baseline
+- The metrics baseline from pass A: the hotspot command (`crap-check.sh --all`) and the baseline
   rows (top 10 plus every function a finding task targets). When the gate is
   READY, re-run them and compare as described in
   [metrics.md](metrics.md#4-baseline-and-closure-gate-comparison).

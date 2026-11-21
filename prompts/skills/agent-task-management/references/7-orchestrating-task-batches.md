@@ -5,6 +5,22 @@ through several tasks, including the manual [work-on-tasks skill](../../work-on-
 the parallelism rules and the memory guard; other references link here instead
 of repeating them.
 
+## Short version
+
+**No sub-agent tool? Skip this file.** Work one task at a time with
+[2-start-task.md](2-start-task.md) and [3-complete-task.md](3-complete-task.md).
+
+1. Resume started tasks first, then fill free slots from `ask ready`.
+2. One task in total: work on it yourself. Two or more: one worker per task.
+3. Never run two tasks at once that touch the same files or share a resource.
+4. Before each local launch, check memory (2 GiB and 15% free). Launch one or
+   two workers, wait, measure again.
+5. Give each worker the prompt from "Worker prompt". Workers never spawn agents
+   and never run `ask done`.
+6. When a worker returns: review with [3b-review-checklist.md](3b-review-checklist.md),
+   fix blocking findings, commit, `ask done <id>`, refill the slot.
+7. At the end: clean up merged worktrees and report what is left.
+
 ## Parallelism policy
 
 Parallel tasks and parallel sub-agents are allowed **by default, with no fixed
@@ -115,7 +131,7 @@ Give every task sub-agent a short, self-contained prompt containing:
   full description and all annotations (do not paste them inline; a local
   worker fetches them fresh);
 - the absolute path of the project root;
-- the instruction to annotate progress with `ask annotate <id> "..."`;
+- the instruction to log each step with `ask annotate <id> "Did: <action>. Why: <reason>."`;
 - the instruction to follow "Prove the change (red first)" in
   [2-start-task.md](2-start-task.md), to use a focused check for each
   coherent change, and to leave shared expensive suites and device sessions to
@@ -127,6 +143,8 @@ Give every task sub-agent a short, self-contained prompt containing:
   sub-agents; it returns to the orchestrator for review.
 
 ## Cloud workers (optional)
+
+**Skip this section unless your harness has cloud or remote agents.**
 
 If the harness offers cloud or remote agents (for example the Agent tool's
 `isolation: "remote"`), the orchestrator **may** run suitable tasks there. It
@@ -160,6 +178,8 @@ but an explicit concurrency limit still counts them. If cloud agents are
 unavailable or fail to start, fall back to local workers without asking.
 
 ## Worktree cleanup
+
+**Skip this section if no worker used its own git worktree.**
 
 At the end of a batch, clean up the worktrees and branches that the run's
 workers created (Agent `isolation: "worktree"` leaves a worktree behind when

@@ -110,3 +110,21 @@ func keepChanged(funcs []fn, ch changes) []fn {
 	}
 	return kept
 }
+
+// addBase fills in each function's complexity at rev by reading the old file
+// with `git show`. A file that did not exist at rev leaves its functions
+// marked as new.
+func addBase(root, rev string, funcs []fn) {
+	cache := map[string]map[string]int{}
+	for i := range funcs {
+		f := &funcs[i]
+		if _, ok := cache[f.file]; !ok {
+			out, err := exec.Command("git", "-C", root, "show", rev+":./"+f.file).Output()
+			if err != nil {
+				out = nil // new file: no base complexities
+			}
+			cache[f.file] = fileComplexities(out)
+		}
+		f.baseCC, f.hasBase = cache[f.file][f.name]
+	}
+}

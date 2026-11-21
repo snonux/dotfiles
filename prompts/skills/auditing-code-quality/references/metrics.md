@@ -17,6 +17,19 @@ Record every command, its scope, and what could not run, as for any check in
 pass A. If a tool is not installed and cannot be installed, say so and
 continue without it.
 
+## Required and optional tools
+
+| Tool | Needed? | Purpose |
+|---|---|---|
+| `scripts/crap-check.sh` (bundled) | **Required** for Go | hotspot ranking |
+| `staticcheck` | **Required** for Go if installed or installable | unused code and common mistakes |
+| `deadcode`, `dupl`, `gremlins` | Optional: use only if already installed | unreachable code, duplication, mutation testing |
+| `lizard`, `jscpd` | Optional, non-Go projects | complexity, duplication |
+
+If you are short on context or time, run the two required tools, do the
+return-nothing check in §3 by reading tests, and say in the report which
+optional tools were skipped. That is a complete audit.
+
 ## 1. Hotspot ranking (pass A)
 
 **CRAP** (Change Risk Anti-Patterns) combines complexity and test coverage:
@@ -24,21 +37,26 @@ continue without it.
 high; one that is simple or well tested scores low. That makes it a better
 lead than function length or complexity alone.
 
-For Go, use the bundled stdlib-only tool (no gocyclo needed):
+For Go, run the bundled script from the module root. It needs only the Go
+toolchain and has nothing to fill in:
 
 ```bash
-go test -coverprofile="$SCRATCH/cover.out" ./...   # failing packages still write blocks for the rest
-go -C <this-skill>/scripts/gocrap run . -root "$PWD" -cover "$SCRATCH/cover.out" -top 20
+<this-skill>/scripts/crap-check.sh --all
 ```
 
-It prints `CRAP  CC  COV%  LOCATION  FUNC` as tab-separated values, skipping
-`_test.go`, generated files, `vendor/` and `testdata/`. Without `-cover`, or
-for functions missing from the profile, COV% is `-` and the score assumes no
-coverage. Run it from a module root; repeat it per module in a multi-module
-repo. `-changed <rev>` keeps only functions whose lines differ from that git
-revision (untracked files are not included). Task reviews use it to check the
-code a change touched; see "Change risk of touched functions" in
-[agent-task-management's completion reference](../../agent-task-management/references/3-complete-task.md).
+`<this-skill>` is the directory containing this skill's `SKILL.md`. The script
+runs `go test` with coverage (failing packages are reported but do not stop
+it) and prints the 20 highest-scoring functions as tab-separated
+`CRAP  CC  COV%  LOCATION  FUNC`. Test files, generated files, `vendor/` and
+`testdata/` are skipped. COV% is `-` when a function has no coverage data; the
+score then assumes none. Repeat it per module in a multi-module repo.
+
+The same script without `--all` is the review check for a single change
+(`crap-check.sh <base-commit>`, exit 2 when the change created or worsened a
+function at CRAP 30 or more); see
+[agent-task-management's review checklist](../../agent-task-management/references/3b-review-checklist.md).
+For other options, run the underlying tool directly:
+`go -C <this-skill>/scripts/gocrap run . -h`.
 
 For duplication in Go, `dupl -t 100 .` (`go install github.com/mibk/dupl@latest`)
 lists duplicated token sequences. For other languages, `lizard` (cyclomatic
@@ -105,7 +123,7 @@ findings.
 Annotate the §5 gate task with the baseline so the comparison works days later
 in a fresh context ([tasks.md](tasks.md#5-create-the-audit-closure-gate-task-mandatory)):
 
-- the exact hotspot commands from §1, and
+- the exact hotspot command from §1 (`crap-check.sh --all`), and
 - the baseline rows: the top 10, plus every function that a finding task targets.
 
 When the gate becomes READY, re-run the same commands and match rows by file

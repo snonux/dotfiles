@@ -96,7 +96,16 @@ func TestGitChangesEndToEnd(t *testing.T) {
 	}
 	got := keepChanged(funcs, ch)
 	if len(got) != 1 || got[0].name != "Never" {
-		t.Errorf("changed funcs = %v, want only Never", got)
+		t.Fatalf("changed funcs = %v, want only Never", got)
+	}
+	addBase(root, "HEAD", got)
+	if !got[0].hasBase || got[0].baseCC != 2 {
+		t.Errorf("Never base = %+v, want existing with complexity 2", got[0])
+	}
+	added := []fn{{name: "Brand", file: "p/new.go"}, {name: "Fresh", file: "p/p.go"}}
+	addBase(root, "HEAD", added)
+	if added[0].hasBase || added[1].hasBase {
+		t.Errorf("new file / new function must have no base: %+v", added)
 	}
 	if _, err := gitChanges(root, "no-such-rev"); err == nil {
 		t.Error("unknown revision should fail")

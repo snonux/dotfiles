@@ -4,6 +4,22 @@ Use with `00-cli.md` and `00-project-scope.md`. Several tasks may be started at
 once (one per parallel worker); the parallelism policy and memory guard live in
 [7-orchestrating-task-batches.md](7-orchestrating-task-batches.md).
 
+## Short version
+
+Do these in order. The sections below explain each step.
+
+1. `ask list start.any:` and resume started tasks first. Otherwise `ask ready | head`.
+2. `ask start <id>`, then `ask info <id>` and read everything.
+3. If the project has a `GLOSSARY.md`, read it and use its terms.
+4. Bug fix or behaviour change: write the test, run it, **see it fail**.
+   Then `ask annotate <id> "Red first: <test> failed with <message>"`.
+5. Make the smallest change that makes the test pass. Run it. It must pass.
+6. Refactor: make sure tests pin the behaviour first; they must pass unchanged after.
+7. After each step, log it: `ask annotate <id> "Did: <action>. Why: <reason>."`
+8. Only touch what the task names. Never edit `vendor/`, `node_modules/`, or
+   generated files. If the task needs that, annotate `Blocked: ...` and stop.
+9. Finish with [3-complete-task.md](3-complete-task.md).
+
 ## Start each new task with a fresh context
 
 Work on each new task **must begin with a fresh context** — a new sub-agent with no prior conversation history. That way the task is executed with clear focus and no carry-over from other work.
@@ -65,8 +81,11 @@ This section is the canonical home for how a change is proven. Other skills
   output line) so the reviewer can see it:
 
   ```bash
-  ask annotate <id> "Red first: TestParseEmptyHeader failed before the fix with 'index out of range'; passes after."
+  ask annotate <id> "Red first: TestParseEmptyHeader failed with 'index out of range'; passes after the fix."
   ```
+
+  Always start this annotation with `Red first:` and name the test; the
+  reviewer looks for exactly that.
 
 - **Fix the cause.** Reproduce the problem first. A guard that only hides the
   symptom (an extra nil check, a retry, a catch-all) is not a fix.
@@ -85,6 +104,18 @@ This section is the canonical home for how a change is proven. Other skills
   and boundary behaviour, and only then try another fix or a full rerun. Note
   whether the failure is a product defect or a test-driver, fixture, or
   resource problem.
+
+- **Keep a log.** After each meaningful step, record what you did and why:
+  `ask annotate <id> "Did: <action>. Why: <reason>."` The log lets a reviewer
+  or the next worker check the work without rerunning it.
+- **Use the project's words.** If the project has a `GLOSSARY.md`, name things
+  with its terms. When the task introduces a new domain term, add it there
+  with a one-line definition. Do not create a glossary for a project that has
+  none unless the task asks for it.
+- **Accepting a complex function.** If the change-risk check in
+  [3b-review-checklist.md](3b-review-checklist.md) flags a function that is not
+  worth splitting or testing further, record why:
+  `ask annotate <id> "CRAP accepted: <function>: <reason>"`.
 
 Pure documentation, configuration, or chore tasks with no behaviour to test
 skip the red-first step. Say so in the completion annotation.

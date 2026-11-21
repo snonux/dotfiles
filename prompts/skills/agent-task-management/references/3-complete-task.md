@@ -2,6 +2,22 @@
 
 Use with `00-cli.md`, `00-project-scope.md`, and `verification-honesty.md`.
 
+## Short version
+
+Do these in order. The sections below explain each step.
+
+1. Build passes. All tests pass.
+2. The change is proven: a `Red first:` annotation exists (bug fix or
+   behaviour change), or the pinning tests passed unchanged (refactor).
+3. Self-review: did it all make sense? Is there a better way? Fix what comes up.
+4. Review: the orchestrator launches a fresh reviewer with
+   [3b-review-checklist.md](3b-review-checklist.md). No sub-agent tool, or the
+   user asked to skip reviews? Apply that checklist to your own work instead.
+5. Fix every blocking finding. At most two review rounds.
+6. `git status`, then `git add <explicit paths>` (never `-A`), then commit with
+   the template in "Commit message template".
+7. `ask done <id>`, then pick the next task.
+
 ## Completion criteria (required before "done")
 
 A task is **not** considered done until all of the following are true:
@@ -17,33 +33,14 @@ If any of these fail, fix the issues and recheck. Do not mark the task complete 
 
 ## What the review sub-agent must check
 
-Review sub-agents **must always**:
+The reviewer's steps, the list of what counts as blocking, and the report
+format are in [3b-review-checklist.md](3b-review-checklist.md). Give the
+reviewer that file, the task ID, the base commit (the commit before the task's
+first commit), and the round number. It does not need the rest of this file.
 
-- **Unit test coverage** — check that the changed or added code is covered and that project thresholds are met.
-- **Tests are testing real things** — confirm that tests exercise real behavior and assertions, not only mocks. Flag tests that merely assert on mocks or stubs without verifying real logic, integration points, or outcomes. Apply the **return-nothing check**: would the new or changed tests still pass if the code under test returned zero values or did nothing? If so, they are a false pass (blocking).
-- **Red-first evidence** — for bug fixes and behaviour changes, the "Red first" annotation exists and the named test actually exercises the fixed behaviour. A missing annotation on a task that needed one is blocking; the fix is to show the test failing against the parent commit, not to rewrite the change.
-- **Change risk of touched functions** — for Go, score the functions the change touched:
-
-  ```bash
-  go test -coverprofile="$SCRATCH/cover.out" ./...
-  go -C <skills-dir>/auditing-code-quality/scripts/gocrap run . \
-    -root "$PWD" -cover "$SCRATCH/cover.out" -changed <base-commit> -top 0
-  ```
-
-  `<skills-dir>` is the directory that holds this skill collection (the parent
-  of `agent-task-management/`). `<base-commit>` is the commit before the task's
-  first commit. The tool is
-  described in [the audit's metrics reference](../../auditing-code-quality/references/metrics.md#1-hotspot-ranking-pass-a).
-  A touched function at **CRAP 30 or more** is **blocking** when the change
-  created it or visibly raised its complexity (new branches in the diff), unless
-  the worker recorded why splitting or testing it is not worth it (for example,
-  a flat `switch` over many cases). A function that already scored that high and
-  was only lightly touched is non-blocking; suggest a follow-up task. For other
-  languages, use an equivalent complexity and coverage tool if the project has
-  one; otherwise judge the added branches and their tests by reading the diff.
-- **Negative tests where plausible** — for all tests created, ensure there are also negative tests (invalid input, error paths, edge cases that should fail, unauthorized access, etc.) wherever plausible. If positive/happy-path tests exist but no corresponding negative tests, flag it unless there is a clear reason none are plausible.
-
-Include these checks in the sub-agent's review report.
+In short, the reviewer checks: acceptance criteria met and tested, tests that
+would fail if the code did nothing (return-nothing check), the `Red first:`
+record, negative tests where plausible, and for Go the change-risk script.
 
 ## Self-review before any sub-agent handoff
 
@@ -128,6 +125,16 @@ a sibling worker's in-progress edits are also out-of-scope for you):
 If you cannot confidently tell whether a dirty file is in-scope, treat it as
 out-of-scope and leave it alone rather than risk committing the user's work.
 
+## Commit message template
+
+```text
+<short summary> (task <id>)
+
+Why: <the problem or goal>
+What: <what changed>
+Proof: <tests or checks that ran, and their result>
+```
+
 ## Review budget and convergence
 
 Reviews must converge. An open-ended "find every flaw until a review is clean" loop never terminates: each round finds smaller issues, and every round costs a rebuild and test run. Follow these rules unless the user or the task explicitly asks for more:
@@ -137,7 +144,7 @@ Reviews must converge. An open-ended "find every flaw until a review is clean" l
   - a product defect: wrong behaviour, a crash, data loss, a security issue, a regression;
   - a test or oracle that can pass while the behaviour is wrong (a false pass), or a missing test for an acceptance criterion;
   - a build, lint or test failure;
-  - a missing red-first record, or a touched function at CRAP 30 or more that the change created or made more complex without a recorded justification (see "What the review sub-agent must check");
+  - a missing `Red first:` record, or a failed change-risk check without a `CRAP accepted:` annotation (both defined in [3b-review-checklist.md](3b-review-checklist.md));
   - a documentation claim that is false about what the product does or what was verified.
 - **Non-blocking** means everything else: wording, style, naming, extra hardening, nicer diagnostics, additional evidence or provenance records, duplicated helpers, hypothetical edge cases outside the acceptance criteria. Fix it inline if cheap, otherwise drop it or create a follow-up task. It never triggers another round.
 - **Do not raise the bar mid-task.** Neither the orchestrator nor the reviewer adds requirements the task did not state (for example identity hashes, evidence sha256 tables, clause-to-test tables, negative-control suites). If such a requirement is worth having, create a separate task for it.

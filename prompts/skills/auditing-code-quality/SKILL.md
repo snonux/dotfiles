@@ -36,13 +36,13 @@ within the passes below rather than running a separate full audit per skill.
 
 ## Scripts
 
-- `scripts/gocrap/`: stdlib-only Go tool that ranks functions by CRAP score.
-  Usage is in [references/metrics.md](references/metrics.md#1-hotspot-ranking-pass-a).
-  `main.go` holds the flags, `profile.go` parses coverprofiles, `funcs.go`
-  scores and prints, and `changed.go` implements `-changed <rev>` (functions
-  touched since a git revision, used by task reviews). Tests are in
-  `main_test.go` and `changed_test.go` (`go -C scripts/gocrap test ./...`;
-  module file `go.mod`).
+- `scripts/crap-check.sh`: the one command to run. `crap-check.sh --all` prints
+  the hotspot ranking for an audit; `crap-check.sh [base]` is the pass/fail
+  review check for one change. Details: [references/metrics.md](references/metrics.md#1-hotspot-ranking-pass-a).
+- `scripts/gocrap/`: the stdlib-only Go tool behind it. `main.go` holds the
+  flags, `profile.go` parses coverprofiles, `funcs.go` scores and prints, and
+  `changed.go` implements `-changed <rev>`. Tests are in `main_test.go` and
+  `changed_test.go` (`go -C scripts/gocrap test ./...`; module file `go.mod`).
 
 ## Workflow
 
@@ -79,8 +79,9 @@ run the appropriate checks once. For Go, load **go-best-practices** and include
 honesty rules for missing tools, dependencies, or expensive suites.
 
 Then measure, following [references/metrics.md](references/metrics.md) §1–2:
-rank functions by CRAP score (complexity combined with test coverage), list
-duplicated code, and run the dead-code checks. Passes B and C start from the
+for Go run `scripts/crap-check.sh --all` to rank functions by CRAP score
+(complexity combined with test coverage) and run `staticcheck`. The other
+tools listed there are optional. Passes B and C start from the
 top of that ranking. Keep the ranking as the baseline for the closure gate.
 
 Record commands, scope, results, and blockers. Diagnostics are investigation
@@ -118,22 +119,26 @@ relevant **100-go-mistakes** references. Apply the shared evidence rules;
 separate convention differences from correctness defects. Use one design
 finding for an underlying problem, even when multiple lenses describe it.
 
-Look for domain states the code permits but the product forbids, repeated
-validation of the same input after its entry boundary, non-idempotent retry
-paths, and shared mutable state that could be separated. Recommend removal of
-unneeded code or indirection before adding a new abstraction. Metric scores
-from pass A decide where to look; they are not pass/fail thresholds.
+Then work through these four sub-steps in order:
 
-Review test quality around the top hotspots and each finding using
-[references/metrics.md](references/metrics.md) §3: would the tests still pass
-if the code did nothing? Run time-boxed mutation testing on the two or three
-riskiest packages. An unpinned behaviour whose failure matters is a finding.
-
-If earlier audits exist (`git tag -l 'audit/*'`, `ask completed +codequality`,
-`ask completed +bugfix`), check whether any current finding repeats a problem
-that an earlier audit already fixed. Report a repeat as one finding about why
-it keeps coming back: the shared premise, missing enforcement, or the design
-that invites it. Do not file another local fix for it.
+1. **Design risks.** Look for domain states the code permits but the product
+   forbids, repeated validation of the same input after its entry boundary,
+   non-idempotent retry paths, and shared mutable state that could be
+   separated. Recommend removing unneeded code or indirection before adding
+   an abstraction. Metric scores from pass A decide where to look; they are
+   not pass/fail thresholds.
+2. **Naming.** If the project has a `GLOSSARY.md`, flag domain concepts that
+   the code names differently from it, or names in two different ways.
+3. **Test quality** ([references/metrics.md](references/metrics.md) §3). For
+   the top hotspots and each finding, ask: would the tests still pass if the
+   code did nothing? If `gremlins` is installed, run time-boxed mutation
+   testing on the two or three riskiest packages. An unpinned behaviour whose
+   failure matters is a finding.
+4. **Repeat findings.** If earlier audits exist (`git tag -l 'audit/*'`,
+   `ask completed +codequality`, `ask completed +bugfix`), check whether a
+   current finding repeats a problem an earlier audit already fixed. Report
+   a repeat as one finding about why it keeps coming back (the shared premise,
+   missing enforcement, or the design that invites it), not as another local fix.
 
 For large scopes, sub-agents may review distinct modules or risks. Give them
 the shared rules, existing findings and check results, and the §5–6 ownership

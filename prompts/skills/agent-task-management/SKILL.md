@@ -17,6 +17,7 @@ scope reference and only the action reference needed for the request.
 | Start a task | [2-start-task.md](references/2-start-task.md) |
 | Recover a stalled or interrupted task | [6-recover-stalled-task.md](references/6-recover-stalled-task.md) and [verification-honesty.md](references/verification-honesty.md) |
 | Complete a task | [3-complete-task.md](references/3-complete-task.md) and [verification-honesty.md](references/verification-honesty.md) |
+| Review a finished task (reviewer sub-agents read only this) | [3b-review-checklist.md](references/3b-review-checklist.md) |
 | Annotate or update a task | [4-annotate-update-task.md](references/4-annotate-update-task.md) |
 | Review or overview tasks | [5-review-overview-tasks.md](references/5-review-overview-tasks.md) |
 | Orchestrate several tasks, run tasks in parallel, or use the manual [work-on-tasks skill](../work-on-tasks/SKILL.md) (parallelism policy, memory guard, worker prompt, optional cloud workers, worktree cleanup) | [7-orchestrating-task-batches.md](references/7-orchestrating-task-batches.md) plus the selected action references |
