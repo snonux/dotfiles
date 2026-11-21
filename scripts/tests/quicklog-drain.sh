@@ -1,11 +1,21 @@
 #!/usr/bin/env bash
-# Negative/repro checks for scripts/quicklog/drain JSON ack escaping (k33).
+# Checks for scripts/quicklog/drain JSON ack escaping (k33) and its wrapper.
+# Nothing greps the scripts: _emit_ack is called directly, and the import
+# loop runs through the wrapper with a fake dart (protocol stream) and a
+# fake fish (import result), so the acks it writes are checked as data.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 declare -r SCRIPT_DIR
 declare -r QUICKLOG_DRAIN="${SCRIPT_DIR}/../quicklog/drain"
 declare -r QUICKLOG_DRAIN_WRAPPER="${SCRIPT_DIR}/../quicklog-drain"
+TEST_ROOT="$(mktemp -d)"
+declare -r TEST_ROOT
+
+cleanup() {
+    rm -rf "$TEST_ROOT"
+}
+trap cleanup EXIT
 
 fail() {
     printf 'quicklog-drain test: %s\n' "$*" >&2
@@ -15,63 +25,14 @@ fail() {
 bash -n "$QUICKLOG_DRAIN" || fail "bash -n failed"
 bash -n "$QUICKLOG_DRAIN_WRAPPER" || fail "bash -n wrapper failed"
 [[ -x "$QUICKLOG_DRAIN_WRAPPER" ]] || fail "wrapper not executable"
-grep -q 'quicklog/drain' "$QUICKLOG_DRAIN_WRAPPER" \
-    || fail "wrapper does not exec quicklog/drain"
 shellcheck -x "$QUICKLOG_DRAIN" || fail "shellcheck failed"
 shellcheck -x "$QUICKLOG_DRAIN_WRAPPER" || fail "shellcheck wrapper failed"
 
-# PROGRAM must stay quicklog-drain via wrapper export (not argv0 / exec -a).
-grep -qE 'PROGRAM:=quicklog-drain' "$QUICKLOG_DRAIN_WRAPPER" \
-    || fail "wrapper missing PROGRAM=quicklog-drain export"
-grep -qE 'PROGRAM="\$\{PROGRAM:-quicklog-drain\}"' "$QUICKLOG_DRAIN" \
-    || fail "drain does not respect pre-set PROGRAM"
-
-# --- Structural: helper + call-site wiring (resilient, not brittle printf greps) ---
-
-grep -q '^_emit_ack()' "$QUICKLOG_DRAIN" || fail "missing _emit_ack helper"
-
-helper_fn=$(awk '/^_emit_ack\(\)/,/^}/' "$QUICKLOG_DRAIN")
-[[ -n "$helper_fn" ]] || fail "could not extract _emit_ack"
-grep -q -- '--arg key' <<<"$helper_fn" || fail "_emit_ack missing jq --arg key"
-grep -q -- '--argjson ok' <<<"$helper_fn" \
-    || fail "_emit_ack missing jq --argjson ok (ok must be JSON boolean)"
-
-import_fn=$(awk '/^import_notes\(\)/,/^}/' "$QUICKLOG_DRAIN")
-[[ -n "$import_fn" ]] || fail "could not extract import_notes"
-
-# All three protocol ack paths must go through _emit_ack (empty / true / false).
-emit_count=$(grep -cE '^[[:space:]]*_emit_ack ' <<<"$import_fn" || true)
-[[ "$emit_count" -eq 3 ]] \
-    || fail "import_notes expected 3 _emit_ack calls, got $emit_count"
-
-grep -qE '_emit_ack[[:space:]]+""[[:space:]]+false[[:space:]]+>&' <<<"$import_fn" \
-    || fail "missing empty-key _emit_ack false path to Dart FD"
-# shellcheck disable=SC2016 # match literal $key in source, not expand it
-grep -qE '_emit_ack[[:space:]]+"\$key"[[:space:]]+true[[:space:]]+>&' <<<"$import_fn" \
-    || fail "missing success _emit_ack true path to Dart FD"
-# shellcheck disable=SC2016 # match literal $key in source, not expand it
-grep -qE '_emit_ack[[:space:]]+"\$key"[[:space:]]+false[[:space:]]+>&' <<<"$import_fn" \
-    || fail "missing failure _emit_ack false path to Dart FD"
-
-# Alternate broken emits inside import_notes must not appear.
-if grep -nE 'printf[[:space:]]+.*\{.*"key"' <<<"$import_fn"; then
-    fail "import_notes still builds ack JSON via printf"
-fi
-if grep -nE 'jq[[:space:]]+[^|]*\{key:' <<<"$import_fn"; then
-    fail "import_notes builds ack via inline jq (must use _emit_ack)"
-fi
-
-# --- Load _emit_ack without sourcing the whole script (no fish/PATH deps) ---
-# shellcheck disable=SC1090
-eval "$helper_fn"
-[[ "$(type -t _emit_ack)" == function ]] || fail "_emit_ack not defined after extract"
-
-# Full-script source must also succeed when fish is absent from PATH.
+# Full-script source must succeed when fish is absent from PATH.
 bash_bin=$(command -v bash)
 declare -r bash_bin
-no_fish_bin=$(mktemp -d)
-# shellcheck disable=SC2064
-trap "rm -rf $(printf '%q' "$no_fish_bin")" EXIT
+no_fish_bin="$TEST_ROOT/no-fish-bin"
+mkdir -p "$no_fish_bin"
 # shellcheck disable=SC2016 # $1 / command substitutions expand inside the child
 PATH="$no_fish_bin" "$bash_bin" -c '
     set -euo pipefail
@@ -81,6 +42,11 @@ PATH="$no_fish_bin" "$bash_bin" -c '
     [[ -z "${FISH_BIN:-}" ]]
 ' bash "$QUICKLOG_DRAIN" \
     || fail "sourcing quicklog-drain aborted without fish on PATH"
+
+# Load _emit_ack for the unit checks below by sourcing the script into this
+# shell (main is gated on BASH_SOURCE, so nothing runs).
+# shellcheck source=scripts/quicklog/drain
+source "$QUICKLOG_DRAIN"
 
 # --- Negative repro: printf into JSON string breaks on quotes/backslashes ---
 declare -r EVIL_KEY='ql-"quote"\backslash.md'
@@ -148,5 +114,84 @@ assert_ack 'ql-plain.md' true "$ack"
 declare -r UNI_KEY=$'ql-ünïcode path\twith tab.md'
 ack=$(_emit_ack "$UNI_KEY" true)
 assert_ack "$UNI_KEY" true "$ack"
+
+# --- Entry point: the import loop acks every stream line as JSON ---
+# The wrapper runs with a throwaway HOME, credentials file, repo, lock dir
+# and fish conf.d. The fake dart (run with env -i inside REPO, so it uses
+# files there) writes each line of stream.jsonl to the drain and logs the
+# ack it reads back to acks.log. The fake fish fails the import when the
+# note content is FAIL. Nothing reaches Garage, Dart or taskwarrior.
+declare -r QL_HOME="$TEST_ROOT/home"
+declare -r QL_REPO="$TEST_ROOT/repo"
+declare -r QL_CONF="$TEST_ROOT/conf.d"
+declare -r QL_BIN="$TEST_ROOT/ql-bin"
+mkdir -p "$QL_HOME" "$QL_REPO" "$QL_CONF" "$QL_BIN" "$TEST_ROOT/run"
+: >"$QL_CONF/taskwarrior.fish"
+: >"$QL_CONF/quicklog.fish"
+printf '%s\n' \
+    'GARAGE_ENDPOINT=http://garage.invalid' 'GARAGE_REGION=garage' \
+    'GARAGE_BUCKET=quicklog' 'GARAGE_ACCESS_KEY_ID=fake-id' \
+    'GARAGE_SECRET_ACCESS_KEY=fake-secret' >"$TEST_ROOT/creds.env"
+cat >"$QL_BIN/dart" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "${1:-}" == pub ]] && exit 0
+printf '%s\n' "$*" >>args.log
+while IFS= read -r -u 4 line; do
+    printf '%s\n' "$line"
+    IFS= read -r ack || exit 3
+    printf '%s\n' "$ack" >>acks.log
+done 4<stream.jsonl
+EOF
+cat >"$QL_BIN/fish" <<'EOF'
+#!/usr/bin/env bash
+content=$(cat)
+[[ "$content" != FAIL ]]
+EOF
+chmod +x "$QL_BIN/dart" "$QL_BIN/fish"
+# Keys: one with quotes and a backslash (imports), one whose import fails,
+# then a line with no key (malformed; must get a mismatched false ack).
+jq -nc --arg key "$EVIL_KEY" '{key:$key,content:"buy milk"}' >"$QL_REPO/stream.jsonl"
+jq -nc '{key:"ql-fail.md",content:"FAIL"}' >>"$QL_REPO/stream.jsonl"
+printf '%s\n' 'not a protocol line' >>"$QL_REPO/stream.jsonl"
+
+# run_drain PROGRAM_OR_EMPTY TARGET — run TARGET (wrapper or drain) in the
+# sandbox; PROGRAM is preset only when the first argument is not empty.
+run_drain() {
+    local -r program="$1" target="$2"
+    local -a preset=()
+    [[ -n "$program" ]] && preset=("PROGRAM=$program")
+    : >"$QL_REPO/acks.log"
+    env -u PROGRAM "${preset[@]}" \
+        HOME="$QL_HOME" PATH="$QL_BIN:$PATH" \
+        XDG_RUNTIME_DIR="$TEST_ROOT/run" \
+        QUICKLOG_CREDS="$TEST_ROOT/creds.env" QUICKLOG_REPO="$QL_REPO" \
+        QUICKLOG_DART="$QL_BIN/dart" QUICKLOG_FISH_CONF_DIR="$QL_CONF" \
+        "$target" >"$TEST_ROOT/drain.out" 2>"$TEST_ROOT/drain.err"
+}
+
+if run_drain '' "$QUICKLOG_DRAIN_WRAPPER"; then
+    fail "drain exited 0 although one import failed"
+fi
+grep -Fxq 'run bin/quicklog_drain.dart --import' "$QL_REPO/args.log" \
+    || fail "wrapper did not reach the drain's import: $(cat "$QL_REPO/args.log")"
+mapfile -t acks <"$QL_REPO/acks.log"
+[[ "${#acks[@]}" -eq 3 ]] \
+    || fail "want 3 acks, got ${#acks[@]}: $(cat "$QL_REPO/acks.log")"
+assert_ack "$EVIL_KEY" true "${acks[0]}"
+assert_ack 'ql-fail.md' false "${acks[1]}"
+assert_ack '' false "${acks[2]}"
+# The wrapper names the program quicklog-drain (not "drain").
+grep -Fq 'quicklog-drain: imported=1 kept=1 dart_rc=0' "$TEST_ROOT/drain.out" \
+    || fail "wrapper summary wrong: $(cat "$TEST_ROOT/drain.out")"
+grep -Fq 'quicklog-drain: import failed for ql-fail.md' "$TEST_ROOT/drain.err" \
+    || fail "wrapper error prefix wrong: $(cat "$TEST_ROOT/drain.err")"
+
+# The drain keeps a preset PROGRAM (and the wrapper passes it through).
+for target in "$QUICKLOG_DRAIN" "$QUICKLOG_DRAIN_WRAPPER"; do
+    run_drain 'ql-custom' "$target" || true
+    grep -Fq 'ql-custom: imported=1 kept=1' "$TEST_ROOT/drain.out" \
+        || fail "preset PROGRAM ignored by ${target##*/}: $(cat "$TEST_ROOT/drain.out")"
+done
 
 printf 'quicklog-drain test: ok\n'
