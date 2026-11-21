@@ -25,7 +25,8 @@ repository or in a commit message.
 
 2. **Report.** Read the `HEADLINE` block first and compare each line with the
    newest baseline in `references/` (first one:
-   [baseline-2026-11.md](references/baseline-2026-11.md)):
+   [baseline-2026-11.md](references/baseline-2026-11.md); how the changes
+   did in their first runs: [runs-2026-11.md](references/runs-2026-11.md)):
 
    ```bash
    python3 -I ~/.agents/skills/review-agent-effectiveness/scripts/report_sessions.py scan.jsonl
