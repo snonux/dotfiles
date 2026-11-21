@@ -426,4 +426,29 @@ for target in "$upload_src/photo.jpg" "$upload_src"; do
     done
 done
 
+# --- mg4: an unreadable timestamp fails the upload, not uploads it blank ---
+# upload_file runs as 'upload_file ... || ...', so set -e is off inside it,
+# and a failing date in file_timestamps used to yield empty fileCreatedAt/
+# fileModifiedAt that were uploaded anyway (exit 0). A fake date that always
+# fails stands in for a file whose mtime cannot be read.
+date_fail_bin="$TEST_ROOT/date-fail-bin"
+mkdir -p "$date_fail_bin"
+printf '#!/usr/bin/env bash\necho "date: fake failure" >&2\nexit 1\n' \
+    >"$date_fail_bin/date"
+chmod +x "$date_fail_bin/date"
+for target in "$upload_src/photo.jpg" "$upload_src"; do
+    err_file="$TEST_ROOT/main.stderr"
+    : >"$FAKE_CURL_LOG"
+    if PATH="$date_fail_bin:$PATH" run_main "$target" "$err_file"; then
+        fail "mg4: main ${target@Q} exited 0 although timestamps failed"
+    fi
+    grep -q 'Failed to read timestamps' "$err_file" \
+        || fail "mg4: main ${target@Q} printed no timestamp error: $(<"$err_file")"
+    grep -q '1 upload(s) failed' "$err_file" \
+        || fail "mg4: main ${target@Q} printed no failure count: $(<"$err_file")"
+    if grep -Eq '/api/assets$' "$FAKE_CURL_LOG"; then
+        fail "mg4: main ${target@Q} uploaded with unreadable timestamps"
+    fi
+done
+
 printf 'immich-upload test: ok\n'

@@ -33,6 +33,9 @@ file_sha1() {
 # Extract fileCreatedAt and fileModifiedAt from exiftool if available,
 # otherwise fall back to filesystem timestamps.
 # Output is ISO 8601 with milliseconds, e.g. 2024-01-15T10:30:00.000Z
+# Returns 1 if the filesystem timestamp cannot be read: it runs inside
+# $(...) under upload_file's '||', where set -e does not apply, so the date
+# calls are checked explicitly.
 file_timestamps() {
     local path="$1"
     local created modified
@@ -56,10 +59,10 @@ file_timestamps() {
     fi
 
     if [[ -z "$created" ]]; then
-        created=$(date -r "$path" -u '+%Y-%m-%dT%H:%M:%S.000Z')
+        created=$(date -r "$path" -u '+%Y-%m-%dT%H:%M:%S.000Z') || return 1
     fi
 
-    modified=$(date -r "$path" -u '+%Y-%m-%dT%H:%M:%S.000Z')
+    modified=$(date -r "$path" -u '+%Y-%m-%dT%H:%M:%S.000Z') || return 1
 
     echo "$created"
     echo "$modified"
@@ -187,6 +190,8 @@ upload_file() {
     local filename
     filename=$(basename "$file")
     local checksum
+    # Status checked right here (sha1sum | awk under pipefail).
+    # shellcheck disable=SC2310
     checksum=$(file_sha1 "$file") || {
         warn "  Failed to checksum: $filename"
         return 1
@@ -194,7 +199,12 @@ upload_file() {
 
     local fileCreatedAt fileModifiedAt
     local timestamps
-    timestamps=$(file_timestamps "$file")
+    # Without this check a failed date uploaded empty timestamps.
+    # shellcheck disable=SC2310
+    timestamps=$(file_timestamps "$file") || {
+        warn "  Failed to read timestamps: $filename"
+        return 1
+    }
     fileCreatedAt=$(echo "$timestamps" | sed -n '1p')
     fileModifiedAt=$(echo "$timestamps" | sed -n '2p')
 
@@ -224,6 +234,8 @@ upload_file() {
     local http_code rc=0
     # curl_immich_key keeps the API key off curl's argv (see lib); the
     # multipart body comes from -F/--form-string, so curl's stdin is free.
+    # Its status is curl's and is handled below (000 = curl error).
+    # shellcheck disable=SC2310
     http_code=$(curl_immich_key "$CURL_DOWNLOAD_TIMEOUT" "$api_key" \
         -s -o "$tmpfile" -w '%{http_code}' -X POST \
         -H "x-immich-checksum: $checksum" \
@@ -280,6 +292,7 @@ bulk_upload() {
     info "Checking for duplicates on server..."
     local response
     # Key off curl's argv via curl_immich_key; the body is read from a file.
+    # shellcheck disable=SC2310 # status is curl's; failure dies right here
     response=$(curl_immich_key -f "$CURL_SEARCH_TIMEOUT" "$api_key" -X POST \
         -H "Content-Type: application/json" \
         -d @"$tmp_json.json" \
@@ -291,6 +304,7 @@ bulk_upload() {
     local resp_file
     resp_file=$(mktemp)
     printf '%s\n' "$response" > "$resp_file"
+    # shellcheck disable=SC2310 # a single python3 call; failure dies here
     _duplicate_ids_from_response "$resp_file" > "$tmp_missing.exists" \
         || die "failed to parse bulk-upload-check response"
     rm -f "$resp_file"
@@ -319,6 +333,7 @@ bulk_upload() {
     while IFS= read -r file; do
         ((n++)) || true
         echo "[$n/$missing_count] $file"
+        # shellcheck disable=SC2310 # upload_file checks each step itself
         upload_file "$file" "$api_key" || ((failed++)) || true
     done < "$tmp_missing"
 
@@ -358,6 +373,7 @@ main() {
     if [[ -f "$src" ]]; then
         # Single file upload
         info "Uploading single file: $src"
+        # shellcheck disable=SC2310 # upload_file checks each step itself
         upload_file "$src" "$api_key" || die "1 upload(s) failed (of 1 attempted)"
     elif [[ -d "$src" ]]; then
         # Directory: collect image files recursively
