@@ -45,8 +45,9 @@ case "$1" in
         exit 0
         ;;
     -g)
-        # mg4: NMCLI_FAIL_GET=1 makes the DNS-state queries fail.
-        if [[ -n "${NMCLI_FAIL_GET:-}" ]]; then
+        # mg4: NMCLI_FAIL_GET=1 makes both DNS-state queries fail;
+        # NMCLI_FAIL_GET=<field> fails only the query for that field.
+        if [[ "${NMCLI_FAIL_GET:-}" == 1 || "${NMCLI_FAIL_GET:-}" == "${2:-}" ]]; then
             printf 'nmcli mock: simulated query failure\n' >&2
             exit 42
         fi
@@ -187,19 +188,22 @@ grep -Fq 'connection show --active' "$NMCLI_LOG" \
 # mg4: a failed DNS-state query must not read as "disabled". The check runs
 # under 'if', where set -e is off, so toggle used to go on and rewrite DNS
 # (enable Pi-hole) and status printed DISABLED, both with exit 0.
-export NMCLI_FAIL_GET=1
-for state_args in toggle status; do
-    run_target "query-fail-$state_args" "$state_args"
-    ((run_status != 0)) \
-        || fail "$state_args with failing nmcli query exited 0"
-    grep -Fq 'cannot read the DNS settings' "$TEST_ROOT/query-fail-$state_args.err" \
-        || fail "$state_args with failing query: no error: $(cat "$TEST_ROOT/query-fail-$state_args.err")"
-    if grep -Eq '^con (mod|up)' "$NMCLI_LOG"; then
-        fail "$state_args with failing query changed DNS: $(cat "$NMCLI_LOG")"
-    fi
-    if grep -Eq 'ENABLED|DISABLED' "$TEST_ROOT/query-fail-$state_args.out"; then
-        fail "$state_args with failing query reported a state"
-    fi
+# Each query is failed on its own too, so every check is pinned.
+for fail_get in 1 ipv4.ignore-auto-dns ipv4.dns; do
+    export NMCLI_FAIL_GET="$fail_get"
+    for state_args in toggle status; do
+        run_target "query-fail-$state_args" "$state_args"
+        ((run_status != 0)) \
+            || fail "$state_args with failing nmcli query ($fail_get) exited 0"
+        grep -Fq 'cannot read the DNS settings' "$TEST_ROOT/query-fail-$state_args.err" \
+            || fail "$state_args with failing query ($fail_get): no error: $(cat "$TEST_ROOT/query-fail-$state_args.err")"
+        if grep -Eq '^con (mod|up)' "$NMCLI_LOG"; then
+            fail "$state_args with failing query ($fail_get) changed DNS: $(cat "$NMCLI_LOG")"
+        fi
+        if grep -Eq 'ENABLED|DISABLED' "$TEST_ROOT/query-fail-$state_args.out"; then
+            fail "$state_args with failing query ($fail_get) reported a state"
+        fi
+    done
 done
 unset NMCLI_FAIL_GET
 
