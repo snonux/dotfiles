@@ -37,114 +37,42 @@ bash -n "$IMMICH_LIB" || fail "bash -n failed on lib/immich.sh"
 shellcheck -x "$IMMICH_EXPORT" || fail "shellcheck failed"
 shellcheck -x "$IMMICH_LIB" || fail "shellcheck failed on lib/immich.sh"
 
+# Kept as a source check: which file supplies the shared helpers has no
+# behaviour of its own (tests/immich-lib.sh pins the helpers themselves).
 grep -Eq '^[[:space:]]*source[[:space:]].*lib/immich\.sh' "$IMMICH_EXPORT" \
     || fail "immich-export must source lib/immich.sh"
 
-# Structural guards: never join raw API filename onto account_dir.
-# Match several spellings so a trivial rename does not vacate the check.
-# shellcheck disable=SC2016  # intentional literal $ patterns in grep
-unsafe_join_re='account_dir/\$\{?filename'
-if grep -E "$unsafe_join_re" "$IMMICH_EXPORT" | grep -v '_safe_export_filename' | grep -q .; then
-    fail "raw filename still joined under account_dir"
-fi
-# shellcheck disable=SC2016
-if grep -E '\$dest\.tmp|"\$\{dest\}\.tmp"|dest="\$\{?account_dir' "$IMMICH_EXPORT" \
-    | grep -E '\.tmp|/\$\{?filename' | grep -q .; then
-    # Explicit ban on curl -o "$dest.tmp" symlink write-through pattern.
-    # shellcheck disable=SC2016
-    if grep -Eq 'tmp="\$\{?dest\}\.tmp"|tmp="\$dest\.tmp"' "$IMMICH_EXPORT"; then
-        fail "dest.tmp temp path still present (symlink write-through)"
-    fi
-fi
-grep -q '_safe_export_filename' "$IMMICH_EXPORT" \
-    || fail "missing _safe_export_filename helper"
-grep -q '_safe_asset_id' "$IMMICH_EXPORT" \
-    || fail "missing _safe_asset_id helper"
-grep -q '_unique_export_basename' "$IMMICH_EXPORT" \
-    || fail "missing _unique_export_basename helper"
-grep -q '_path_is_under' "$IMMICH_EXPORT" \
-    || fail "missing _path_is_under containment helper"
-grep -q 'mktemp' "$IMMICH_EXPORT" \
-    || fail "missing mktemp-based download temp"
-grep -q 'duplicate asset id' "$IMMICH_EXPORT" \
-    || fail "missing duplicate asset id detection"
-grep -q 'destination collision' "$IMMICH_EXPORT" \
-    || fail "missing same-run destination collision detection"
-grep -q 'BASH_SOURCE' "$IMMICH_EXPORT" \
-    || fail "main is not gated for sourcing in tests"
-# q33/r33 resilience: URL failover, timeouts, fail count, CLI/env knobs.
-# Shared helpers live in lib/immich.sh; drivers must still call them.
-grep -q 'detect_immich_url' "$IMMICH_LIB" \
-    || fail "missing detect_immich_url helper in lib"
-grep -q 'immich_reachable' "$IMMICH_LIB" \
-    || fail "missing immich_reachable helper in lib"
-grep -q 'curl_immich' "$IMMICH_LIB" \
-    || fail "missing curl_immich helper in lib"
-grep -q 'F3S_IMMICH_LAN_URL' "$IMMICH_LIB" \
-    || fail "lib must wire IMMICH_LAN_URL from F3S_IMMICH_LAN_URL"
-grep -q 'F3S_IMMICH_PUBLIC_URL' "$IMMICH_LIB" \
-    || fail "lib must wire IMMICH_PUBLIC_URL from F3S_IMMICH_PUBLIC_URL"
-grep -q 'IMMICH_LAN_URL' "$IMMICH_EXPORT" \
-    || fail "missing IMMICH_LAN_URL reference in export"
-grep -q 'IMMICH_PUBLIC_URL' "$IMMICH_EXPORT" \
-    || fail "missing IMMICH_PUBLIC_URL reference in export"
-grep -q 'CURL_PING_TIMEOUT' "$IMMICH_LIB" \
-    || fail "missing CURL_PING_TIMEOUT"
-grep -q 'CURL_SEARCH_TIMEOUT' "$IMMICH_LIB" \
-    || fail "missing CURL_SEARCH_TIMEOUT"
-grep -q 'CURL_DOWNLOAD_TIMEOUT' "$IMMICH_LIB" \
-    || fail "missing CURL_DOWNLOAD_TIMEOUT"
-# shellcheck disable=SC2016  # intentional literal $CURL_* in grep
-# jg4: authenticated calls go through curl_immich_key (key off argv).
-grep -Eq 'curl_immich_key -f "\$CURL_DOWNLOAD_TIMEOUT"' "$IMMICH_EXPORT" \
-    || fail "download missing curl_immich_key -f CURL_DOWNLOAD_TIMEOUT"
-# shellcheck disable=SC2016
-grep -Eq 'curl_immich_key -f "\$CURL_SEARCH_TIMEOUT"' "$IMMICH_EXPORT" \
-    || fail "search missing curl_immich_key -f CURL_SEARCH_TIMEOUT"
-if grep -Fq 'x-api-key:' "$IMMICH_EXPORT"; then
-    fail "immich-export still builds an x-api-key header on curl argv"
-fi
-grep -q 'failed (download/write errors)' "$IMMICH_EXPORT" \
-    || fail "Done summary missing failed download count"
-grep -q 'failed == 0 && collided == 0' "$IMMICH_EXPORT" \
-    || fail "download_assets must fail when failed or collided"
-grep -q 'IMMICH_EXPORT_DEST' "$IMMICH_EXPORT" \
-    || fail "missing IMMICH_EXPORT_DEST env support"
-grep -q 'IMMICH_EXPORT_AFTER' "$IMMICH_EXPORT" \
-    || fail "missing IMMICH_EXPORT_AFTER env support"
-grep -q 'IMMICH_EXPORT_BEFORE' "$IMMICH_EXPORT" \
-    || fail "missing IMMICH_EXPORT_BEFORE env support"
-grep -q -- '--dest' "$IMMICH_EXPORT" \
-    || fail "missing --dest CLI flag"
-grep -q -- '--account' "$IMMICH_EXPORT" \
-    || fail "missing --account CLI flag"
-grep -q '_safe_account_name' "$IMMICH_LIB" \
-    || fail "missing _safe_account_name allowlist helper in lib"
-# shellcheck disable=SC2016
-grep -Eq '\[\^A-Za-z0-9_-\]\+|\[A-Za-z0-9_-\]\+' "$IMMICH_LIB" \
-    || fail "missing account name allowlist character class in lib"
-# Must not wipe real exports named *.tmp
-if grep -E -- 'find .* -name ["'\'']\*\.tmp' "$IMMICH_EXPORT" | grep -q .; then
-    fail "stale cleanup still uses find -name '*.tmp'"
-fi
-# Dest must use uniquified name, not sanitized basename alone.
-# shellcheck disable=SC2016
-if grep -Eq 'dest="\$\{?account_dir\}/\$\{?safe\}"' "$IMMICH_EXPORT"; then
-    fail "dest still joins sanitized basename without asset-id uniquify"
-fi
-# UUID allowlist must be present (injective '_' join).
-grep -Eq '\[0-9a-fA-F\]\{8\}' "$IMMICH_EXPORT" \
-    || fail "missing UUID allowlist in _safe_asset_id"
-# Done summary must not claim every refuse is only 'unsafe name'.
-if grep -Fq 'refused (unsafe name)' "$IMMICH_EXPORT"; then
-    fail "Done summary still labels all refuses as unsafe name only"
-fi
-# Must not hardcode a single LAN-only IMMICH_URL without failover.
-if grep -Eq '^IMMICH_URL="http://immich\.f3s\.lan' "$IMMICH_EXPORT"; then
-    fail "IMMICH_URL still hardcoded to LAN-only (no failover)"
-fi
+# Every other rule is checked by running the code below, not by grepping
+# the script: path safety, mktemp downloads and duplicate ids through
+# download_assets; failover through detect_immich_url; timeouts, -sf,
+# env/CLI knobs, stale-temp cleanup and exit status through main.
 
-# Source helpers only (main is gated on BASH_SOURCE).
+# --- Sourcing must not run main (BASH_SOURCE gate) ---
+# Checked before this test sources the script itself, since an ungated main
+# would start an export. The child gets a throwaway HOME and a curl stub
+# that only logs and fails, so even a broken gate stays sandboxed.
+mkdir -p "$TEST_ROOT/gate-bin" "$TEST_ROOT/gate-home"
+cat >"$TEST_ROOT/gate-bin/curl" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$GATE_CURL_LOG"
+exit 7
+EOF
+chmod +x "$TEST_ROOT/gate-bin/curl"
+: >"$TEST_ROOT/gate-curl.log"
+# shellcheck disable=SC2016 # the child bash expands $1
+gate_out=$(HOME="$TEST_ROOT/gate-home" PATH="$TEST_ROOT/gate-bin:$PATH" \
+    GATE_CURL_LOG="$TEST_ROOT/gate-curl.log" \
+    IMMICH_EXPORT_DEST="$TEST_ROOT/gate-dest" \
+    bash -c 'source "$1"; echo sourced-ok' bash "$IMMICH_EXPORT" 2>&1) \
+    || fail "sourcing immich-export failed (main ran?): ${gate_out@Q}"
+[[ "$gate_out" == 'sourced-ok' ]] \
+    || fail "sourcing immich-export produced output (main ran?): ${gate_out@Q}"
+[[ ! -s "$TEST_ROOT/gate-curl.log" ]] \
+    || fail "sourcing immich-export called curl: $(cat "$TEST_ROOT/gate-curl.log")"
+[[ ! -e "$TEST_ROOT/gate-dest" ]] \
+    || fail "sourcing immich-export created the export dest"
+
+# Source helpers only (main is gated on BASH_SOURCE, checked above).
 # shellcheck source=scripts/immich-export
 source "$IMMICH_EXPORT"
 
@@ -925,6 +853,33 @@ fi
 grep -q 'Using LAN ingress' "$TEST_ROOT/out-cli-override" \
     || fail "detect_immich_url LAN message missing (CLI override run)"
 
+# q33/jg4: every request of that main run carried the timeout of its class
+# from lib/immich.sh (the spy logged 'm=<-m value> url=<url>' per call).
+for cli_timeout in "$CURL_PING_TIMEOUT" "$CURL_SEARCH_TIMEOUT" "$CURL_DOWNLOAD_TIMEOUT"; do
+    [[ "$cli_timeout" =~ ^[1-9][0-9]*$ ]] \
+        || fail "curl timeout is not a positive integer: ${cli_timeout@Q}"
+done
+while IFS= read -r mline; do
+    case "$mline" in
+        */api/server/ping) want_m="$CURL_PING_TIMEOUT" ;;
+        */api/search/metadata) want_m="$CURL_SEARCH_TIMEOUT" ;;
+        */original) want_m="$CURL_DOWNLOAD_TIMEOUT" ;;
+        *) fail "CLI override run: unexpected curl call: $mline" ;;
+    esac
+    [[ "$mline" == "m=${want_m} "* ]] \
+        || fail "CLI override run: wrong curl -m (want $want_m): $mline"
+done <"$CURL_SPY_LOG.mvals"
+for mclass in /api/server/ping /api/search/metadata /original; do
+    grep -q "$mclass\$" "$CURL_SPY_LOG.mvals" \
+        || fail "CLI override run: no $mclass call: $(cat "$CURL_SPY_LOG.mvals")"
+done
+# Search and download must fail on HTTP errors (-sf), or an error page
+# would be parsed as JSON or saved as a photo.
+if grep -E '/api/search/metadata|/original' "$CURL_SPY_LOG" \
+    | grep -Ev '(^| )-sf( |$)' | grep -q .; then
+    fail "CLI override run: search/download curl without -sf: $(cat "$CURL_SPY_LOG")"
+fi
+
 # --- q33 P1 E2E main: ping OK → search one asset → download fails → exit ≠ 0 ---
 declare -r E2E_DEST="$TEST_ROOT/e2e-dest"
 declare -r E2E_HOME="$TEST_ROOT/e2e-home"
@@ -1035,7 +990,15 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 case "$url" in
-    */api/server/ping) printf '200'; exit 0 ;;
+    */api/server/ping)
+        # DG4_DOWN_HOST makes that ingress unreachable (failover checks).
+        if [[ -n "${DG4_DOWN_HOST:-}" && "$url" == *"$DG4_DOWN_HOST"* ]]; then
+            printf '000'
+            exit 7
+        fi
+        printf '200'
+        exit 0
+        ;;
     */api/search/metadata)
         if [[ "$body" == *'"page":1}'* && "${DG4_PAGE1:-}" == empty ]]; then
             echo '{"assets":{"items":[],"nextPage":null}}'
@@ -1100,6 +1063,13 @@ for dg4_mode in curl-fail garbage; do
 done
 
 # Negative control: both pages fine -> success and 'Export complete'.
+# The account dir also holds a leftover download temp from an aborted run
+# and a real export that merely ends in .tmp: cleanup removes only the
+# former (it matches the mktemp prefix, never '*.tmp').
+declare -r DG4_OK_DIR="$TEST_ROOT/dg4-dest-ok/dg4user"
+mkdir -p "$DG4_OK_DIR"
+printf 'stale\n' >"$DG4_OK_DIR/.immich-export.Ab12Cd"
+printf 'real photo\n' >"$DG4_OK_DIR/holiday.tmp"
 : >"$CURL_SPY_LOG"
 DG4_PAGE2=ok
 _dg4_run ok
@@ -1109,6 +1079,48 @@ grep -q 'Found 2 images total' "$TEST_ROOT/out-dg4-ok" \
     || fail "dg4 ok: expected 2 assets: $(cat "$TEST_ROOT/out-dg4-ok")"
 grep -q 'Export complete' "$TEST_ROOT/out-dg4-ok" \
     || fail "dg4 ok: missing 'Export complete'"
+[[ ! -e "$DG4_OK_DIR/.immich-export.Ab12Cd" ]] \
+    || fail "dg4 ok: leftover download temp was not cleaned up"
+[[ "$(cat "$DG4_OK_DIR/holiday.tmp")" == 'real photo' ]] \
+    || fail "dg4 ok: stale-temp cleanup touched a real *.tmp export"
+grep -q 'Cleaning up 1 leftover download temp' "$TEST_ROOT/out-dg4-ok" \
+    || fail "dg4 ok: cleanup count wrong: $(cat "$TEST_ROOT/out-dg4-ok")"
+
+# q33: with no --lan-url/--public-url, main uses IMMICH_LAN_URL and
+# IMMICH_PUBLIC_URL from the environment for ping and downloads.
+: >"$CURL_SPY_LOG"
+set +e
+HOME="$DG4_HOME" \
+IMMICH_LAN_URL='http://envonly-lan.example' \
+IMMICH_PUBLIC_URL='https://envonly-public.example' \
+"$IMMICH_EXPORT" --dest "$TEST_ROOT/dg4-dest-envurl" --account 'dg4user' \
+    >"$TEST_ROOT/out-envurl" 2>"$TEST_ROOT/err-envurl"
+envurl_rc=$?
+set -e
+[[ "$envurl_rc" -eq 0 ]] \
+    || fail "env URL run should succeed: $(cat "$TEST_ROOT/err-envurl")"
+grep -q 'Using LAN ingress: http://envonly-lan.example' "$TEST_ROOT/out-envurl" \
+    || fail "env IMMICH_LAN_URL not used by main: $(cat "$TEST_ROOT/out-envurl")"
+grep -q 'http://envonly-lan.example/api/assets/.*/original' "$CURL_SPY_LOG" \
+    || fail "downloads did not use env IMMICH_LAN_URL: $(cat "$CURL_SPY_LOG")"
+
+# Same, LAN down: main fails over to env IMMICH_PUBLIC_URL (no LAN-only
+# hardcoded URL) and downloads from there.
+: >"$CURL_SPY_LOG"
+set +e
+HOME="$DG4_HOME" DG4_DOWN_HOST='envonly-lan.example' \
+IMMICH_LAN_URL='http://envonly-lan.example' \
+IMMICH_PUBLIC_URL='https://envonly-public.example' \
+"$IMMICH_EXPORT" --dest "$TEST_ROOT/dg4-dest-envpub" --account 'dg4user' \
+    >"$TEST_ROOT/out-envpub" 2>"$TEST_ROOT/err-envpub"
+envpub_rc=$?
+set -e
+[[ "$envpub_rc" -eq 0 ]] \
+    || fail "env public failover run should succeed: $(cat "$TEST_ROOT/err-envpub")"
+grep -q 'using public ingress: https://envonly-public.example' "$TEST_ROOT/out-envpub" \
+    || fail "main did not fail over to env IMMICH_PUBLIC_URL: $(cat "$TEST_ROOT/out-envpub")"
+grep -q 'https://envonly-public.example/api/assets/.*/original' "$CURL_SPY_LOG" \
+    || fail "downloads did not use the public URL after failover: $(cat "$CURL_SPY_LOG")"
 
 # Missing key file: account fails before any search request is sent.
 : >"$CURL_SPY_LOG"
