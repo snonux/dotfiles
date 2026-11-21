@@ -119,7 +119,8 @@ assert_ack "$UNI_KEY" true "$ack"
 # The wrapper runs with a throwaway HOME, credentials file, repo, lock dir
 # and fish conf.d. The fake dart (run with env -i inside REPO, so it uses
 # files there) writes each line of stream.jsonl to the drain and logs the
-# ack it reads back to acks.log. The fake fish fails the import when the
+# ack it reads back to acks.log; it then exits with the number in
+# stream-rc if present, else 0. The fake fish fails the import when the
 # note content is FAIL. Nothing reaches Garage, Dart or taskwarrior.
 declare -r QL_HOME="$TEST_ROOT/home"
 declare -r QL_REPO="$TEST_ROOT/repo"
@@ -142,6 +143,8 @@ while IFS= read -r -u 4 line; do
     IFS= read -r ack || exit 3
     printf '%s\n' "$ack" >>acks.log
 done 4<stream.jsonl
+[[ -f stream-rc ]] && exit "$(cat stream-rc)"
+exit 0
 EOF
 cat >"$QL_BIN/fish" <<'EOF'
 #!/usr/bin/env bash
@@ -193,6 +196,56 @@ for target in "$QUICKLOG_DRAIN" "$QUICKLOG_DRAIN_WRAPPER"; do
     grep -Fq 'ql-custom: imported=1 kept=1' "$TEST_ROOT/drain.out" \
         || fail "preset PROGRAM ignored by ${target##*/}: $(cat "$TEST_ROOT/drain.out")"
 done
+
+# --- 0h4: the coprocess exits and is reaped while the loop still runs ---
+# The fake dart exits as soon as it has read its last ack. A slow jq (the
+# real one, then a pause before exiting) keeps the drain inside _emit_ack
+# after dart already has the ack, so bash reaps dart and unsets DARTPROC
+# before the loop's next read. The drain must still read EOF, report the
+# import and exit 0; before the fix it died with "DARTPROC[0]: unbound
+# variable" on every run. The slow jq is on PATH for this run only.
+real_jq=$(command -v jq)
+declare -r SLOW_BIN="$TEST_ROOT/slow-bin"
+mkdir -p "$SLOW_BIN"
+# shellcheck disable=SC2016 # $@ and $rc expand in the generated script
+printf '#!/usr/bin/env bash\n"%s" "$@"\nrc=$?\nsleep 0.3\nexit "$rc"\n' \
+    "$real_jq" >"$SLOW_BIN/jq"
+chmod +x "$SLOW_BIN/jq"
+cp "$QL_REPO/stream.jsonl" "$QL_REPO/stream.jsonl.all"
+jq -nc '{key:"ql-ok.md",content:"buy bread"}' >"$QL_REPO/stream.jsonl"
+
+# run_reaped — run the drain with the slow jq; sets reaped_rc.
+run_reaped() {
+    : >"$QL_REPO/acks.log"
+    reaped_rc=0
+    env -u PROGRAM \
+        HOME="$QL_HOME" PATH="$SLOW_BIN:$QL_BIN:$PATH" \
+        XDG_RUNTIME_DIR="$TEST_ROOT/run" \
+        QUICKLOG_CREDS="$TEST_ROOT/creds.env" QUICKLOG_REPO="$QL_REPO" \
+        QUICKLOG_DART="$QL_BIN/dart" QUICKLOG_FISH_CONF_DIR="$QL_CONF" \
+        "$QUICKLOG_DRAIN" >"$TEST_ROOT/drain.out" 2>"$TEST_ROOT/drain.err" \
+        || reaped_rc=$?
+}
+
+run_reaped
+[[ "$reaped_rc" -eq 0 ]] \
+    || fail "0h4: drain exited $reaped_rc after the coprocess was reaped: $(cat "$TEST_ROOT/drain.err")"
+grep -Fxq 'quicklog-drain: imported=1 kept=0 dart_rc=0' "$TEST_ROOT/drain.out" \
+    || fail "0h4: summary missing or wrong: $(cat "$TEST_ROOT/drain.out")"
+mapfile -t acks <"$QL_REPO/acks.log"
+[[ "${#acks[@]}" -eq 1 ]] \
+    || fail "0h4: want 1 ack, got ${#acks[@]}: $(cat "$QL_REPO/acks.log")"
+assert_ack 'ql-ok.md' true "${acks[0]}"
+# Negative: a Dart that fails after its last ack, and is reaped before the
+# loop ends, still fails the drain with its own status in the summary.
+printf '5\n' >"$QL_REPO/stream-rc"
+run_reaped
+[[ "$reaped_rc" -eq 1 ]] \
+    || fail "0h4: want rc 1 for a failed dart, got $reaped_rc: $(cat "$TEST_ROOT/drain.err")"
+grep -Fxq 'quicklog-drain: imported=1 kept=0 dart_rc=5' "$TEST_ROOT/drain.out" \
+    || fail "0h4: failed dart summary wrong: $(cat "$TEST_ROOT/drain.out")"
+rm -f "$QL_REPO/stream-rc"
+mv "$QL_REPO/stream.jsonl.all" "$QL_REPO/stream.jsonl"
 
 # --- pg4: main's options and modes, pinned before main was split ---
 # A second fake dart logs every call (pub get included) to args.log in the

@@ -257,6 +257,43 @@ pub_get_quietly() {
   "${pub_args[@]}" "$DART" pub get >/dev/null 2>&1 || true
 }
 
+# _ack_stream OUT_FD IN_FD — the lockstep loop of import_notes: reads one
+# JSON line per note from OUT_FD (Dart's stdout), imports it and writes the
+# ack to IN_FD (Dart's stdin). Returns at EOF, i.e. once Dart has exited.
+# Counts into the caller's `imported` and `kept` locals (bash dynamic
+# scope). The descriptors are import_notes' own duplicates, never the
+# DARTPROC ones, which bash removes when it reaps the coprocess.
+_ack_stream() {
+  local -r out_fd="$1" in_fd="$2"
+  local json key content
+
+  while read -r -u "$out_fd" json; do
+    key=$(jq -r '.key // empty' <<<"$json" 2>/dev/null) || key=""
+    content=$(jq -r '.content // empty' <<<"$json" 2>/dev/null) || content=""
+
+    if [[ -z "$key" ]]; then
+      # Not a protocol line: ack with a mismatched key so the Dart side
+      # treats it as a desync and aborts instead of deleting anything.
+      error "malformed stream line; aborting to resync"
+      _emit_ack "" false >&"$in_fd"
+      continue
+    fi
+
+    # run_fish_import is one command (fish import under timeout); its status
+    # decides ack true/false, so set -e being off here hides nothing.
+    # shellcheck disable=SC2310
+    if printf '%s\n' "$content" | run_fish_import; then
+      _emit_ack "$key" true >&"$in_fd"
+      imported=$((imported + 1))
+      echo "$PROGRAM: imported $key"
+    else
+      _emit_ack "$key" false >&"$in_fd"
+      kept=$((kept + 1))
+      error "import failed for $key — kept for retry"
+    fi
+  done
+}
+
 # Drains and imports in one lockstep pass (see header). Uses a coprocess so
 # the whole flow is a single Dart run while notes are still imported and
 # deleted strictly one at a time. [$1] is the optional --limit value,
@@ -273,37 +310,29 @@ import_notes() {
 
   pub_get_quietly
 
-  local imported=0 kept=0 json key content dart_rc=0
+  local imported=0 kept=0 dart_rc=0 dart_pid dart_out dart_in
 
   coproc DARTPROC { run_dart "${dart_args[@]}"; }
 
-  while read -r -u "${DARTPROC[0]}" json; do
-    key=$(jq -r '.key // empty' <<<"$json" 2>/dev/null) || key=""
-    content=$(jq -r '.content // empty' <<<"$json" 2>/dev/null) || content=""
+  # Once Dart exits, bash may reap the coprocess at any point (even while
+  # _ack_stream waits for jq or fish) and then unsets DARTPROC and
+  # DARTPROC_PID and closes the coprocess descriptors; under set -u the next
+  # "${DARTPROC[0]}" would kill the drain after a successful import. So keep
+  # the PID from $! (which bash never unsets; wait still reports the status
+  # of an already-reaped child) and duplicate both pipe ends into our own
+  # descriptors at once. A Dart that died before even that has nothing to
+  # stream; the failed exec is not fatal and wait reports its status.
+  dart_pid=$!
+  if exec {dart_out}<&"${DARTPROC[0]:-}" {dart_in}>&"${DARTPROC[1]:-}"; then
+    _ack_stream "$dart_out" "$dart_in"
+    # Close our copies: a Dart still running then sees EOF on its stdin
+    # instead of waiting for an ack forever.
+    exec {dart_out}<&- {dart_in}>&-
+  else
+    error "dart exited before its stream could be read"
+  fi
 
-    if [[ -z "$key" ]]; then
-      # Not a protocol line: ack with a mismatched key so the Dart side
-      # treats it as a desync and aborts instead of deleting anything.
-      error "malformed stream line; aborting to resync"
-      _emit_ack "" false >&"${DARTPROC[1]}"
-      continue
-    fi
-
-    # run_fish_import is one command (fish import under timeout); its status
-    # decides ack true/false, so set -e being off here hides nothing.
-    # shellcheck disable=SC2310
-    if printf '%s\n' "$content" | run_fish_import; then
-      _emit_ack "$key" true >&"${DARTPROC[1]}"
-      imported=$((imported + 1))
-      echo "$PROGRAM: imported $key"
-    else
-      _emit_ack "$key" false >&"${DARTPROC[1]}"
-      kept=$((kept + 1))
-      error "import failed for $key — kept for retry"
-    fi
-  done
-
-  wait "$DARTPROC_PID" || dart_rc=$?
+  wait "$dart_pid" || dart_rc=$?
 
   echo "$PROGRAM: imported=$imported kept=$kept dart_rc=$dart_rc"
   [[ $kept -eq 0 && $dart_rc -eq 0 ]]
