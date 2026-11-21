@@ -189,6 +189,24 @@ grep -Fq "${GOPRECORDS_BASE_URL}/upload/${GOPRECORDS_HOST}/records" \
     "${CURL_SPY_LOG}.txt" \
     || fail "spy missing upload URL"
 
+# ug4: a token holding '"' and '\' is escaped for the quoted config string
+# (backslash doubled first, then quote -> \"), so curl decodes it back to
+# the original token instead of ending or escaping the string early.
+saved_token=$TOKEN
+TOKEN='fake"tok\en'
+: >"${CURL_SPY_LOG}.txt"
+: >"${CURL_SPY_LOG}.stdin"
+upload 'records' "$records_file" || fail "upload with quote/backslash token failed"
+grep -Fxq 'header = "Authorization: Bearer fake\"tok\\en"' \
+    "${CURL_SPY_LOG}.stdin" \
+    || fail "quote/backslash token not escaped in config: $(cat "${CURL_SPY_LOG}.stdin")"
+[[ "$(wc -l <"${CURL_SPY_LOG}.stdin")" -eq 1 ]] \
+    || fail "config for quote/backslash token is not one line"
+if grep -Fq 'fake"tok' "${CURL_SPY_LOG}.txt"; then
+    fail "quote/backslash token leaked on curl argv"
+fi
+TOKEN=$saved_token
+
 # --- Negative: mock curl exit 22 (HTTP error) must surface ---
 cat >"$TEST_ROOT/bin/curl" <<'EOF'
 #!/usr/bin/env bash
@@ -406,9 +424,49 @@ set -e
 grep -q 'cannot read' "$TEST_ROOT/notoken.err" \
     || fail "missing token error text: $(cat "$TEST_ROOT/notoken.err")"
 
-# --- Negative _main: a token with '"' would break out of the curl config
-# string, so _main must refuse it before any upload ---
-printf 'bad"token\n' >"$TEST_ROOT/quote-token"
+# --- ug4 _main with real curl: a token holding '"' and '\' is accepted and
+# arrives at a local listener unchanged. The token file also holds a CR/LF
+# and a second line shaped like a config directive: _main strips CR/LF, so
+# that text stays inside the one header value and never becomes a config
+# line of its own (no X-Evil header reaches the server). ---
+auth_py="$TEST_ROOT/auth_sink.py"
+cat >"$auth_py" <<'PY'
+import sys
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
+
+port_path, log_path = Path(sys.argv[1]), Path(sys.argv[2])
+
+
+class Handler(BaseHTTPRequestHandler):
+    def do_PUT(self):
+        self.rfile.read(int(self.headers.get("Content-Length", "0")))
+        with log_path.open("a", encoding="utf-8") as log:
+            log.write("auth=%s\n" % self.headers.get("Authorization", ""))
+            log.write("evil=%s\n" % self.headers.get("X-Evil", ""))
+        self.send_response(200)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def log_message(self, *args):
+        pass
+
+
+server = HTTPServer(("127.0.0.1", 0), Handler)
+port_path.write_text(str(server.server_port), encoding="utf-8")
+server.serve_forever()
+PY
+auth_port_file="$TEST_ROOT/auth.port"
+auth_log="$TEST_ROOT/auth.log"
+: >"$auth_log"
+python3 "$auth_py" "$auth_port_file" "$auth_log" &
+CONN_PID=$!
+for _ in $(seq 1 50); do
+    [[ -s "$auth_port_file" ]] && break
+    sleep 0.05
+done
+[[ -s "$auth_port_file" ]] || fail "auth sink did not publish port"
+printf 'fake"tok\\en\r\nheader = "X-Evil: 1"\n' >"$TEST_ROOT/quote-token"
 set +e
 env -i \
     PATH="/bin:/usr/bin" \
@@ -416,14 +474,21 @@ env -i \
     GOPRECORDS_HOST=earth \
     GOPRECORDS_TOKEN_FILE="$TEST_ROOT/quote-token" \
     GOPRECORDS_RECORDS_FILE="$records_file" \
-    GOPRECORDS_BASE_URL='http://127.0.0.1:9' \
+    GOPRECORDS_BASE_URL="http://127.0.0.1:$(<"$auth_port_file")" \
+    GOPRECORDS_CURL_RETRIES=0 \
     "$CLIENT" >/dev/null 2>"$TEST_ROOT/quotetoken.err"
 quotetoken_rc=$?
 set -e
-[[ "$quotetoken_rc" -ne 0 ]] \
-    || fail "token with a double quote should fail _main"
-grep -q 'double quote or backslash' "$TEST_ROOT/quotetoken.err" \
-    || fail "quote token error text: $(cat "$TEST_ROOT/quotetoken.err")"
+kill "$CONN_PID" 2>/dev/null || true
+wait "$CONN_PID" 2>/dev/null || true
+CONN_PID=
+[[ "$quotetoken_rc" -eq 0 ]] \
+    || fail "_main refused a quote/backslash token: $(cat "$TEST_ROOT/quotetoken.err")"
+grep -Fxq 'auth=Bearer fake"tok\enheader = "X-Evil: 1"' "$auth_log" \
+    || fail "token did not arrive unchanged: $(cat "$auth_log")"
+if grep -q '^evil=.' "$auth_log"; then
+    fail "a token line break became a config line: $(cat "$auth_log")"
+fi
 
 # --- Negative _main: missing records file override ---
 set +e

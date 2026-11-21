@@ -50,11 +50,22 @@ curl_immich() {
     fi
 }
 
-# _immich_key_config_safe KEY — succeed if KEY fits inside a double-quoted
-# curl config string: no '"' or '\' (would end or escape it) and no CR/LF
-# (would start a new config line).
+# _immich_key_config_safe KEY — succeed if KEY can go on one curl config
+# line: no CR/LF, which would start a new config line. '"' and '\' are fine;
+# _immich_config_escape handles them.
 _immich_key_config_safe() {
-    [[ "$1" != *[\"\\$'\n\r']* ]]
+    [[ "$1" != *[$'\n\r']* ]]
+}
+
+# _immich_config_escape VALUE — print VALUE escaped for a double-quoted curl
+# config string, where '\' starts an escape and '"' ends the string: every
+# backslash is doubled first, then each '"' becomes '\"', so curl decodes
+# the value back to VALUE. printf is a builtin, so no helper process gets
+# VALUE in its argv.
+_immich_config_escape() {
+    local escaped=${1//\\/\\\\}
+    escaped=${escaped//\"/\\\"}
+    printf '%s' "$escaped"
 }
 
 # curl_immich_key [-f] TIMEOUT API_KEY [curl-args...]
@@ -65,7 +76,9 @@ _immich_key_config_safe() {
 # mode-0600 temp file it unlinks at once), and the key is never exported,
 # so it is not in curl's environment either. Callers must not need curl's
 # stdin for anything else (use -d @file / -F field=@file, not '-').
-# Returns 2 without running curl if the key cannot be quoted safely.
+# The key is escaped for the quoted config string, so '"' and '\' in it
+# arrive unchanged. Returns 2 without running curl if the key holds a line
+# break, which would start a new config line.
 curl_immich_key() {
     local fail=()
     if [[ "${1:-}" == -f ]]; then
@@ -75,12 +88,14 @@ curl_immich_key() {
     local -r timeout="$1" api_key="$2"
     shift 2
     if ! _immich_key_config_safe "$api_key"; then
-        warn "API key contains a double quote, backslash or line break"
+        warn "API key contains a line break"
         return 2
     fi
+    local escaped
+    escaped=$(_immich_config_escape "$api_key")
     # --config - goes before the caller's args so the URL stays last.
     curl_immich "${fail[@]}" "$timeout" --config - "$@" \
-        <<<"header = \"x-api-key: ${api_key}\""
+        <<<"header = \"x-api-key: ${escaped}\""
 }
 
 # Probe the Immich /api/server/ping endpoint at the given base URL.
@@ -134,9 +149,11 @@ _account_api_key() {
     local key
     key=$(cat -- "$key_file")
     [[ -n "$key" ]] || die "API key file is empty: $key_file"
-    # curl_immich_key would refuse such a key on every request; fail once,
-    # up front, naming the file.
+    # curl_immich_key would refuse a key with a line break inside (the
+    # trailing newline is already gone) on every request; fail once, up
+    # front, naming the file. '"' and '\' are fine: curl_immich_key
+    # escapes them.
     _immich_key_config_safe "$key" \
-        || die "API key file holds a double quote, backslash or line break: $key_file"
+        || die "API key file holds a line break: $key_file"
     printf '%s\n' "$key"
 }

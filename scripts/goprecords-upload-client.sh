@@ -27,6 +27,33 @@ _default_token_file() {
 	fi
 }
 
+# _config_escape VALUE — set _escaped to VALUE escaped for a double-quoted
+# curl config string, where '\' starts an escape and '"' ends the string:
+# each '\' becomes '\\' and each '"' becomes '\"'. One left-to-right pass
+# puts a backslash before every such character, which is the same as
+# doubling backslashes first and then escaping quotes. Pure parameter
+# expansion, so the value never reaches a helper process's argv. Line
+# breaks are not handled here: _main strips CR/LF from the token first.
+_config_escape() {
+	_rest=$1
+	_escaped=
+	while :; do
+		case $_rest in
+		*[\\\"]*)
+			_pre=${_rest%%[\\\"]*}
+			_rest=${_rest#"$_pre"}
+			_ch=${_rest%"${_rest#?}"}
+			_escaped="$_escaped$_pre\\$_ch"
+			_rest=${_rest#?}
+			;;
+		*)
+			_escaped=$_escaped$_rest
+			return 0
+			;;
+		esac
+	done
+}
+
 upload() {
 	kind=$1
 	file=$2
@@ -34,13 +61,16 @@ upload() {
 		echo "goprecords-upload-client: skip $kind (no $file)" >&2
 		return 0
 	fi
+	_config_escape "$TOKEN"
 	# The token reaches curl as a config line on stdin (--config -), never
 	# on argv: argv is world-readable via ps and /proc/<pid>/cmdline while
 	# curl runs. A here-doc, not printf, so no helper process carries the
 	# token in its argv either; the shells this runs under (dash, FreeBSD
 	# and NetBSD sh) feed here-docs through a pipe, or else a private
 	# temp file. TOKEN is never exported, so it is not in curl's
-	# environment. --data-binary reads the file, so stdin is free.
+	# environment. --data-binary reads the file, so stdin is free. The
+	# value is the escaped token, so '"' or '\' in it cannot end or escape
+	# the quoted string; curl decodes it back to the original token.
 	curl -fsS \
 		--connect-timeout "${GOPRECORDS_CONNECT_TIMEOUT}" \
 		--max-time "${GOPRECORDS_MAX_TIME}" \
@@ -50,7 +80,7 @@ upload() {
 		-X PUT --data-binary "@${file}" \
 		--config - \
 		"${GOPRECORDS_BASE_URL}/upload/${GOPRECORDS_HOST}/${kind}" <<EOF
-header = "Authorization: Bearer ${TOKEN}"
+header = "Authorization: Bearer ${_escaped}"
 EOF
 }
 
@@ -89,16 +119,10 @@ _main() {
 		echo "goprecords-upload-client: cannot read $GOPRECORDS_TOKEN_FILE" >&2
 		exit 1
 	fi
+	# Strip CR/LF: upload() puts the token on one curl config line, and a
+	# line break would start a new config line. '"' and '\' are fine;
+	# upload() escapes them.
 	TOKEN=$(tr -d '\n\r' <"$GOPRECORDS_TOKEN_FILE")
-	# upload() puts the token inside a double-quoted curl config string,
-	# where '"' and '\' would end or escape it. Real tokens never hold them.
-	case $TOKEN in
-	*\"* | *\\*)
-		printf 'goprecords-upload-client: token in %s contains a double quote or backslash\n' \
-			"$GOPRECORDS_TOKEN_FILE" >&2
-		exit 1
-		;;
-	esac
 
 	records_path=$(_find_records)
 

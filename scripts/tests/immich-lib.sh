@@ -148,9 +148,21 @@ fi
 grep -Fxq "header = \"x-api-key: ${FAKE_API_KEY}\"" "$CURL_SPY_LOG.stdin" \
     || fail "API key did not reach curl via --config on stdin"
 
-# Negative: a key with '"', '\' or a newline would break out of the quoted
-# config string or add config lines, so it is refused before curl runs.
-for bad_key in 'bad"key' 'bad\key' $'bad\nurl = "http://evil"'; do
+# ug4: a key holding '"' and '\' is escaped for the quoted config string
+# (backslash doubled first, then quote -> \"), so curl decodes it back to
+# the original key.
+: >"$CURL_SPY_LOG"
+: >"$CURL_SPY_LOG.stdin"
+curl_immich_key 5 'fake"immich\key' 'http://example.test/z' \
+    || fail "curl_immich_key refused a quote/backslash key"
+grep -Fxq 'header = "x-api-key: fake\"immich\\key"' "$CURL_SPY_LOG.stdin" \
+    || fail "quote/backslash key not escaped in config: $(cat "$CURL_SPY_LOG.stdin")"
+[[ "$(wc -l <"$CURL_SPY_LOG.stdin")" -eq 1 ]] \
+    || fail "quote/backslash key config is not one line"
+
+# Negative: a key with a line break would add config lines, so it is still
+# refused before curl runs.
+for bad_key in $'bad\nurl = "http://evil"' $'bad\rkey'; do
     : >"$CURL_SPY_LOG"
     if curl_immich_key 5 "$bad_key" 'http://example.test/z' 2>/dev/null; then
         fail "curl_immich_key accepted unsafe key ${bad_key@Q}"
@@ -200,13 +212,18 @@ printf 'secret-key\n' >"$KEY_HOME/.immich_paul_key"
 got=$(HOME="$KEY_HOME" _account_api_key paul) \
     || fail "_account_api_key paul failed"
 [[ "$got" == 'secret-key' ]] || fail "key got=${got@Q}"
-# jg4: a key that cannot be quoted in a curl config is refused at load time.
-printf 'bad"key\n' >"$KEY_HOME/.immich_quote_key"
-if ( HOME="$KEY_HOME" _account_api_key quote ) >/dev/null 2>"$TEST_ROOT/err-quote-key"; then
-    fail "_account_api_key accepted a key containing a double quote"
+# ug4: a key with '"' and '\' loads unchanged (curl_immich_key escapes it).
+printf '%s\n' 'fake"quote\key' >"$KEY_HOME/.immich_quote_key"
+got=$(HOME="$KEY_HOME" _account_api_key quote) \
+    || fail "_account_api_key refused a quote/backslash key"
+[[ "$got" == 'fake"quote\key' ]] || fail "quote key got=${got@Q}"
+# Negative: a key with a line break inside is still refused at load time.
+printf 'bad\r\nkey\n' >"$KEY_HOME/.immich_crlf_key"
+if ( HOME="$KEY_HOME" _account_api_key crlf ) >/dev/null 2>"$TEST_ROOT/err-crlf-key"; then
+    fail "_account_api_key accepted a key containing a line break"
 fi
-grep -q 'double quote, backslash or line break' "$TEST_ROOT/err-quote-key" \
-    || fail "quote key error text: $(cat "$TEST_ROOT/err-quote-key")"
+grep -q 'API key file holds a line break' "$TEST_ROOT/err-crlf-key" \
+    || fail "line-break key error text: $(cat "$TEST_ROOT/err-crlf-key")"
 if ( HOME="$KEY_HOME" _account_api_key '../evil' ) >/dev/null 2>&1; then
     fail "_account_api_key accepted path-escaping account"
 fi

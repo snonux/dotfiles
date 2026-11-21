@@ -256,14 +256,14 @@ _shelly_auth_config() {
         echo "     — cannot switch plug $label (digest auth required)."
         return 1
     fi
-    # The password sits inside a double-quoted config string, where '"' and
-    # '\' would end or escape it.
-    if [[ "$pass" == *[\"\\]* ]]; then
-        echo "  ✗ Shelly password in $SHELLY_PASS_FILE contains a double quote or backslash"
-        echo "     — cannot switch plug $label."
-        return 1
-    fi
-    printf 'user = "admin:%s"\n' "$pass"
+    # The password sits inside a double-quoted config string, where '\'
+    # starts an escape and '"' ends the string. Double every backslash
+    # first, then turn each '"' into '\"', so curl decodes the value back
+    # to the original password. Only the first line is read and CR/LF are
+    # stripped above, so no line break can start a new config line.
+    local escaped=${pass//\\/\\\\}
+    escaped=${escaped//\"/\\\"}
+    printf 'user = "admin:%s"\n' "$escaped"
 }
 
 # shelly_set turns the rack-fan Shelly plug on or off.

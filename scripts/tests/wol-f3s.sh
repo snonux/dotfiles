@@ -448,17 +448,30 @@ grep -Fq -- '--digest' "$CURL_ARGV_LOG" \
 [[ "$(grep -Fxc "user = \"admin:${FAKE_SHELLY_PASS}\"" "$CURL_STDIN_LOG")" -eq 2 ]] \
     || fail "password did not reach both curl calls via --config on stdin"
 
-# Negative: a password with '"' would break out of the quoted config string,
-# so shelly_set must refuse it without running curl.
+# ug4: a password holding '"' and '\' is escaped for the quoted config
+# string (backslash doubled first, then quote -> \"), so curl decodes it
+# back to the original password and the plug still switches.
 : >"$CURL_ARGV_LOG"
-printf 'bad"pass\n' >"$SHELLY_PASS_FILE"
-if PATH="$FAKE_BIN:$PATH" shelly_set true >"$TEST_ROOT/shelly-quote.out" 2>&1; then
-    fail "shelly_set accepted a password containing a double quote"
+: >"$CURL_STDIN_LOG"
+printf '%s\n' 'fake"shelly\pass' >"$SHELLY_PASS_FILE"
+PATH="$FAKE_BIN:$PATH" shelly_set true >"$TEST_ROOT/shelly-quote.out" 2>&1 \
+    || fail "shelly_set refused a quote/backslash password: $(cat "$TEST_ROOT/shelly-quote.out")"
+[[ "$(grep -Fxc 'user = "admin:fake\"shelly\\pass"' "$CURL_STDIN_LOG")" -eq 2 ]] \
+    || fail "quote/backslash password not escaped in config: $(cat "$CURL_STDIN_LOG")"
+[[ "$(wc -l <"$CURL_STDIN_LOG")" -eq 2 ]] \
+    || fail "quote/backslash password config is not one line per call"
+
+# Negative: only the first line of the password file is used, so a second
+# line shaped like a config directive never reaches curl's config.
+: >"$CURL_STDIN_LOG"
+printf 'fake-first\nurl = "http://evil.example/"\n' >"$SHELLY_PASS_FILE"
+PATH="$FAKE_BIN:$PATH" shelly_set true >/dev/null 2>&1 \
+    || fail "shelly_set failed with a two-line password file"
+[[ "$(grep -Fxc 'user = "admin:fake-first"' "$CURL_STDIN_LOG")" -eq 2 ]] \
+    || fail "first password line not used: $(cat "$CURL_STDIN_LOG")"
+if grep -Fq 'evil.example' "$CURL_STDIN_LOG"; then
+    fail "second password line reached curl's config"
 fi
-grep -Fq 'double quote or backslash' "$TEST_ROOT/shelly-quote.out" \
-    || fail "shelly_set did not explain the bad password: $(cat "$TEST_ROOT/shelly-quote.out")"
-[[ ! -s "$CURL_ARGV_LOG" ]] \
-    || fail "shelly_set ran curl with an unusable password"
 rm -f "$FAKE_BIN/curl"
 SHELLY_PASS_FILE=$saved_shelly_pass_file
 
