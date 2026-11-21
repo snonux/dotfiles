@@ -117,9 +117,14 @@ skills_for_lang() {
 }
 
 # Stamp the detected audit commit with an audit/<date> tag.
+# Capture the marker line first (as scan_repo does): `read` from an empty
+# process substitution returns 1, which under set -e would kill this repo's
+# subshell and, through it, the whole bootstrap loop at the first unmarked
+# repo, leaving every later repo untagged.
 bootstrap_repo() {
-  local sha date tag
-  read -r sha date < <(last_audit_marker)
+  local line sha date tag
+  line=$(last_audit_marker || true)
+  read -r sha date <<<"$line"
   if [ -z "$sha" ]; then
     echo "  $(basename "$PWD"): no audit marker found, skipping"
     return
