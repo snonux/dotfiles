@@ -102,8 +102,44 @@ check_os() {
     fi
 }
 
+usage() {
+    cat <<EOF
+Usage: ${0##*/} [toggle|on|enable|off|disable|status|-h|--help]
+
+Toggle Pi-hole DNS on the active Ethernet/Wi-Fi connections.
+With no argument, toggle.
+EOF
+}
+
+# Validate the arguments before the OS gate and any nmcli call, so a typo
+# or --help can never fall through to the toggle path and rewrite DNS.
+# Sets ACTION; exits 0 for help and 2 for bad usage. Called directly (not
+# in a command substitution) so those exits end the script itself.
+parse_action() {
+    if (($# > 1)); then
+        usage >&2
+        exit 2
+    fi
+    case "${1:-toggle}" in
+        -h|--help|help)
+            usage
+            exit 0
+            ;;
+        toggle|on|enable|off|disable|status)
+            ACTION="${1:-toggle}"
+            ;;
+        *)
+            echo -e "${RED}Error: unknown argument: $1${NC}" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+}
+
 # Main logic
 main() {
+    parse_action "$@"
+
     # Check OS compatibility
     check_os
 
@@ -129,8 +165,8 @@ main() {
 
     echo "Active connections: ${CONNECTIONS[*]}"
 
-    # Handle command-line arguments
-    case "${1:-toggle}" in
+    # Dispatch the action validated by parse_action.
+    case "$ACTION" in
         on|enable)
             enable_pihole "${CONNECTIONS[@]}"
             show_status
@@ -147,7 +183,7 @@ main() {
             fi
             show_status
             ;;
-        toggle|*)
+        toggle)
             if all_connections_pihole_enabled "${CONNECTIONS[@]}"; then
                 disable_pihole "${CONNECTIONS[@]}"
             else
