@@ -98,6 +98,7 @@ _shelly_pass_file() {
     local home=""
 
     if [[ -n "$user" ]]; then
+        # shellcheck disable=SC2310 # lookup: non-zero means "unknown user"
         home="$(_user_home_from_passwd "$user")" || home=""
     fi
 
@@ -275,6 +276,8 @@ shelly_set() {
 
     local auth_config
     # On failure the captured text is the explanation; show it as before.
+    # A failed read leaves pass empty, which _shelly_auth_config refuses.
+    # shellcheck disable=SC2310
     if ! auth_config="$(_shelly_auth_config "$label")"; then
         printf '%s\n' "$auth_config"
         return 1
@@ -428,6 +431,11 @@ shutdown_host() {
 # Shared Beelink (f0/f1/f2) shutdown path used by both "shutdown" and
 # "shutdown-all". Umounts NFS, mutes Gogios (best-effort), shuts hosts,
 # optionally includes Pis, then powers off rack fans on full success.
+#
+# Every helper called here under '||' (where set -e is off) checks each of
+# its own steps and returns an explicit status, so the function-wide
+# SC2310 disable is safe. Re-check that when adding a callee.
+# shellcheck disable=SC2310
 shutdown_fleet() {
     local with_pis=no
     local -i failed=0
@@ -482,6 +490,9 @@ shutdown_fleet() {
     return 0
 }
 
+# Same as shutdown_fleet: each helper main calls under '||' returns an
+# explicit status from checked steps. Re-check that when adding a callee.
+# shellcheck disable=SC2310
 main() {
     local ACTION="${1:-all}"
     local pi_shutdown_failed=0
