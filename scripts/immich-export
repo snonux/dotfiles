@@ -17,9 +17,10 @@
 #   2. Download  — fetch each asset with real [X/total] progress
 #
 # Exits non-zero if an account's API key is missing/empty, asset discovery
-# fails (search request or parse error on any page), any download fails, or
-# same-run id/dest collisions occur.
-# Path-unsafe names are refused (logged) without failing the whole run.
+# fails (search request or parse error on any page), any download or local
+# write (temp file, rename) fails, or same-run id/dest collisions occur.
+# Path-unsafe names and destinations that already exist are refused (logged)
+# without failing the whole run.
 
 set -euo pipefail
 
@@ -188,11 +189,45 @@ for item in d['assets']['items']:
     done
 }
 
+# _place_download TMP DEST — move a finished download into place without ever
+# replacing an existing DEST. Returns 0 when placed, 2 when DEST already
+# exists (a genuine refusal), 1 on a local write error. TMP is removed
+# whenever it was not placed.
+#
+# GNU mv -n exits 0 when it declines to overwrite (coreutils 9.10; some older
+# releases exit 1 instead), so the exit status alone cannot tell a refusal
+# from success or a failure. TMP still being there after mv means it was not
+# moved.
+_place_download() {
+    local -r tmp="$1"
+    local -r dest="$2"
+    local -i mv_rc=0
+
+    # Re-check dest before rename (TOCTOU / planted symlink).
+    if [[ -e "$dest" || -L "$dest" ]]; then
+        rm -f -- "$tmp"
+        return 2
+    fi
+    mv -n -- "$tmp" "$dest" || mv_rc=$?
+    if [[ ! -e "$tmp" && ! -L "$tmp" ]]; then
+        ((mv_rc == 0)) && return 0
+        return 1
+    fi
+    rm -f -- "$tmp"
+    # Not moved: a dest that appeared meanwhile is a refusal, else a failure.
+    if [[ -e "$dest" || -L "$dest" ]]; then
+        return 2
+    fi
+    return 1
+}
+
 # Phase 2: download each asset by ID, showing real [X/total] progress.
 # Destinations are {uuid}_{sanitized_basename} so distinct assets that share
 # originalFileName (or collapse to the same basename) all export. UUID
-# allowlisting keeps that join injective. Returns non-zero on download
-# failures or same-run duplicate asset id / destination collision.
+# allowlisting keeps that join injective. Returns non-zero on download or
+# local write failures (mktemp, rename) or same-run duplicate asset id /
+# destination collision. 'refused' (bad input, dest already present) alone
+# does not fail the run.
 download_assets() {
     local api_key="$1"
     local account_dir="$2"
@@ -263,10 +298,12 @@ download_assets() {
         # Create a fresh regular file under account_dir (mktemp uses O_EXCL).
         # Never write to "$dest.tmp": curl -o follows a planted symlink and
         # can escape the account directory.
+        # A failed mktemp is a local write error (unwritable dir, full disk),
+        # not bad input: count it as failed so the run exits non-zero.
         local tmp
         if ! tmp=$(mktemp -p "$account_dir" "$_IMMICH_EXPORT_TMP_TEMPLATE"); then
             echo "    [$n/$total] ERROR: mktemp failed under $account_dir" >&2
-            ((refused++)) || true
+            ((failed++)) || true
             continue
         fi
         if ! _path_is_under "$account_dir" "$tmp"; then
@@ -279,21 +316,22 @@ download_assets() {
         if curl_immich -f "$CURL_DOWNLOAD_TIMEOUT" -o "$tmp" \
             -H "x-api-key: $api_key" \
             "$IMMICH_URL/api/assets/$asset_id/original"; then
-            # Re-check dest before rename (TOCTOU / planted symlink).
-            if [[ -e "$dest" || -L "$dest" ]]; then
-                rm -f -- "$tmp"
-                ((refused++)) || true
-                echo "    [$n/$total] ERROR: dest appeared before rename: ${dest@Q}" >&2
-                continue
-            fi
-            if ! mv -n -- "$tmp" "$dest"; then
-                rm -f -- "$tmp"
-                ((refused++)) || true
-                echo "    [$n/$total] ERROR: failed to place $unique" >&2
-                continue
-            fi
-            ((downloaded++)) || true
-            echo "    [$n/$total] downloaded: $unique"
+            local -i place_rc=0
+            _place_download "$tmp" "$dest" || place_rc=$?
+            case "$place_rc" in
+                0)
+                    ((downloaded++)) || true
+                    echo "    [$n/$total] downloaded: $unique"
+                    ;;
+                2)
+                    ((refused++)) || true
+                    echo "    [$n/$total] ERROR: dest appeared before rename: ${dest@Q}" >&2
+                    ;;
+                *)
+                    ((failed++)) || true
+                    echo "    [$n/$total] ERROR: failed to place $unique" >&2
+                    ;;
+            esac
         else
             echo "    [$n/$total] ERROR: failed to download $asset_id ($unique)" >&2
             rm -f -- "$tmp"
@@ -301,7 +339,7 @@ download_assets() {
         fi
     done < "$asset_list"
 
-    echo "    Done: $downloaded downloaded, $skipped skipped (already exist), $refused refused (unsafe/invalid input), $collided collisions (duplicate id/dest), $failed failed (download errors)"
+    echo "    Done: $downloaded downloaded, $skipped skipped (already exist), $refused refused (unsafe/invalid input or dest already present), $collided collisions (duplicate id/dest), $failed failed (download/write errors)"
     ((failed == 0 && collided == 0))
 }
 
