@@ -127,39 +127,10 @@ assert_rsync_shape() {
 bash -n "$TEMP_BACKUP" || fail "bash -n failed"
 shellcheck -x -S warning "$TEMP_BACKUP" || fail "shellcheck failed"
 
-# Structural guards: strict mode, no set -x, basename --, quoted rsync.
-grep -q 'set -euo pipefail' "$TEMP_BACKUP" || fail "missing set -euo pipefail"
-if grep -Eq '^[[:space:]]*set[[:space:]]+-x' "$TEMP_BACKUP"; then
-    fail "script still enables set -x (path leakage)"
-fi
-grep -Fq 'basename --' "$TEMP_BACKUP" || fail "missing basename -- (leading-dash safety)"
-# Reject the pre-fix unquoted one-liner (task j33 / SC2046).
-# shellcheck disable=SC2016
-if grep -Fq 'rsync -av --delete $dir' "$TEMP_BACKUP"; then
-    fail "pre-fix unquoted rsync \$dir form still present"
-fi
-# shellcheck disable=SC2016
-if grep -Fq '$(basename $dir)' "$TEMP_BACKUP"; then
-    fail "basename \$dir still unquoted"
-fi
-# o33: --delete must be opt-in, not hardcoded always-on beside -av.
-if grep -Eq 'rsync[[:space:]]+-av[[:space:]]+--delete' "$TEMP_BACKUP"; then
-    fail "always-on rsync --delete still present (want opt-in)"
-fi
-grep -Fq 'TEMP_BACKUP_DEST' "$TEMP_BACKUP" || fail "missing TEMP_BACKUP_DEST support"
-grep -Fq 'CHANGEME_' "$TEMP_BACKUP" || fail "missing CHANGEME_ dest refusal"
-# Must not silently prefer home-backup's BACKUP_DEST for the default DEST.
-if grep -Eq 'DEST=.*\$\{?BACKUP_DEST' "$TEMP_BACKUP"; then
-    fail "DEST still prefers BACKUP_DEST (home-backup footgun)"
-fi
-# u33: default host role from shared inventory.
-grep -Fq 'lib/f3s-hosts.sh' "$TEMP_BACKUP" \
-    || fail "must source lib/f3s-hosts.sh"
-grep -Fq 'F3S_TEMP_BACKUP_HOST' "$TEMP_BACKUP" \
-    || fail "must reference F3S_TEMP_BACKUP_HOST"
-if grep -Eq 'TEMP_BACKUP_HOST:-f0\.wg0\}' "$TEMP_BACKUP"; then
-    fail "still hardcodes f0.wg0 instead of inventory role"
-fi
+# No source-text checks: each rule is pinned by running the script below
+# (quoting via spaces and leading-dash paths, opt-in --delete, DEST
+# precedence and refusals, errexit after a failed rsync, the inventory
+# default host, and no xtrace output).
 
 # --- Positive: default dirs — no --delete unless requested ---
 mkdir -p "$HOME/Syncthing/Notes" "$HOME/Documents"
@@ -167,8 +138,12 @@ mkdir -p "$HOME/Syncthing/Notes" "$HOME/Documents"
 : >"$HOME/Documents/doc.txt"
 
 reset_calls
-"$TEMP_BACKUP" >"$TEST_ROOT/out_default" || fail "default run failed"
+"$TEMP_BACKUP" >"$TEST_ROOT/out_default" 2>"$TEST_ROOT/err_default" \
+    || fail "default run failed"
 [[ "$(call_count)" -eq 2 ]] || fail "expected 2 rsync calls, got $(call_count)"
+# A successful run writes nothing to stderr: no set -x trace leaking paths.
+[[ ! -s "$TEST_ROOT/err_default" ]] \
+    || fail "default run wrote to stderr (xtrace?): $(cat "$TEST_ROOT/err_default")"
 assert_rsync_shape 0 \
     "$HOME/Syncthing/Notes/" \
     "mock.host:tempbackup/Notes" \
@@ -183,6 +158,27 @@ grep -Fq 'Mode:        LIVE' "$TEST_ROOT/out_default" \
     || fail "missing LIVE mode log: $(cat "$TEST_ROOT/out_default")"
 grep -Fq 'Delete:      no' "$TEST_ROOT/out_default" \
     || fail "missing delete=no log: $(cat "$TEST_ROOT/out_default")"
+
+# --- u33: without TEMP_BACKUP_HOST the host comes from lib/f3s-hosts.sh ---
+# Real layout: the default equals the inventory's F3S_TEMP_BACKUP_HOST.
+# shellcheck disable=SC2016 # the child bash expands $1
+inv_host=$(bash -c 'source "$1"; printf %s "$F3S_TEMP_BACKUP_HOST"' \
+    bash "${SCRIPT_DIR}/../lib/f3s-hosts.sh") || fail "cannot read inventory"
+[[ -n "$inv_host" ]] || fail "inventory has no F3S_TEMP_BACKUP_HOST"
+reset_calls
+env -u TEMP_BACKUP_HOST "$TEMP_BACKUP" "$HOME/Documents/" >/dev/null \
+    || fail "inventory-default run failed"
+assert_rsync_shape 0 "$HOME/Documents/" "${inv_host}:tempbackup/Documents" no
+# Copy of the unmodified script beside a stub inventory with another host:
+# the default follows the inventory, so it is not a hardcoded name.
+mkdir -p "$TEST_ROOT/layout/lib"
+cp "$TEMP_BACKUP" "$TEST_ROOT/layout/temp-backup"
+printf '%s\n' "declare -gr F3S_TEMP_BACKUP_HOST='stub-inventory.test'" \
+    >"$TEST_ROOT/layout/lib/f3s-hosts.sh"
+reset_calls
+env -u TEMP_BACKUP_HOST "$TEST_ROOT/layout/temp-backup" "$HOME/Documents/" \
+    >/dev/null || fail "stub-inventory run failed"
+assert_rsync_shape 0 "$HOME/Documents/" "stub-inventory.test:tempbackup/Documents" no
 
 # --- Positive: --delete opt-in ---
 reset_calls
