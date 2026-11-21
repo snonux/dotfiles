@@ -1037,6 +1037,10 @@ done
 case "$url" in
     */api/server/ping) printf '200'; exit 0 ;;
     */api/search/metadata)
+        if [[ "$body" == *'"page":1}'* && "${DG4_PAGE1:-}" == empty ]]; then
+            echo '{"assets":{"items":[],"nextPage":null}}'
+            exit 0
+        fi
         if [[ "$body" == *'"page":1}'* ]]; then
             echo '{"assets":{"items":[{"id":"44444444-4444-4444-4444-444444444444","originalFileName":"p1.jpg"}],"nextPage":"2"}}'
             exit 0
@@ -1188,6 +1192,52 @@ PATH="$sg4_saved_path"
     || fail "sg4 race: refused rename must not fail the run: $(cat "$TEST_ROOT/err-dg4-sg4race")"
 grep -q 'Export complete' "$TEST_ROOT/out-dg4-sg4race" \
     || fail "sg4 race: missing 'Export complete': $(cat "$TEST_ROOT/out-dg4-sg4race")"
+
+# --- mg4: account directory that cannot be created fails the account ---
+# main runs the account under 'if !', so set -e is off there. A failed
+# mkdir used to go unnoticed; with zero assets nothing else failed either
+# and the run printed 'Export complete'. A regular file in the account
+# dir's place makes mkdir -p fail.
+mkdir -p "$TEST_ROOT/dg4-dest-mg4mkdir"
+printf 'not a dir\n' >"$TEST_ROOT/dg4-dest-mg4mkdir/dg4user"
+: >"$CURL_SPY_LOG"
+DG4_PAGE1=empty
+export DG4_PAGE1
+_dg4_run mg4mkdir
+unset DG4_PAGE1
+[[ "$dg4_rc" -ne 0 ]] \
+    || fail "mg4 mkdir: uncreatable account dir must exit non-zero: $(cat "$TEST_ROOT/out-dg4-mg4mkdir")"
+grep -q 'cannot create account directory' "$TEST_ROOT/err-dg4-mg4mkdir" \
+    || fail "mg4 mkdir: missing mkdir error: $(cat "$TEST_ROOT/err-dg4-mg4mkdir")"
+if grep -q 'Export complete' "$TEST_ROOT/out-dg4-mg4mkdir"; then
+    fail "mg4 mkdir: reported 'Export complete' without an account dir"
+fi
+if grep -q 'search/metadata' "$CURL_SPY_LOG"; then
+    fail "mg4 mkdir: searched although the account dir is missing"
+fi
+
+# mg4: a failed mktemp for the asset list fails the account too (TMPDIR
+# points nowhere; download temps use the account dir, not TMPDIR).
+: >"$CURL_SPY_LOG"
+TMPDIR="$TEST_ROOT/no-such-tmpdir" _dg4_run mg4mktemp
+[[ "$dg4_rc" -ne 0 ]] \
+    || fail "mg4 mktemp: failed asset-list mktemp must exit non-zero: $(cat "$TEST_ROOT/out-dg4-mg4mktemp")"
+grep -q 'cannot create the asset list temp file' "$TEST_ROOT/err-dg4-mg4mktemp" \
+    || fail "mg4 mktemp: missing mktemp error: $(cat "$TEST_ROOT/err-dg4-mg4mktemp")"
+if grep -q 'search/metadata' "$CURL_SPY_LOG"; then
+    fail "mg4 mktemp: searched without an asset list file"
+fi
+
+# mg4 negative: an empty account is still a success.
+: >"$CURL_SPY_LOG"
+DG4_PAGE1=empty
+export DG4_PAGE1
+_dg4_run mg4empty
+unset DG4_PAGE1
+[[ "$dg4_rc" -eq 0 ]] \
+    || fail "mg4 empty: zero assets must succeed: $(cat "$TEST_ROOT/err-dg4-mg4empty")"
+grep -q 'Found 0 images total' "$TEST_ROOT/out-dg4-mg4empty" \
+    || fail "mg4 empty: expected 0 assets: $(cat "$TEST_ROOT/out-dg4-mg4empty")"
 grep -q '0 downloaded.* 2 refused.* 0 failed' "$TEST_ROOT/out-dg4-sg4race" \
     || fail "sg4 race: declined renames must count as refused: $(cat "$TEST_ROOT/out-dg4-sg4race")"
 [[ "$(cat "$TEST_ROOT/dg4-dest-sg4race/dg4user/${ID_OK}_p1.jpg")" == 'planted' ]] \

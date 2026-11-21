@@ -111,6 +111,7 @@ _unique_export_basename() {
     local -r safe="$2"
     local id
 
+    # shellcheck disable=SC2310 # pure validator: non-zero means invalid
     id=$(_safe_asset_id "$asset_id") || return 1
     [[ -n "$safe" ]] || return 1
     printf '%s_%s\n' "$id" "$safe"
@@ -147,7 +148,9 @@ discover_assets() {
 
     while true; do
         local response
-        # curl_immich_key keeps the API key off curl's argv (see lib).
+        # curl_immich_key keeps the API key off curl's argv (see lib). It
+        # checks its one precondition itself; its status is curl's.
+        # shellcheck disable=SC2310
         if ! response=$(curl_immich_key -f "$CURL_SEARCH_TIMEOUT" "$api_key" \
             -X POST "$IMMICH_URL/api/search/metadata" \
             -H "Content-Type: application/json" \
@@ -250,7 +253,10 @@ download_assets() {
     while IFS=$'\t' read -r asset_id filename; do
         ((n++)) || true
 
+        # The three name checks below are pure validators: non-zero means
+        # refuse this asset.
         local safe
+        # shellcheck disable=SC2310
         if ! safe=$(_safe_export_filename "$filename"); then
             ((refused++)) || true
             echo "    [$n/$total] ERROR: refusing unsafe originalFileName: ${filename@Q}" >&2
@@ -258,6 +264,7 @@ download_assets() {
         fi
 
         local unique
+        # shellcheck disable=SC2310
         if ! unique=$(_unique_export_basename "$asset_id" "$safe"); then
             ((refused++)) || true
             echo "    [$n/$total] ERROR: refusing unsafe asset id: ${asset_id@Q}" >&2
@@ -265,6 +272,7 @@ download_assets() {
         fi
 
         local dest="$account_dir/$unique"
+        # shellcheck disable=SC2310
         if ! _path_is_under "$account_dir" "$dest"; then
             ((refused++)) || true
             echo "    [$n/$total] ERROR: dest escapes account dir: ${dest@Q}" >&2
@@ -310,6 +318,7 @@ download_assets() {
             ((failed++)) || true
             continue
         fi
+        # shellcheck disable=SC2310 # pure check: non-zero means escape
         if ! _path_is_under "$account_dir" "$tmp"; then
             rm -f -- "$tmp"
             ((refused++)) || true
@@ -317,9 +326,13 @@ download_assets() {
             continue
         fi
 
+        # Status is curl's (see discover_assets); both branches handle it.
+        # shellcheck disable=SC2310
         if curl_immich_key -f "$CURL_DOWNLOAD_TIMEOUT" "$api_key" -o "$tmp" \
             "$IMMICH_URL/api/assets/$asset_id/original"; then
             local -i place_rc=0
+            # _place_download returns an explicit code from checked steps.
+            # shellcheck disable=SC2310
             _place_download "$tmp" "$dest" || place_rc=$?
             case "$place_rc" in
                 0)
@@ -346,25 +359,37 @@ download_assets() {
     ((failed == 0 && collided == 0))
 }
 
+# download_assets_for_account ACCOUNT API_KEY — discover, then download one
+# account. main calls this under 'if !' (via _export_account), where bash
+# ignores set -e for the whole call tree, so every step whose failure
+# matters is checked explicitly and returns 1.
 download_assets_for_account() {
     local account
+    # shellcheck disable=SC2310 # pure validator: non-zero means invalid
     account=$(_safe_account_name "$1") \
         || die "Invalid account name: ${1@Q} (allowed: [A-Za-z0-9_-]+)"
     local api_key="$2"
     local account_dir="$DEST_DIR/$account"
-    mkdir -p "$account_dir"
+    if ! mkdir -p "$account_dir"; then
+        echo "    ERROR: cannot create account directory $account_dir" >&2
+        return 1
+    fi
 
     echo "==> Account: $account"
 
     # Collect full asset list into a temp file so we know the total upfront
     local asset_list
-    asset_list=$(mktemp)
+    if ! asset_list=$(mktemp); then
+        echo "    ERROR: cannot create the asset list temp file" >&2
+        return 1
+    fi
     # Expand asset_list when the trap runs (still in this function scope).
     trap 'rm -f -- "$asset_list"' EXIT
 
     echo "    Phase 1: discovering assets..."
     # Checked explicitly (set -e is off under main's 'if !'). A partial list
     # is never downloaded: the account fails instead of exporting a subset.
+    # shellcheck disable=SC2310 # discover_assets checks every step itself
     if ! discover_assets "$api_key" > "$asset_list"; then
         rm -f -- "$asset_list"
         trap - EXIT
@@ -378,7 +403,9 @@ download_assets_for_account() {
     stale_tmp=$(find "$account_dir" -maxdepth 1 -type f -name "$_IMMICH_EXPORT_TMP_GLOB" 2>/dev/null | wc -l)
     if [[ "$stale_tmp" -gt 0 ]]; then
         echo "    Cleaning up $stale_tmp leftover download temp(s) from previous run..."
-        find "$account_dir" -maxdepth 1 -type f -name "$_IMMICH_EXPORT_TMP_GLOB" -delete
+        # A failed cleanup only leaves stale temps behind; warn and go on.
+        find "$account_dir" -maxdepth 1 -type f -name "$_IMMICH_EXPORT_TMP_GLOB" -delete \
+            || echo "    WARN: could not remove all leftover download temps" >&2
     fi
 
     echo "    Phase 2: downloading..."
@@ -400,6 +427,8 @@ download_assets_for_account() {
 _export_account() {
     local -r account="$1"
     local api_key
+    # Every failure in _account_api_key is an explicit die.
+    # shellcheck disable=SC2310
     api_key=$(_account_api_key "$account") || return 1
     download_assets_for_account "$account" "$api_key"
 }
@@ -427,6 +456,7 @@ main() {
             --account)
                 [[ $# -ge 2 ]] || die "--account requires a name argument"
                 local acct
+                # shellcheck disable=SC2310 # pure validator
                 acct=$(_safe_account_name "$2") \
                     || die "Invalid account name: ${2@Q} (allowed: [A-Za-z0-9_-]+)"
                 accounts+=("$acct")
@@ -459,6 +489,7 @@ main() {
     # Re-validate defaults too (defense in depth if defaults ever change).
     local account
     for account in "${accounts[@]}"; do
+        # shellcheck disable=SC2310 # pure validator
         _safe_account_name "$account" >/dev/null \
             || die "Invalid account name: ${account@Q} (allowed: [A-Za-z0-9_-]+)"
     done
@@ -469,6 +500,9 @@ main() {
 
     local -i account_failures=0
     for account in "${accounts[@]}"; do
+        # set -e is off in this call tree; _export_account and
+        # download_assets_for_account check each step explicitly instead.
+        # shellcheck disable=SC2310
         if ! _export_account "$account"; then
             ((account_failures++)) || true
             echo "ERROR: export failed for account ${account@Q}" >&2
