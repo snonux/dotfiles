@@ -228,6 +228,141 @@ _place_download() {
     return 1
 }
 
+# Outcome codes of one asset row in phase 2. The per-row helpers below
+# return one of these and download_assets turns it into its counters, so
+# the helpers never touch the caller's counters.
+readonly _ROW_DOWNLOADED=0
+readonly _ROW_FAILED=1     # download or local write error (fails the run)
+readonly _ROW_REFUSED=2    # bad input or dest already present (logged only)
+readonly _ROW_SKIPPED=3    # regular file already at dest
+
+# Same-run collision tracking for download_assets (documented globals, reset
+# by download_assets at its start): asset id -> safe basename, and unique
+# name -> asset id. Globals instead of the caller's locals so that
+# _claim_run_slot can update them without reaching into download_assets.
+declare -gA _RUN_SEEN_IDS=()
+declare -gA _RUN_DEST_OWNERS=()
+
+# _resolve_export_dest ACCOUNT_DIR ASSET_ID FILENAME PROGRESS — run the three
+# name checks for one row and print its unique local name
+# ({uuid}_{sanitized_basename}) on stdout. On a refusal it logs why to stderr
+# (prefixed with PROGRESS, "n/total") and returns 1. Every step is an
+# explicit check, so callers may run it under 'if !'.
+_resolve_export_dest() {
+    local -r account_dir="$1" asset_id="$2" filename="$3" progress="$4"
+    local safe unique
+
+    # The three checks below are pure validators: non-zero means refuse.
+    # shellcheck disable=SC2310
+    if ! safe=$(_safe_export_filename "$filename"); then
+        echo "    [$progress] ERROR: refusing unsafe originalFileName: ${filename@Q}" >&2
+        return 1
+    fi
+    # shellcheck disable=SC2310
+    if ! unique=$(_unique_export_basename "$asset_id" "$safe"); then
+        echo "    [$progress] ERROR: refusing unsafe asset id: ${asset_id@Q}" >&2
+        return 1
+    fi
+    local -r dest="$account_dir/$unique"
+    # shellcheck disable=SC2310
+    if ! _path_is_under "$account_dir" "$dest"; then
+        echo "    [$progress] ERROR: dest escapes account dir: ${dest@Q}" >&2
+        return 1
+    fi
+    printf '%s\n' "$unique"
+}
+
+# _claim_run_slot ASSET_ID SAFE UNIQUE PROGRESS — record this row in the
+# same-run collision maps (_RUN_SEEN_IDS, _RUN_DEST_OWNERS). Returns 1 and
+# logs if the asset id or the unique name was already claimed in this run.
+_claim_run_slot() {
+    local -r asset_id="$1" safe="$2" unique="$3" progress="$4"
+
+    # Same asset id twice in one run (even with different basenames) is a
+    # corrupt/duplicated discover stream — refuse clearly by id, not dest.
+    if [[ -n "${_RUN_SEEN_IDS[$asset_id]+x}" ]]; then
+        echo "    [$progress] ERROR: duplicate asset id ${asset_id@Q} (earlier basename ${_RUN_SEEN_IDS[$asset_id]@Q}, this ${safe@Q})" >&2
+        return 1
+    fi
+    _RUN_SEEN_IDS[$asset_id]="$safe"
+
+    # Defense in depth: final unique name should be unique once ids are.
+    if [[ -n "${_RUN_DEST_OWNERS[$unique]+x}" ]]; then
+        echo "    [$progress] ERROR: destination collision for ${unique@Q}: assets ${_RUN_DEST_OWNERS[$unique]@Q} and ${asset_id@Q}" >&2
+        return 1
+    fi
+    _RUN_DEST_OWNERS[$unique]="$asset_id"
+}
+
+# _download_asset API_KEY ACCOUNT_DIR ASSET_ID UNIQUE PROGRESS — fetch one
+# asset to ACCOUNT_DIR/UNIQUE unless something is already there. Logs the
+# result and returns a _ROW_* code.
+_download_asset() {
+    local -r api_key="$1" account_dir="$2" asset_id="$3" unique="$4" progress="$5"
+    local -r dest="$account_dir/$unique"
+
+    if [[ -e "$dest" || -L "$dest" ]]; then
+        if [[ -f "$dest" && ! -L "$dest" ]]; then
+            echo "    [$progress] skip (exists): $unique"
+            return "$_ROW_SKIPPED"
+        fi
+        echo "    [$progress] ERROR: refusing non-regular dest: ${dest@Q}" >&2
+        return "$_ROW_REFUSED"
+    fi
+
+    # Create a fresh regular file under account_dir (mktemp uses O_EXCL).
+    # Never write to "$dest.tmp": curl -o follows a planted symlink and
+    # can escape the account directory.
+    # A failed mktemp is a local write error (unwritable dir, full disk),
+    # not bad input: count it as failed so the run exits non-zero.
+    local tmp
+    if ! tmp=$(mktemp -p "$account_dir" "$_IMMICH_EXPORT_TMP_TEMPLATE"); then
+        echo "    [$progress] ERROR: mktemp failed under $account_dir" >&2
+        return "$_ROW_FAILED"
+    fi
+    # shellcheck disable=SC2310 # pure check: non-zero means escape
+    if ! _path_is_under "$account_dir" "$tmp"; then
+        rm -f -- "$tmp"
+        echo "    [$progress] ERROR: temp path escapes account dir: ${tmp@Q}" >&2
+        return "$_ROW_REFUSED"
+    fi
+    _fetch_and_place "$api_key" "$asset_id" "$tmp" "$dest" "$unique" "$progress"
+}
+
+# _fetch_and_place API_KEY ASSET_ID TMP DEST UNIQUE PROGRESS — download the
+# asset into TMP, then move it to DEST with _place_download. Logs the result
+# and returns a _ROW_* code; TMP never survives a failure.
+_fetch_and_place() {
+    local -r api_key="$1" asset_id="$2" tmp="$3" dest="$4" unique="$5" progress="$6"
+    local -i place_rc=0
+
+    # Status is curl's (see discover_assets); both branches handle it.
+    # shellcheck disable=SC2310
+    if ! curl_immich_key -f "$CURL_DOWNLOAD_TIMEOUT" "$api_key" -o "$tmp" \
+        "$IMMICH_URL/api/assets/$asset_id/original"; then
+        echo "    [$progress] ERROR: failed to download $asset_id ($unique)" >&2
+        rm -f -- "$tmp"
+        return "$_ROW_FAILED"
+    fi
+    # _place_download returns an explicit code from checked steps.
+    # shellcheck disable=SC2310
+    _place_download "$tmp" "$dest" || place_rc=$?
+    case "$place_rc" in
+        0)
+            echo "    [$progress] downloaded: $unique"
+            return "$_ROW_DOWNLOADED"
+            ;;
+        2)
+            echo "    [$progress] ERROR: dest appeared before rename: ${dest@Q}" >&2
+            return "$_ROW_REFUSED"
+            ;;
+        *)
+            echo "    [$progress] ERROR: failed to place $unique" >&2
+            return "$_ROW_FAILED"
+            ;;
+    esac
+}
+
 # Phase 2: download each asset by ID, showing real [X/total] progress.
 # Destinations are {uuid}_{sanitized_basename} so distinct assets that share
 # originalFileName (or collapse to the same basename) all export. UUID
@@ -235,128 +370,65 @@ _place_download() {
 # local write failures (mktemp, rename) or same-run duplicate asset id /
 # destination collision. 'refused' (bad input, dest already present) alone
 # does not fail the run.
+#
+# The per-row work lives in the helpers above; this loop only counts their
+# outcomes. Every helper is called under 'if !' or '|| rc=$?' and checks its
+# own steps, as set -e is off here anyway (main runs the account under 'if !').
 download_assets() {
     local api_key="$1"
     local account_dir="$2"
     local asset_list="$3"   # path to temp file with "id\tfilename" lines
     local total
     total=$(wc -l < "$asset_list")
-    local -i downloaded=0
-    local -i skipped=0
-    local -i refused=0
-    local -i collided=0
-    local -i failed=0
-    local -i n=0
-    declare -A run_seen_ids=()
-    declare -A run_dest_owners=()
+    local -i downloaded=0 skipped=0 refused=0 collided=0 failed=0 n=0
+    _RUN_SEEN_IDS=()
+    _RUN_DEST_OWNERS=()
 
     while IFS=$'\t' read -r asset_id filename; do
         ((n++)) || true
 
-        # The three name checks below are pure validators: non-zero means
-        # refuse this asset.
-        local safe
-        # shellcheck disable=SC2310
-        if ! safe=$(_safe_export_filename "$filename"); then
-            ((refused++)) || true
-            echo "    [$n/$total] ERROR: refusing unsafe originalFileName: ${filename@Q}" >&2
-            continue
-        fi
-
         local unique
-        # shellcheck disable=SC2310
-        if ! unique=$(_unique_export_basename "$asset_id" "$safe"); then
+        # shellcheck disable=SC2310 # every step is an explicit check
+        if ! unique=$(_resolve_export_dest "$account_dir" "$asset_id" "$filename" "$n/$total"); then
             ((refused++)) || true
-            echo "    [$n/$total] ERROR: refusing unsafe asset id: ${asset_id@Q}" >&2
             continue
         fi
-
-        local dest="$account_dir/$unique"
-        # shellcheck disable=SC2310
-        if ! _path_is_under "$account_dir" "$dest"; then
-            ((refused++)) || true
-            echo "    [$n/$total] ERROR: dest escapes account dir: ${dest@Q}" >&2
-            continue
-        fi
-
-        # Same asset id twice in one run (even with different basenames) is a
-        # corrupt/duplicated discover stream — refuse clearly by id, not dest.
-        if [[ -n "${run_seen_ids[$asset_id]+x}" ]]; then
+        # unique is "{asset_id}_{safe}"; the id is a UUID, which has no '_'.
+        # shellcheck disable=SC2310 # every step is an explicit check
+        if ! _claim_run_slot "$asset_id" "${unique#"${asset_id}_"}" "$unique" "$n/$total"; then
             ((collided++)) || true
-            echo "    [$n/$total] ERROR: duplicate asset id ${asset_id@Q} (earlier basename ${run_seen_ids[$asset_id]@Q}, this ${safe@Q})" >&2
-            continue
-        fi
-        run_seen_ids[$asset_id]="$safe"
-
-        # Defense in depth: final unique name should be unique once ids are.
-        if [[ -n "${run_dest_owners[$unique]+x}" ]]; then
-            ((collided++)) || true
-            echo "    [$n/$total] ERROR: destination collision for ${unique@Q}: assets ${run_dest_owners[$unique]@Q} and ${asset_id@Q}" >&2
-            continue
-        fi
-        run_dest_owners[$unique]="$asset_id"
-
-        if [[ -e "$dest" || -L "$dest" ]]; then
-            if [[ -f "$dest" && ! -L "$dest" ]]; then
-                ((skipped++)) || true
-                echo "    [$n/$total] skip (exists): $unique"
-                continue
-            fi
-            ((refused++)) || true
-            echo "    [$n/$total] ERROR: refusing non-regular dest: ${dest@Q}" >&2
             continue
         fi
 
-        # Create a fresh regular file under account_dir (mktemp uses O_EXCL).
-        # Never write to "$dest.tmp": curl -o follows a planted symlink and
-        # can escape the account directory.
-        # A failed mktemp is a local write error (unwritable dir, full disk),
-        # not bad input: count it as failed so the run exits non-zero.
-        local tmp
-        if ! tmp=$(mktemp -p "$account_dir" "$_IMMICH_EXPORT_TMP_TEMPLATE"); then
-            echo "    [$n/$total] ERROR: mktemp failed under $account_dir" >&2
-            ((failed++)) || true
-            continue
-        fi
-        # shellcheck disable=SC2310 # pure check: non-zero means escape
-        if ! _path_is_under "$account_dir" "$tmp"; then
-            rm -f -- "$tmp"
-            ((refused++)) || true
-            echo "    [$n/$total] ERROR: temp path escapes account dir: ${tmp@Q}" >&2
-            continue
-        fi
-
-        # Status is curl's (see discover_assets); both branches handle it.
-        # shellcheck disable=SC2310
-        if curl_immich_key -f "$CURL_DOWNLOAD_TIMEOUT" "$api_key" -o "$tmp" \
-            "$IMMICH_URL/api/assets/$asset_id/original"; then
-            local -i place_rc=0
-            # _place_download returns an explicit code from checked steps.
-            # shellcheck disable=SC2310
-            _place_download "$tmp" "$dest" || place_rc=$?
-            case "$place_rc" in
-                0)
-                    ((downloaded++)) || true
-                    echo "    [$n/$total] downloaded: $unique"
-                    ;;
-                2)
-                    ((refused++)) || true
-                    echo "    [$n/$total] ERROR: dest appeared before rename: ${dest@Q}" >&2
-                    ;;
-                *)
-                    ((failed++)) || true
-                    echo "    [$n/$total] ERROR: failed to place $unique" >&2
-                    ;;
-            esac
-        else
-            echo "    [$n/$total] ERROR: failed to download $asset_id ($unique)" >&2
-            rm -f -- "$tmp"
-            ((failed++)) || true
-        fi
+        local -i row_rc=0
+        # shellcheck disable=SC2310 # returns an explicit _ROW_* code
+        _download_asset "$api_key" "$account_dir" "$asset_id" "$unique" "$n/$total" \
+            || row_rc=$?
+        case "$row_rc" in
+            "$_ROW_DOWNLOADED") ((downloaded++)) || true ;;
+            "$_ROW_SKIPPED") ((skipped++)) || true ;;
+            "$_ROW_REFUSED") ((refused++)) || true ;;
+            *) ((failed++)) || true ;;
+        esac
     done < "$asset_list"
 
     echo "    Done: $downloaded downloaded, $skipped skipped (already exist), $refused refused (unsafe/invalid input or dest already present), $collided collisions (duplicate id/dest), $failed failed (download/write errors)"
     ((failed == 0 && collided == 0))
+}
+
+# _clean_stale_temps ACCOUNT_DIR — remove leftover download temps from a
+# previously aborted run only. Matches the mktemp prefix, never '*.tmp'
+# (could be real exports). A failed cleanup only leaves stale temps behind,
+# so it warns and never fails.
+_clean_stale_temps() {
+    local -r account_dir="$1"
+    local stale_tmp
+    stale_tmp=$(find "$account_dir" -maxdepth 1 -type f -name "$_IMMICH_EXPORT_TMP_GLOB" 2>/dev/null | wc -l)
+    if [[ "$stale_tmp" -gt 0 ]]; then
+        echo "    Cleaning up $stale_tmp leftover download temp(s) from previous run..."
+        find "$account_dir" -maxdepth 1 -type f -name "$_IMMICH_EXPORT_TMP_GLOB" -delete \
+            || echo "    WARN: could not remove all leftover download temps" >&2
+    fi
 }
 
 # download_assets_for_account ACCOUNT API_KEY — discover, then download one
@@ -397,16 +469,7 @@ download_assets_for_account() {
     fi
     echo "    Found $(wc -l < "$asset_list") images total"
 
-    # Clean leftover download temps from a previously aborted run only.
-    # Match the mktemp prefix — never delete '*.tmp' (could be real exports).
-    local stale_tmp
-    stale_tmp=$(find "$account_dir" -maxdepth 1 -type f -name "$_IMMICH_EXPORT_TMP_GLOB" 2>/dev/null | wc -l)
-    if [[ "$stale_tmp" -gt 0 ]]; then
-        echo "    Cleaning up $stale_tmp leftover download temp(s) from previous run..."
-        # A failed cleanup only leaves stale temps behind; warn and go on.
-        find "$account_dir" -maxdepth 1 -type f -name "$_IMMICH_EXPORT_TMP_GLOB" -delete \
-            || echo "    WARN: could not remove all leftover download temps" >&2
-    fi
+    _clean_stale_temps "$account_dir"
 
     echo "    Phase 2: downloading..."
     local -i dl_rc=0
@@ -433,9 +496,13 @@ _export_account() {
     download_assets_for_account "$account" "$api_key"
 }
 
-main() {
-    local -a accounts=()
-
+# _parse_args ARGS... — apply the command line to the settings globals
+# (DEST_DIR, DATE_AFTER, DATE_BEFORE, IMMICH_LAN_URL, IMMICH_PUBLIC_URL) and
+# collect validated --account names in the documented global array
+# _EXPORT_ACCOUNTS (reset here; main reads it). Dies on bad input; --help
+# exits 0. A long but flat option loop, kept in one piece on purpose.
+_parse_args() {
+    _EXPORT_ACCOUNTS=()
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --dest)
@@ -459,7 +526,7 @@ main() {
                 # shellcheck disable=SC2310 # pure validator
                 acct=$(_safe_account_name "$2") \
                     || die "Invalid account name: ${2@Q} (allowed: [A-Za-z0-9_-]+)"
-                accounts+=("$acct")
+                _EXPORT_ACCOUNTS+=("$acct")
                 shift 2
                 ;;
             --lan-url)
@@ -481,6 +548,11 @@ main() {
                 ;;
         esac
     done
+}
+
+main() {
+    _parse_args "$@"
+    local -a accounts=("${_EXPORT_ACCOUNTS[@]}")
 
     if ((${#accounts[@]} == 0)); then
         accounts=(paul albena)
