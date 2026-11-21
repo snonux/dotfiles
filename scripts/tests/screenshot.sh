@@ -35,10 +35,14 @@ printf 'png\n' >"${*: -1}"
 EOF
 printf '#!/usr/bin/env bash\necho 20260102-030405\n' >"$BIN/date"
 # Clipboard fakes log their argv and what they read on stdin.
-printf '#!/usr/bin/env bash\nprintf "wl-copy %%s <%%s>\\n" "$*" "$(cat)" >>"$CALLS"\n' \
-    >"$TEST_ROOT/wl-copy"
-printf '#!/usr/bin/env bash\nprintf "xclip %%s\\n" "$*" >>"$CALLS"\n' \
-    >"$TEST_ROOT/xclip"
+cat >"$TEST_ROOT/wl-copy" <<'EOF'
+#!/usr/bin/env bash
+printf 'wl-copy %s <%s>\n' "$*" "$(cat)" >>"$CALLS"
+EOF
+cat >"$TEST_ROOT/xclip" <<'EOF'
+#!/usr/bin/env bash
+printf 'xclip %s\n' "$*" >>"$CALLS"
+EOF
 chmod +x "$BIN/flameshot" "$BIN/date" "$TEST_ROOT/wl-copy" "$TEST_ROOT/xclip"
 export CALLS
 
