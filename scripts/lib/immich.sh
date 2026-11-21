@@ -2,8 +2,9 @@
 # Shared Immich helpers for scripts/immich-upload and scripts/immich-export.
 #
 # Source this file; do not execute it. Provides URL inventory defaults
-# (via f3s-hosts), LAN/public failover, account API-key loading, and a
-# curl wrapper that always applies -m (and optional --fail).
+# (via f3s-hosts), LAN/public failover, account API-key loading, a curl
+# wrapper that always applies -m (and optional --fail), and curl_immich_key,
+# which adds the API key without putting it on curl's command line.
 #
 # SC2034: exported names are the public API for sourcing consumers.
 # shellcheck disable=SC2034
@@ -47,6 +48,39 @@ curl_immich() {
     else
         curl -m "$timeout" "$@"
     fi
+}
+
+# _immich_key_config_safe KEY — succeed if KEY fits inside a double-quoted
+# curl config string: no '"' or '\' (would end or escape it) and no CR/LF
+# (would start a new config line).
+_immich_key_config_safe() {
+    [[ "$1" != *[\"\\$'\n\r']* ]]
+}
+
+# curl_immich_key [-f] TIMEOUT API_KEY [curl-args...]
+# Like curl_immich, plus the x-api-key header. The key reaches curl as a
+# config line on stdin (--config -), never on argv, which every local user
+# can read via ps and /proc/<pid>/cmdline. The here-string spawns no helper
+# process (bash 5.1+ feeds it through a pipe, older bash through a
+# mode-0600 temp file it unlinks at once), and the key is never exported,
+# so it is not in curl's environment either. Callers must not need curl's
+# stdin for anything else (use -d @file / -F field=@file, not '-').
+# Returns 2 without running curl if the key cannot be quoted safely.
+curl_immich_key() {
+    local fail=()
+    if [[ "${1:-}" == -f ]]; then
+        fail=(-f)
+        shift
+    fi
+    local -r timeout="$1" api_key="$2"
+    shift 2
+    if ! _immich_key_config_safe "$api_key"; then
+        warn "API key contains a double quote, backslash or line break"
+        return 2
+    fi
+    # --config - goes before the caller's args so the URL stays last.
+    curl_immich "${fail[@]}" "$timeout" --config - "$@" \
+        <<<"header = \"x-api-key: ${api_key}\""
 }
 
 # Probe the Immich /api/server/ping endpoint at the given base URL.
@@ -100,5 +134,9 @@ _account_api_key() {
     local key
     key=$(cat -- "$key_file")
     [[ -n "$key" ]] || die "API key file is empty: $key_file"
+    # curl_immich_key would refuse such a key on every request; fail once,
+    # up front, naming the file.
+    _immich_key_config_safe "$key" \
+        || die "API key file holds a double quote, backslash or line break: $key_file"
     printf '%s\n' "$key"
 }

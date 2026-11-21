@@ -95,11 +95,15 @@ grep -q 'CURL_SEARCH_TIMEOUT' "$IMMICH_LIB" \
 grep -q 'CURL_DOWNLOAD_TIMEOUT' "$IMMICH_LIB" \
     || fail "missing CURL_DOWNLOAD_TIMEOUT"
 # shellcheck disable=SC2016  # intentional literal $CURL_* in grep
-grep -Eq 'curl_immich -f "\$CURL_DOWNLOAD_TIMEOUT"' "$IMMICH_EXPORT" \
-    || fail "download missing curl_immich -f CURL_DOWNLOAD_TIMEOUT"
+# jg4: authenticated calls go through curl_immich_key (key off argv).
+grep -Eq 'curl_immich_key -f "\$CURL_DOWNLOAD_TIMEOUT"' "$IMMICH_EXPORT" \
+    || fail "download missing curl_immich_key -f CURL_DOWNLOAD_TIMEOUT"
 # shellcheck disable=SC2016
-grep -Eq 'curl_immich -f "\$CURL_SEARCH_TIMEOUT"' "$IMMICH_EXPORT" \
-    || fail "search missing curl_immich -f CURL_SEARCH_TIMEOUT"
+grep -Eq 'curl_immich_key -f "\$CURL_SEARCH_TIMEOUT"' "$IMMICH_EXPORT" \
+    || fail "search missing curl_immich_key -f CURL_SEARCH_TIMEOUT"
+if grep -Fq 'x-api-key:' "$IMMICH_EXPORT"; then
+    fail "immich-export still builds an x-api-key header on curl argv"
+fi
 grep -q 'failed (download/write errors)' "$IMMICH_EXPORT" \
     || fail "Done summary missing failed download count"
 grep -q 'failed == 0 && collided == 0' "$IMMICH_EXPORT" \
@@ -241,10 +245,13 @@ url=""
 has_m=0
 args=("$@")
 printf '%s\n' "${args[*]}" >>"$log"
+env >>"${log}.env"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -o) out="$2"; shift 2 ;;
         -m) has_m=1; shift 2 ;;
+        # jg4: the API key arrives as a curl config on stdin.
+        --config|-K) [[ "$2" == - ]] && cat >>"${log}.stdin"; shift 2 ;;
         -H|-d|-X|-w|--connect-timeout) shift 2 ;;
         -sf|-s|-f|-L|-sL) shift ;;
         http://*|https://*) url="$1"; shift ;;
@@ -262,6 +269,10 @@ export PATH="$TEST_ROOT/bin:$PATH"
 export CURL_SPY_LOG="$TEST_ROOT/calls/curl.log"
 : >"$CURL_SPY_LOG"
 : >"${CURL_SPY_LOG}.outs"
+: >"${CURL_SPY_LOG}.env"
+: >"${CURL_SPY_LOG}.stdin"
+# Made-up key for the jg4 checks; distinctive so a grep cannot misfire.
+declare -r FAKE_API_KEY='fake-immich-export-key-5d0a'
 
 declare -r ASSET_LIST="$TEST_ROOT/assets.tsv"
 # Mix: traversal, absolute (must refuse), and a normal name.
@@ -279,9 +290,21 @@ rm -f "$ESCAPE_MARKER" \
     "$ACCOUNT_DIR/normal.jpg"
 rm -rf "$ACCOUNT_DIR/tmp"
 
-download_assets 'fake-key' "$ACCOUNT_DIR" "$ASSET_LIST" \
+download_assets "$FAKE_API_KEY" "$ACCOUNT_DIR" "$ASSET_LIST" \
     >"$TEST_ROOT/out" 2>"$TEST_ROOT/err" \
     || fail "download_assets failed on mixed list"
+
+# jg4: the API key must not be on curl's argv (world-readable via ps and
+# /proc/<pid>/cmdline) nor in its environment; one config header per
+# download call must carry it on stdin.
+if grep -Fq "$FAKE_API_KEY" "$CURL_SPY_LOG"; then
+    fail "download: API key leaked on curl argv: $(cat "$CURL_SPY_LOG")"
+fi
+if grep -Fq "$FAKE_API_KEY" "${CURL_SPY_LOG}.env"; then
+    fail "download: API key leaked into curl environment"
+fi
+[[ "$(grep -Fxc "header = \"x-api-key: ${FAKE_API_KEY}\"" "${CURL_SPY_LOG}.stdin")" -eq 2 ]] \
+    || fail "download: API key did not reach both curl calls via --config on stdin"
 
 [[ ! -e "$ESCAPE_MARKER" ]] \
     || fail "path traversal wrote outside account_dir: $ESCAPE_MARKER"
@@ -750,6 +773,8 @@ printf '%s\n' "$*" >>"$log"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -m) has_m=1; m_val="$2"; shift 2 ;;
+        # jg4: the API key arrives as a curl config on stdin.
+        --config|-K) [[ "$2" == - ]] && cat >>"${log}.stdin"; shift 2 ;;
         -o|-H|-d|-X|-w|--connect-timeout) shift 2 ;;
         -sf|-s|-f|-L|-sL) shift ;;
         http://*|https://*) shift ;;
@@ -758,6 +783,7 @@ while [[ $# -gt 0 ]]; do
 done
 [[ "$has_m" -eq 1 ]] || { echo "curl spy: missing -m timeout" >&2; exit 2; }
 printf 'm=%s\n' "$m_val" >>"${log}.mvals"
+env >>"${log}.env"
 # One page of search results, no nextPage.
 cat <<'JSON'
 {"assets":{"items":[{"id":"44444444-4444-4444-4444-444444444444","originalFileName":"disc.jpg"}],"nextPage":null}}
@@ -767,8 +793,19 @@ chmod +x "$TEST_ROOT/bin/curl"
 IMMICH_URL='http://immich.discover.test'
 DATE_AFTER='2021-01-01T00:00:00.000Z'
 DATE_BEFORE='2021-02-01T00:00:00.000Z'
-discover_assets 'fake-key' >"$TEST_ROOT/out-discover" 2>"$TEST_ROOT/err-discover" \
+: >"${CURL_SPY_LOG}.env"
+: >"${CURL_SPY_LOG}.stdin"
+discover_assets "$FAKE_API_KEY" >"$TEST_ROOT/out-discover" 2>"$TEST_ROOT/err-discover" \
     || fail "discover_assets failed: $(cat "$TEST_ROOT/err-discover")"
+# jg4: same secret handling for the search request as for downloads.
+if grep -Fq "$FAKE_API_KEY" "$CURL_SPY_LOG"; then
+    fail "discover: API key leaked on curl argv: $(cat "$CURL_SPY_LOG")"
+fi
+if grep -Fq "$FAKE_API_KEY" "${CURL_SPY_LOG}.env"; then
+    fail "discover: API key leaked into curl environment"
+fi
+grep -Fxq "header = \"x-api-key: ${FAKE_API_KEY}\"" "${CURL_SPY_LOG}.stdin" \
+    || fail "discover: API key did not reach curl via --config on stdin"
 grep -q "${ID_OK}"$'\tdisc.jpg' "$TEST_ROOT/out-discover" \
     || fail "discover_assets missing asset line: $(cat "$TEST_ROOT/out-discover")"
 grep -q 'search/metadata' "$CURL_SPY_LOG" \
