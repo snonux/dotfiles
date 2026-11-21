@@ -222,9 +222,10 @@ upload_file() {
     # x-immich-checksum header (and the bulk-upload-check pre-pass), which
     # returns HTTP 200 {"status":"duplicate"} instead of 201 {"status":"created"}.
     local http_code rc=0
-    http_code=$(curl_immich "$CURL_DOWNLOAD_TIMEOUT" -s -o "$tmpfile" \
-        -w '%{http_code}' -X POST \
-        -H "x-api-key: $api_key" \
+    # curl_immich_key keeps the API key off curl's argv (see lib); the
+    # multipart body comes from -F/--form-string, so curl's stdin is free.
+    http_code=$(curl_immich_key "$CURL_DOWNLOAD_TIMEOUT" "$api_key" \
+        -s -o "$tmpfile" -w '%{http_code}' -X POST \
         -H "x-immich-checksum: $checksum" \
         -F "$form_asset" \
         --form-string "filename=$filename" \
@@ -278,8 +279,8 @@ bulk_upload() {
 
     info "Checking for duplicates on server..."
     local response
-    response=$(curl_immich -f "$CURL_SEARCH_TIMEOUT" -X POST \
-        -H "x-api-key: $api_key" \
+    # Key off curl's argv via curl_immich_key; the body is read from a file.
+    response=$(curl_immich_key -f "$CURL_SEARCH_TIMEOUT" "$api_key" -X POST \
         -H "Content-Type: application/json" \
         -d @"$tmp_json.json" \
         "$IMMICH_URL/api/assets/bulk-upload-check" 2>/dev/null) \
