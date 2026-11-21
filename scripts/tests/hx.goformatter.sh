@@ -21,10 +21,12 @@ fail() {
 bash -n "$TARGET" || fail "bash -n failed"
 shellcheck -x -S warning "$TARGET" || fail "shellcheck failed"
 
-head -n 5 "$TARGET" | grep -Eq '^#!/usr/bin/env bash$' \
+# Kept as a source check: env-bash over /bin/bash only matters on hosts
+# without /bin/bash, so this machine cannot observe it.
+head -n 1 "$TARGET" | grep -Eq '^#!/usr/bin/env bash$' \
     || fail "missing #!/usr/bin/env bash shebang"
-grep -Eq '^set -euo pipefail$' "$TARGET" \
-    || fail "missing set -euo pipefail"
+# Strict mode is not grepped: the runs below need pipefail to fail when
+# goimports fails in front of a succeeding gofumpt.
 
 mkdir -p "$TEST_ROOT/bin"
 
