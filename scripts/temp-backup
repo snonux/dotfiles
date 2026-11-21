@@ -41,6 +41,8 @@ source "${_TEMP_BACKUP_DIR}/lib/f3s-hosts.sh"
 declare DEST="${TEMP_BACKUP_DEST:-${TEMP_BACKUP_HOST:-${F3S_TEMP_BACKUP_HOST}}:tempbackup}"
 declare DRY_RUN=""
 declare DO_DELETE="no"
+# Source dirs from the command line; filled by _parse_args.
+declare -a SOURCES=()
 
 log() {
     printf '%s\n' "$*"
@@ -183,9 +185,12 @@ _log_run_plan() {
     log ""
 }
 
-main() {
-    local -a dirs=()
-
+# _parse_args ARGS... — apply the options to the DRY_RUN, DEST and
+# DO_DELETE globals and collect the source dirs in the documented global
+# array SOURCES (reset here; main copies it). Usage errors exit 2, --help
+# exits 0. Called plainly from main, so set -e applies as before.
+_parse_args() {
+    SOURCES=()
     while (($# > 0)); do
         case "$1" in
             -n)
@@ -211,7 +216,7 @@ main() {
                 ;;
             --)
                 shift
-                dirs+=("$@")
+                SOURCES+=("$@")
                 break
                 ;;
             -*)
@@ -220,28 +225,21 @@ main() {
                 exit 2
                 ;;
             *)
-                dirs+=("$1")
+                SOURCES+=("$1")
                 shift
                 ;;
         esac
     done
+}
 
-    _validate_dest "$DEST"
-
-    if ((${#dirs[@]} == 0)); then
-        dirs=(
-            "${HOME}/Syncthing/Notes/"
-            "${HOME}/Documents/"
-        )
-    fi
-
-    _validate_sources dirs
-    _log_run_plan
-
+# _sync_sources DIR... — rsync each (already validated) source into
+# DEST/<basename>, adding --delete / --dry-run as requested. Called plainly
+# from main, so set -e still stops at the first failed rsync.
+_sync_sources() {
     local dir remote_name source_path
     local -a rsync_args
 
-    for dir in "${dirs[@]}"; do
+    for dir in "$@"; do
         remote_name="$(_remote_basename "$dir")"
         source_path="$(_normalize_source "$dir")"
         rsync_args=(-av)
@@ -255,6 +253,24 @@ main() {
             "$source_path" \
             "${DEST%/}/${remote_name}"
     done
+}
+
+main() {
+    _parse_args "$@"
+    local -a dirs=("${SOURCES[@]}")
+
+    _validate_dest "$DEST"
+
+    if ((${#dirs[@]} == 0)); then
+        dirs=(
+            "${HOME}/Syncthing/Notes/"
+            "${HOME}/Documents/"
+        )
+    fi
+
+    _validate_sources dirs
+    _log_run_plan
+    _sync_sources "${dirs[@]}"
 }
 
 main "$@"
