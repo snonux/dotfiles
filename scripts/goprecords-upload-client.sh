@@ -34,6 +34,13 @@ upload() {
 		echo "goprecords-upload-client: skip $kind (no $file)" >&2
 		return 0
 	fi
+	# The token reaches curl as a config line on stdin (--config -), never
+	# on argv: argv is world-readable via ps and /proc/<pid>/cmdline while
+	# curl runs. A here-doc, not printf, so no helper process carries the
+	# token in its argv either; the shells this runs under (dash, FreeBSD
+	# and NetBSD sh) feed here-docs through a pipe, or else a private
+	# temp file. TOKEN is never exported, so it is not in curl's
+	# environment. --data-binary reads the file, so stdin is free.
 	curl -fsS \
 		--connect-timeout "${GOPRECORDS_CONNECT_TIMEOUT}" \
 		--max-time "${GOPRECORDS_MAX_TIME}" \
@@ -41,8 +48,10 @@ upload() {
 		--retry-delay "${GOPRECORDS_CURL_RETRY_DELAY}" \
 		--retry-max-time "${GOPRECORDS_CURL_RETRY_MAX_TIME}" \
 		-X PUT --data-binary "@${file}" \
-		-H "Authorization: Bearer ${TOKEN}" \
-		"${GOPRECORDS_BASE_URL}/upload/${GOPRECORDS_HOST}/${kind}"
+		--config - \
+		"${GOPRECORDS_BASE_URL}/upload/${GOPRECORDS_HOST}/${kind}" <<EOF
+header = "Authorization: Bearer ${TOKEN}"
+EOF
 }
 
 _find_records() {
@@ -81,6 +90,15 @@ _main() {
 		exit 1
 	fi
 	TOKEN=$(tr -d '\n\r' <"$GOPRECORDS_TOKEN_FILE")
+	# upload() puts the token inside a double-quoted curl config string,
+	# where '"' and '\' would end or escape it. Real tokens never hold them.
+	case $TOKEN in
+	*\"* | *\\*)
+		printf 'goprecords-upload-client: token in %s contains a double quote or backslash\n' \
+			"$GOPRECORDS_TOKEN_FILE" >&2
+		exit 1
+		;;
+	esac
 
 	records_path=$(_find_records)
 

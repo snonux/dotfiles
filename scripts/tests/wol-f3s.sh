@@ -162,6 +162,7 @@ EOF
 
 # Repro of the pre-fix form: crafted "username" runs during eval tilde expand.
 declare -r PWNED="$TEST_ROOT/pwned"
+# shellcheck disable=SC2016 # the $(...) must stay literal: it is the payload
 declare -r EVIL_USER='alice$(touch '"$PWNED"')'
 rm -f "$PWNED"
 # shellcheck disable=SC2086 # intentional unquoted eval repro of the old bug
@@ -189,6 +190,7 @@ fi
 [[ -e "$PWNED" ]] && fail "side-effect file created after safe resolver"
 
 # More negative cases: metacharacters, path traversal, whitespace, empty.
+# shellcheck disable=SC2016 # literal backticks are one of the bad inputs
 for bad in 'alice;id' 'alice|id' 'alice`id`' 'alice and bob' '../alice'; do
     if _user_home_from_passwd "$bad" 2>/dev/null; then
         fail "accepted invalid username: ${bad@Q}"
@@ -394,6 +396,71 @@ grep -Fq 'Failed to un-mute Gogios' <<<"$unmute_out" \
 mapfile -t ssh_targets <"$SSH_LOG"
 (( ${#ssh_targets[@]} == 2 )) \
     || fail "unmute_gogios attempted ${#ssh_targets[@]} gateway(s), want 2"
+
+# --- jg4: shelly_set keeps the Shelly password off curl's argv ---
+# argv is world-readable (ps, /proc/<pid>/cmdline). The fake curl logs its
+# argv, environment and any config read from stdin, and answers GetStatus
+# with the requested output state so shelly_set reports success.
+declare -r CURL_ARGV_LOG="$TEST_ROOT/curl-argv.log"
+declare -r CURL_ENV_LOG="$TEST_ROOT/curl-env.log"
+declare -r CURL_STDIN_LOG="$TEST_ROOT/curl-stdin.log"
+export CURL_ARGV_LOG CURL_ENV_LOG CURL_STDIN_LOG
+: >"$CURL_ARGV_LOG"
+: >"$CURL_ENV_LOG"
+: >"$CURL_STDIN_LOG"
+cat >"$FAKE_BIN/curl" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >>"${CURL_ARGV_LOG:?}"
+env >>"${CURL_ENV_LOG:?}"
+prev=''
+url=''
+for arg in "$@"; do
+    # Only read stdin when curl is told to, so the fake never blocks.
+    if [[ "$prev" == --config || "$prev" == -K ]] && [[ "$arg" == - ]]; then
+        cat >>"${CURL_STDIN_LOG:?}"
+    fi
+    [[ "$arg" == http://* ]] && url=$arg
+    prev=$arg
+done
+case "$url" in
+    *Switch.GetStatus*) printf '{"id":0,"output":true}\n' ;;
+esac
+exit 0
+EOF
+chmod +x "$FAKE_BIN/curl"
+declare -r FAKE_SHELLY_PASS='fake-shelly-pass-93b2'
+saved_shelly_pass_file=$SHELLY_PASS_FILE
+SHELLY_PASS_FILE="$TEST_ROOT/shelly_plug"
+printf '%s\n' "$FAKE_SHELLY_PASS" >"$SHELLY_PASS_FILE"
+PATH="$FAKE_BIN:$PATH" shelly_set true >/dev/null \
+    || fail "shelly_set true failed with fake curl"
+[[ "$(wc -l <"$CURL_ARGV_LOG")" -eq 2 ]] \
+    || fail "shelly_set made $(wc -l <"$CURL_ARGV_LOG") curl call(s), want 2"
+if grep -Fq "$FAKE_SHELLY_PASS" "$CURL_ARGV_LOG"; then
+    fail "Shelly password leaked on curl argv: $(cat "$CURL_ARGV_LOG")"
+fi
+if grep -Fq "$FAKE_SHELLY_PASS" "$CURL_ENV_LOG"; then
+    fail "Shelly password leaked into curl environment"
+fi
+grep -Fq -- '--digest' "$CURL_ARGV_LOG" \
+    || fail "shelly_set dropped --digest: $(cat "$CURL_ARGV_LOG")"
+[[ "$(grep -Fxc "user = \"admin:${FAKE_SHELLY_PASS}\"" "$CURL_STDIN_LOG")" -eq 2 ]] \
+    || fail "password did not reach both curl calls via --config on stdin"
+
+# Negative: a password with '"' would break out of the quoted config string,
+# so shelly_set must refuse it without running curl.
+: >"$CURL_ARGV_LOG"
+printf 'bad"pass\n' >"$SHELLY_PASS_FILE"
+if PATH="$FAKE_BIN:$PATH" shelly_set true >"$TEST_ROOT/shelly-quote.out" 2>&1; then
+    fail "shelly_set accepted a password containing a double quote"
+fi
+grep -Fq 'double quote or backslash' "$TEST_ROOT/shelly-quote.out" \
+    || fail "shelly_set did not explain the bad password: $(cat "$TEST_ROOT/shelly-quote.out")"
+[[ ! -s "$CURL_ARGV_LOG" ]] \
+    || fail "shelly_set ran curl with an unusable password"
+rm -f "$FAKE_BIN/curl"
+SHELLY_PASS_FILE=$saved_shelly_pass_file
 
 # --- n33: behavioural main-path ops semantics with fakes ---
 declare -r MAIN_SHUTDOWN_LOG="$TEST_ROOT/main-shutdown.log"

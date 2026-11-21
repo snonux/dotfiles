@@ -22,6 +22,7 @@ fail() {
 }
 
 [[ -f "$IMMICH_LIB" ]] || fail "missing $IMMICH_LIB"
+[[ -f "$F3S_HOSTS" ]] || fail "missing $F3S_HOSTS"
 bash -n "$IMMICH_LIB" || fail "bash -n failed"
 shellcheck -x -S warning "$IMMICH_LIB" || fail "shellcheck failed"
 
@@ -52,6 +53,7 @@ source "$IMMICH_LIB"
 
 # URL defaults come from inventory when env is unset.
 # Use a fresh bash (not a subshell) so inherited readonly CURL_* do not clash.
+# shellcheck disable=SC2016 # the child bash expands these, not this one
 env -u IMMICH_LAN_URL -u IMMICH_PUBLIC_URL -u IMMICH_URL -u _IMMICH_LIB_SOURCED \
     bash -c '
         set -euo pipefail
@@ -108,6 +110,55 @@ grep -Eq '(^| )-m 34( |$)' "$CURL_SPY_LOG" \
 grep -Eq '(^| )-sf( |$)' "$CURL_SPY_LOG" \
     || fail "curl_immich -f missing -sf: $(cat "$CURL_SPY_LOG")"
 
+# --- jg4: curl_immich_key sends the API key via --config on stdin ---
+# argv is world-readable (ps, /proc/<pid>/cmdline); the spy records argv,
+# environment and the config read from stdin.
+cat >"$TEST_ROOT/bin/curl" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >>"$CURL_SPY_LOG"
+env >>"$CURL_SPY_LOG.env"
+prev=''
+for arg in "$@"; do
+    if [[ "$prev" == --config || "$prev" == -K ]] && [[ "$arg" == - ]]; then
+        cat >>"$CURL_SPY_LOG.stdin"
+    fi
+    prev=$arg
+done
+exit 0
+EOF
+declare -r FAKE_API_KEY='fake-immich-lib-key-e41f'
+: >"$CURL_SPY_LOG"
+: >"$CURL_SPY_LOG.env"
+: >"$CURL_SPY_LOG.stdin"
+curl_immich_key -f 56 "$FAKE_API_KEY" -X POST 'http://example.test/z' \
+    || fail "curl_immich_key -f failed"
+grep -Eq '(^| )-m 56( |$)' "$CURL_SPY_LOG" \
+    || fail "curl_immich_key missing -m 56: $(cat "$CURL_SPY_LOG")"
+grep -Eq '(^| )-sf( |$)' "$CURL_SPY_LOG" \
+    || fail "curl_immich_key -f missing -sf: $(cat "$CURL_SPY_LOG")"
+grep -Fq 'http://example.test/z' "$CURL_SPY_LOG" \
+    || fail "curl_immich_key dropped the caller's args: $(cat "$CURL_SPY_LOG")"
+if grep -Fq "$FAKE_API_KEY" "$CURL_SPY_LOG"; then
+    fail "API key leaked on curl argv: $(cat "$CURL_SPY_LOG")"
+fi
+if grep -Fq "$FAKE_API_KEY" "$CURL_SPY_LOG.env"; then
+    fail "API key leaked into curl environment"
+fi
+grep -Fxq "header = \"x-api-key: ${FAKE_API_KEY}\"" "$CURL_SPY_LOG.stdin" \
+    || fail "API key did not reach curl via --config on stdin"
+
+# Negative: a key with '"', '\' or a newline would break out of the quoted
+# config string or add config lines, so it is refused before curl runs.
+for bad_key in 'bad"key' 'bad\key' $'bad\nurl = "http://evil"'; do
+    : >"$CURL_SPY_LOG"
+    if curl_immich_key 5 "$bad_key" 'http://example.test/z' 2>/dev/null; then
+        fail "curl_immich_key accepted unsafe key ${bad_key@Q}"
+    fi
+    [[ ! -s "$CURL_SPY_LOG" ]] \
+        || fail "curl_immich_key ran curl with unsafe key ${bad_key@Q}"
+done
+
 # --- detect_immich_url failover (LAN down → public) ---
 : >"$CURL_SPY_LOG"
 cat >"$TEST_ROOT/bin/curl" <<'EOF'
@@ -149,6 +200,13 @@ printf 'secret-key\n' >"$KEY_HOME/.immich_paul_key"
 got=$(HOME="$KEY_HOME" _account_api_key paul) \
     || fail "_account_api_key paul failed"
 [[ "$got" == 'secret-key' ]] || fail "key got=${got@Q}"
+# jg4: a key that cannot be quoted in a curl config is refused at load time.
+printf 'bad"key\n' >"$KEY_HOME/.immich_quote_key"
+if ( HOME="$KEY_HOME" _account_api_key quote ) >/dev/null 2>"$TEST_ROOT/err-quote-key"; then
+    fail "_account_api_key accepted a key containing a double quote"
+fi
+grep -q 'double quote, backslash or line break' "$TEST_ROOT/err-quote-key" \
+    || fail "quote key error text: $(cat "$TEST_ROOT/err-quote-key")"
 if ( HOME="$KEY_HOME" _account_api_key '../evil' ) >/dev/null 2>&1; then
     fail "_account_api_key accepted path-escaping account"
 fi

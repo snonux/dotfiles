@@ -147,9 +147,9 @@ discover_assets() {
 
     while true; do
         local response
-        if ! response=$(curl_immich -f "$CURL_SEARCH_TIMEOUT" -X POST \
-            "$IMMICH_URL/api/search/metadata" \
-            -H "x-api-key: $api_key" \
+        # curl_immich_key keeps the API key off curl's argv (see lib).
+        if ! response=$(curl_immich_key -f "$CURL_SEARCH_TIMEOUT" "$api_key" \
+            -X POST "$IMMICH_URL/api/search/metadata" \
             -H "Content-Type: application/json" \
             -d "{\"takenAfter\":\"$DATE_AFTER\",\"takenBefore\":\"$DATE_BEFORE\",\"type\":\"IMAGE\",\"size\":$PAGE_SIZE,\"page\":$page}"); then
             echo "    ERROR: discovery failed: search request for page $page failed" >&2
@@ -317,8 +317,7 @@ download_assets() {
             continue
         fi
 
-        if curl_immich -f "$CURL_DOWNLOAD_TIMEOUT" -o "$tmp" \
-            -H "x-api-key: $api_key" \
+        if curl_immich_key -f "$CURL_DOWNLOAD_TIMEOUT" "$api_key" -o "$tmp" \
             "$IMMICH_URL/api/assets/$asset_id/original"; then
             local -i place_rc=0
             _place_download "$tmp" "$dest" || place_rc=$?

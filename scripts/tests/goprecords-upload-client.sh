@@ -102,7 +102,9 @@ grep -q 'GOPRECORDS_HOST' "$TEST_ROOT/lib-exec.err" \
     || fail "LIB-exec should reach _main (missing HOST): $(cat "$TEST_ROOT/lib-exec.err")"
 
 # --- Source helpers (library mode; do not auto-run _main) ---
-export TOKEN='test-token'
+# Made-up secret; not exported, like _main's TOKEN, so the spy can check it
+# reaches curl neither through argv nor through the environment.
+TOKEN='fake-goprecords-token-7c1e'
 export GOPRECORDS_HOST='testhost'
 export GOPRECORDS_BASE_URL='http://127.0.0.1:9'
 export GOPRECORDS_CONNECT_TIMEOUT=2
@@ -122,6 +124,17 @@ printf '%s\0' "$@" >>"${CURL_SPY_LOG}"
 printf '\n' >>"${CURL_SPY_LOG}.lines"
 # Also human-readable line for greps.
 printf '%s\n' "$*" >>"${CURL_SPY_LOG}.txt"
+# The environment curl sees, to prove the token is not passed that way.
+env >>"${CURL_SPY_LOG}.env"
+# Capture a curl config read from stdin (--config -): that is where the
+# token belongs. Only read stdin when asked to, so the spy never blocks.
+prev=''
+for arg in "$@"; do
+    if [[ "$prev" == --config || "$prev" == -K ]] && [[ "$arg" == - ]]; then
+        cat >>"${CURL_SPY_LOG}.stdin"
+    fi
+    prev=$arg
+done
 exit 0
 EOF
 chmod +x "$TEST_ROOT/bin/curl"
@@ -140,6 +153,8 @@ records_file="$TEST_ROOT/records"
 printf 'uptime-records\n' >"$records_file"
 : >"$CURL_SPY_LOG"
 : >"${CURL_SPY_LOG}.txt"
+: >"${CURL_SPY_LOG}.env"
+: >"${CURL_SPY_LOG}.stdin"
 export GOPRECORDS_CONNECT_TIMEOUT=7
 export GOPRECORDS_MAX_TIME=11
 export GOPRECORDS_CURL_RETRIES=2
@@ -158,8 +173,18 @@ grep -Fq -- '--retry-max-time 180' "${CURL_SPY_LOG}.txt" \
     || fail "spy missing --retry-max-time 180: $(cat "${CURL_SPY_LOG}.txt")"
 grep -Fq -- '-X PUT' "${CURL_SPY_LOG}.txt" \
     || fail "spy missing -X PUT"
-grep -Fq "Authorization: Bearer ${TOKEN}" "${CURL_SPY_LOG}.txt" \
-    || fail "spy missing Authorization header"
+# The token must never be on curl's command line (visible to every local
+# user in ps and /proc/<pid>/cmdline) nor in its environment; it travels
+# as a header line of a curl config read from stdin.
+if grep -Fq "$TOKEN" "${CURL_SPY_LOG}.txt"; then
+    fail "token leaked on curl argv: $(cat "${CURL_SPY_LOG}.txt")"
+fi
+if grep -Fq "$TOKEN" "${CURL_SPY_LOG}.env"; then
+    fail "token leaked into curl environment"
+fi
+grep -Fxq "header = \"Authorization: Bearer ${TOKEN}\"" \
+    "${CURL_SPY_LOG}.stdin" 2>/dev/null \
+    || fail "token did not reach curl via --config on stdin"
 grep -Fq "${GOPRECORDS_BASE_URL}/upload/${GOPRECORDS_HOST}/records" \
     "${CURL_SPY_LOG}.txt" \
     || fail "spy missing upload URL"
@@ -380,6 +405,25 @@ set -e
     || fail "missing token should fail _main"
 grep -q 'cannot read' "$TEST_ROOT/notoken.err" \
     || fail "missing token error text: $(cat "$TEST_ROOT/notoken.err")"
+
+# --- Negative _main: a token with '"' would break out of the curl config
+# string, so _main must refuse it before any upload ---
+printf 'bad"token\n' >"$TEST_ROOT/quote-token"
+set +e
+env -i \
+    PATH="/bin:/usr/bin" \
+    HOME="$TEST_ROOT/home" \
+    GOPRECORDS_HOST=earth \
+    GOPRECORDS_TOKEN_FILE="$TEST_ROOT/quote-token" \
+    GOPRECORDS_RECORDS_FILE="$records_file" \
+    GOPRECORDS_BASE_URL='http://127.0.0.1:9' \
+    "$CLIENT" >/dev/null 2>"$TEST_ROOT/quotetoken.err"
+quotetoken_rc=$?
+set -e
+[[ "$quotetoken_rc" -ne 0 ]] \
+    || fail "token with a double quote should fail _main"
+grep -q 'double quote or backslash' "$TEST_ROOT/quotetoken.err" \
+    || fail "quote token error text: $(cat "$TEST_ROOT/quotetoken.err")"
 
 # --- Negative _main: missing records file override ---
 set +e

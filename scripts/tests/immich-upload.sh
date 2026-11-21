@@ -39,13 +39,17 @@ grep -q 'CURL_SEARCH_TIMEOUT' "$IMMICH_LIB" \
 grep -q 'CURL_DOWNLOAD_TIMEOUT' "$IMMICH_LIB" \
     || fail "missing CURL_DOWNLOAD_TIMEOUT in lib"
 # shellcheck disable=SC2016  # intentional literal $CURL_* in grep
-grep -Eq 'curl_immich -f "\$CURL_SEARCH_TIMEOUT"' "$IMMICH_UPLOAD" \
-    || fail "bulk-check missing curl_immich -f CURL_SEARCH_TIMEOUT"
+# jg4: authenticated calls go through curl_immich_key (key off argv).
+grep -Eq 'curl_immich_key -f "\$CURL_SEARCH_TIMEOUT"' "$IMMICH_UPLOAD" \
+    || fail "bulk-check missing curl_immich_key -f CURL_SEARCH_TIMEOUT"
 # Asset upload inspects HTTP status (200/201), so -f is not used there;
-# still require the shared download timeout via curl_immich.
+# still require the shared download timeout via curl_immich_key.
 # shellcheck disable=SC2016
-grep -Eq 'curl_immich "\$CURL_DOWNLOAD_TIMEOUT"' "$IMMICH_UPLOAD" \
-    || fail "asset upload missing curl_immich CURL_DOWNLOAD_TIMEOUT"
+grep -Eq 'curl_immich_key "\$CURL_DOWNLOAD_TIMEOUT"' "$IMMICH_UPLOAD" \
+    || fail "asset upload missing curl_immich_key CURL_DOWNLOAD_TIMEOUT"
+if grep -Fq 'x-api-key:' "$IMMICH_UPLOAD"; then
+    fail "immich-upload still builds an x-api-key header on curl argv"
+fi
 
 # Structural guards: no raw printf JSON, no embedded resp path, no swallowed parse.
 # shellcheck disable=SC2016
@@ -327,12 +331,17 @@ cat >"$fake_bin/curl" <<'SH'
 # Fake curl: bulk-upload-check reports no duplicates; /api/assets answers
 # with the HTTP code in FAKE_UPLOAD_CODE (default 201), or fails like a
 # connection error (exit 7, no output) when FAKE_UPLOAD_CODE=curl-error.
+# jg4: it also logs its argv and environment, and the curl config read
+# from stdin (--config -), where the API key belongs.
 code="${FAKE_UPLOAD_CODE:-201}"
 out=""
 url=""
+printf '%s\n' "$*" >>"${FAKE_CURL_LOG:?}"
+env >>"${FAKE_CURL_LOG}.env"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -o) out="$2"; shift 2 ;;
+        --config|-K) [[ "$2" == - ]] && cat >>"${FAKE_CURL_LOG}.stdin"; shift 2 ;;
         *) url="$1"; shift ;;
     esac
 done
@@ -350,17 +359,44 @@ chmod +x "$fake_bin/curl"
 upload_src="$TEST_ROOT/upload-src"
 mkdir -p "$upload_src"
 printf 'entry-point-bytes\n' >"$upload_src/photo.jpg"
+export FAKE_CURL_LOG="$TEST_ROOT/fake-curl.log"
+# Made-up key; distinctive so the leak greps cannot misfire.
+declare -r FAKE_API_KEY='fake-immich-upload-key-2b8c'
 
-# run_main TARGET STDERR_FILE — run immich-upload's main on TARGET.
+# run_main TARGET STDERR_FILE — run immich-upload's main on TARGET. The key
+# is handed to the child as an argument, not through the environment, so a
+# hit in the fake's environment log can only come from immich-upload.
 run_main() {
-    # shellcheck disable=SC2016 # $1/$2 expand in the child bash
+    # shellcheck disable=SC2016 # $1/$2/$3 expand in the child bash
     PATH="$fake_bin:$PATH" bash -c '
 source "$1"
-_account_api_key() { echo fake-key; }
+fake_key=$3
+_account_api_key() { echo "$fake_key"; }
 detect_immich_url() { IMMICH_URL=http://immich.invalid; }
 main "$2"
-' _ "$IMMICH_UPLOAD" "$1" >/dev/null 2>"$2"
+' _ "$IMMICH_UPLOAD" "$1" "$FAKE_API_KEY" >/dev/null 2>"$2"
 }
+
+# --- jg4: the API key must stay off curl's argv and out of its env ---
+# argv is world-readable (ps, /proc/<pid>/cmdline). Both the duplicate
+# check and the asset upload must get the key as a config header on stdin.
+: >"$FAKE_CURL_LOG"
+: >"$FAKE_CURL_LOG.env"
+: >"$FAKE_CURL_LOG.stdin"
+err_file="$TEST_ROOT/main.stderr"
+# A directory target runs the bulk duplicate check before the upload.
+run_main "$upload_src" "$err_file" \
+    || fail "jg4: main exited non-zero: $(<"$err_file")"
+grep -Fq 'bulk-upload-check' "$FAKE_CURL_LOG" \
+    || fail "jg4: duplicate check did not run: $(cat "$FAKE_CURL_LOG")"
+if grep -Fq "$FAKE_API_KEY" "$FAKE_CURL_LOG"; then
+    fail "jg4: API key leaked on curl argv: $(cat "$FAKE_CURL_LOG")"
+fi
+if grep -Fq "$FAKE_API_KEY" "$FAKE_CURL_LOG.env"; then
+    fail "jg4: API key leaked into curl environment"
+fi
+[[ "$(grep -Fxc "header = \"x-api-key: ${FAKE_API_KEY}\"" "$FAKE_CURL_LOG.stdin")" -eq 2 ]] \
+    || fail "jg4: API key did not reach both curl calls via --config on stdin"
 
 for target in "$upload_src/photo.jpg" "$upload_src"; do
     err_file="$TEST_ROOT/main.stderr"
