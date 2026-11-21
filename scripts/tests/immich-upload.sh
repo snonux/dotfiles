@@ -542,4 +542,87 @@ for target in "$upload_src/photo.jpg" "$upload_src"; do
     fi
 done
 
+# --- pg4: exact output of a mixed directory run, pinned before the split ---
+# One duplicate, one new image, one non-image. Every temp file goes to a
+# private TMPDIR, which must be empty afterwards on success and on failure.
+pg4_dir="$TEST_ROOT/pg4-src"
+pg4_tmp="$TEST_ROOT/pg4-tmp"
+mkdir -p "$pg4_dir" "$pg4_tmp"
+printf 'dup\n' >"$pg4_dir/a.jpg"
+printf 'new\n' >"$pg4_dir/b.png"
+printf 'text\n' >"$pg4_dir/c.txt"
+pg4_resp=$(python3 -c '
+import json, sys
+print(json.dumps({"results": [
+    {"id": sys.argv[1], "action": "reject", "reason": "duplicate"},
+    {"id": sys.argv[2], "action": "accept"}]}))
+' "$pg4_dir/a.jpg" "$pg4_dir/b.png")
+pg4_head="==> Using LAN ingress: http://immich-lan.invalid
+==> Scanning directory: $pg4_dir
+==> Found 2 image file(s)
+==> Computing SHA1 checksums for 2 file(s)...
+==> Checking for duplicates on server...
+==> Found 1 duplicate(s), 1 file(s) to upload
+[1/1] $pg4_dir/b.png
+==> Uploading: b.png"
+for pg4_code in 201 200 500 curl-error; do
+    reset_fake_logs
+    pg4_rc=0
+    FAKE_UPLOAD_CODE=$pg4_code FAKE_BULK_RESPONSE="$pg4_resp" TMPDIR="$pg4_tmp" \
+        run_main "$pg4_dir" "$err_file" || pg4_rc=$?
+    case "$pg4_code" in
+        201) pg4_want_out="$pg4_head
+==>   Uploaded: b.png" pg4_want_err='' pg4_want_rc=0 ;;
+        200) pg4_want_out="$pg4_head
+==>   Skipped (duplicate): b.png" pg4_want_err='' pg4_want_rc=0 ;;
+        500) pg4_want_out="$pg4_head" pg4_want_err='WARN:   Unexpected response 500 for: b.png
+{"status":"fake"}
+ERROR: 1 upload(s) failed (of 1 attempted)' pg4_want_rc=1 ;;
+        *) pg4_want_out="$pg4_head" pg4_want_err='WARN:   Failed to upload: b.png (curl error)
+ERROR: 1 upload(s) failed (of 1 attempted)' pg4_want_rc=1 ;;
+    esac
+    [[ "$pg4_rc" -eq "$pg4_want_rc" ]] \
+        || fail "pg4 $pg4_code: want rc $pg4_want_rc, got $pg4_rc: $(<"$err_file")"
+    [[ "$(<"$err_file.out")" == "$pg4_want_out" ]] \
+        || fail "pg4 $pg4_code: stdout changed: $(<"$err_file.out")"
+    [[ "$(<"$err_file")" == "$pg4_want_err" ]] \
+        || fail "pg4 $pg4_code: stderr changed: $(<"$err_file")"
+    [[ "$(grep -c '/api/assets$' "$FAKE_CURL_LOG")" -eq 1 ]] \
+        || fail "pg4 $pg4_code: want exactly one upload: $(cat "$FAKE_CURL_LOG")"
+    [[ -z "$(ls -A "$pg4_tmp")" ]] \
+        || fail "pg4 $pg4_code: temp files left behind: $(ls -A "$pg4_tmp")"
+done
+
+# pg4: all duplicates -> "Nothing to upload", exit 0, no temp files left.
+reset_fake_logs
+FAKE_BULK_RESPONSE="$(python3 -c '
+import json, sys
+print(json.dumps({"results": [
+    {"id": p, "action": "reject", "reason": "duplicate"} for p in sys.argv[1:]]}))
+' "$pg4_dir/a.jpg" "$pg4_dir/b.png")" TMPDIR="$pg4_tmp" run_main "$pg4_dir" "$err_file" \
+    || fail "pg4 all-dup: exited non-zero: $(<"$err_file")"
+[[ "$(tail -n 2 "$err_file.out")" == '==> Found 2 duplicate(s), 0 file(s) to upload
+==> Nothing to upload.' ]] \
+    || fail "pg4 all-dup: output changed: $(<"$err_file.out")"
+[[ -z "$(ls -A "$pg4_tmp")" ]] \
+    || fail "pg4 all-dup: temp files left behind: $(ls -A "$pg4_tmp")"
+
+# pg4: main's own refusals, each with its exact message and exit 1.
+mkdir -p "$TEST_ROOT/pg4-empty"
+for pg4_case in missing empty noargs; do
+    reset_fake_logs
+    pg4_rc=0
+    case "$pg4_case" in
+        missing) run_main "$TEST_ROOT/no-such" "$err_file" || pg4_rc=$?
+            pg4_want="ERROR: Path does not exist: $TEST_ROOT/no-such" ;;
+        empty) run_main "$TEST_ROOT/pg4-empty" "$err_file" || pg4_rc=$?
+            pg4_want="ERROR: No image files found in: $TEST_ROOT/pg4-empty" ;;
+        noargs) "$IMMICH_UPLOAD" >"$err_file.out" 2>"$err_file" || pg4_rc=$?
+            pg4_want='ERROR: Usage: immich-upload <file_or_directory>' ;;
+    esac
+    [[ "$pg4_rc" -eq 1 ]] || fail "pg4 $pg4_case: want rc 1, got $pg4_rc"
+    [[ "$(<"$err_file")" == "$pg4_want" ]] \
+        || fail "pg4 $pg4_case: stderr changed: $(<"$err_file")"
+done
+
 printf 'immich-upload test: ok\n'
