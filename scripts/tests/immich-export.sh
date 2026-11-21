@@ -972,4 +972,128 @@ grep -q 'e2e-lan.example' "$CURL_SPY_LOG" \
 grep -q 'Using LAN ingress' "$TEST_ROOT/out-e2e" \
     || fail "E2E missing detect_immich_url LAN message: $(cat "$TEST_ROOT/out-e2e")"
 
+# --- dg4: discovery failures must fail the account, never "Export complete" ---
+# main calls download_assets_for_account inside 'if !', which disables set -e
+# for the whole call tree, so discovery must check every step explicitly.
+# Fake curl: ping OK; search page 1 returns one asset with nextPage=2; page 2
+# behaves per DG4_PAGE2 (curl-fail = exit 22, garbage = non-JSON with exit 0).
+declare -r DG4_HOME="$TEST_ROOT/dg4-home"
+mkdir -p "$DG4_HOME"
+printf 'dg4-key\n' >"$DG4_HOME/.immich_dg4user_key"
+cat >"$TEST_ROOT/bin/curl" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+log="$CURL_SPY_LOG"
+out=""
+url=""
+body=""
+printf '%s\n' "$*" >>"$log"
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -o) out="$2"; shift 2 ;;
+        -d) body="$2"; shift 2 ;;
+        -m|-H|-X|-w|--connect-timeout) shift 2 ;;
+        http://*|https://*) url="$1"; shift ;;
+        *) shift ;;
+    esac
+done
+case "$url" in
+    */api/server/ping) printf '200'; exit 0 ;;
+    */api/search/metadata)
+        if [[ "$body" == *'"page":1}'* ]]; then
+            echo '{"assets":{"items":[{"id":"44444444-4444-4444-4444-444444444444","originalFileName":"p1.jpg"}],"nextPage":"2"}}'
+            exit 0
+        fi
+        case "$DG4_PAGE2" in
+            curl-fail) exit 22 ;;
+            garbage) echo '<html>proxy error</html>'; exit 0 ;;
+            ok)
+                echo '{"assets":{"items":[{"id":"cccccccc-cccc-cccc-cccc-cccccccccccc","originalFileName":"p2.jpg"}],"nextPage":null}}'
+                exit 0
+                ;;
+        esac
+        exit 1
+        ;;
+    */api/assets/*/original)
+        [[ -n "$out" ]] || exit 1
+        printf 'payload\n' >"$out"
+        exit 0
+        ;;
+    *) echo "unexpected url: $url" >&2; exit 1 ;;
+esac
+EOF
+chmod +x "$TEST_ROOT/bin/curl"
+
+# _dg4_run TAG — run the real script for account dg4user; sets dg4_rc.
+_dg4_run() {
+    local -r tag="$1"
+    set +e
+    HOME="$DG4_HOME" "$IMMICH_EXPORT" \
+        --dest "$TEST_ROOT/dg4-dest-$tag" \
+        --account 'dg4user' \
+        --lan-url 'http://dg4-lan.example' \
+        --public-url 'https://dg4-public.example' \
+        >"$TEST_ROOT/out-dg4-$tag" 2>"$TEST_ROOT/err-dg4-$tag"
+    dg4_rc=$?
+    set -e
+}
+
+for dg4_mode in curl-fail garbage; do
+    : >"$CURL_SPY_LOG"
+    DG4_PAGE2="$dg4_mode"
+    export DG4_PAGE2
+    _dg4_run "$dg4_mode"
+    [[ "$dg4_rc" -ne 0 ]] \
+        || fail "dg4 $dg4_mode: failed search page 2 must exit non-zero: $(cat "$TEST_ROOT/out-dg4-$dg4_mode")"
+    grep -q 'export failed for account' "$TEST_ROOT/err-dg4-$dg4_mode" \
+        || fail "dg4 $dg4_mode: missing account-failure message: $(cat "$TEST_ROOT/err-dg4-$dg4_mode")"
+    grep -q 'discovery failed' "$TEST_ROOT/err-dg4-$dg4_mode" \
+        || fail "dg4 $dg4_mode: missing discovery-failed message: $(cat "$TEST_ROOT/err-dg4-$dg4_mode")"
+    if grep -q 'Export complete' "$TEST_ROOT/out-dg4-$dg4_mode"; then
+        fail "dg4 $dg4_mode: reported 'Export complete' after failed discovery"
+    fi
+    # A truncated asset list must not be downloaded as if it were complete.
+    if grep -q '/original' "$CURL_SPY_LOG"; then
+        fail "dg4 $dg4_mode: downloaded from a truncated asset list"
+    fi
+done
+
+# Negative control: both pages fine -> success and 'Export complete'.
+: >"$CURL_SPY_LOG"
+DG4_PAGE2=ok
+_dg4_run ok
+[[ "$dg4_rc" -eq 0 ]] \
+    || fail "dg4 ok: two good pages should succeed: $(cat "$TEST_ROOT/err-dg4-ok")"
+grep -q 'Found 2 images total' "$TEST_ROOT/out-dg4-ok" \
+    || fail "dg4 ok: expected 2 assets: $(cat "$TEST_ROOT/out-dg4-ok")"
+grep -q 'Export complete' "$TEST_ROOT/out-dg4-ok" \
+    || fail "dg4 ok: missing 'Export complete'"
+
+# Missing key file: account fails before any search request is sent.
+: >"$CURL_SPY_LOG"
+rm -f "$DG4_HOME/.immich_dg4user_key"
+_dg4_run nokey
+[[ "$dg4_rc" -ne 0 ]] \
+    || fail "dg4 nokey: missing key file must exit non-zero"
+grep -q 'API key file not found' "$TEST_ROOT/err-dg4-nokey" \
+    || fail "dg4 nokey: missing key-file error: $(cat "$TEST_ROOT/err-dg4-nokey")"
+if grep -q 'search/metadata' "$CURL_SPY_LOG"; then
+    fail "dg4 nokey: searched without an API key"
+fi
+if grep -q 'Export complete' "$TEST_ROOT/out-dg4-nokey"; then
+    fail "dg4 nokey: reported 'Export complete' without an API key"
+fi
+
+# Empty key file: same treatment.
+: >"$CURL_SPY_LOG"
+: >"$DG4_HOME/.immich_dg4user_key"
+_dg4_run emptykey
+[[ "$dg4_rc" -ne 0 ]] \
+    || fail "dg4 emptykey: empty key file must exit non-zero"
+grep -q 'API key file is empty' "$TEST_ROOT/err-dg4-emptykey" \
+    || fail "dg4 emptykey: missing empty-key error: $(cat "$TEST_ROOT/err-dg4-emptykey")"
+if grep -q 'search/metadata' "$CURL_SPY_LOG"; then
+    fail "dg4 emptykey: searched with an empty API key"
+fi
+
 printf 'immich-export test: ok\n'
