@@ -29,19 +29,22 @@ shellcheck -x -S warning "$TARGET" || fail "shellcheck failed"
 
 head -n 5 "$TARGET" | grep -Eq '^#!/usr/bin/env bash$' \
     || fail "missing #!/usr/bin/env bash shebang"
-code_lines | grep -Eq '^set -euo pipefail$' \
+# code_lines goes through here-strings, not pipes: grep -q exits at the
+# first match, and under pipefail the SIGPIPE in code_lines made a check
+# fail at random (seen on the mktemp check once the script grew).
+grep -Eq '^set -euo pipefail$' <<<"$(code_lines)" \
     || fail "missing set -euo pipefail"
-if code_lines | grep -Eq '^#!/bin/bash$'; then
+if grep -Eq '^#!/bin/bash$' <<<"$(code_lines)"; then
     fail "still uses #!/bin/bash"
 fi
-if code_lines | grep -Eq '^set -e$'; then
+if grep -Eq '^set -e$' <<<"$(code_lines)"; then
     fail "still uses bare set -e"
 fi
 
 # Fail-closed nmcli: temp file + mapfile, not process-sub (masks failures).
-code_lines | grep -Fq 'mktemp' \
+grep -Fq 'mktemp' <<<"$(code_lines)" \
     || fail "missing mktemp for active-connections list"
-if code_lines | grep -Eq '<[[:space:]]*<\('; then
+if grep -Eq '<[[:space:]]*<\(' <<<"$(code_lines)"; then
     fail "active connections still use process substitution (masks nmcli failures)"
 fi
 
@@ -71,6 +74,11 @@ case "$1" in
         exit 0
         ;;
     -g)
+        # mg4: NMCLI_FAIL_GET=1 makes the DNS-state queries fail.
+        if [[ -n "${NMCLI_FAIL_GET:-}" ]]; then
+            printf 'nmcli mock: simulated query failure\n' >&2
+            exit 42
+        fi
         case "${2:-}" in
             ipv4.ignore-auto-dns)
                 printf '%s\n' 'no'
@@ -181,6 +189,25 @@ grep -Eq 'DISABLED|ENABLED' "$TEST_ROOT/status.out" \
     || fail "status output missing ENABLED/DISABLED"
 grep -Fq 'connection show --active' "$NMCLI_LOG" \
     || fail "mock nmcli was not asked for active connections"
+
+# mg4: a failed DNS-state query must not read as "disabled". The check runs
+# under 'if', where set -e is off, so toggle used to go on and rewrite DNS
+# (enable Pi-hole) and status printed DISABLED, both with exit 0.
+export NMCLI_FAIL_GET=1
+for state_args in toggle status; do
+    run_target "query-fail-$state_args" "$state_args"
+    ((run_status != 0)) \
+        || fail "$state_args with failing nmcli query exited 0"
+    grep -Fq 'cannot read the DNS settings' "$TEST_ROOT/query-fail-$state_args.err" \
+        || fail "$state_args with failing query: no error: $(cat "$TEST_ROOT/query-fail-$state_args.err")"
+    if grep -Eq '^con (mod|up)' "$NMCLI_LOG"; then
+        fail "$state_args with failing query changed DNS: $(cat "$NMCLI_LOG")"
+    fi
+    if grep -Eq 'ENABLED|DISABLED' "$TEST_ROOT/query-fail-$state_args.out"; then
+        fail "$state_args with failing query reported a state"
+    fi
+done
+unset NMCLI_FAIL_GET
 
 # nmcli failure must fail closed — not become "No active network connection"
 # with a successful (or empty-list) path.

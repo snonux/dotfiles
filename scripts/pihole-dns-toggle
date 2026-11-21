@@ -23,14 +23,19 @@ get_active_connections() {
         awk -F: '$2 != "lo" && ($3 == "802-3-ethernet" || $3 == "802-11-wireless") { print $1 }'
 }
 
-# Check if Pi-hole DNS is currently enabled
+# Check if Pi-hole DNS is currently enabled: 0 = enabled, 1 = disabled,
+# 2 = nmcli could not be queried. Callers test it under 'if'/'||', where
+# set -e is off, so the queries are checked explicitly: a failed query
+# must not read as "disabled" (toggle would then rewrite DNS).
 is_pihole_enabled() {
     local connection="$1"
     local ignore_auto_dns
     local configured_dns
 
-    ignore_auto_dns=$(nmcli -g ipv4.ignore-auto-dns connection show "$connection")
-    configured_dns=$(nmcli -g ipv4.dns connection show "$connection" | tr ',' ' ')
+    ignore_auto_dns=$(nmcli -g ipv4.ignore-auto-dns connection show "$connection") \
+        || return 2
+    configured_dns=$(nmcli -g ipv4.dns connection show "$connection" | tr ',' ' ') \
+        || return 2
 
     [[ "$ignore_auto_dns" == "yes" && "$configured_dns" == "$PIHOLE_DNS" ]]
 }
@@ -64,16 +69,40 @@ disable_pihole() {
     echo -e "${GREEN}✓ Pi-hole DNS disabled (using DHCP DNS)${NC}"
 }
 
+# Same status codes as is_pihole_enabled, over all connections: stops at
+# the first connection that is disabled (1) or cannot be queried (2).
 all_connections_pihole_enabled() {
     local connection
+    local -i rc
 
     for connection in "$@"; do
-        if ! is_pihole_enabled "$connection"; then
-            return 1
+        rc=0
+        # shellcheck disable=SC2310 # status is the answer, handled below
+        is_pihole_enabled "$connection" || rc=$?
+        if ((rc != 0)); then
+            return "$rc"
         fi
     done
 
     return 0
+}
+
+# pihole_state CONNECTIONS... — set PIHOLE_STATE to "enabled" or
+# "disabled", or exit 1 with an error when the DNS settings cannot be read.
+# Called directly (not in a command substitution) so the exit ends the
+# script before toggle can change anything.
+pihole_state() {
+    local -i rc=0
+    # shellcheck disable=SC2310 # status is the answer, handled below
+    all_connections_pihole_enabled "$@" || rc=$?
+    case "$rc" in
+        0) PIHOLE_STATE=enabled ;;
+        1) PIHOLE_STATE=disabled ;;
+        *)
+            echo -e "${RED}Error: cannot read the DNS settings from nmcli${NC}" >&2
+            exit 1
+            ;;
+    esac
 }
 
 # Show current DNS status
@@ -176,7 +205,8 @@ main() {
             show_status
             ;;
         status)
-            if all_connections_pihole_enabled "${CONNECTIONS[@]}"; then
+            pihole_state "${CONNECTIONS[@]}"
+            if [[ "$PIHOLE_STATE" == enabled ]]; then
                 echo -e "${GREEN}Pi-hole DNS is currently ENABLED${NC}"
             else
                 echo -e "${YELLOW}Pi-hole DNS is currently DISABLED${NC}"
@@ -184,7 +214,8 @@ main() {
             show_status
             ;;
         toggle)
-            if all_connections_pihole_enabled "${CONNECTIONS[@]}"; then
+            pihole_state "${CONNECTIONS[@]}"
+            if [[ "$PIHOLE_STATE" == enabled ]]; then
                 disable_pihole "${CONNECTIONS[@]}"
             else
                 enable_pihole "${CONNECTIONS[@]}"
