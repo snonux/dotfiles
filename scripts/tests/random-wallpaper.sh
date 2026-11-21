@@ -18,34 +18,16 @@ fail() {
     exit 1
 }
 
-# Non-comment, non-blank lines only — greps must not match comments alone.
-code_lines() {
-    grep -Ev '^[[:space:]]*(#|$)' "$TARGET"
-}
-
 bash -n "$TARGET" || fail "bash -n failed"
 shellcheck -x -S warning "$TARGET" || fail "shellcheck failed"
 
-head -n 5 "$TARGET" | grep -Eq '^#!/usr/bin/env bash$' \
+# Kept as a source check: env-bash over /bin/bash only matters on hosts
+# without /bin/bash, so this machine cannot observe it.
+head -n 1 "$TARGET" | grep -Eq '^#!/usr/bin/env bash$' \
     || fail "missing #!/usr/bin/env bash shebang"
-code_lines | grep -Eq '^set -euo pipefail$' \
-    || fail "missing set -euo pipefail"
-
-# Fail-closed find: temp file + mapfile, not process-sub / head / sort -R.
-code_lines | grep -Fq 'mktemp' || fail "missing mktemp for find output"
-code_lines | grep -Fq 'mapfile' || fail "missing mapfile for image pick"
-code_lines | grep -Fq -- '-print0' || fail "missing find -print0 (image pick)"
-code_lines | grep -Fq -- '-printf' || fail "missing find -printf (cleanup)"
-code_lines | grep -Fq 'xargs -0' || fail "missing xargs -0"
-if code_lines | grep -Eq '<[[:space:]]*<[[:space:]]*\('; then
-    fail "image pick still uses process substitution (masks find failures)"
-fi
-if code_lines | grep -Eq '(^|[[:space:]])head[[:space:]]|sort[[:space:]]+-R'; then
-    fail "random pick must not use head or sort -R"
-fi
-if code_lines | grep -Eq 'ls[[:space:]]+-1t|[^[:alnum:]_]ls[[:space:]]+-1t'; then
-    fail "still uses ls -1t cleanup"
-fi
+# Everything else is checked by running the script below: a failing find
+# fails closed, names with spaces or newlines survive the pick and the
+# cleanup, the pick is random, and cleanup keeps the 5 newest by mtime.
 
 # --- Behavioral fixtures ---
 WALLPAPER_REL='Pictures/Pixel7ProDCIM/Irregular Ninja/irregular.ninja'
@@ -137,5 +119,77 @@ kept_count="$(
     find "$clean_dir" -maxdepth 1 -type f -name 'random-wallpaper-*.jpg' | wc -l
 )"
 ((kept_count == 5)) || fail "expected 5 wallpapers kept, got $kept_count"
+
+# Cleanup orders by mtime, not by name, and copes with spaces: the names
+# run opposite to the mtimes, so the oldest copy is the one sorting last.
+mtime_home="$TEST_ROOT/mtime-home"
+setup_home "$mtime_home"
+printf '\xff\xd8\xff\xd9' >"$mtime_home/$WALLPAPER_REL/source.jpg"
+mtime_dir="$mtime_home/.local/share/wallpapers"
+for i in 1 2 3 4 5 6; do
+    f="$mtime_dir/random-wallpaper-old copy $((7 - i)).jpg"
+    printf 'old-%s' "$i" >"$f"
+    touch -t "2026010${i}1200" "$f"
+done
+run_wallpaper "$mtime_home" >/dev/null 2>"$TEST_ROOT/mtime.err" \
+    || fail "mtime cleanup run failed: $(cat "$TEST_ROOT/mtime.err")"
+[[ ! -e "$mtime_dir/random-wallpaper-old copy 6.jpg" ]] \
+    || fail "oldest-by-mtime spaced copy was kept"
+[[ -e "$mtime_dir/random-wallpaper-old copy 1.jpg" ]] \
+    || fail "newest old copy was deleted (cleanup sorted by name?)"
+mtime_count="$(
+    find "$mtime_dir" -maxdepth 1 -type f -name 'random-wallpaper-*.jpg' | wc -l
+)"
+((mtime_count == 5)) || fail "expected 5 wallpapers kept, got $mtime_count"
+
+# A newline in the image name survives the pick (null-delimited list).
+nl_home="$TEST_ROOT/nl-home"
+setup_home "$nl_home"
+nl_name=$'two\nlines.jpg'
+printf '\xff\xd8\xff\xd9' >"$nl_home/$WALLPAPER_REL/$nl_name"
+run_wallpaper "$nl_home" >"$TEST_ROOT/nl.out" 2>"$TEST_ROOT/nl.err" \
+    || fail "newline-name pick failed: $(cat "$TEST_ROOT/nl.err")"
+[[ "$(cat "$TEST_ROOT/nl.out")" == *"(copied from $nl_home/$WALLPAPER_REL/$nl_name)" ]] \
+    || fail "newline name mangled: $(cat "$TEST_ROOT/nl.out")"
+
+# The pick is random, not always the first file: 30 runs over 2 images
+# must pick both (all-same by chance: 2^-29).
+pick_home="$TEST_ROOT/pick-home"
+setup_home "$pick_home"
+printf '\xff\xd8\xff\xd9' >"$pick_home/$WALLPAPER_REL/a.jpg"
+printf '\xff\xd8\xff\xd9' >"$pick_home/$WALLPAPER_REL/b.jpg"
+: >"$TEST_ROOT/picks"
+for i in $(seq 1 30); do
+    run_wallpaper "$pick_home" >>"$TEST_ROOT/picks" 2>/dev/null \
+        || fail "pick run $i failed"
+done
+grep -Fq '/a.jpg)' "$TEST_ROOT/picks" || fail "a.jpg never picked in 30 runs"
+grep -Fq '/b.jpg)' "$TEST_ROOT/picks" || fail "b.jpg never picked in 30 runs"
+
+# A find that fails during the pick fails the run closed, even when it
+# already printed a usable image: no wallpaper is set. The fake find fails
+# only for the pick (-print0) and runs the real find otherwise.
+ff_home="$TEST_ROOT/findfail-home"
+setup_home "$ff_home"
+printf '\xff\xd8\xff\xd9' >"$ff_home/$WALLPAPER_REL/ok.jpg"
+real_find=$(command -v find)
+cat >"$ff_home/bin/find" <<EOF
+#!/usr/bin/env bash
+for arg in "\$@"; do
+    if [[ "\$arg" == -print0 ]]; then
+        printf '%s\0' "\$1/ok.jpg"
+        echo 'find mock: simulated failure' >&2
+        exit 1
+    fi
+done
+exec '$real_find' "\$@"
+EOF
+chmod +x "$ff_home/bin/find"
+: >"$ff_home/dconf.log"
+if run_wallpaper "$ff_home" >/dev/null 2>"$TEST_ROOT/findfail.err"; then
+    fail "failing find during the pick exited 0"
+fi
+[[ ! -s "$ff_home/dconf.log" ]] \
+    || fail "wallpaper set although find failed: $(cat "$ff_home/dconf.log")"
 
 printf 'random-wallpaper tests passed\n'
