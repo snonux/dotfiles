@@ -91,7 +91,10 @@ or by editing the DEST variable at the top of this script.
 EOF
 }
 
-main() {
+# parse_args ARGS... — apply -n/-d to the DRY_RUN and DEST globals and
+# refuse a missing destination. Usage errors exit 2, -h exits 0, no
+# destination exits 1. 'opt' stays a global, as it was in main.
+parse_args() {
   while getopts ':nd:h' opt; do
     case "$opt" in
       n) DRY_RUN="--dry-run" ;;
@@ -107,7 +110,17 @@ main() {
     error "Set BACKUP_DEST, pass -d user@host:/path, or edit DEST in $PROGRAM."
     exit 1
   fi
+}
 
+# Both steps are called plainly, so set -e still stops the run on a failed
+# rsync before "Backup complete." is printed.
+main() {
+  parse_args "$@"
+  run_backup
+}
+
+# run_backup — log the plan and mirror SRC to DEST with rsync.
+run_backup() {
   # Build the rsync exclude arguments.
   local -a exclude_args=()
   local pattern
