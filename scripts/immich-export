@@ -208,7 +208,11 @@ _place_download() {
         rm -f -- "$tmp"
         return 2
     fi
-    mv -n -- "$tmp" "$dest" || mv_rc=$?
+    # -T: treat dest as a file name even if a directory (or a symlink to one)
+    # appeared there after the check above. Without it mv would move the temp
+    # file INTO that directory and exit 0, so the asset would count as
+    # downloaded although it is not at dest, possibly outside the account dir.
+    mv -nT -- "$tmp" "$dest" || mv_rc=$?
     if [[ ! -e "$tmp" && ! -L "$tmp" ]]; then
         ((mv_rc == 0)) && return 0
         return 1
