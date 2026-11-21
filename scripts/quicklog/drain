@@ -242,6 +242,21 @@ run_fish_import() {
   '
 }
 
+# `dart run` resolves the package on first use and can print resolution
+# noise ("Resolving dependencies…") to stdout; any stray output on the
+# protocol channel would desync the JSON-lines stream. import_notes calls
+# this first to pre-resolve quietly (output discarded, failure non-fatal —
+# `dart run` will surface real errors, and the protocol survives a dead
+# consumer). PUB_CACHE is forwarded so a sandboxed HOME (the E2E harness)
+# can use the warm real cache instead of re-downloading every package.
+pub_get_quietly() {
+  local -a pub_args=(env -C "$REPO" -i HOME="$HOME" PATH="$CHILD_PATH")
+  if [[ -n "${PUB_CACHE:-}" ]]; then
+    pub_args+=("PUB_CACHE=$PUB_CACHE")
+  fi
+  "${pub_args[@]}" "$DART" pub get >/dev/null 2>&1 || true
+}
+
 # Drains and imports in one lockstep pass (see header). Uses a coprocess so
 # the whole flow is a single Dart run while notes are still imported and
 # deleted strictly one at a time. [$1] is the optional --limit value,
@@ -256,18 +271,7 @@ import_notes() {
     dart_args+=(--only "$only")
   fi
 
-  # `dart run` resolves the package on first use and can print resolution
-  # noise ("Resolving dependencies…") to stdout; any stray output on the
-  # protocol channel would desync the JSON-lines stream. Pre-resolve
-  # quietly here (output discarded, failure non-fatal — `dart run` will
-  # surface real errors, and the protocol survives a dead consumer).
-  # PUB_CACHE is forwarded so a sandboxed HOME (the E2E harness) can use
-  # the warm real cache instead of re-downloading every package.
-  local -a pub_args=(env -C "$REPO" -i HOME="$HOME" PATH="$CHILD_PATH")
-  if [[ -n "${PUB_CACHE:-}" ]]; then
-    pub_args+=("PUB_CACHE=$PUB_CACHE")
-  fi
-  "${pub_args[@]}" "$DART" pub get >/dev/null 2>&1 || true
+  pub_get_quietly
 
   local imported=0 kept=0 json key content dart_rc=0
 
@@ -305,48 +309,54 @@ import_notes() {
   [[ $kept -eq 0 && $dart_rc -eq 0 ]]
 }
 
-main() {
-  local mode=import dest="" dry_run=false force=false limit="" only=""
+# parse_args ARGS... — parse the command line into the documented globals
+# OPT_MODE (import|files), OPT_DEST, OPT_DRY_RUN and OPT_FORCE (true|false),
+# OPT_LIMIT and OPT_ONLY (empty when not given); main copies them into its
+# locals. Usage errors exit 64, --help exits 0. A long but flat option
+# loop, kept in one piece on purpose.
+parse_args() {
+  OPT_MODE=import OPT_DEST="" OPT_DRY_RUN=false OPT_FORCE=false
+  OPT_LIMIT="" OPT_ONLY=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --dest)
         [[ $# -ge 2 ]] || { usage; exit 64; }
-        mode=files
-        dest="$2"
+        OPT_MODE=files
+        OPT_DEST="$2"
         shift 2
         ;;
       --dest=*)
-        mode=files
-        dest="${1#*=}"
+        OPT_MODE=files
+        OPT_DEST="${1#*=}"
         shift
         ;;
       --dry-run)
-        dry_run=true
+        OPT_DRY_RUN=true
         shift
         ;;
       --force)
-        force=true
+        OPT_FORCE=true
         shift
         ;;
       --limit)
         [[ $# -ge 2 && $2 =~ ^[0-9]+$ && $2 -gt 0 ]] || { usage; exit 64; }
-        limit="$2"
+        OPT_LIMIT="$2"
         shift 2
         ;;
       --limit=*)
         [[ "${1#*=}" =~ ^[0-9]+$ && "${1#*=}" -gt 0 ]] || { usage; exit 64; }
-        limit="${1#*=}"
+        OPT_LIMIT="${1#*=}"
         shift
         ;;
       --only)
         [[ $# -ge 2 && -n "$2" ]] || { usage; exit 64; }
-        only="$2"
+        OPT_ONLY="$2"
         shift 2
         ;;
       --only=*)
         [[ -n "${1#*=}" ]] || { usage; exit 64; }
-        only="${1#*=}"
+        OPT_ONLY="${1#*=}"
         shift
         ;;
       -h | --help)
@@ -359,6 +369,37 @@ main() {
         ;;
     esac
   done
+}
+
+# drain_to_files DEST DRY_RUN FORCE LIMIT ONLY — legacy manual-recovery
+# path: drain objects into files under DEST, import nothing. Its status is
+# the Dart tool's (with set -e on, a failure exits from here with it).
+# (No `exec`: run_dart is a shell function, and `exec` only finds external
+# binaries — the E2E --dest smoke test caught the rc 127.)
+drain_to_files() {
+  local -r dest="$1" dry_run="$2" force="$3" limit="$4" only="$5"
+  local -a dart_args=(--dest "$dest")
+  $dry_run && dart_args+=(--dry-run)
+  $force && dart_args+=(--force)
+  [[ -n "$limit" ]] && dart_args+=(--limit "$limit")
+  [[ -n "$only" ]] && dart_args+=(--only "$only")
+  run_dart "${dart_args[@]}"
+}
+
+# dry_run_import LIMIT ONLY — list what an import would process, importing
+# and deleting nothing. Its status is the Dart tool's, as above.
+dry_run_import() {
+  local -r limit="$1" only="$2"
+  local -a dart_args=(--import --dry-run)
+  [[ -n "$limit" ]] && dart_args+=(--limit "$limit")
+  [[ -n "$only" ]] && dart_args+=(--only "$only")
+  run_dart "${dart_args[@]}"
+}
+
+main() {
+  parse_args "$@"
+  local -r mode="$OPT_MODE" dest="$OPT_DEST" dry_run="$OPT_DRY_RUN" \
+    force="$OPT_FORCE" limit="$OPT_LIMIT" only="$OPT_ONLY"
 
   if [[ "$force" == true && "$mode" != files ]]; then
     error "--force only applies with --dest"
@@ -384,25 +425,14 @@ main() {
   check_prerequisites
 
   if [[ "$mode" == files ]]; then
-    # Legacy manual-recovery path: drain objects into files, import nothing.
-    # (No `exec`: run_dart is a shell function, and `exec` only finds
-    # external binaries — the E2E --dest smoke test caught the rc 127.)
-    local -a dart_args=(--dest "$dest")
-    $dry_run && dart_args+=(--dry-run)
-    $force && dart_args+=(--force)
-    [[ -n "$limit" ]] && dart_args+=(--limit "$limit")
-    [[ -n "$only" ]] && dart_args+=(--only "$only")
-    run_dart "${dart_args[@]}"
+    drain_to_files "$dest" "$dry_run" "$force" "$limit" "$only"
     exit $?
   fi
 
   report_stranded_staging
 
   if $dry_run; then
-    local -a dart_args=(--import --dry-run)
-    [[ -n "$limit" ]] && dart_args+=(--limit "$limit")
-    [[ -n "$only" ]] && dart_args+=(--only "$only")
-    run_dart "${dart_args[@]}"
+    dry_run_import "$limit" "$only"
     exit $?
   fi
 
