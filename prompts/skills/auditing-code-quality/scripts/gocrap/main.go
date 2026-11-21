@@ -18,11 +18,16 @@
 // Without -cover every function counts as uncovered (worst case) and the
 // COV% column shows "-". The same happens for functions that have no
 // statements in the profile, e.g. packages that did not compile under test.
+//
+// -changed REV keeps only functions whose lines differ between REV and the
+// working tree (`git diff REV`). Task reviews use it to apply a CRAP limit to
+// the code a change touched rather than to the whole codebase.
 package main
 
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 )
 
@@ -31,17 +36,18 @@ func main() {
 	cover := flag.String("cover", "", "coverprofile from `go test -coverprofile` (optional)")
 	top := flag.Int("top", 20, "print only the N highest scores (0 = all)")
 	minScore := flag.Float64("min", 0, "print only functions scoring at least this")
+	changed := flag.String("changed", "", "only functions changed since this git revision")
 	flag.Parse()
 
-	if err := run(*root, *cover, *top, *minScore); err != nil {
+	if err := run(os.Stdout, *root, *cover, *changed, *top, *minScore); err != nil {
 		fmt.Fprintln(os.Stderr, "gocrap:", err)
 		os.Exit(1)
 	}
 }
 
-// run loads the profile (if any), scores every function under root, and
-// prints the ranking to stdout.
-func run(root, cover string, top int, minScore float64) error {
+// run loads the profile (if any), scores every function under root, keeps
+// only changed ones when rev is set, and prints the ranking to w.
+func run(w io.Writer, root, cover, rev string, top int, minScore float64) error {
 	var prof profile
 	if cover != "" {
 		modPath, err := modulePath(root)
@@ -56,6 +62,13 @@ func run(root, cover string, top int, minScore float64) error {
 	if err != nil {
 		return err
 	}
-	printReport(os.Stdout, rank(funcs, top, minScore))
+	if rev != "" {
+		ch, err := gitChanges(root, rev)
+		if err != nil {
+			return err
+		}
+		funcs = keepChanged(funcs, ch)
+	}
+	printReport(w, rank(funcs, top, minScore))
 	return nil
 }

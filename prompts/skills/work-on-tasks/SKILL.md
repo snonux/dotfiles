@@ -6,141 +6,103 @@ disable-model-invocation: true
 
 # Work on Tasks
 
-Run only when explicitly requested.
+Run only when explicitly requested. Execute the **current git project's**
+tasks from start to finish, and once one task completes, continue with the next.
 
 ## Parameters
 
 - strategy (optional): How to choose tasks when multiple are available (e.g., "highest-impact", "priority", "due-date", "quick-win")
 - max_tasks (optional): Safety limit for how many tasks to process in one run
 
-Any concurrency limit stated alongside the parameters (e.g. "at most 2 agents", "sequentially") is honored and overrides the parallel default.
+Any concurrency limit stated alongside the parameters (e.g. "at most 2 agents",
+"sequentially") is honored and overrides the parallel default.
 
 **Example usage:**
 - `$work-on-tasks`
 - `$work-on-tasks highest-impact`
 - `$work-on-tasks priority 5`
 
-## Workflow
+## Where the rules live
 
-Read [agent-task-management](../agent-task-management/SKILL.md) directly and use it for this entire workflow. It owns the task lifecycle, parallelism, memory guard and review rules.
+Read [agent-task-management](../agent-task-management/SKILL.md) directly and
+use it for the whole run. This skill adds only the loop, its parameters, the
+stop conditions, and the final report. Where a line below summarizes a rule,
+the reference is authoritative:
 
-I want you to automatically execute tasks to work for the **current git project** from start to finish. Once one task completes, automatically continue with the next task.
+- Selection, the sub-agent threshold, and proving a change ("Prove the change
+  (red first)"): [2-start-task.md](../agent-task-management/references/2-start-task.md)
+- Parallelism, conflict rules, memory guard, worker prompt, optional cloud
+  workers, worktree cleanup: [7-orchestrating-task-batches.md](../agent-task-management/references/7-orchestrating-task-batches.md)
+- Completion criteria, review budget, in-scope commits: [3-complete-task.md](../agent-task-management/references/3-complete-task.md)
+- Resuming stalled tasks: [6-recover-stalled-task.md](../agent-task-management/references/6-recover-stalled-task.md)
 
-**Started-task rule:** First complete every task that is already started. Do not begin a new task until those started tasks are complete, unless this invocation explicitly says otherwise.
+## Your role: orchestrator
 
-### Your role: orchestrator (with a sub-agent threshold)
+You pick tasks, mark them started, run or delegate the work, run reviews, mark
+tasks done, and keep going. **Complete every already-started task before
+starting a new one**, unless this invocation says otherwise; several started
+tasks are normal, never a reason to stop.
 
-You are the **orchestrator**. You pick tasks, mark them started, launch sub-agents to do the implementation, then mark them done — **but only when there is enough work to justify the overhead of fresh contexts.**
+At the start of every iteration, count every task you would work on now:
+all started tasks plus the ready ones you would pick. Recount after each
+completed task.
 
-**Sub-agent threshold:** At the start of each loop iteration, run `ask list start.any:` and count **all** tasks you would work on now: every already-started task (resume all of them first) plus the new tasks you would pick from `ask ready`. Recalculate after every completed task; do not reuse the previous iteration's mode:
+- **Exactly one → work directly** in your own context. A fresh sub-agent is not
+  worth the overhead for one task; compaction or a new session gives the fresh
+  context instead.
+- **Two or more → one worker per task**, in parallel where the conflict rules
+  and memory guard allow. Do not implement these in your own context. Fresh
+  workers avoid context drift between tasks and keep your context small.
 
-- **Exactly one task to work on in total (one started and none ready, or none started and one ready) → work directly.** Do **not** spawn a sub-agent. Implement or resume the task yourself in the orchestrator's own context, running `ask start <id>` only when needed, doing the work, committing, and `ask done <id>` inline. The fresh-context overhead is not worth it for a single task, and staying in one context avoids re-loading project context.
-- **2 or more tasks to work on (started and/or ready) → delegate per task.** Spawn one sub-agent per task, in parallel where the parallelism rules below allow it. This keeps your context small and lets each task run with a clean slate.
+Workers may be local sub-agents or, when available and suitable, cloud agents
+("Cloud workers" in reference 7). Cloud workers are optional; follow your own
+instructions about when to prefer them. Workers and reviewers never spawn
+sub-agents; you own every launch.
 
-Whatever mode you are in, you still pick tasks, mark them started/done, commit, and auto-progress.
+## Loop: repeat until no actionable tasks remain
 
-**Parallelism and memory guard:** The canonical rules live in the `agent-task-management` skill, [7-orchestrating-task-batches.md](../agent-task-management/references/7-orchestrating-task-batches.md) (see also [2-start-task.md](../agent-task-management/references/2-start-task.md) and [3-complete-task.md](../agent-task-management/references/3-complete-task.md)); follow them rather than any copy here. In short:
+1. **Load tasks.** Detect the project (`git rev-parse --show-toplevel`). Run
+   `ask list start.any:` and resume every started task first, following the
+   stalled-task guidance. Then run `ask ready | head` for the free slots, and
+   count tasks for the threshold above.
+2. **Pick** (default strategy `highest-impact`, unless another was given):
+   choose by impact, urgency, and clarity, as many as can run safely in
+   parallel. Skip tasks that conflict with running ones. Between equivalent
+   tasks, prefer the one that unblocks other work. Preview each with
+   `ask info <id> 2>&1 | head -20`.
+3. **Start** each selected task with `ask start <id>` as its worker begins,
+   unless it is already started.
+4. **Execute.**
+   - *Direct:* run `ask info <id>` for the full task and annotate progress as
+     you go. Prove the change as reference 2 describes. Make and verify one
+     coherent change before widening scope. Finish with tests and a commit.
+   - *Delegated:* launch one worker per task with the worker prompt from
+     reference 7. Run the memory guard before each local launch and launch in
+     small waves. As each worker returns, refill its slot from the remaining
+     tasks and handle the returned task in step 5.
+5. **Review and close** each task as it finishes: self-review, then a fresh
+   reviewer under the review budget in reference 3 (at most two rounds, the
+   second only for blocking findings). Fix blocking findings yourself in direct
+   mode, or send them to the worker or a fresh fixer in delegated mode. Commit
+   in-scope changes, run `ask done <id>`, and add a final annotation if the
+   worker did not.
+6. **Auto-progress:** return to step 1. Stop when:
+   - no actionable tasks remain and no worker is running, or
+   - `max_tasks` tasks are complete (launch nothing that would exceed it; let
+     running workers finish), or
+   - a worker reports a hard blocker (surface it, let the other workers finish
+     and close out, then stop).
+7. **Clean up** the run's worktrees and branches as "Worktree cleanup" in
+   reference 7 describes.
+8. **Final report:** completed task IDs and titles; skipped or blocked tasks
+   with reasons; worktrees or branches left for the user; what remains pending.
 
-- **No fixed cap.** Run as many parallel tasks and sub-agents (implementation, fixing, and review) as is useful. **An explicit limit always wins:** if the user, this skill's invocation, or a task states one ("at most 2 agents", "one at a time", "sequentially"), honor it exactly. The `strategy` and `max_tasks` parameters still apply.
-- **Several tasks may be started at once** (one per worker). Multiple started tasks are a normal state, not an error.
-- **Do not parallelize conflicting tasks.** Serialize tasks with dependencies, overlapping files/area, or a shared resource (port, database, build directory). If they must overlap, isolate each in its own git worktree (Agent `isolation: "worktree"`). With a shared worktree, each worker stages and commits **only its own files by explicit path** — never `git add -A`, `git add .`, or `git commit -a`.
-- **Memory guard.** Before launching each sub-agent, and again whenever a worker finishes and a slot could be refilled, check available memory (`MemAvailable` floor, share of `MemTotal`, swap use, optionally load average) using the thresholds defined in reference 7. Launch in small waves (one or two workers, let them warm up, re-measure). On memory pressure, stop launching and let running workers finish; if nothing is running and memory is still low, work directly in your own context, one task at a time. Never kill user processes.
-- **The orchestrator owns all launches, reviews, and worker accounting.** Instruct every task sub-agent (implementation, fixing, review) not to spawn nested sub-agents; it must return to the orchestrator for the next implementation or review step.
+## Behavior
 
-### Loop: repeat until no actionable tasks remain
-
-1. **Load project-scoped tasks**:
-   - Detect the current project from local git context (`git rev-parse --show-toplevel`)
-   - Run `ask list start.any:` first. **Resume all already-started tasks before selecting anything new** — in parallel (subject to the conflict rules and memory guard), following the stalled-task recovery guidance in the skill ([6-recover-stalled-task.md](../agent-task-management/references/6-recover-stalled-task.md)) before editing each one. Do not stop or ask because several tasks are started
-   - Then run `ask ready | head` to list actionable tasks for the remaining free worker slots
-   - Ignore completed/deleted tasks and non-actionable blocked items
-   - Count the started plus newly selectable tasks to determine the sub-agent threshold above (exactly 1 → work directly; 2+ → delegate per task)
-
-2. **Pick the next task(s)** (default strategy: `highest-impact`, unless another strategy was supplied):
-   - Started tasks are resumed first; then choose new actionable tasks from `ask ready` based on impact, urgency, and clarity, as many as can safely run in parallel
-   - Skip ready tasks that conflict with a started or running one (dependencies, same files/area, shared resource); they wait or run in an isolated worktree
-   - If two tasks are equivalent, prefer the one that unblocks other work
-   - Run `ask info <id> 2>&1 | head -20` to preview each task — this caps the output at 20 lines so long descriptions do not flood the screen
-
-3. **Mark each task started**:
-   - Run `ask start <id>` for each selected task as its worker begins, unless the task is already started
-
-4. **Execute the task(s)** (mode depends on the threshold decided in step 1):
-
-   **If working directly (exactly one task to work on, ready or already started):**
-   - Implement the task yourself in the orchestrator's own context.
-   - Run `ask info <id>` to load the full description and annotations.
-   - Run `ask annotate <id> "<progress notes>"` as you work.
-   - Identify the next observable outcome and the cheapest faithful check for
-     it. Make and verify one coherent change before expanding the scope.
-   - Complete all implementation, tests, and a git commit.
-   - Then proceed to step 5 (you mark the task done yourself).
-
-   **If delegating (2+ tasks to work on):**
-   - Spawn **one new sub-agent per task** (several at once are fine, within the parallelism rules and memory guard above), each with a self-contained prompt that includes:
-     - The task ID and a one-line summary of what the task is about
-     - Instruction to run `ask info <id>` as its **first action** to get the full description and all annotations (do not paste the description inline — the sub-agent fetches it fresh, keeping the prompt short)
-     - The absolute path of the project root
-     - Instruction to run `ask annotate <id> "<progress notes>"` as it works
-     - Instruction to commit its in-scope changes to git when done, staging **only its own files by explicit path** (siblings may share the worktree; never `git add -A`, `git add .`, or `git commit -a`), unless it runs in its own worktree
-     - Instruction to **not** mark the task done (the orchestrator does that)
-     - Instruction to **not spawn other sub-agents**; the orchestrator owns the review cycle
-   - Run the memory guard before each launch and launch in small waves; do not launch a worker for a task that conflicts with a running one (serialize it, or give it its own worktree)
-   - Each sub-agent must complete all implementation, tests, and a git commit before returning
-
-   - Give each worker the same outcome-first instruction: use a focused check
-     for each coherent change, and reserve shared expensive suites and device
-     sessions for the orchestrator's integration pass. This does not waive
-     task-specific acceptance requirements.
-   - Wait for workers to finish; as each one returns, re-check memory and refill the free slot from the remaining started/ready tasks, then handle that worker in step 5 while the others keep running
-
-5. **Review, close, and record** (per task, as each worker returns):
-   - Perform the self-review required by `agent-task-management`, then launch a fresh expert review sub-agent. Instruct the reviewer not to spawn other sub-agents.
-   - The reviewer must check the implementation, test coverage, real behavior assertions, and plausible negative tests against the task's acceptance criteria, and classify every concrete finding as **blocking** or **non-blocking** (definitions in `agent-task-management` [3-complete-task.md](../agent-task-management/references/3-complete-task.md), "Review budget and convergence"). It must not add requirements the task did not state.
-   - Fix every blocking finding. Fix non-blocking ones inline only when cheap; otherwise drop them or record a follow-up task. In direct mode, fix directly. In delegated mode, send the findings to the task's worker (or a fresh fixing sub-agent); instruct it not to mark the task done or spawn other sub-agents.
-   - **Review budget: at most two rounds per task.** Only if the first review reported blocking findings, repeat self-review and launch one more fresh reviewer that confirms the blocking fixes and checks the fix diff for new blocking defects, nothing else. If something blocking remains after round two, fix it and verify it with tests yourself, or record it as a new task/blocker and tell the user; never start a third round.
-   - If two fixes based on the same assumption fail the same check, pause that
-     retry path and write down the shared assumption. Inspect the actual state
-     and boundary behavior before another fix or full rerun. Distinguish a
-     product defect from a test-driver, fixture, or resource failure in the notes.
-   - Ensure all final changes are committed before closing the task.
-   - Run `ask done <id>` to mark the task complete
-   - Run `ask annotate <id> "<summary of what was delivered>"` if the sub-agent did not already add a final annotation
-
-6. **Auto-progress**:
-   - After each task is closed, immediately return to step 1: re-run `ask list start.any:` (resume any started task without a live worker), then select new tasks from `ask ready` for the free slots
-   - Stop when:
-     - no actionable project tasks remain and no worker is still running, or
-     - `max_tasks` tasks have been completed (if provided; do not launch more than would exceed it, let running workers finish), or
-     - a sub-agent reports a hard blocker (surface it to the user, let the other running workers finish and be closed out, then stop)
-
-7. **Final report**:
-   - List completed task IDs/titles
-   - List any skipped/blocked tasks with reasons
-   - State what remains pending for the project
-
-### Why sub-agents per task (when delegating)?
-
-When there are 2+ tasks, each task runs in a **fresh context** with no carry-over from prior tasks. This:
-- Prevents context drift (e.g. hallucinated paths) that accumulates over long sessions
-- Matches the `agent-task-management` skill requirement: "Work on each new task must begin with a fresh context"
-- Keeps the orchestrator's context minimal throughout the entire run
-- Lets independent tasks run in parallel
-
-For a single task the fresh-context overhead is not worth it — the orchestrator implements it directly. The `agent-task-management` "fresh context" requirement is satisfied by compaction / a new session when spawning a sub-agent is not warranted.
-
-### Important behavior requirements
-
-- Do not ask the user to pick a task unless there is a true ambiguity or risk.
-- Default to autonomous execution.
-- Keep task scope tied to the current project.
-- There is no fixed sub-agent cap, but an explicit limit from the user, the invocation, or a task always wins; honor it exactly.
-- Always run the memory guard (see `agent-task-management` [7-orchestrating-task-batches.md](../agent-task-management/references/7-orchestrating-task-batches.md)) before launching any implementation, fixing, or review sub-agent, and again when a worker finishes. On memory pressure stop launching and let running workers finish; never kill user processes.
-- Never run conflicting tasks (dependencies, overlapping files/area, shared resource) in the same worktree at the same time; serialize them or isolate them in separate worktrees. With a shared worktree, stage and commit only in-scope files by explicit path.
-- Never allow task implementation, fixing, or review sub-agents to spawn nested sub-agents; the orchestrator owns all launches.
-- Never implement tasks in the orchestrator's own context **when delegating** (2+ tasks to work on) — always delegate to a sub-agent. When there is exactly 1 task to work on, implement directly instead of spawning a sub-agent.
-- Complete all already-started tasks before selecting new ones from `ask ready`, unless this invocation explicitly says otherwise; several started tasks are normal, never a reason to stop.
-- Never run open-ended review loops. At most two review rounds per task; the second only for blocking findings. Do not raise the bar mid-run (no new evidence, provenance or documentation requirements the task didn't ask for); out-of-scope discoveries become new tasks.
-- Workers run targeted checks only; the orchestrator runs full suites once per merge of finished work. Close each task as soon as it meets its criteria rather than holding finished tasks for a final batch merge.
-- On a small host, cap build-heavy workers at roughly one per two cores even if memory allows more; oversubscription causes timeouts and flakes that cost more than the parallelism gains.
-- After a task's implementation, review, fixes, and closure are complete, immediately move on (refill free worker slots, or pick the next task).
+- Default to autonomous execution. Ask the user to pick only when there is
+  true ambiguity or risk.
+- Keep work scoped to the current project. Out-of-scope discoveries become new
+  tasks with full context.
+- An explicit limit from the user, the invocation, or a task always wins.
+- Close each task as soon as it meets its criteria; do not hold finished tasks
+  for one big final merge. Then move on immediately.

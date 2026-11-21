@@ -35,7 +35,10 @@ It prints `CRAP  CC  COV%  LOCATION  FUNC` as tab-separated values, skipping
 `_test.go`, generated files, `vendor/` and `testdata/`. Without `-cover`, or
 for functions missing from the profile, COV% is `-` and the score assumes no
 coverage. Run it from a module root; repeat it per module in a multi-module
-repo.
+repo. `-changed <rev>` keeps only functions whose lines differ from that git
+revision (untracked files are not included). Task reviews use it to check the
+code a change touched; see "Change risk of touched functions" in
+[agent-task-management's completion reference](../../agent-task-management/references/3-complete-task.md).
 
 For duplication in Go, `dupl -t 100 .` (`go install github.com/mibk/dupl@latest`)
 lists duplicated token sequences. For other languages, `lizard` (cyclomatic

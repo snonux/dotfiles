@@ -29,9 +29,9 @@ Every ready pick in this skill must use `due-window:7.days`. Plain `ask ready +a
 
 1. **Try current project first.**
    - Load the `agent-task-management` skill.
-   - Run `ask list start.any: +auto` in the current git repository first. If exactly one `+auto` task is started, resume it and do not select another task. If multiple `+auto` tasks are started, report their IDs and stop so the invalid state can be reconciled explicitly.
+   - Run `ask list start.any: +auto` in the current git repository first. Resume every started `+auto` task before selecting another one (see **Started tasks** below).
    - Only when no `+auto` task is started, find the next due-window-eligible ready `+auto` task with `ask ready +auto due-window:7.days` (sorted by priority, then urgency).
-   - If there is a started or eligible ready `+auto` task here, proceed with the standard `agent-task-management` lifecycle (create context → start when needed → annotate → complete), then **Post-completion: commit, push, version**. **Stop — do not look across other projects** until that post-completion finishes (then you may progress to the next `+auto` task in this project).
+   - If there is a started or eligible ready `+auto` task here, proceed with the standard `agent-task-management` lifecycle (create context → start when needed → annotate → complete), then **Post-completion: commit, push, version**. Do not look across other projects while this project still has a started or eligible `+auto` task (see **When to stop**).
 
 2. **Fall back to `+auto` tasks across projects.**
    - If the current project has no available due-window-eligible `+auto` agent task, run:
@@ -71,12 +71,44 @@ Every ready pick in this skill must use `due-window:7.days`. Plain `ask ready +a
    - Load `agent-task-management`, its `references/00-cli.md`,
      `references/00-project-scope.md`, and the appropriate action file inside
      the new project directory.
-   - Repeat `ask list start.any: +auto` in the target project. Resume it before considering a ready task when exactly one exists; report the IDs and stop when multiple `+auto` tasks are started.
+   - Repeat `ask list start.any: +auto` in the target project and resume every started `+auto` task before considering a ready one (see **Started tasks**).
    - Only when none is started, select from due-window-eligible ready `+auto` tasks (`ask ready +auto due-window:7.days`).
    - Use the alias ID of the chosen task with `ask info <id>`, `ask start <id>`, etc.
-   - Follow the full task lifecycle defined by `agent-task-management`: start → annotate → completion criteria → sub-agent review until clean → commit → `ask done <id>`.
+   - Follow the full task lifecycle defined by `agent-task-management`: start → annotate → prove the change (red first) → completion criteria → sub-agent review within the review budget → commit → `ask done <id>`.
    - After every completed task, run **Post-completion: commit, push, version** (below) in that project before selecting the next task.
    - When progressing to the next task after completion, keep the `+auto` filter and the due-window filter (`ask list start.any: +auto`, then `ask ready +auto due-window:7.days`). Do not pick tasks without `+auto`, and do not pick far-future-due `+auto` tasks.
+
+## Started tasks
+
+A started `+auto` task always resumes, whatever its due date, and before any
+ready task is selected. Several started `+auto` tasks are a normal state (an
+interrupted parallel run leaves them behind), not an error. Count them with
+the ready tasks you would pick and apply the threshold in
+`agent-task-management` [2-start-task.md](../agent-task-management/references/2-start-task.md):
+exactly one task → work directly; two or more → one worker per task, subject
+to the parallelism rules and memory guard in
+[7-orchestrating-task-batches.md](../agent-task-management/references/7-orchestrating-task-batches.md).
+Workers may be cloud agents when available and suitable ("Cloud workers"
+there); that is optional. Recover each started task with
+[6-recover-stalled-task.md](../agent-task-management/references/6-recover-stalled-task.md)
+before editing it.
+
+## When to stop
+
+Keep working through eligible `+auto` tasks:
+
+1. After each completed task and its post-completion, pick the next started or
+   due-window-eligible `+auto` task in the **same project**.
+2. When the project has none left, run the batched version step (below) for it,
+   then fall back to other projects (workflow step 2), telling the user which
+   project and task you are moving to.
+3. Stop when no started or due-window-eligible `+auto` task remains in any
+   project, when a task hits a hard blocker you cannot resolve within scope
+   (annotate it and report it), or at any limit the user stated (for example
+   "just one task").
+
+Then report the completed tasks, any blocked or skipped ones with reasons, and
+any commits left unpushed or versions not bumped, with why.
 
 ## Post-completion: commit, push, version
 
@@ -115,11 +147,10 @@ This skill **overrides** `agent-task-management`'s "immediately pick the next ta
 4. **Skills repo sync.** If the completed work edited `~/git/dotfiles/prompts/skills/`, use `commit-skills` for commit+push of that tree (non-Darwin only).
 ## Rules
 
-- **Only `+auto` tasks.** Every `ask list` / `ask ready` / `ask projects` call in this skill must include `+auto`. Never start or resume a task that lacks that tag.
-- **Due-window on ready picks.** Never start a ready `+auto` task due more than 7 days from now; always select with `due-window:7.days`. Undated tasks remain eligible. Started `+auto` tasks always resume.
-- **Always use `~/go/bin/ask` (or just `ask`) for agent tasks.** Use only `ask` subcommands and filters to read or change agent-managed tasks.
-- **One started task per project.** Resume the `+auto` task when exactly one is started. If multiple `+auto` tasks are started, report their IDs and stop so the invalid state can be reconciled explicitly.
-- **Do not switch projects silently.** When step 2 triggers a project switch, tell the user which project and task you are moving to before starting work.
-- **Direct mode for one or resumed task.** Resume an existing `+auto` task directly. When no `+auto` task is started and exactly one due-window-eligible task is ready, also work directly. Use a fresh sub-agent only when multiple eligible `+auto` tasks are ready, following `agent-task-management`.
-- **Commit + push after each completed task.** Task commits must be pushed before moving on (subject to Darwin/dotfiles pull-only, in-scope-only push, and project rules). Post-completion runs before picking the next task.
-- **Version bump when applicable (batched).** For shippable apps with product-code changes, run `increment-version-and-push` once per project per run when leaving that project or when no more due-window `+auto` remain there — not after every intermediate task. Skip skills/docs/chore-only work and unclear cases.
+- **Only `+auto` tasks.** Every `ask list` / `ask ready` / `ask projects` call
+  includes `+auto`; never start or resume a task without it.
+- **Due window on every ready pick** (`due-window:7.days`); started tasks
+  always resume.
+- **Only `ask` subcommands** (`~/go/bin/ask` or `ask`) read or change agent tasks.
+- **No silent project switches**, and post-completion (commit, push, batched
+  version) runs before the next task is picked.

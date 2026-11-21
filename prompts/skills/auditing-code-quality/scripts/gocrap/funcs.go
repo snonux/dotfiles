@@ -15,12 +15,14 @@ import (
 
 // fn is one scored function.
 type fn struct {
-	name     string // "Func", "T.Method" or "(*T).Method"
-	location string // module-relative "dir/file.go:line"
-	cc       int
-	cov      float64
-	covKnown bool
-	crap     float64
+	name               string // "Func", "T.Method" or "(*T).Method"
+	location           string // module-relative "dir/file.go:line"
+	file               string // module-relative "dir/file.go", for matching -changed hunks
+	startLine, endLine int
+	cc                 int
+	cov                float64
+	covKnown           bool
+	crap               float64
 }
 
 // crap computes the CRAP score. Unknown coverage counts as zero.
@@ -80,7 +82,14 @@ func scoreFile(path, rel string, prof profile) ([]fn, error) {
 			continue // not a function, or an assembly-backed declaration
 		}
 		start, end := fset.Position(fd.Pos()), fset.Position(fd.End())
-		f := fn{name: funcName(fd), location: fmt.Sprintf("%s:%d", rel, start.Line), cc: complexity(fd)}
+		f := fn{
+			name:      funcName(fd),
+			location:  fmt.Sprintf("%s:%d", rel, start.Line),
+			file:      rel,
+			startLine: start.Line,
+			endLine:   end.Line,
+			cc:        complexity(fd),
+		}
 		f.cov, f.covKnown = prof.coverage(rel, [2]int{start.Line, start.Column}, [2]int{end.Line, end.Column})
 		f.crap = crap(f.cc, f.cov)
 		out = append(out, f)
@@ -138,14 +147,17 @@ func recvName(expr ast.Expr) string {
 	return "?"
 }
 
-// rank sorts by descending score (location breaks ties for stable output)
-// and applies the -min and -top filters.
+// rank sorts by descending score, breaking ties by file and then line number
+// (numeric, so line 3 sorts before line 10), and applies -min and -top.
 func rank(funcs []fn, top int, minScore float64) []fn {
 	sort.Slice(funcs, func(i, j int) bool {
 		if funcs[i].crap != funcs[j].crap {
 			return funcs[i].crap > funcs[j].crap
 		}
-		return funcs[i].location < funcs[j].location
+		if funcs[i].file != funcs[j].file {
+			return funcs[i].file < funcs[j].file
+		}
+		return funcs[i].startLine < funcs[j].startLine
 	})
 	kept := funcs[:0]
 	for _, f := range funcs {

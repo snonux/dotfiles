@@ -10,7 +10,8 @@ A task is **not** considered done until all of the following are true:
 - **Compilable** — all code compiles successfully (e.g. full build succeeds).
 - **Tests pass** — all tests pass (e.g. full test suite green).
 - **Negative tests where plausible** — for any new or changed tests, include negative tests (invalid input, errors, failure cases) wherever plausible.
-- **All changes committed to git** — on completion of the task, all changes must be committed to git (e.g. a single commit or logical commits with a clear message referencing the task).
+- **Change proven** — for bug fixes and behaviour changes, an annotation records the test that failed before the change for the expected reason; for refactors, the pinning tests passed unchanged (see "Prove the change (red first)" in [2-start-task.md](2-start-task.md)).
+- **All changes committed to git** — on completion of the task, all changes must be committed to git, in one commit or a few small ordered ones. Each message references the task and says **why** the change was made, **what** changed, and **how it was proven** (the tests or checks that ran).
 
 If any of these fail, fix the issues and recheck. Do not mark the task complete until they are all met.
 
@@ -18,8 +19,28 @@ If any of these fail, fix the issues and recheck. Do not mark the task complete 
 
 Review sub-agents **must always**:
 
-- **Unit test coverage** — double-check that coverage is as desired for the changed or added code (e.g. project expectations or thresholds are met).
-- **Tests are testing real things** — confirm that tests exercise real behavior and assertions, not only mocks. Flag tests that merely assert on mocks or stubs without verifying real logic, integration points, or outcomes. Tests should give confidence that the code actually works.
+- **Unit test coverage** — check that the changed or added code is covered and that project thresholds are met.
+- **Tests are testing real things** — confirm that tests exercise real behavior and assertions, not only mocks. Flag tests that merely assert on mocks or stubs without verifying real logic, integration points, or outcomes. Apply the **return-nothing check**: would the new or changed tests still pass if the code under test returned zero values or did nothing? If so, they are a false pass (blocking).
+- **Red-first evidence** — for bug fixes and behaviour changes, the "Red first" annotation exists and the named test actually exercises the fixed behaviour. A missing annotation on a task that needed one is blocking; the fix is to show the test failing against the parent commit, not to rewrite the change.
+- **Change risk of touched functions** — for Go, score the functions the change touched:
+
+  ```bash
+  go test -coverprofile="$SCRATCH/cover.out" ./...
+  go -C <skills-dir>/auditing-code-quality/scripts/gocrap run . \
+    -root "$PWD" -cover "$SCRATCH/cover.out" -changed <base-commit> -top 0
+  ```
+
+  `<skills-dir>` is the directory that holds this skill collection (the parent
+  of `agent-task-management/`). `<base-commit>` is the commit before the task's
+  first commit. The tool is
+  described in [the audit's metrics reference](../../auditing-code-quality/references/metrics.md#1-hotspot-ranking-pass-a).
+  A touched function at **CRAP 30 or more** is **blocking** when the change
+  created it or visibly raised its complexity (new branches in the diff), unless
+  the worker recorded why splitting or testing it is not worth it (for example,
+  a flat `switch` over many cases). A function that already scored that high and
+  was only lightly touched is non-blocking; suggest a follow-up task. For other
+  languages, use an equivalent complexity and coverage tool if the project has
+  one; otherwise judge the added branches and their tests by reading the diff.
 - **Negative tests where plausible** — for all tests created, ensure there are also negative tests (invalid input, error paths, edge cases that should fail, unauthorized access, etc.) wherever plausible. If positive/happy-path tests exist but no corresponding negative tests, flag it unless there is a clear reason none are plausible.
 
 Include these checks in the sub-agent's review report.
@@ -116,6 +137,7 @@ Reviews must converge. An open-ended "find every flaw until a review is clean" l
   - a product defect: wrong behaviour, a crash, data loss, a security issue, a regression;
   - a test or oracle that can pass while the behaviour is wrong (a false pass), or a missing test for an acceptance criterion;
   - a build, lint or test failure;
+  - a missing red-first record, or a touched function at CRAP 30 or more that the change created or made more complex without a recorded justification (see "What the review sub-agent must check");
   - a documentation claim that is false about what the product does or what was verified.
 - **Non-blocking** means everything else: wording, style, naming, extra hardening, nicer diagnostics, additional evidence or provenance records, duplicated helpers, hypothetical edge cases outside the acceptance criteria. Fix it inline if cheap, otherwise drop it or create a follow-up task. It never triggers another round.
 - **Do not raise the bar mid-task.** Neither the orchestrator nor the reviewer adds requirements the task did not state (for example identity hashes, evidence sha256 tables, clause-to-test tables, negative-control suites). If such a requirement is worth having, create a separate task for it.
@@ -136,7 +158,7 @@ rest of steps 1–4, and continue at step 5 (see "Skipping the sub-agent review"
 3. Main agent **resolves all blocking findings** — no exceptions. Fix every valid blocking issue; a response without a code change is acceptable only when it demonstrates that the finding is not an issue. Non-blocking findings are fixed inline when cheap, otherwise dropped or recorded as a follow-up task; they never trigger another review round.
 4. If the first review reported **blocking** findings: **Self-review again** (see above), then the orchestrator **spawns one more sub-agent** (fresh context) to review the updated code and responses. This second review only confirms that the blocking findings are resolved and checks the fix diff for new blocking defects; it must not re-audit the whole task or raise non-blocking items. **At most two review rounds per task.** If the first review reports only non-blocking findings, or none, there is no second round.
    - If the second review still reports a blocking issue, fix it and verify the fix with tests yourself; do not launch a third review. If the issue cannot be fixed within scope, record it as a new task (`ask add`, with full context) or as an annotated blocker, and surface it to the user. Never loop.
-5. **Commit all changes to git** (e.g. `git add` and `git commit` with a message that references the task). Do not mark the task complete with uncommitted changes. Stage **only the in-scope files by explicit path** — never `git add -A`/`git add .` when the worktree had pre-existing unrelated changes (see "Commit only in-scope files" above).
+5. **Commit all changes to git** (`git add` and `git commit` with a message that references the task and says why, what changed, and how it was proven). Do not mark the task complete with uncommitted changes. Stage **only the in-scope files by explicit path** — never `git add -A`/`git add .` when the worktree had pre-existing unrelated changes (see "Commit only in-scope files" above).
 6. Only then:
 
 ```bash
@@ -150,7 +172,7 @@ Use the alias ID from the selection step or current task details when marking th
 ## Conventions
 
 - When creating or changing tests, add negative tests (invalid input, errors, failure paths) wherever plausible; the review sub-agent will check for this.
-- A task is not done until: best practices met, code compiles, all tests pass, negative tests included where plausible, all blocking review findings are resolved (including coverage and test-quality checks) within the two-round review budget, **and all changes are committed to git**.
+- A task is not done until: best practices met, code compiles, all tests pass, negative tests included where plausible, the change proven (red first or pinned behaviour), all blocking review findings are resolved (including coverage and test-quality checks) within the two-round review budget, **and all changes are committed to git**.
 - **Review opt-out.** The review-related conventions in this list apply unless the user explicitly asked to skip the sub-agent review; then the self-review replaces it and the skip is recorded in an annotation (see "Skipping the sub-agent review").
 - Before every sub-agent review handoff, do the self-review: "Did it all make sense? Is there a better way?" Fix anything that comes up, then hand off.
 - **On completion, commit all changes to git** before running `ask done <id>`; do not leave uncommitted work when marking a task complete.

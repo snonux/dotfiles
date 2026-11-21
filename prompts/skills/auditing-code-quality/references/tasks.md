@@ -30,18 +30,18 @@ and enforces the rule from then on. List the known sites in its annotation
 instead of creating one task per site.
 
 **Fix procedure (annotate every finding task, bug tasks included):** the
-fixer works in a fresh context, so state how the fix must be proven. Add the
-annotation that matches the task's kind:
+fixer works in a fresh context, so state how the fix must be proven. The
+general procedure (red first for bugs, pin behaviour before refactoring, fix
+the cause, subtract before adding) has one canonical home, "Prove the change
+(red first)" in [agent-task-management's start reference](../../agent-task-management/references/2-start-task.md),
+which every fixer loads anyway. Annotate with the kind and what is specific to
+this finding:
 
-- **Bug:** "Write a test through the affected public behaviour that fails
-  first, and see it fail for the reason in this task. Make the smallest change
-  that makes it pass. Fix the cause; a guard that only hides the symptom is
-  not a fix. If an honest automated test is impractical, run and record the
-  manual or integration check named here."
-- **Refactor or structural fix:** "Pin the current behaviour first with
-  characterization tests at the public boundary. Change the structure. Prove
-  the same tests still pass unchanged. Remove what is unneeded before adding
-  any abstraction."
+- **Bug:** "Fix procedure: red first. Expected failing test: <behaviour and
+  entry point>." If an honest automated test is impractical, name the manual
+  or integration check instead.
+- **Refactor or structural fix:** "Fix procedure: pin behaviour first. Pinning
+  tests: <existing tests, or the boundary to characterize>."
 - **Redesign:** "Describe the design you would build if this requirement had
   existed from the start, then deliver it in small steps that can each be
   checked. Do not bolt it onto the current design." Name the first step.

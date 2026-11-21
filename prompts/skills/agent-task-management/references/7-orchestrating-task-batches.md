@@ -106,6 +106,78 @@ started or ready, the orchestrator handles it directly in its own context. With
 2 or more tasks to work on (started plus newly selected), delegate each to its
 own sub-agent. The detailed rule is in [2-start-task.md](2-start-task.md).
 
+## Worker prompt
+
+Give every task sub-agent a short, self-contained prompt containing:
+
+- the task ID and a one-line summary;
+- the instruction to run `ask info <id>` as its **first action** to load the
+  full description and all annotations (do not paste them inline; a local
+  worker fetches them fresh);
+- the absolute path of the project root;
+- the instruction to annotate progress with `ask annotate <id> "..."`;
+- the instruction to follow "Prove the change (red first)" in
+  [2-start-task.md](2-start-task.md), to use a focused check for each
+  coherent change, and to leave shared expensive suites and device sessions to
+  the orchestrator's integration pass (task-specific acceptance requirements
+  still apply);
+- the instruction to commit its in-scope changes, staging **only its own files
+  by explicit path** unless it has its own worktree;
+- the instructions **not** to mark the task done and **not** to spawn
+  sub-agents; it returns to the orchestrator for review.
+
+## Cloud workers (optional)
+
+If the harness offers cloud or remote agents (for example the Agent tool's
+`isolation: "remote"`), the orchestrator **may** run suitable tasks there. It
+is never required. Follow whatever the agent's own instructions say about when
+to prefer cloud or local agents (a CLAUDE.md or AGENTS.md rule, for instance).
+Without such guidance, use judgment: cloud workers save local memory and CPU
+for long or build-heavy tasks, but each one needs a pushed starting point and
+a fetch-and-verify round trip.
+
+A task suits a cloud worker only when it needs nothing beyond the pushed
+repository. Keep it local when it needs root/sudo, kernel access, local
+hardware or devices, local-only toolchains or sibling checkouts, local services,
+or private data that must not leave the machine. Cloud workers also cannot
+start from unpushed local commits, so the base the task needs must already be
+on the remote, or pushing it must be allowed under the project's rules.
+
+A cloud worker cannot reach `ask`, so the orchestrator adapts the worker prompt:
+
+- paste the output of `ask info <id>` into the prompt instead of telling the
+  worker to run it, and leave out the `ask annotate` instruction;
+- ask the worker to commit on its own branch, push it, and end with a summary
+  of what it changed, how it proved the change (including the red-first test
+  output), and anything left open;
+- all other worker-prompt rules apply.
+
+When the worker returns, the orchestrator fetches the branch, records the
+worker's summary with `ask annotate`, runs any checks that need the local
+machine, merges, and continues with the normal review and completion steps.
+The memory guard does not apply to cloud workers (they use no local memory),
+but an explicit concurrency limit still counts them. If cloud agents are
+unavailable or fail to start, fall back to local workers without asking.
+
+## Worktree cleanup
+
+At the end of a batch, clean up the worktrees and branches that the run's
+workers created (Agent `isolation: "worktree"` leaves a worktree behind when
+it changed something):
+
+```bash
+git worktree list
+git worktree prune            # drops entries whose directories are gone
+```
+
+For each worker worktree: if it is clean and its branch is merged into the
+current branch, remove it (`git worktree remove <path>`) and delete the branch
+(`git branch -d <branch>`). A worktree with uncommitted changes, or a branch
+that is not merged, is someone's unfinished work: leave it and list it in the
+final report for the user to decide. Never use `--force`. Remote branches
+pushed by cloud workers are listed in the report too. Delete them only when
+they are merged and the agent's instructions or the user allow it.
+
 ## Per-task lifecycle
 
 For each task, create it, start it, annotate progress, meet the completion

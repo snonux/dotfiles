@@ -39,8 +39,10 @@ within the passes below rather than running a separate full audit per skill.
 - `scripts/gocrap/`: stdlib-only Go tool that ranks functions by CRAP score.
   Usage is in [references/metrics.md](references/metrics.md#1-hotspot-ranking-pass-a).
   `main.go` holds the flags, `profile.go` parses coverprofiles, `funcs.go`
-  scores and prints, and `main_test.go` is the test suite
-  (`go -C scripts/gocrap test ./...`; module file `go.mod`).
+  scores and prints, and `changed.go` implements `-changed <rev>` (functions
+  touched since a git revision, used by task reviews). Tests are in
+  `main_test.go` and `changed_test.go` (`go -C scripts/gocrap test ./...`;
+  module file `go.mod`).
 
 ## Workflow
 
@@ -152,7 +154,8 @@ observations do not create tasks or block audit closure.
 When one problem recurs at many sites, file one task for the lever (a lint
 rule, analyzer, or codemod that fixes and enforces it) instead of one per site.
 Annotate every finding task, bug tasks included, with the fix procedure for its
-kind: failing test first for bugs, pin behaviour before refactoring.
+kind (red first for bugs, pin behaviour before refactoring; the procedure itself
+lives in **agent-task-management**).
 Exact `ask add` format, fix procedures, and what to annotate:
 [references/tasks.md](references/tasks.md#4-create-tasks-for-findings).
 

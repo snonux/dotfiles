@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"math"
 	"os"
 	"os/exec"
@@ -205,5 +206,50 @@ func TestRankAndReport(t *testing.T) {
 	}
 	if !strings.HasPrefix(fmtCov(0.5, true), "50") {
 		t.Errorf("fmtCov(0.5) = %q", fmtCov(0.5, true))
+	}
+}
+
+func TestRun(t *testing.T) {
+	root := writeModule(t)
+	var buf bytes.Buffer
+	if err := run(&buf, root, "", "", 1, 0); err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	if len(lines) != 2 || !strings.HasSuffix(lines[1], "\tp/p.go:3\tAbs") {
+		t.Errorf("run -top 1 printed %q, want header plus Abs (ties sort by location)", lines)
+	}
+}
+
+func TestRunErrors(t *testing.T) {
+	notModule := t.TempDir()
+	if err := run(io.Discard, notModule, "cover.out", "", 0, 0); err == nil {
+		t.Error("-cover outside a module root should fail")
+	}
+	root := writeModule(t)
+	if err := run(io.Discard, root, filepath.Join(root, "missing.out"), "", 0, 0); err == nil {
+		t.Error("missing coverprofile should fail")
+	}
+	if err := run(io.Discard, root, "", "HEAD", 0, 0); err == nil {
+		t.Error("-changed outside a git repository should fail")
+	}
+	bad := filepath.Join(root, "p", "broken.go")
+	if err := os.WriteFile(bad, []byte("package p\nfunc {"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := run(io.Discard, root, "", "", 0, 0); err == nil {
+		t.Error("unparsable source should fail")
+	}
+}
+
+func TestRankTieBreakIsNumeric(t *testing.T) {
+	funcs := []fn{
+		{name: "b10", file: "b.go", startLine: 10, crap: 6},
+		{name: "b3", file: "b.go", startLine: 3, crap: 6},
+		{name: "a99", file: "a.go", startLine: 99, crap: 6},
+	}
+	got := rank(funcs, 0, 0)
+	if got[0].name != "a99" || got[1].name != "b3" || got[2].name != "b10" {
+		t.Errorf("tie order = %v, want a99, b3, b10", got)
 	}
 }
