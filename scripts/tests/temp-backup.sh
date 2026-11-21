@@ -611,6 +611,7 @@ Mode:        DRY RUN (no data transferred)
 Delete:      yes (--delete)' ]] \
     || fail "pg4: plan output changed: $(cat "$TEST_ROOT/out_pg4")"
 [[ "$(call_count)" -eq 1 ]] || fail "pg4: want 1 rsync call, got $(call_count)"
+pg4_argv=()
 read_call_argv 0 pg4_argv
 [[ "${pg4_argv[*]}" == '-av --delete --dry-run -- -n/ h:base/-n' ]] \
     || fail "pg4: rsync argv changed: ${pg4_argv[*]@Q}"
