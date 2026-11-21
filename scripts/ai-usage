@@ -151,6 +151,9 @@ claude_plan=unknown
 claude_config_dir=${CLAUDE_CONFIG_DIR:-$HOME/.claude}
 claude_credentials=$claude_config_dir/.credentials.json
 
+# _claude_fetch — read the sign-in and fetch the usage; on success
+# claude_json holds the usage, else claude_error says why (both globals,
+# as is claude_plan). Called under '|| true', so every step is checked.
 _claude_fetch() {
   local token body status config
 
@@ -160,9 +163,24 @@ _claude_fetch() {
   claude_plan=$(jq -r '.claudeAiOauth.subscriptionType // "unknown"' \
     "$claude_credentials" 2>/dev/null) || claude_plan=unknown
 
-  # The token travels to curl through stdin, not the command line, so it
-  # never shows up in /proc/<pid>/cmdline or process listings.
-  config=$(printf 'url = "https://api.anthropic.com/api/oauth/usage"
+  config=$(_claude_curl_config "$token")
+  body=$(curl --config - <<<"$config") \
+    || { claude_error='could not reach the Anthropic usage API'; return 1; }
+
+  status=${body##*$'\n'}
+  body=${body%$'\n'*}
+
+  # Both helpers set claude_error themselves; the status is the answer.
+  # shellcheck disable=SC2310
+  _claude_check_status "$status" || return 1
+  _claude_store_usage "$body"
+}
+
+# _claude_curl_config TOKEN — print the curl config for the usage request.
+# The token travels to curl through stdin, not the command line, so it
+# never shows up in /proc/<pid>/cmdline or process listings.
+_claude_curl_config() {
+  printf 'url = "https://api.anthropic.com/api/oauth/usage"
 max-time = "15"
 silent
 show-error
@@ -171,15 +189,13 @@ write-out = "\\n%%{http_code}"
 header = "Authorization: Bearer %s"
 header = "anthropic-beta: oauth-2025-04-20"
 header = "anthropic-version: 2023-06-01"
-header = "x-app: cli"' "$token")
+header = "x-app: cli"' "$1"
+}
 
-  body=$(curl --config - <<<"$config") \
-    || { claude_error='could not reach the Anthropic usage API'; return 1; }
-
-  status=${body##*$'\n'}
-  body=${body%$'\n'*}
-
-  case $status in
+# _claude_check_status HTTP_STATUS — return 0 for 200; otherwise set the
+# global claude_error to what the status means and return 1.
+_claude_check_status() {
+  case $1 in
     200) ;;
     401|403)
       claude_error='the Claude subscription is not usable (re-sign-in or check billing)'
@@ -190,13 +206,19 @@ header = "x-app: cli"' "$token")
       return 1
       ;;
     *)
-      claude_error="the Anthropic usage API returned HTTP $status"
+      claude_error="the Anthropic usage API returned HTTP $1"
       return 1
       ;;
   esac
+}
 
-  # Claude Code itself only accepts a body that carries at least one of
-  # these top-level window keys; anything else is an in-band error.
+# _claude_store_usage BODY — keep a usable usage BODY in the global
+# claude_json and return 0; otherwise clear claude_json, set claude_error
+# and return 1. Claude Code itself only accepts a body that carries at
+# least one of these top-level window keys; anything else is an in-band
+# error.
+_claude_store_usage() {
+  local -r body=$1
   if claude_json=$(jq -e '
       select(type == "object")
       | select(has("five_hour") or has("seven_day")
@@ -312,8 +334,21 @@ print_codex_text() {
   printf '  %s↳ resets %s%s\n' "$dim" "$reset_at" "$reset"
 }
 
+# _print_claude_window LABEL USED RESETS_AT — print one Claude window (5h
+# or 7d): the bar line for USED percent and its reset time.
+_print_claude_window() {
+  local -r label=$1 used=$2 reset_at=$3
+  local remaining
+  remaining=$((100 - used))
+  _bar "$remaining"
+  printf '  %s %s[%s%s%s]%s %s%3d%%%s left %s· %d%% used%s\n' \
+    "$label" "$dim" "$usage_color" "$bar" "$dim" "$reset" \
+    "$usage_color" "$remaining" "$reset" "$dim" "$used" "$reset"
+  printf '     %s↳ resets %s%s\n' "$dim" "$reset_at" "$reset"
+}
+
 print_claude_text() {
-  local plan used5 reset5 used7 reset7 remaining summary
+  local plan used5 reset5 used7 reset7 summary
 
   if [ -n "$claude_error" ]; then
     printf '%sClaude usage unavailable%s (%s)\n' \
@@ -343,21 +378,11 @@ print_claude_text() {
     "$bold" "$cyan" "$reset" "$dim" "$plan" "$reset"
 
   if [ -n "$used5" ]; then
-    remaining=$((100 - used5))
-    _bar "$remaining"
-    printf '  5h %s[%s%s%s]%s %s%3d%%%s left %s· %d%% used%s\n' \
-      "$dim" "$usage_color" "$bar" "$dim" "$reset" \
-      "$usage_color" "$remaining" "$reset" "$dim" "$used5" "$reset"
-    printf '     %s↳ resets %s%s\n' "$dim" "$reset5" "$reset"
+    _print_claude_window 5h "$used5" "$reset5"
   fi
 
   if [ -n "$used7" ]; then
-    remaining=$((100 - used7))
-    _bar "$remaining"
-    printf '  7d %s[%s%s%s]%s %s%3d%%%s left %s· %d%% used%s\n' \
-      "$dim" "$usage_color" "$bar" "$dim" "$reset" \
-      "$usage_color" "$remaining" "$reset" "$dim" "$used7" "$reset"
-    printf '     %s↳ resets %s%s\n' "$dim" "$reset7" "$reset"
+    _print_claude_window 7d "$used7" "$reset7"
   fi
 
   if [ -z "$used5" ] && [ -z "$used7" ]; then
