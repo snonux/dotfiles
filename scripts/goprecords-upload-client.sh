@@ -130,7 +130,15 @@ _main() {
 	trap 'rm -f "$tmp"' 0 INT TERM HUP
 
 	upload records "$records_path"
+	_upload_uprecords
+	_upload_host_info
+}
 
+# _upload_uprecords — when uprecords is installed, upload its table (txt)
+# and, if there is one, the current-session line (cur.txt). Uses the
+# global scratch file $tmp set up by _main. Called plainly, so set -e
+# still stops at the first failed upload.
+_upload_uprecords() {
 	if command -v uprecords >/dev/null 2>&1; then
 		uprecords -a -m 100 >"$tmp"
 		upload txt "$tmp"
@@ -139,7 +147,13 @@ _main() {
 			upload cur.txt "$tmp"
 		fi
 	fi
+}
 
+# _upload_host_info — upload the OS (os.txt) and CPU (cpuinfo.txt)
+# description from the best source this platform has: Linux files, the
+# BSD dmesg.boot, or uname/sysctl output written to the global $tmp.
+# Called plainly, as above.
+_upload_host_info() {
 	if test -r /etc/os-release; then
 		upload os.txt /etc/os-release
 	elif test -r /var/run/dmesg.boot; then
