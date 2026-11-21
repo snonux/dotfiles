@@ -1258,4 +1258,72 @@ sg4_left=$(find "$TEST_ROOT/dg4-dest-sg4race/dg4user" -maxdepth 1 -name '.immich
 [[ "$sg4_left" -eq 0 ]] \
     || fail "sg4 race: declined rename left $sg4_left temp file(s) behind"
 
+# --- pg4: download_assets output and counters, pinned exactly ---
+# Characterization checks written before download_assets was split into
+# helpers: every outcome a row can have (downloaded, skipped, each refusal,
+# duplicate id) with the exact progress lines, error lines and summary.
+# The curl in PATH is the dg4 fake: any /original URL gets 'payload'.
+declare -r PG4_DIR="$TEST_ROOT/pg4/acct"
+mkdir -p "$PG4_DIR/${ID_B}_isdir.jpg"
+printf 'old\n' >"$PG4_DIR/${ID_A}_have.jpg"
+ln -s "$PG4_DIR/${ID_A}_have.jpg" "$PG4_DIR/${ID_C}_link.jpg"
+printf '%s\n' \
+    "${ID_OK}"$'\tnew.jpg' \
+    "${ID_A}"$'\thave.jpg' \
+    "${ID_B}"$'\tisdir.jpg' \
+    "${ID_C}"$'\tlink.jpg' \
+    "${ID_ABS}"$'\t/abs.jpg' \
+    $'not-a-uuid\tx.jpg' \
+    "${ID_OK}"$'\tagain.jpg' \
+    >"$TEST_ROOT/pg4-list"
+set +e
+download_assets 'fake-key' "$PG4_DIR" "$TEST_ROOT/pg4-list" \
+    >"$TEST_ROOT/pg4-out" 2>"$TEST_ROOT/pg4-err"
+pg4_rc=$?
+set -e
+[[ "$pg4_rc" -eq 1 ]] \
+    || fail "pg4: a duplicate id must make download_assets return 1, got $pg4_rc"
+pg4_want_out="    [1/7] downloaded: ${ID_OK}_new.jpg
+    [2/7] skip (exists): ${ID_A}_have.jpg
+    Done: 1 downloaded, 1 skipped (already exist), 4 refused (unsafe/invalid input or dest already present), 1 collisions (duplicate id/dest), 0 failed (download/write errors)"
+[[ "$(cat "$TEST_ROOT/pg4-out")" == "$pg4_want_out" ]] \
+    || fail "pg4: stdout changed: $(cat "$TEST_ROOT/pg4-out")"
+pg4_want_err="    [3/7] ERROR: refusing non-regular dest: '$PG4_DIR/${ID_B}_isdir.jpg'
+    [4/7] ERROR: refusing non-regular dest: '$PG4_DIR/${ID_C}_link.jpg'
+    [5/7] ERROR: refusing unsafe originalFileName: '/abs.jpg'
+    [6/7] ERROR: refusing unsafe asset id: 'not-a-uuid'
+    [7/7] ERROR: duplicate asset id '${ID_OK}' (earlier basename 'new.jpg', this 'again.jpg')"
+[[ "$(cat "$TEST_ROOT/pg4-err")" == "$pg4_want_err" ]] \
+    || fail "pg4: stderr changed: $(cat "$TEST_ROOT/pg4-err")"
+[[ "$(cat "$PG4_DIR/${ID_A}_have.jpg")" == old ]] \
+    || fail "pg4: the symlinked dest's target was overwritten"
+[[ ! -e "$PG4_DIR/${ID_OK}_again.jpg" ]] \
+    || fail "pg4: the duplicate id row was downloaded"
+
+# pg4: a rename that fails without placing the file (mv exits 1, nothing at
+# dest) is a write failure: counted as failed, temp removed, return 1.
+declare -r PG4_MV_BIN="$TEST_ROOT/pg4-mv-bin"
+mkdir -p "$PG4_MV_BIN"
+printf '#!/bin/sh\nexit 1\n' >"$PG4_MV_BIN/mv"
+chmod +x "$PG4_MV_BIN/mv"
+printf '%s\n' "${ID_FAIL}"$'\tnoplace.jpg' >"$TEST_ROOT/pg4-list"
+pg4_saved_path="$PATH"
+PATH="$PG4_MV_BIN:$PATH"
+set +e
+download_assets 'fake-key' "$PG4_DIR" "$TEST_ROOT/pg4-list" \
+    >"$TEST_ROOT/pg4-out" 2>"$TEST_ROOT/pg4-err"
+pg4_rc=$?
+set -e
+PATH="$pg4_saved_path"
+[[ "$pg4_rc" -eq 1 ]] \
+    || fail "pg4: a failed rename must make download_assets return 1, got $pg4_rc"
+[[ "$(cat "$TEST_ROOT/pg4-err")" == "    [1/1] ERROR: failed to place ${ID_FAIL}_noplace.jpg" ]] \
+    || fail "pg4: failed-rename stderr changed: $(cat "$TEST_ROOT/pg4-err")"
+grep -Fq '0 downloaded, 0 skipped (already exist), 0 refused (unsafe/invalid input or dest already present), 0 collisions (duplicate id/dest), 1 failed' \
+    "$TEST_ROOT/pg4-out" \
+    || fail "pg4: failed rename not counted as failed: $(cat "$TEST_ROOT/pg4-out")"
+pg4_left=$(find "$PG4_DIR" -maxdepth 1 -name '.immich-export.*' | wc -l)
+[[ "$pg4_left" -eq 0 ]] \
+    || fail "pg4: failed rename left $pg4_left temp file(s) behind"
+
 printf 'immich-export test: ok\n'
