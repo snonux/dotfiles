@@ -343,6 +343,8 @@ case "$url" in
         ;;
     */api/assets/bulk-upload-check)
         [[ "$body" == @* ]] && cat -- "${body#@}" >"${FAKE_CURL_LOG}.bulk-body"
+        # FAKE_BULK_FAIL: the check fails like curl -sf on an HTTP error.
+        [[ -n "${FAKE_BULK_FAIL:-}" ]] && exit 22
         resp="${FAKE_BULK_RESPONSE:-}"
         [[ -n "$resp" ]] || resp='{"results":[]}'
         printf '%s\n' "$resp"
@@ -454,6 +456,20 @@ grep -q 'failed to parse bulk-upload-check response' "$err_file" \
     || fail "missing parse error: $(<"$err_file")"
 if grep -Eq '/api/assets$' "$FAKE_CURL_LOG"; then
     fail "uploaded after an unparsable bulk-upload-check response"
+fi
+
+# Negative: a failed duplicate check (curl exit 22) stops the run before
+# any upload, instead of treating every file as new.
+reset_fake_logs
+if FAKE_BULK_FAIL=1 run_main "$EVIL_DIR" "$err_file"; then
+    fail "failed bulk-upload-check exited 0"
+fi
+grep -q 'bulk-upload-check failed' "$err_file" \
+    || fail "missing bulk-upload-check error: $(<"$err_file")"
+grep -Fq 'bulk-upload-check' "$FAKE_CURL_LOG" \
+    || fail "duplicate check was not attempted: $(cat "$FAKE_CURL_LOG")"
+if grep -Eq '/api/assets$' "$FAKE_CURL_LOG"; then
+    fail "uploaded after a failed bulk-upload-check"
 fi
 
 # --- Entry point: LAN down fails over to the public URL; no key, no run ---
