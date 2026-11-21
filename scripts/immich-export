@@ -16,7 +16,9 @@
 #   1. Discovery — paginate through all search results and collect asset IDs
 #   2. Download  — fetch each asset with real [X/total] progress
 #
-# Exits non-zero if any download fails or same-run id/dest collisions occur.
+# Exits non-zero if an account's API key is missing/empty, asset discovery
+# fails (search request or parse error on any page), any download fails, or
+# same-run id/dest collisions occur.
 # Path-unsafe names are refused (logged) without failing the whole run.
 
 set -euo pipefail
@@ -134,21 +136,28 @@ _path_is_under() {
 # Phase 1: paginate through all search results and print "id\tfilename" lines.
 # The API's 'total' field only reflects the current page size, not the grand
 # total, so we must walk all pages to know how many assets there are.
+#
+# Returns 1 if any search request or JSON parse fails. Every step is checked
+# explicitly: callers run this under 'if !', where bash ignores set -e for the
+# whole call tree, so a failed page would otherwise silently truncate the list.
 discover_assets() {
     local api_key="$1"
     local page=1
 
     while true; do
         local response
-        response=$(curl_immich -f "$CURL_SEARCH_TIMEOUT" -X POST \
+        if ! response=$(curl_immich -f "$CURL_SEARCH_TIMEOUT" -X POST \
             "$IMMICH_URL/api/search/metadata" \
             -H "x-api-key: $api_key" \
             -H "Content-Type: application/json" \
-            -d "{\"takenAfter\":\"$DATE_AFTER\",\"takenBefore\":\"$DATE_BEFORE\",\"type\":\"IMAGE\",\"size\":$PAGE_SIZE,\"page\":$page}")
+            -d "{\"takenAfter\":\"$DATE_AFTER\",\"takenBefore\":\"$DATE_BEFORE\",\"type\":\"IMAGE\",\"size\":$PAGE_SIZE,\"page\":$page}"); then
+            echo "    ERROR: discovery failed: search request for page $page failed" >&2
+            return 1
+        fi
 
         # Print id<TAB>filename for each asset on this page. Skip names that
         # contain tab/newline/CR — those would corrupt the TSV stream.
-        echo "$response" | python3 -c "
+        if ! printf '%s\n' "$response" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
 for item in d['assets']['items']:
@@ -160,11 +169,18 @@ for item in d['assets']['items']:
         )
         continue
     print(item['id'] + '\t' + name)
-"
+"; then
+            echo "    ERROR: discovery failed: cannot parse search response for page $page" >&2
+            return 1
+        fi
         # Use 'or ""' to handle null nextPage — .get() returns None when the key
         # exists with a JSON null value, and print(None) would yield "None" (non-empty).
+        # A parse failure here must not look like "no next page" (empty output).
         local next_page
-        next_page=$(echo "$response" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['assets'].get('nextPage') or '')")
+        if ! next_page=$(printf '%s\n' "$response" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['assets'].get('nextPage') or '')"); then
+            echo "    ERROR: discovery failed: cannot read nextPage for page $page" >&2
+            return 1
+        fi
 
         echo "    Discovery: page $page done..." >&2
         [[ -z "$next_page" ]] && break
@@ -306,7 +322,13 @@ download_assets_for_account() {
     trap 'rm -f -- "$asset_list"' EXIT
 
     echo "    Phase 1: discovering assets..."
-    discover_assets "$api_key" > "$asset_list"
+    # Checked explicitly (set -e is off under main's 'if !'). A partial list
+    # is never downloaded: the account fails instead of exporting a subset.
+    if ! discover_assets "$api_key" > "$asset_list"; then
+        rm -f -- "$asset_list"
+        trap - EXIT
+        return 1
+    fi
     echo "    Found $(wc -l < "$asset_list") images total"
 
     # Clean leftover download temps from a previously aborted run only.
@@ -328,6 +350,17 @@ download_assets_for_account() {
     rm -f -- "$asset_list"
     trap - EXIT
     return "$dl_rc"
+}
+
+# _export_account ACCOUNT — read the account's API key, then export it.
+# The key is read in its own checked step: passed as "$(_account_api_key ...)"
+# inside an 'if !' argument list, a die in $(...) only killed the subshell and
+# the account ran with an empty key (401 -> 0 assets -> counted as success).
+_export_account() {
+    local -r account="$1"
+    local api_key
+    api_key=$(_account_api_key "$account") || return 1
+    download_assets_for_account "$account" "$api_key"
 }
 
 main() {
@@ -395,7 +428,7 @@ main() {
 
     local -i account_failures=0
     for account in "${accounts[@]}"; do
-        if ! download_assets_for_account "$account" "$(_account_api_key "$account")"; then
+        if ! _export_account "$account"; then
             ((account_failures++)) || true
             echo "ERROR: export failed for account ${account@Q}" >&2
         fi
