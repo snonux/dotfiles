@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2310
+# (Test harness: its predicate calls in if/||/&& are the assertions and
+# every outcome is checked explicitly; same policy as tests/.shellcheckrc.)
+#
 # Exercise stabilize-video without real ffmpeg / GPU work.
 #
 # Covers the c33 failure mode: same basename in different directories must
@@ -1117,6 +1121,103 @@ grep -q $'^pass2\t'"$sandbox/staleout/clip.MOV"$'\t' "$STAB_FAKE_LOG" || {
   exit 1
 }
 printf 'ok: newer source vs stale out re-encodes under --delete-source\n'
+
+# --- mg4: failed .partial rename must abort, not verify the stale out ------
+# main runs _encode_verify_delete in a || list, so set -e is off there. An
+# unchecked mv used to leave the stale out in place; verify then passed on
+# it, wrote .srcid for the new master and --delete-source removed the
+# master although its encode never landed. A wrapper mv fails the rename
+# of clip a's .partial only; clip b follows, so the failed mv is not the
+# last command of the pass-2 loop (whose status would leak out by luck).
+mkdir -p "$sandbox/mvfail" "$sandbox/mvfail-bin"
+real_mv=$(command -v mv)
+cat > "$sandbox/mvfail-bin/mv" <<EOF
+#!/usr/bin/env bash
+for arg in "\$@"; do
+  if [[ "\$arg" == */stabilised-a.mp4.partial ]]; then
+    echo "fake mv: refusing \$arg" >&2
+    exit 1
+  fi
+done
+exec '$real_mv' "\$@"
+EOF
+chmod +x "$sandbox/mvfail-bin/mv"
+printf 'mvfail-old\n' > "$sandbox/mvfail/a.MOV"
+"$script" "$sandbox/mvfail/a.MOV" >/dev/null 2>&1 || {
+  echo "FAIL: mvfail keep-default prelude failed" >&2
+  exit 1
+}
+mv_out="$sandbox/mvfail/stabilised-a.mp4"
+cp -- "$mv_out" "$sandbox/mvfail-old-out"
+out_m=$(stat -c '%Y' -- "$mv_out")
+printf 'mvfail-NEW-footage\n' > "$sandbox/mvfail/a.MOV"
+touch -d "@$((out_m + 60))" -- "$sandbox/mvfail/a.MOV"
+printf 'mvfail-b\n' > "$sandbox/mvfail/b.MOV"
+mv_rc=0
+PATH="$sandbox/mvfail-bin:$PATH" "$script" --delete-source \
+  "$sandbox/mvfail/a.MOV" "$sandbox/mvfail/b.MOV" \
+  >"$sandbox/mvfail.out" 2>"$sandbox/mvfail.err" || mv_rc=$?
+if ((mv_rc == 0)); then
+  echo "FAIL: failed .partial rename exited 0" >&2
+  cat "$sandbox/mvfail.out" "$sandbox/mvfail.err" >&2
+  exit 1
+fi
+[[ -f "$sandbox/mvfail/a.MOV" ]] || {
+  echo "FAIL: failed .partial rename deleted the new master" >&2
+  cat "$sandbox/mvfail.out" "$sandbox/mvfail.err" >&2
+  exit 1
+}
+grep -q 'cannot move' "$sandbox/mvfail.err" || {
+  echo "FAIL: failed .partial rename printed no error" >&2
+  cat "$sandbox/mvfail.out" "$sandbox/mvfail.err" >&2
+  exit 1
+}
+cmp -s -- "$mv_out" "$sandbox/mvfail-old-out" || {
+  echo "FAIL: failed .partial rename changed the old out" >&2
+  exit 1
+}
+[[ ! -e "$mv_out.partial" ]] || {
+  echo "FAIL: failed .partial rename left the partial behind" >&2
+  exit 1
+}
+printf 'ok: mg4 negative — failed .partial rename aborts and keeps master\n'
+
+# --- mg4: a failed source rm on the fresh path is an error, not "deleted" -
+# The fresh path runs with errexit off; an unchecked rm reported "deleted
+# source" and exited 0 while the master was still there.
+mkdir -p "$sandbox/rmfail" "$sandbox/rmfail-bin"
+real_rm=$(command -v rm)
+cat > "$sandbox/rmfail-bin/rm" <<EOF
+#!/usr/bin/env bash
+for arg in "\$@"; do
+  if [[ "\$arg" == */rmfail/clip.MOV ]]; then
+    echo "fake rm: refusing \$arg" >&2
+    exit 1
+  fi
+done
+exec '$real_rm' "\$@"
+EOF
+chmod +x "$sandbox/rmfail-bin/rm"
+printf 'rmfail-master\n' > "$sandbox/rmfail/clip.MOV"
+rm_rc=0
+PATH="$sandbox/rmfail-bin:$PATH" "$script" --delete-source \
+  "$sandbox/rmfail/clip.MOV" \
+  >"$sandbox/rmfail.out" 2>"$sandbox/rmfail.err" || rm_rc=$?
+if ((rm_rc == 0)); then
+  echo "FAIL: failed source rm exited 0" >&2
+  cat "$sandbox/rmfail.out" "$sandbox/rmfail.err" >&2
+  exit 1
+fi
+if grep -q 'deleted source' "$sandbox/rmfail.out"; then
+  echo "FAIL: failed source rm reported 'deleted source'" >&2
+  exit 1
+fi
+grep -q 'cannot delete source' "$sandbox/rmfail.err" || {
+  echo "FAIL: failed source rm printed no error" >&2
+  cat "$sandbox/rmfail.out" "$sandbox/rmfail.err" >&2
+  exit 1
+}
+printf 'ok: mg4 negative — failed source rm exits 1, no false "deleted"\n'
 
 # --- p33: same whole-second content replace must not inspect-delete -------
 # Whole-second %Y equality is not enough: replace content, pin equal

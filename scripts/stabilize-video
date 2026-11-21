@@ -128,7 +128,11 @@ _srcid_matches() {
 # Out is stale vs master: source newer, or missing/mismatched .srcid.
 _out_stale_for_source() {
   local -r src="$1" out="$2"
+  # Both are pure predicates; a failed read inside reads as "stale", which
+  # forces a re-encode instead of a delete (fail closed).
+  # shellcheck disable=SC2310
   _source_newer_than_out "$src" "$out" && return 0
+  # shellcheck disable=SC2310
   ! _srcid_matches "$src" "$out"
 }
 
@@ -247,6 +251,7 @@ _is_positive_number() {
 # otherwise prints the refusal for SRC (invalid/empty ratios fail closed).
 _delete_ratios_valid() {
   local -r src="$1"
+  # shellcheck disable=SC2310 # pure predicate
   if ! _is_positive_number "$DELETE_MIN_DUR_RATIO" \
     || ! _is_positive_number "$DELETE_MIN_SIZE_RATIO"; then
     echo "stabilize-video: sanity check failed (invalid" \
@@ -266,6 +271,7 @@ _delete_sanity_ok() {
   local -i src_bytes out_bytes
   local src_rc=0 out_rc=0
 
+  # shellcheck disable=SC2310 # pure predicate (prints its refusal)
   _delete_ratios_valid "$src" || return 1
 
   set +e
@@ -274,6 +280,7 @@ _delete_sanity_ok() {
   out_dur=$(_probe_duration "$out")
   out_rc=$?
   set -e
+  # shellcheck disable=SC2310 # pure predicate
   if ((src_rc != 0 || out_rc != 0)) \
     || ! _is_positive_number "$src_dur" \
     || ! _is_positive_number "$out_dur"; then
@@ -313,6 +320,7 @@ _delete_sanity_ok() {
 _verify_out() {
   local -r out="$1"
   local dur rc=0
+  # shellcheck disable=SC2310 # one ffprobe call; status recorded in rc
   dur=$(_probe_duration "$out") || rc=1
   ffmpeg -v error -i "$out" -f null - >/dev/null 2>&1 || rc=1
   printf '%s\n' "$dur"
@@ -329,6 +337,7 @@ _fingerprint_is() {
 # Identity check for inspect-then-delete: OUT is still current for SRC
 # (source not newer, .srcid still matches).
 _out_current_for_source() {
+  # shellcheck disable=SC2310 # pure predicate
   ! _out_stale_for_source "$1" "$2"
 }
 
@@ -339,19 +348,28 @@ _out_current_for_source() {
 # _out_current_for_source) and handles refusals itself.
 # Sets _delete_verdict to deleted, sanity (refused; message already
 # printed) or identity (changed; nothing printed, caller decides keep vs
-# re-encode) and always returns 0. The verdict travels in a variable, not
-# the exit status, so callers run this outside any conditional and the rm
-# keeps the caller's errexit state: off on the fresh path (main runs
-# _encode_verify_delete in a || list), on for inspect-then-delete.
+# re-encode) and returns 0; a failed rm exits the run with status 1. The
+# verdict travels in a variable, not the exit status, so callers run this
+# outside any conditional. Errexit is off on the fresh path (main runs
+# _encode_verify_delete in a || list) and on for inspect-then-delete, so
+# the rm is checked explicitly rather than left to set -e.
 _delete_verdict=""
 _delete_source_if_safe() {
   local -r src="$1" out="$2"
   shift 2
   _delete_verdict=sanity
+  # shellcheck disable=SC2310 # predicate: non-zero means refuse delete
   _delete_sanity_ok "$src" "$out" || return 0
   _delete_verdict=identity
+  # shellcheck disable=SC2310 # identity predicate passed in by the caller
   "$@" || return 0
-  rm -f -- "$src"
+  # Checked explicitly: on the fresh path errexit is off, and a failed rm
+  # used to be reported as "deleted source" with exit 0. Abort the run,
+  # as set -e already did on the inspect path.
+  if ! rm -f -- "$src"; then
+    echo "stabilize-video: cannot delete source $src" >&2
+    exit 1
+  fi
   _delete_verdict=deleted
   echo "    deleted source: $src"
 }
@@ -393,7 +411,7 @@ _run_pass1() {
 
 # Pass 2 for sources in nameref $1: serial encode via .partial + rename.
 # Records each source's encode-start fingerprint in assoc nameref $2.
-# Returns 1 on the first encode failure (caller should exit).
+# Returns 1 on the first encode or rename failure (caller should exit).
 _run_pass2() {
   local -n _p2_todo=$1
   local -n _p2_fp=$2
@@ -423,7 +441,14 @@ _run_pass2() {
       echo "stabilize-video: pass 2 failed for $src" >&2
       return 1
     fi
-    mv -f -- "$partial" "$out"
+    # Checked explicitly: main runs this under a || list (set -e off). A
+    # failed rename left a stale out from an older master in place, which
+    # verify then accepted and --delete-source removed the new master.
+    if ! mv -f -- "$partial" "$out"; then
+      rm -f -- "$partial"
+      echo "stabilize-video: cannot move $partial to $out" >&2
+      return 1
+    fi
   done
 }
 
@@ -444,6 +469,7 @@ _verify_fresh() {
   sid=$(_srcid_for "$out")
   src_h=$(du -h "$src" | cut -f1)
   out_h=$(du -h "$out" | cut -f1)
+  # shellcheck disable=SC2310 # _verify_out returns its checks' status
   if ! dur=$(_verify_out "$out"); then
     printf '  %-28s %s -> %s  DECODE ERROR\n' "$base" "$src_h" "$out_h" >&2
     rm -f -- "$out" "$sid"
@@ -454,6 +480,7 @@ _verify_fresh() {
   # — a replaced master is often intentionally newer than the new out.
   # Do not write .srcid until TRF gate passes (else a missing-TRF keep
   # would enable a later inspect-then-delete that skips the TRF check).
+  # shellcheck disable=SC2310 # pure predicate; a failed read keeps source
   if ! _fingerprint_is "$src" "$fp"; then
     rm -f -- "$sid"
     printf '  %-28s %s -> %s  (%ss, decode OK; source changed — keeping source)\n' \
@@ -503,8 +530,13 @@ _encode_verify_delete() {
   local src
 
   [[ ${#_evd_todo[@]} -gt 0 ]] || return 0
+  # Each returns an explicit status: _assert_unique_trfs is a predicate,
+  # _run_pass1 checks every job's wait, _run_pass2 checks encode and rename.
+  # shellcheck disable=SC2310
   _assert_unique_trfs "${_evd_todo[@]}" || return 1
+  # shellcheck disable=SC2310
   _run_pass1 "${_evd_todo[@]}" || return 1
+  # shellcheck disable=SC2310
   _run_pass2 _evd_todo encode_fp || return 1
 
   # Verify fresh encodes decode cleanly; TRF presence gates delete.
@@ -575,6 +607,9 @@ _plan_one() {
   partial=$(_partial_for "$out")
   sid=$(_srcid_for "$out")
   rm -f -- "$partial"
+  # The checks below are pure predicates. A failed probe reads as
+  # "undecodable" or "stale", which re-encodes rather than deletes.
+  # shellcheck disable=SC2310
   if [[ -f "$out" ]]; then
     if _output_decodes "$out"; then
       if [[ -f "$src" ]] && _out_stale_for_source "$src" "$out"; then
@@ -618,6 +653,7 @@ _inspect_one() {
     echo "  skip (source already gone): $src"
     return 0
   fi
+  # shellcheck disable=SC2310 # pure predicate; failure reads as stale
   if _out_stale_for_source "$src" "$out"; then
     echo "  refuse delete (source changed since plan) — queue re-encode: $src"
     _io_late+=("$src")
@@ -625,6 +661,7 @@ _inspect_one() {
   fi
   src_h=$(du -h "$src" | cut -f1)
   out_h=$(du -h "$out" | cut -f1)
+  # shellcheck disable=SC2310 # _verify_out returns its checks' status
   if ! dur=$(_verify_out "$out"); then
     printf '  %-28s %s -> %s  DECODE ERROR — keeping source\n' \
       "$base" "$src_h" "$out_h" >&2
@@ -661,6 +698,8 @@ _inspect_phase() {
   if [[ ${#late_todo[@]} -gt 0 ]]; then
     echo ""
     echo "==> Late re-encode (source changed during inspect-then-delete)"
+    # set -e is off in this call tree; its steps are checked explicitly.
+    # shellcheck disable=SC2310
     _encode_verify_delete late_todo _ip_fail || exit 1
   fi
 }
@@ -674,7 +713,10 @@ _print_header() {
 }
 
 main() {
+  # Both return 1 explicitly on bad input and change nothing on disk.
+  # shellcheck disable=SC2310
   _parse_cli "$@" || exit 1
+  # shellcheck disable=SC2310
   _collect_mov_files "${_cli_paths[@]+"${_cli_paths[@]}"}" || exit 1
 
   if [[ ${#_mov_files[@]} -eq 0 ]]; then
@@ -700,6 +742,9 @@ main() {
   fi
 
   if [[ ${#todo[@]} -gt 0 ]]; then
+    # set -e is off in this call tree; its steps are checked explicitly
+    # (encode, rename, verify, delete gate and rm).
+    # shellcheck disable=SC2310
     _encode_verify_delete todo verify_fail || exit 1
   fi
 
