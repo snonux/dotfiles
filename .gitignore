@@ -2,3 +2,5 @@
 prompts/skills/synced/
 prompts/skills/.trash/
 __pycache__/
+# local safety copies of the gitsyncer config; kept on disk, not versioned
+gitsyncer/config.json.bak-*
