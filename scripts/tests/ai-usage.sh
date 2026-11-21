@@ -315,4 +315,45 @@ else
     fail "--help exited nonzero"
 fi
 
+# --- pg4: exact Claude text output and credential failures, pinned before
+# _claude_fetch and print_claude_text were split ---------------------------
+unset FAKE_CODEX FAKE_CURL_EXIT || true
+FAKE_STATUS=200
+FAKE_BODY="$TEST_ROOT/claude-ok.json"
+B=$'\033[1m' D=$'\033[2m' C=$'\033[36m' G=$'\033[32m' Y=$'\033[33m'
+Z=$'\033[0m'
+# Only the Claude section (after the blank line) is compared; the fake
+# codex from the Codex section above is on PATH by now.
+out=$(run timeout 20 "$TARGET" --color always) || fail "pg4: colour run failed"
+[[ "${out#*$'\n\n'}" == "${B}${C}Claude usage${Z} ${D}(max)${Z}
+  5h ${D}[${Y}███░░░░░░░${D}]${Z} ${Y} 38%${Z} left ${D}· 62% used${Z}
+     ${D}↳ resets 2026-10-29T19:00:00Z${Z}
+  7d ${D}[${G}██████░░░░${D}]${Z} ${G} 65%${Z} left ${D}· 35% used${Z}
+     ${D}↳ resets 2026-11-02T00:00:00Z${Z}" ]] \
+    || fail "pg4: colour text output changed: ${out@Q}"
+
+# Only a five_hour window, 85% left (green), and no subscriptionType.
+declare -r PG4_CLAUDE="$TEST_ROOT/claude-pg4"
+mkdir -p "$PG4_CLAUDE"
+printf '%s\n' '{"claudeAiOauth":{"accessToken":"t"}}' >"$PG4_CLAUDE/.credentials.json"
+printf '%s\n' '{"five_hour":{"utilization":15,"resets_at":null}}' >"$FAKE_BODY"
+out=$(run env CLAUDE_CONFIG_DIR="$PG4_CLAUDE" timeout 20 "$TARGET" --color never) \
+    || fail "pg4: five-hour-only run failed"
+[[ "${out#*$'\n\n'}" == "Claude usage (unknown)
+  5h [████████░░]  85% left · 15% used
+     ↳ resets unknown" ]] \
+    || fail "pg4: five-hour-only output changed: ${out@Q}"
+
+# Credentials that do not parse, and a sign-in without a token.
+printf 'not json\n' >"$PG4_CLAUDE/.credentials.json"
+out=$(run env CLAUDE_CONFIG_DIR="$PG4_CLAUDE" timeout 20 "$TARGET" --color never) \
+    || fail "pg4: bad-credentials run failed"
+[[ "$(tail -n 1 <<<"$out")" == 'Claude usage unavailable (could not read the Claude Code credentials)' ]] \
+    || fail "pg4: bad-credentials message changed: ${out@Q}"
+printf '%s\n' '{"claudeAiOauth":{}}' >"$PG4_CLAUDE/.credentials.json"
+out=$(run env CLAUDE_CONFIG_DIR="$PG4_CLAUDE" timeout 20 "$TARGET" --color never) \
+    || fail "pg4: no-token run failed"
+[[ "$(tail -n 1 <<<"$out")" == 'Claude usage unavailable (Claude Code is not signed in)' ]] \
+    || fail "pg4: no-token message changed: ${out@Q}"
+
 printf 'ok: ai-usage checks passed\n'
