@@ -20,44 +20,15 @@ fail() {
     exit 1
 }
 
-code_lines() {
-    grep -Ev '^[[:space:]]*(#|$)' "$TARGET"
-}
-
 bash -n "$TARGET" || fail "bash -n failed"
 shellcheck -x -S warning "$TARGET" || fail "shellcheck failed"
 
-head -n 5 "$TARGET" | grep -Eq '^#!/usr/bin/env bash$' \
+# Kept as a source check: env-bash over /bin/bash only matters on hosts
+# without /bin/bash, so this machine cannot observe it.
+head -n 1 "$TARGET" | grep -Eq '^#!/usr/bin/env bash$' \
     || fail "missing #!/usr/bin/env bash shebang"
-# code_lines goes through here-strings, not pipes: grep -q exits at the
-# first match, and under pipefail the SIGPIPE in code_lines made a check
-# fail at random (seen on the mktemp check once the script grew).
-grep -Eq '^set -euo pipefail$' <<<"$(code_lines)" \
-    || fail "missing set -euo pipefail"
-if grep -Eq '^#!/bin/bash$' <<<"$(code_lines)"; then
-    fail "still uses #!/bin/bash"
-fi
-if grep -Eq '^set -e$' <<<"$(code_lines)"; then
-    fail "still uses bare set -e"
-fi
-
-# Fail-closed nmcli: temp file + mapfile, not process-sub (masks failures).
-grep -Fq 'mktemp' <<<"$(code_lines)" \
-    || fail "missing mktemp for active-connections list"
-if grep -Eq '<[[:space:]]*<\(' <<<"$(code_lines)"; then
-    fail "active connections still use process substitution (masks nmcli failures)"
-fi
-
-# u33: DNS list comes from shared inventory (pi2/pi3 + fallbacks).
-# Prefer direct greps (avoid pipefail+SIGPIPE from grep -q early-close).
-grep -Eq '^[[:space:]]*source[[:space:]].*lib/f3s-hosts\.sh' "$TARGET" \
-    || fail "must source lib/f3s-hosts.sh"
-# shellcheck disable=SC2016 # literal $ in the regex, not an expansion
-grep -Eq '^PIHOLE_DNS="\$F3S_PIHOLE_DNS"' "$TARGET" \
-    || fail "PIHOLE_DNS must be set from F3S_PIHOLE_DNS"
-if grep -Eq '^PIHOLE_DNS="192\.168\.1\.' "$TARGET"; then
-    fail "PIHOLE_DNS still hardcodes literal IPs"
-fi
+# Strict mode, fail-closed nmcli listing (no process substitution) and the
+# inventory DNS list are checked by running the script below, not grepped.
 
 # set -u / mock nmcli smoke: exercise status path without real NetworkManager.
 mkdir -p "$TEST_ROOT/bin"
@@ -177,6 +148,29 @@ for toggle_args in toggle ''; do
     grep -Fq 'con up Wired connection 1' "$NMCLI_LOG" \
         || fail "toggle '${toggle_args}' did not bring the connection up"
 done
+
+# u33: 'on' writes the inventory's F3S_PIHOLE_DNS (lib/f3s-hosts.sh) as
+# the connection's DNS list.
+# shellcheck disable=SC2016 # the child bash expands $1
+inv_dns=$(bash -c 'source "$1"; printf %s "$F3S_PIHOLE_DNS"' \
+    bash "${SCRIPT_DIR}/../lib/f3s-hosts.sh") || fail "cannot read inventory"
+[[ -n "$inv_dns" ]] || fail "inventory has no F3S_PIHOLE_DNS"
+run_target on on
+((run_status == 0)) || fail "on exited $run_status: $(cat "$TEST_ROOT/on.err")"
+grep -Fxq "con mod Wired connection 1 ipv4.dns $inv_dns" "$NMCLI_LOG" \
+    || fail "on did not set the inventory DNS list: $(cat "$NMCLI_LOG")"
+# A copy of the unmodified script beside a stub inventory follows the stub,
+# so the list is not a hardcoded copy of the inventory's IPs.
+mkdir -p "$TEST_ROOT/layout/lib"
+cp "$TARGET" "$TEST_ROOT/layout/pihole-dns-toggle"
+printf '%s\n' "F3S_PIHOLE_DNS='10.9.9.1 10.9.9.2'" \
+    >"$TEST_ROOT/layout/lib/f3s-hosts.sh"
+: >"$NMCLI_LOG"
+PATH="$TEST_ROOT/bin:/usr/bin:/bin" NMCLI_LOG="$NMCLI_LOG" \
+    "$TEST_ROOT/layout/pihole-dns-toggle" on >/dev/null 2>"$TEST_ROOT/stub.err" \
+    || fail "stub-inventory on failed: $(cat "$TEST_ROOT/stub.err")"
+grep -Fxq 'con mod Wired connection 1 ipv4.dns 10.9.9.1 10.9.9.2' "$NMCLI_LOG" \
+    || fail "DNS list does not follow lib/f3s-hosts.sh: $(cat "$NMCLI_LOG")"
 
 : >"$NMCLI_LOG"
 set +e
