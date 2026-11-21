@@ -197,14 +197,24 @@ grep -q 'quicklog-drain-e2e: unknown mode' "$out" || {
 }
 rm -f "$out"
 
-# Kept as a source check: the fake dart's listing runs only inside the
-# protocol-fake phase (needs Dart); the null-safe idiom it must use is
-# exercised by the behavioural listing check below.
-# z33: fake dart must not list objects via unquoted $(ls|sort).
+# Kept as source checks: the fake dart's object listing runs only inside the
+# protocol-fake phase, which needs Dart, so its behaviour cannot be run here.
+# These three checks are the only thing that pins what protocol-fake.sh
+# itself does. The behavioural check below runs its own copy of the idiom on
+# a temporary directory and never reads protocol-fake.sh: it shows the idiom
+# is null-safe, not that the harness uses it.
+# z33: fake dart must not list objects via unquoted $(ls|sort) ...
 if grep -nE 'for[[:space:]]+obj[[:space:]]+in[[:space:]]+\$\(ls' \
     "$E2E_DIR/protocol-fake.sh"; then
     die "protocol-fake still uses unquoted \$(ls ...) object listing"
 fi
+# ... and must use the null-safe listing, so a name with whitespace stays one
+# entry. Without these two checks any other word-splitting form, for example
+# obj_paths=($(find ... | sort)), would pass unnoticed.
+grep -qE 'find .* -print0 \| sort -z' "$E2E_DIR/protocol-fake.sh" \
+    || die "protocol-fake missing find -print0 | sort -z object listing"
+grep -qE 'mapfile -d' "$E2E_DIR/protocol-fake.sh" \
+    || die "protocol-fake missing mapfile -d (must not while-read listing on stdin)"
 
 # Behavioral: null-safe list keeps a whitespace name as one entry.
 list_tmp=$(mktemp -d)
