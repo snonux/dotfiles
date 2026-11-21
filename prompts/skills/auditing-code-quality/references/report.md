@@ -25,6 +25,9 @@ signals, not findings on their own. Cite the actual requirement and impact for
 convention findings; local preferences do not make code defective.
 Complexity, duplication, and mutation scores likewise direct attention to code;
 they do not establish a defect without a failing behavior or concrete cost.
+A surviving mutant does show a concrete cost when the behaviour it changes
+matters: a regression there would ship undetected. Name that behaviour in the
+finding, not the score ([metrics.md](metrics.md#3-test-quality-pass-c)).
 
 Use these severity levels for design and convention findings:
 
@@ -55,7 +58,11 @@ Prefer a test that enters through the affected public boundary and checks an
 observable result. If a faithful automated test is impractical, name the
 manual or integration check instead of adding a test that merely mirrors the
 implementation. For repeated failures, address the common cause rather than
-filing separate tasks for each symptom.
+filing separate tasks for each symptom. When the same violation or pattern
+recurs at many sites, the remedy is a lever: one lint rule, analyzer, or
+codemod that fixes the sites and keeps them fixed, filed as one finding.
+A problem that an earlier audit already fixed and that has come back is one
+finding about why it recurs, not another local fix.
 
 ### Finding Format
 
@@ -89,6 +96,22 @@ unrun checks passed.
 Count confirmed defects discovered in any pass under **Bugs / defects**, using
 **find-code-bugs** classification and task rules. Count each distinct finding
 once in its primary category; principle names remain context, not separate rows.
+
+### Hotspots
+
+The pass A ranking from [metrics.md](metrics.md#1-hotspot-ranking-pass-a):
+the top 10 rows, plus any row a finding refers to, with the finding or task ID
+next to it. Also list the duplication, dead-code, and mutation commands with
+their headline results (for example, "gremlins on ./internal/store: 41 killed,
+6 lived, 3 not covered"). A hotspot with no finding next to it is fine. It
+means the code was read and judged acceptable, so say that rather than
+inventing a finding.
+
+```
+| CRAP  | CC | COV% | Location              | Func         | Finding / task |
+|-------|----|------|-----------------------|--------------|----------------|
+| 240.0 | 15 | 0    | cmd/x/main.go:222     | runWatchMode | 3 / task 12    |
+```
 
 ### Top 5 Priorities
 

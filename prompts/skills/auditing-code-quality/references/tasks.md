@@ -24,6 +24,35 @@ LOW findings do not create tasks or become closure dependencies. Each such task 
 - Be tagged with `+codequality` (separate arg, never quoted together with the description; `ask` rejects hyphens — do **not** use `+code-quality`).
 - Set priority via the `priority:H` or `priority:M` modifier (separate arg).
 
+**Lever tasks:** when one violation or pattern recurs at many sites, create a
+single task to build the lint rule, analyzer, or codemod that fixes the sites
+and enforces the rule from then on. List the known sites in its annotation
+instead of creating one task per site.
+
+**Fix procedure (annotate every finding task, bug tasks included):** the
+fixer works in a fresh context, so state how the fix must be proven. Add the
+annotation that matches the task's kind:
+
+- **Bug:** "Write a test through the affected public behaviour that fails
+  first, and see it fail for the reason in this task. Make the smallest change
+  that makes it pass. Fix the cause; a guard that only hides the symptom is
+  not a fix. If an honest automated test is impractical, run and record the
+  manual or integration check named here."
+- **Refactor or structural fix:** "Pin the current behaviour first with
+  characterization tests at the public boundary. Change the structure. Prove
+  the same tests still pass unchanged. Remove what is unneeded before adding
+  any abstraction."
+- **Redesign:** "Describe the design you would build if this requirement had
+  existed from the start, then deliver it in small steps that can each be
+  checked. Do not bolt it onto the current design." Name the first step.
+- **Unpinned behaviour (surviving mutants):** "Add tests that fail when this
+  behaviour breaks. Verify by re-running the mutation command recorded here and
+  confirming those mutants are now killed." Include the command and the
+  mutant locations.
+
+If the fix touches a hotspot from the baseline, include its row (CRAP, CC,
+COV%, function) so the fixer can confirm the score dropped.
+
 **Exact command format** — keep each part as a separate argument, never quoted together:
 
 ```bash
@@ -52,7 +81,7 @@ IDs and the `+codequality` IDs). Then create the gate task with all of them as
 dependencies in a single `ask add`:
 
 ```bash
-ask add +audit depends:<bug1>,<bug2>,...,<cq1>,<cq2>,... "Finalize <project> code-quality audit: verify all audit-driven fixes landed, re-run guardrails (build/vet/test -race/gofmt -l/linters), close out verification"
+ask add +audit depends:<bug1>,<bug2>,...,<cq1>,<cq2>,... "Finalize <project> code-quality audit: verify all audit-driven fixes landed, re-run guardrails (build/vet/test -race/gofmt -l/linters), compare hotspot scores with the baseline, close out verification"
 ```
 
 Tag it `+audit` (separate arg, never quoted with the description). Do **not** set
@@ -65,6 +94,11 @@ it with the closure checklist so a fresh-context agent can finish verification:
   scope, to re-run when this task becomes READY (the language's
   build/test/lint/gofmt-equivalents; for Go: `go build ./...`, `go vet ./...`,
   `go test -race ./...`, `gofmt -l .`, `errcheck ./...`).
+- The metrics baseline from pass A: the exact hotspot commands and the baseline
+  rows (top 10 plus every function a finding task targets). When the gate is
+  READY, re-run them and compare as described in
+  [metrics.md](metrics.md#4-baseline-and-closure-gate-comparison).
+  Skip this item if no metrics could run in pass A, and say so in the annotation.
 - Instruction to confirm `ask list` shows every dependent done, then mark this
   gate done — and note that a separate tagging task (workflow §6) still owns
   the `audit/<date>` git marker afterward.

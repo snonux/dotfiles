@@ -25,11 +25,22 @@ and evidence across passes, then produce one report and remediation batch.
   for system structure.
 - Tracking: [agent-task-management](../agent-task-management/SKILL.md) owns
   `ask` syntax; [audit tagging](../audit/references/tagging.md) owns git markers.
+- Metrics: [references/metrics.md](references/metrics.md) for the CRAP hotspot
+  ranking (bundled `scripts/gocrap`), dead code, test quality and mutation
+  testing, and the baseline the closure gate re-checks.
 
 **go-best-practices** and **solid-principles** have explicit-only invocation
 policies in `agents/openai.yaml`; read their files directly. Load other skills
 through the available skill mechanism or read their files. Use references
 within the passes below rather than running a separate full audit per skill.
+
+## Scripts
+
+- `scripts/gocrap/`: stdlib-only Go tool that ranks functions by CRAP score.
+  Usage is in [references/metrics.md](references/metrics.md#1-hotspot-ranking-pass-a).
+  `main.go` holds the flags, `profile.go` parses coverprofiles, `funcs.go`
+  scores and prints, and `main_test.go` is the test suite
+  (`go -C scripts/gocrap test ./...`; module file `go.mod`).
 
 ## Workflow
 
@@ -64,6 +75,11 @@ run the appropriate checks once. For Go, load **go-best-practices** and include
 `go build ./...`, `go vet ./...`, `go test -race ./...`, `gofmt -l .`, and
 `errcheck ./...` where the environment supports them. Follow its verification
 honesty rules for missing tools, dependencies, or expensive suites.
+
+Then measure, following [references/metrics.md](references/metrics.md) §1–2:
+rank functions by CRAP score (complexity combined with test coverage), list
+duplicated code, and run the dead-code checks. Passes B and C start from the
+top of that ranking. Keep the ranking as the baseline for the closure gate.
 
 Record commands, scope, results, and blockers. Diagnostics are investigation
 inputs; establish their impact before classifying them as defects or design
@@ -103,10 +119,19 @@ finding for an underlying problem, even when multiple lenses describe it.
 Look for domain states the code permits but the product forbids, repeated
 validation of the same input after its entry boundary, non-idempotent retry
 paths, and shared mutable state that could be separated. Recommend removal of
-unneeded code or indirection before adding a new abstraction. Use complexity,
-duplication, coverage, or mutation tools only when available and likely to
-resolve a specific risk; their scores are investigation signals, not universal
-pass/fail thresholds.
+unneeded code or indirection before adding a new abstraction. Metric scores
+from pass A decide where to look; they are not pass/fail thresholds.
+
+Review test quality around the top hotspots and each finding using
+[references/metrics.md](references/metrics.md) §3: would the tests still pass
+if the code did nothing? Run time-boxed mutation testing on the two or three
+riskiest packages. An unpinned behaviour whose failure matters is a finding.
+
+If earlier audits exist (`git tag -l 'audit/*'`, `ask completed +codequality`,
+`ask completed +bugfix`), check whether any current finding repeats a problem
+that an earlier audit already fixed. Report a repeat as one finding about why
+it keeps coming back: the shared premise, missing enforcement, or the design
+that invites it. Do not file another local fix for it.
 
 For large scopes, sub-agents may review distinct modules or risks. Give them
 the shared rules, existing findings and check results, and the §5–6 ownership
@@ -124,13 +149,18 @@ Bug tasks already exist from **find-code-bugs** (one per confirmed bug). Create 
 `+codequality` task for every distinct, evidence-supported HIGH and MEDIUM design
 or convention finding that is not already covered by a bug task. Advisory
 observations do not create tasks or block audit closure.
-Exact `ask add` format and what to annotate:
+When one problem recurs at many sites, file one task for the lever (a lint
+rule, analyzer, or codemod that fixes and enforces it) instead of one per site.
+Annotate every finding task, bug tasks included, with the fix procedure for its
+kind: failing test first for bugs, pin behaviour before refactoring.
+Exact `ask add` format, fix procedures, and what to annotate:
 [references/tasks.md](references/tasks.md#4-create-tasks-for-findings).
 
 ### 5. Create the Audit-Closure Gate Task (mandatory)
 
 One `+audit` gate task that depends on every finding task and re-verifies the
-codebase once they are done. Skip rules and the zero-findings path:
+codebase once they are done, including the hotspot scores compared with the
+pass A baseline. Skip rules and the zero-findings path:
 [references/tasks.md](references/tasks.md#5-create-the-audit-closure-gate-task-mandatory).
 
 ### 6. Create the Audit-Marker Tagging Task (mandatory last task)
