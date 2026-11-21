@@ -233,6 +233,38 @@ wake() {
     return 1
 }
 
+# _shelly_auth_config prints the curl config line carrying the Shelly digest
+# credentials, or explains on stdout why it cannot and returns 1.
+#   $1 — "on" or "off", for the messages
+# Credentials reach curl as this config line on stdin (--config -), never on
+# argv, which every local user can read via ps and /proc/<pid>/cmdline. The
+# value stays in shell variables (never exported, so not in curl's
+# environment) and travels by command substitution and here-string, neither
+# of which spawns a helper process with it in argv; bash 5.1+ feeds a
+# here-string through a pipe, older bash through a mode-0600 temp file it
+# unlinks at once.
+_shelly_auth_config() {
+    local label=$1
+    local pass=''
+    if [[ -r "$SHELLY_PASS_FILE" ]]; then
+        pass="$(head -n 1 "$SHELLY_PASS_FILE" | tr -d '\r\n')"
+    fi
+
+    if [[ -z "$pass" ]]; then
+        echo "  ⚠️  No Shelly password found at $SHELLY_PASS_FILE"
+        echo "     — cannot switch plug $label (digest auth required)."
+        return 1
+    fi
+    # The password sits inside a double-quoted config string, where '"' and
+    # '\' would end or escape it.
+    if [[ "$pass" == *[\"\\]* ]]; then
+        echo "  ✗ Shelly password in $SHELLY_PASS_FILE contains a double quote or backslash"
+        echo "     — cannot switch plug $label."
+        return 1
+    fi
+    printf 'user = "admin:%s"\n' "$pass"
+}
+
 # shelly_set turns the rack-fan Shelly plug on or off.
 #   $1 — "true" to power on, "false" to power off
 shelly_set() {
@@ -241,16 +273,10 @@ shelly_set() {
     local status
     [[ "$on" == "false" ]] && label="off"
 
-    local auth=()
-    if [[ -r "$SHELLY_PASS_FILE" ]]; then
-        local pass
-        pass="$(head -n 1 "$SHELLY_PASS_FILE" | tr -d '\r\n')"
-        [[ -n "$pass" ]] && auth=(--digest -u "admin:$pass")
-    fi
-
-    if [[ ${#auth[@]} -eq 0 ]]; then
-        echo "  ⚠️  No Shelly password found at $SHELLY_PASS_FILE"
-        echo "     — cannot switch plug $label (digest auth required)."
+    local auth_config
+    # On failure the captured text is the explanation; show it as before.
+    if ! auth_config="$(_shelly_auth_config "$label")"; then
+        printf '%s\n' "$auth_config"
         return 1
     fi
 
@@ -261,10 +287,11 @@ shelly_set() {
     # Set the output using the query form supported by this plug's firmware,
     # then read status back. A successful HTTP response alone is not enough:
     # Shelly RPC errors can be JSON bodies.
-    if curl -sS --fail --max-time 5 "${auth[@]}" \
-        "http://${SHELLY_IP}/rpc/Switch.Set?id=0&on=${on}" >/dev/null &&
-        status="$(curl -sS --fail --max-time 5 "${auth[@]}" \
-        "http://${SHELLY_IP}/rpc/Switch.GetStatus?id=0")" &&
+    if curl -sS --fail --max-time 5 --digest --config - \
+        "http://${SHELLY_IP}/rpc/Switch.Set?id=0&on=${on}" \
+        <<<"$auth_config" >/dev/null &&
+        status="$(curl -sS --fail --max-time 5 --digest --config - \
+        "http://${SHELLY_IP}/rpc/Switch.GetStatus?id=0" <<<"$auth_config")" &&
         grep -Eq "\"output\"[[:space:]]*:[[:space:]]*${on}([,}])" \
         <<<"$status"; then
         echo "  ✓ Shelly plug switched $label"
