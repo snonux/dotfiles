@@ -536,4 +536,63 @@ set -e
 grep -q 'GOPRECORDS_RECORDS_FILE' "$TEST_ROOT/norecords.err" \
     || fail "missing records error text: $(cat "$TEST_ROOT/norecords.err")"
 
+# --- pg4: upload order and payloads, pinned before _main was split ---
+# The spy logs "<kind> <first line of the uploaded file>" per call. A
+# uprecords shell function stands in for the real tool; UPREC_CUR=yes adds
+# a current-session line ('->'), which is what triggers the cur.txt upload.
+# Only the branches this host can reach are pinned: /etc/os-release and
+# /proc/cpuinfo exist here, so the dmesg/uname/sysctl fallbacks are not run.
+# run_main_pg4 LOG [VAR=VALUE...]
+run_main_pg4() {
+    local -r log="$1"
+    shift
+    : >"$log"
+    # shellcheck disable=SC2016 # the child bash expands these
+    env -i \
+        PATH="/bin:/usr/bin" \
+        HOME="$TEST_ROOT/home" \
+        GOPRECORDS_HOST=earth \
+        GOPRECORDS_TOKEN_FILE="$token_dir/token" \
+        GOPRECORDS_RECORDS_FILE="$records_file" \
+        SPY_LOG="$log" \
+        "$@" \
+        bash -c '
+GOPRECORDS_UPLOAD_LIB=yes . "$1"
+curl() {
+    local file="" url=""
+    while [ $# -gt 0 ]; do
+        case $1 in
+            --data-binary) file=${2#@}; shift 2 ;;
+            http*) url=$1; shift ;;
+            *) shift ;;
+        esac
+    done
+    cat >/dev/null
+    printf "%s %s\n" "${url##*/}" "$(head -n 1 "$file")" >>"$SPY_LOG"
+}
+uprecords() {
+    if [ "$*" = "-a -m 100" ]; then echo "uprecords-table"; return; fi
+    echo "     1  some old session"
+    [ "${UPREC_CUR:-}" = yes ] && echo "->   2  current session"
+    return 0
+}
+_main
+' bash "$CLIENT"
+}
+pg4_log="$TEST_ROOT/pg4-spy.log"
+[[ -r /etc/os-release && -r /proc/cpuinfo ]] \
+    || fail "pg4: this check expects /etc/os-release and /proc/cpuinfo"
+pg4_tail="os.txt $(head -n 1 /etc/os-release)
+cpuinfo.txt $(head -n 1 /proc/cpuinfo)"
+pg4_records="records $(head -n 1 "$records_file")"
+run_main_pg4 "$pg4_log" || fail "pg4: _main run failed"
+[[ "$(cat "$pg4_log")" == "$pg4_records
+txt uprecords-table
+$pg4_tail" ]] || fail "pg4: uploads changed: $(cat "$pg4_log")"
+run_main_pg4 "$pg4_log" UPREC_CUR=yes || fail "pg4: _main run (cur) failed"
+[[ "$(cat "$pg4_log")" == "$pg4_records
+txt uprecords-table
+cur.txt ->   2  current session
+$pg4_tail" ]] || fail "pg4: uploads with a current session changed: $(cat "$pg4_log")"
+
 printf 'goprecords-upload-client test: ok\n'
