@@ -575,4 +575,44 @@ reset_calls
 assert_rsync_shape 0 "${DUP_A}/" "mock.host:tempbackup/Notes" yes
 assert_rsync_shape 1 "${DISTINCT_B}/" "mock.host:tempbackup/Other" yes
 
+# --- pg4: option exit statuses and streams, pinned before main's split ---
+# Usage errors exit 2 with the error on stderr and the usage on stdout;
+# --help exits 0 with the usage on stdout. None of them runs rsync.
+# expect_usage WANT_RC WANT_ERR ARGS... — check status, exact stderr, usage
+# on stdout and no rsync call.
+expect_usage() {
+    local -r want_rc="$1" want_err="$2"
+    shift 2
+    local -i rc=0
+    reset_calls
+    "$TEMP_BACKUP" "$@" >"$TEST_ROOT/out_pg4" 2>"$TEST_ROOT/err_pg4" || rc=$?
+    ((rc == want_rc)) || fail "pg4 '$*': want rc $want_rc, got $rc"
+    [[ "$(cat "$TEST_ROOT/err_pg4")" == "$want_err" ]] \
+        || fail "pg4 '$*': stderr changed: $(cat "$TEST_ROOT/err_pg4")"
+    [[ "$(head -n 1 "$TEST_ROOT/out_pg4")" == 'Usage: temp-backup [-n] [-d DEST] [--delete] [--] [DIR ...]' ]] \
+        || fail "pg4 '$*': usage missing on stdout: $(cat "$TEST_ROOT/out_pg4")"
+    [[ "$(call_count)" -eq 0 ]] || fail "pg4 '$*': rsync ran"
+}
+expect_usage 2 'Option -d requires an argument.' -n -d
+expect_usage 2 'Unknown option: --bogus' --bogus
+expect_usage 0 '' -h
+expect_usage 0 '' --delete --help
+
+# The plan block is printed once, before the first rsync, with every mode
+# flag; arguments after -- are sources even when they look like options.
+mkdir -p "$TEST_ROOT/pg4/-n"
+reset_calls
+(
+    cd "$TEST_ROOT/pg4" || exit 1
+    "$TEMP_BACKUP" -n --delete -d 'h:base' -- -n >"$TEST_ROOT/out_pg4"
+) || fail "pg4: dry run with -- -n failed"
+[[ "$(cat "$TEST_ROOT/out_pg4")" == 'Destination: h:base
+Mode:        DRY RUN (no data transferred)
+Delete:      yes (--delete)' ]] \
+    || fail "pg4: plan output changed: $(cat "$TEST_ROOT/out_pg4")"
+[[ "$(call_count)" -eq 1 ]] || fail "pg4: want 1 rsync call, got $(call_count)"
+read_call_argv 0 pg4_argv
+[[ "${pg4_argv[*]}" == '-av --delete --dry-run -- -n/ h:base/-n' ]] \
+    || fail "pg4: rsync argv changed: ${pg4_argv[*]@Q}"
+
 printf 'temp-backup test: ok\n'
