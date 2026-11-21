@@ -37,6 +37,11 @@ mkdir -p "$sandbox/bin" "$sandbox/a" "$sandbox/b" \
 # STAB_FAKE_REPLACE_SRC / STAB_FAKE_REPLACE_WITH / STAB_FAKE_REPLACE_ONCE —
 # during pass 2, once, overwrite REPLACE_SRC with REPLACE_WITH and touch
 # the ONCE marker (TOCTOU sibling hook).
+# STAB_FAKE_PROBE_REPLACE_SRC / _WITH / _AT / _COUNT — ffprobe overwrites
+# PROBE_REPLACE_SRC on the AT-th (default 2nd) probe of an encoded output,
+# counted in the COUNT file. Both delete paths probe the out once to verify
+# and once more in _delete_sanity_ok, so AT=2 lands between the sanity
+# check and the identity recheck right before rm.
 # STAB_FAKE_PASS1_SLEEP — seconds to hold each pass-1 slot (concurrency test).
 # STAB_FAKE_PASS1_ACTIVE / STAB_FAKE_PASS1_PEAK — flock-guarded counters for
 # live / peak concurrent pass-1 ffmpeg processes (y33 throttle).
@@ -172,6 +177,18 @@ path=${*: -1}
 # Encoded outputs carry OUT_FOR=; sources do not.
 # ${VAR-default} (no colon) preserves an explicitly empty duration.
 if [[ -f "$path" ]] && grep -q '^OUT_FOR=' "$path" 2>/dev/null; then
+  # Pre-rm TOCTOU hook: on the Nth probe of an encoded output (the sanity
+  # probe right before the identity recheck), overwrite PROBE_REPLACE_SRC.
+  if [[ -n "${STAB_FAKE_PROBE_REPLACE_SRC:-}" \
+    && -n "${STAB_FAKE_PROBE_REPLACE_COUNT:-}" ]]; then
+    n=$(cat "$STAB_FAKE_PROBE_REPLACE_COUNT" 2>/dev/null || echo 0)
+    n=$((n + 1))
+    printf '%s\n' "$n" > "$STAB_FAKE_PROBE_REPLACE_COUNT"
+    if ((n == ${STAB_FAKE_PROBE_REPLACE_AT:-2})); then
+      printf '%s\n' "${STAB_FAKE_PROBE_REPLACE_WITH:-replaced}" \
+        > "$STAB_FAKE_PROBE_REPLACE_SRC"
+    fi
+  fi
   printf '%s\n' "${STAB_FAKE_OUT_DURATION-1.23}"
 else
   printf '%s\n' "${STAB_FAKE_SRC_DURATION-1.23}"
@@ -1294,6 +1311,166 @@ grep -q '^OUT_FOR=' "$sandbox/toctou/b/stabilised-clip.mp4" || {
   exit 1
 }
 printf 'ok: TOCTOU sibling replace → keep + late re-encode + delete\n'
+
+# --- og4: pin keep/delete outcomes of both delete gates -------------------
+# Characterization for the fresh-encode verify gate and the inspect-then-
+# delete gate: every branch that keeps or deletes the master, so the shared
+# delete helper cannot drift from either path's policy.
+
+# Run the script as case $1 (dir $sandbox/og4-$1), want exit $2, rest = args.
+_og4_run() {
+  local -r label=$1 want_rc=$2
+  shift 2
+  local rc=0
+  : > "$STAB_FAKE_LOG"
+  "$script" "$@" >"$sandbox/og4-$label.out" 2>"$sandbox/og4-$label.err" \
+    || rc=$?
+  if ((rc != want_rc)); then
+    echo "FAIL: og4 $label exited $rc (want $want_rc)" >&2
+    cat "$sandbox/og4-$label.out" "$sandbox/og4-$label.err" >&2
+    exit 1
+  fi
+}
+
+# Assert run $1's combined output contains (want=yes) or lacks fixed string $3.
+_og4_grep() {
+  local -r label=$1 want=$2 pat=$3
+  local got=no
+  if grep -qF -- "$pat" "$sandbox/og4-$label.out" "$sandbox/og4-$label.err"
+  then
+    got=yes
+  fi
+  if [[ "$got" != "$want" ]]; then
+    echo "FAIL: og4 $label: want match=$want for: $pat" >&2
+    cat "$sandbox/og4-$label.out" "$sandbox/og4-$label.err" >&2
+    exit 1
+  fi
+}
+
+# Assert path $2 exists (want=yes) or not, for case $1.
+_og4_exists() {
+  local -r label=$1 path=$2 want=$3
+  local got=no
+  [[ -e "$path" ]] && got=yes
+  if [[ "$got" != "$want" ]]; then
+    echo "FAIL: og4 $label: want exists=$want for $path" >&2
+    cat "$sandbox/og4-$label.out" "$sandbox/og4-$label.err" >&2
+    exit 1
+  fi
+}
+
+# Fresh case dir with one source; prints the source path.
+_og4_fresh() {
+  local -r dir="$sandbox/og4-$1"
+  rm -rf -- "$dir"
+  mkdir -p "$dir"
+  printf 'og4-%s-src\n' "$1" > "$dir/clip.MOV"
+  printf '%s\n' "$dir/clip.MOV"
+}
+
+# Fresh gate: source replaced during its own pass 2 → keep, no .srcid.
+src=$(_og4_fresh selfrepl)
+export STAB_FAKE_REPLACE_SRC="$src"
+export STAB_FAKE_REPLACE_WITH='og4-selfrepl-REPLACED-mid-encode'
+export STAB_FAKE_REPLACE_ONCE="$sandbox/og4-selfrepl.once"
+rm -f -- "$STAB_FAKE_REPLACE_ONCE"
+_og4_run selfrepl 0 --delete-source "$src"
+unset STAB_FAKE_REPLACE_SRC STAB_FAKE_REPLACE_WITH STAB_FAKE_REPLACE_ONCE
+_og4_grep selfrepl yes 'decode OK; source changed — keeping source'
+_og4_grep selfrepl no 'deleted source:'
+_og4_exists selfrepl "$src" yes
+_og4_exists selfrepl "$(dirname "$src")/stabilised-clip.mp4" yes
+_og4_exists selfrepl "$(dirname "$src")/stabilised-clip.mp4.srcid" no
+printf 'ok: og4 fresh gate — source changed mid-encode keeps source\n'
+
+# Fresh gate: source replaced after sanity, before rm → keep (no re-encode).
+src=$(_og4_fresh freshtoctou)
+export STAB_FAKE_PROBE_REPLACE_SRC="$src"
+export STAB_FAKE_PROBE_REPLACE_WITH='og4-freshtoctou-REPLACED-before-rm'
+export STAB_FAKE_PROBE_REPLACE_COUNT="$sandbox/og4-freshtoctou.count"
+rm -f -- "$STAB_FAKE_PROBE_REPLACE_COUNT"
+_og4_run freshtoctou 0 --delete-source "$src"
+unset STAB_FAKE_PROBE_REPLACE_SRC STAB_FAKE_PROBE_REPLACE_WITH \
+  STAB_FAKE_PROBE_REPLACE_COUNT
+_og4_grep freshtoctou yes 'refuse delete (TOCTOU: source changed) — keeping:'
+_og4_grep freshtoctou no 'deleted source:'
+_og4_grep freshtoctou no 'Late re-encode'
+_og4_exists freshtoctou "$src" yes
+assert_eq "og4 freshtoctou source content" \
+  'og4-freshtoctou-REPLACED-before-rm' "$(<"$src")"
+printf 'ok: og4 fresh gate — pre-rm identity recheck keeps source\n'
+
+# Inspect gate prelude: keep-default run leaves out + matching .srcid.
+_og4_prelude() {
+  local src
+  src=$(_og4_fresh "$1")
+  _og4_run "$1-keep" 0 "$src"
+  _og4_exists "$1-keep" "$(dirname "$src")/stabilised-clip.mp4.srcid" yes
+  printf '%s\n' "$src"
+}
+
+# Inspect gate: decode/probe error → keep source AND out, exit 1.
+src=$(_og4_prelude inspdecode)
+export STAB_FAKE_FFPROBE_FAIL=1
+_og4_run inspdecode 1 --delete-source "$src"
+unset STAB_FAKE_FFPROBE_FAIL
+_og4_grep inspdecode yes 'inspect-then-delete:'
+_og4_grep inspdecode yes 'DECODE ERROR — keeping source'
+_og4_grep inspdecode no 'deleted source:'
+_og4_exists inspdecode "$src" yes
+_og4_exists inspdecode "$(dirname "$src")/stabilised-clip.mp4" yes
+printf 'ok: og4 inspect gate — decode error keeps source and out\n'
+
+# Inspect gate: sanity failure → keep source, no re-encode, exit 0.
+src=$(_og4_prelude inspsanity)
+export STAB_FAKE_SRC_DURATION=10 STAB_FAKE_OUT_DURATION=1
+_og4_run inspsanity 0 --delete-source "$src"
+unset STAB_FAKE_SRC_DURATION STAB_FAKE_OUT_DURATION
+_og4_grep inspsanity yes 'decode OK; no TRF gate'
+_og4_grep inspsanity yes 'sanity check failed (duration'
+_og4_grep inspsanity no 'deleted source:'
+_og4_grep inspsanity no 'Late re-encode'
+_og4_exists inspsanity "$src" yes
+if grep -q $'^pass2\t' "$STAB_FAKE_LOG"; then
+  echo "FAIL: og4 inspsanity re-encoded after sanity refusal" >&2
+  exit 1
+fi
+printf 'ok: og4 inspect gate — sanity failure keeps source\n'
+
+# Inspect gate: replaced after sanity, before rm → keep + late re-encode,
+# then the late fresh encode deletes the (new) master.
+src=$(_og4_prelude insptoctou)
+export STAB_FAKE_PROBE_REPLACE_SRC="$src"
+export STAB_FAKE_PROBE_REPLACE_WITH='og4-insptoctou-REPLACED-before-rm'
+export STAB_FAKE_PROBE_REPLACE_COUNT="$sandbox/og4-insptoctou.count"
+rm -f -- "$STAB_FAKE_PROBE_REPLACE_COUNT"
+_og4_run insptoctou 0 --delete-source "$src"
+unset STAB_FAKE_PROBE_REPLACE_SRC STAB_FAKE_PROBE_REPLACE_WITH \
+  STAB_FAKE_PROBE_REPLACE_COUNT
+_og4_grep insptoctou yes 'decode OK; no TRF gate'
+_og4_grep insptoctou yes \
+  'refuse delete (TOCTOU: source changed) — queue re-encode:'
+_og4_grep insptoctou no 'source changed since plan'
+_og4_grep insptoctou yes 'Late re-encode'
+_og4_grep insptoctou yes 'deleted source:'
+grep -q $'^pass2\t'"$src"$'\t' "$STAB_FAKE_LOG" || {
+  echo "FAIL: og4 insptoctou did not late re-encode" >&2
+  exit 1
+}
+_og4_exists insptoctou "$src" no
+printf 'ok: og4 inspect gate — pre-rm recheck queues late re-encode\n'
+
+# Inspect gate: same source listed twice (dir + file) → first deletes,
+# second sees it gone and skips (exactly one delete).
+src=$(_og4_prelude inspgone)
+_og4_run inspgone 0 --delete-source "$(dirname "$src")" "$src"
+_og4_grep inspgone yes 'skip (source already gone):'
+_og4_exists inspgone "$src" no
+_og4_exists inspgone "$(dirname "$src")/stabilised-clip.mp4" yes
+assert_eq "og4 inspgone delete count" 1 \
+  "$(cat "$sandbox/og4-inspgone.out" "$sandbox/og4-inspgone.err" \
+    | grep -c 'deleted source:')"
+printf 'ok: og4 inspect gate — vanished source skipped\n'
 
 # --- y33: pass-1 concurrency capped by PASS1_MAX_JOBS --------------------
 mkdir -p "$sandbox/throttle"
