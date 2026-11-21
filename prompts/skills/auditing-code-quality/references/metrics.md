@@ -41,10 +41,10 @@ For Go, run the bundled script from the module root. It needs only the Go
 toolchain and has nothing to fill in:
 
 ```bash
-<this-skill>/scripts/crap-check.sh --all
+~/.agents/skills/auditing-code-quality/scripts/crap-check.sh --all
 ```
 
-`<this-skill>` is the directory containing this skill's `SKILL.md`. The script
+`~/.agents/skills` is the shared skills directory on this machine. The script
 runs `go test` with coverage (failing packages are reported but do not stop
 it) and prints the 20 highest-scoring functions as tab-separated
 `CRAP  CC  COV%  LOCATION  FUNC`. Test files, generated files, `vendor/` and
@@ -56,7 +56,7 @@ The same script without `--all` is the review check for a single change
 function at CRAP 30 or more); see
 [agent-task-management's review checklist](../../agent-task-management/references/3b-review-checklist.md).
 For other options, run the underlying tool directly:
-`go -C <this-skill>/scripts/gocrap run . -h`.
+`go -C ~/.agents/skills/auditing-code-quality/scripts/gocrap run . -h`.
 
 For duplication in Go, `dupl -t 100 .` (`go install github.com/mibk/dupl@latest`)
 lists duplicated token sequences. For other languages, `lizard` (cyclomatic

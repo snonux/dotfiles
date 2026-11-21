@@ -5,27 +5,40 @@ description: "Manage agent tasks scoped to the current git project using the `as
 
 # Agent Task Management
 
-Use `ask` only through its fixed subcommands. Before executing any task command,
-read [the CLI contract](references/00-cli.md). Then read the shared project
-scope reference and only the action reference needed for the request.
+`ask` is a CLI with fixed subcommands, never free text. Start with the card
+for your role. Each card is under 200 words and is usually all you need; it
+ends with the few cases that need another file.
 
-| Action | Read |
+| Your role | Read |
 |---|---|
-| Any project-scoped task action | [00-project-scope.md](references/00-project-scope.md) |
-| Create a task | [1-create-task.md](references/1-create-task.md) |
-| Create audit finding tasks as the top-level non-ACQ orchestrator | [1a-audit-task-batches.md](references/1a-audit-task-batches.md), after `1-create-task.md` |
-| Start a task | [2-start-task.md](references/2-start-task.md) |
-| Recover a stalled or interrupted task | [6-recover-stalled-task.md](references/6-recover-stalled-task.md) and [verification-honesty.md](references/verification-honesty.md) |
-| Complete a task | [3-complete-task.md](references/3-complete-task.md) and [verification-honesty.md](references/verification-honesty.md) |
-| Review a finished task (reviewer sub-agents read only this) | [3b-review-checklist.md](references/3b-review-checklist.md) |
-| Annotate or update a task | [4-annotate-update-task.md](references/4-annotate-update-task.md) |
-| Review or overview tasks | [5-review-overview-tasks.md](references/5-review-overview-tasks.md) |
-| Orchestrate several tasks, run tasks in parallel, or use the manual [work-on-tasks skill](../work-on-tasks/SKILL.md) (parallelism policy, memory guard, worker prompt, optional cloud workers, worktree cleanup) | [7-orchestrating-task-batches.md](references/7-orchestrating-task-batches.md) plus the selected action references |
+| Implement one task | [card-worker.md](references/card-worker.md) |
+| Review a finished task | [card-reviewer.md](references/card-reviewer.md) |
+| Run several tasks, or keep going until none is left | [card-orchestrator.md](references/card-orchestrator.md) |
 
-Read only the references that the requested action requires. Task descriptions
-and annotations must contain the context a fresh worker needs; read them in full
-before implementing a task.
+Orchestrators paste the worker or reviewer card into the sub-agent's prompt,
+so sub-agents do not need to load this skill.
 
-Completed tasks get a fresh-context sub-agent review by default. If the user
-explicitly asks to skip it (to speed up the work), follow "Skipping the
-sub-agent review" in [3-complete-task.md](references/3-complete-task.md).
+## Read these only when the situation applies
+
+| Situation | Read |
+|---|---|
+| Unsure about an `ask` command or filter | [00-cli.md](references/00-cli.md) |
+| A task is missing, or you work in a subdirectory or another project | [00-project-scope.md](references/00-project-scope.md) |
+| Creating tasks | [1-create-task.md](references/1-create-task.md) |
+| Closing a code-audit batch outside auditing-code-quality | [1a-audit-task-batches.md](references/1a-audit-task-batches.md) |
+| A worker-card rule is unclear (scope, red first, glossary) | [2-start-task.md](references/2-start-task.md) |
+| Completion criteria, commit message template | [3-complete-task.md](references/3-complete-task.md) |
+| Reviewer edge cases | [3b-review-checklist.md](references/3b-review-checklist.md) |
+| The tree was dirty before the task, or workers share a tree | [3c-commit-in-scope.md](references/3c-commit-in-scope.md) |
+| Reviews do not converge; batch reviews; no reviews | [3d-review-budget.md](references/3d-review-budget.md) |
+| Annotation prefixes; modifying or deleting tasks | [4-annotate-update-task.md](references/4-annotate-update-task.md) |
+| Listing tasks, completed-task queries | [5-list-tasks.md](references/5-list-tasks.md) |
+| Resuming a task someone else started | [6-recover-stalled-task.md](references/6-recover-stalled-task.md) |
+| Parallelism, conflicts, memory guard, worker prompt | [7-orchestrating-task-batches.md](references/7-orchestrating-task-batches.md) |
+| Cloud workers; worktree cleanup | [7b-cloud-workers-and-worktrees.md](references/7b-cloud-workers-and-worktrees.md) |
+| Blocked task, a question for the user, stopping unfinished | [8-blocked-and-handoff.md](references/8-blocked-and-handoff.md) |
+| Reporting what was and was not verified | [verification-honesty.md](references/verification-honesty.md) |
+
+Do not load a file "to be safe". Every word loaded is paid for by every
+agent on every task. The manual [work-on-tasks skill](../work-on-tasks/SKILL.md)
+drives the orchestrator card with a strategy and a task limit.

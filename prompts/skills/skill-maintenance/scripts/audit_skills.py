@@ -25,6 +25,13 @@ SOFT_DESCRIPTION = 450   # collection target is ~300; warn well above it
 MAX_SKILL_LINES = 500    # spec limit for SKILL.md
 SOFT_SKILL_LINES = 200
 SOFT_REFERENCE_LINES = 300
+# Word budgets. Agents pay for every word they load, and session history showed
+# the default reading per task was several thousand words, so cards (pasted into
+# prompts), reference files and SKILL.md each get a hard-to-miss ceiling. Words
+# are len(text.split()) of the whole file, frontmatter included, to stay simple.
+CARD_WORD_BUDGET = 200
+REFERENCE_WORD_BUDGET = 1500
+SKILL_WORD_BUDGET = 1500
 # Directories below the collection that are not skills (gitignored sync area).
 SKIP_DIRS = {"synced"}
 LINK = re.compile(r"\]\(([^)\s]+)\)")
@@ -159,6 +166,24 @@ def check_sizes(root, skills, report):
                 report.warn(os.path.relpath(ref, root), f"{count} lines; consider splitting into sibling topic files")
 
 
+def check_word_budgets(root, skills, report):
+    """Warn when a card, reference file or SKILL.md exceeds its word budget."""
+    for name, skill in skills.items():
+        words = len(read(skill["path"]).split())
+        if words > SKILL_WORD_BUDGET:
+            report.warn(f"{name}/SKILL.md", f"{words} words (budget {SKILL_WORD_BUDGET}); move detail to references/")
+        for ref in sorted(glob.glob(os.path.join(root, name, "references", "**", "*.md"), recursive=True)):
+            words = len(read(ref).split())
+            where = os.path.relpath(ref, root)
+            if os.path.basename(ref).startswith("card-"):
+                if words > CARD_WORD_BUDGET:
+                    report.warn(where, f"card is {words} words (budget {CARD_WORD_BUDGET}); "
+                                       "cards are pasted into prompts and must stay short")
+            elif words > REFERENCE_WORD_BUDGET:
+                report.warn(where, f"{words} words (budget {REFERENCE_WORD_BUDGET}); "
+                                   "split it by situation so agents load only what they need")
+
+
 def check_links(root, files, report):
     """Every relative link must resolve; anchors must match a heading."""
     for path in files:
@@ -256,6 +281,7 @@ def main():
     report = Report()
     check_frontmatter(skills, report)
     check_sizes(args.root, skills, report)
+    check_word_budgets(args.root, skills, report)
     check_links(args.root, files, report)
     check_reference_coverage(args.root, skills, report)
     check_duplication(args.root, skills, report)

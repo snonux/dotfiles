@@ -1,15 +1,18 @@
 # Review checklist
 
-This file is all a review sub-agent needs. The orchestrator gives it to the
-reviewer together with the task ID, the base commit, and the round number.
-The rules for how reviews converge are in "Review budget and convergence" in
-[3-complete-task.md](3-complete-task.md); the reviewer does not need to read them.
+This is the detail behind [card-reviewer.md](card-reviewer.md), which the
+orchestrator pastes into the reviewer's prompt together with the task ID, the
+base commit, and the round number. Read this file only for an edge case the
+card does not settle. How reviews converge is in
+[3d-review-budget.md](3d-review-budget.md); the reviewer does not need it.
 
 ## Do these steps in order
 
 1. Read the task: `ask info <id>`. Note its acceptance criteria.
-2. Read the diff: `git diff <base-commit>..HEAD`.
-3. Run the project's build and tests. A failure is **blocking**.
+2. Read the diff: `git diff <base-commit>..HEAD`. The work is committed
+   before review; an empty diff means it was not, so say so and stop.
+3. Build, and run the tests for the changed code (the whole suite when it is
+   cheap). A failure is **blocking**.
 4. **Acceptance:** is every acceptance criterion met and tested? A missing
    test for a criterion is **blocking**.
 5. **Return-nothing check:** for each new or changed test, ask: would it still
@@ -28,10 +31,11 @@ The rules for how reviews converge are in "Review budget and convergence" in
 8. **Change risk (Go projects only):** from the module root run
 
    ```bash
-   <skills-dir>/auditing-code-quality/scripts/crap-check.sh <base-commit>
+   ~/.agents/skills/auditing-code-quality/scripts/crap-check.sh <base-commit>
    ```
 
-   where `<skills-dir>` is the directory that contains `agent-task-management/`.
+   (`~/.agents/skills` is the shared skills directory on this machine; every
+   harness links to it).
    - Exit 0: pass.
    - Exit 2: it lists functions at CRAP 30 or more that the change created or
      made more complex. Each is **blocking**, unless a task annotation starting

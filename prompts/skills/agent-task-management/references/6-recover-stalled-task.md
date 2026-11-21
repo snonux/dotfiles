@@ -20,6 +20,17 @@ revert or stash files that a running worker owns; classify each dirty path
 against the annotations of the task you are recovering, and leave the rest
 alone (see [7-orchestrating-task-batches.md](7-orchestrating-task-batches.md)).
 
+## 0. Read the handoff
+
+If you have not read this task before, read it in full once
+(`ask info <id>`); otherwise `ask info <id> last:3` is enough here and in the
+steps below. A worker that stopped in an orderly way
+left a `Handoff: <state>; next: <step>; uncommitted: <files>` annotation
+(see [8-blocked-and-handoff.md](8-blocked-and-handoff.md)). If it is there,
+check that `git status` matches its "uncommitted" list and continue from its
+"next" step; the detection below is then a quick confirmation. If there is no
+handoff, the worker was cut off mid-edit: do the full procedure.
+
 ## 1. Detect a partial / interrupted edit
 
 Signs the previous worker did not finish cleanly:

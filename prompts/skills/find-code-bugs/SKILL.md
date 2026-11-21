@@ -59,7 +59,7 @@ For **each** distinct confirmed bug:
 
 2. **Capture the printed alias ID** from `created task <id>`.
 
-3. **Annotate** with everything needed for a **fresh-context** fixer: file paths, line/symbol references, repro steps or failing test name, expected vs actual. Follow the annotation template in [the task-creation rules](../agent-task-management/references/1-create-task.md) (agent workflow reminder + language best-practices skills).
+3. **Annotate** with everything needed for a **fresh-context** fixer: file paths, line/symbol references, repro steps or failing test name, expected vs actual. Add the short "Agent workflow" annotation from [the task-creation rules](../agent-task-management/references/1-create-task.md); name an extra skill only when this fix needs it.
 
 4. If bugs **depend** on each other, create tasks with `depends:<id>,...` on `ask add` as documented there.
 

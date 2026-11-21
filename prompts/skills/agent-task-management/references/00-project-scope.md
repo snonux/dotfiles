@@ -9,6 +9,10 @@ working directory relative to the repository root, joining segments with dots:
 | `~/git/dotfiles/prompts` | `dotfiles.prompts` |
 | `~/git/dotfiles/prompts/nested` | `dotfiles.prompts.nested` |
 
+A linked git worktree (`git worktree add`, or an agent isolated in its own
+worktree) uses the project of its main checkout, so every worktree of a
+repository sees the same tasks.
+
 `ask add` stamps that exact project. Read commands include that project and its
 descendants, but not sibling projects. Use `ask proj:<name> …` to override the
 scope. Directory names containing dots are ambiguous in this hierarchy; avoid

@@ -2,21 +2,13 @@
 
 Use with `00-cli.md`, `00-project-scope.md`, and `verification-honesty.md`.
 
-## Short version
+Most of the time the role card is enough: [card-worker.md](card-worker.md) for
+the agent doing the work, [card-reviewer.md](card-reviewer.md) for the
+reviewer. This file is the detail behind them. Related situations have their
+own files, so load them only when they apply:
 
-Do these in order. The sections below explain each step.
-
-1. Build passes. All tests pass.
-2. The change is proven: a `Red first:` annotation exists (bug fix or
-   behaviour change), or the pinning tests passed unchanged (refactor).
-3. Self-review: did it all make sense? Is there a better way? Fix what comes up.
-4. Review: the orchestrator launches a fresh reviewer with
-   [3b-review-checklist.md](3b-review-checklist.md). No sub-agent tool, or the
-   user asked to skip reviews? Apply that checklist to your own work instead.
-5. Fix every blocking finding. At most two review rounds.
-6. `git status`, then `git add <explicit paths>` (never `-A`), then commit with
-   the template in "Commit message template".
-7. `ask done <id>`, then pick the next task.
+- the working tree was dirty before the task started: [3c-commit-in-scope.md](3c-commit-in-scope.md)
+- reviews do not converge, or the user wants batch reviews or none: [3d-review-budget.md](3d-review-budget.md)
 
 ## Completion criteria (required before "done")
 
@@ -24,7 +16,7 @@ A task is **not** considered done until all of the following are true:
 
 - **Best practices** — the codebase (or changed parts) follows the project's best practices.
 - **Compilable** — all code compiles successfully (e.g. full build succeeds).
-- **Tests pass** — all tests pass (e.g. full test suite green).
+- **Tests pass** — the tests for the changed code pass, and the full suite has passed once before the task is closed (the worker's single run at the end, or the orchestrator's integration run).
 - **Negative tests where plausible** — for any new or changed tests, include negative tests (invalid input, errors, failure cases) wherever plausible.
 - **Change proven** — for bug fixes and behaviour changes, an annotation records the test that failed before the change for the expected reason; for refactors, the pinning tests passed unchanged (see "Prove the change (red first)" in [2-start-task.md](2-start-task.md)).
 - **All changes committed to git** — on completion of the task, all changes must be committed to git, in one commit or a few small ordered ones. Each message references the task and says **why** the change was made, **what** changed, and **how it was proven** (the tests or checks that ran).
@@ -33,14 +25,11 @@ If any of these fail, fix the issues and recheck. Do not mark the task complete 
 
 ## What the review sub-agent must check
 
-The reviewer's steps, the list of what counts as blocking, and the report
-format are in [3b-review-checklist.md](3b-review-checklist.md). Give the
-reviewer that file, the task ID, the base commit (the commit before the task's
-first commit), and the round number. It does not need the rest of this file.
-
-In short, the reviewer checks: acceptance criteria met and tested, tests that
-would fail if the code did nothing (return-nothing check), the `Red first:`
-record, negative tests where plausible, and for Go the change-risk script.
+Paste [card-reviewer.md](card-reviewer.md) into the reviewer's prompt, with
+the task ID, the base commit (the commit before the task's first commit), and
+the round number. The card holds the steps, what counts as blocking, and the
+report format. [3b-review-checklist.md](3b-review-checklist.md) is the detail
+behind it.
 
 ## Self-review before any sub-agent handoff
 
@@ -50,80 +39,6 @@ record, negative tests where plausible, and for Go the change-risk script.
 - Isn't there a better way to do it?
 
 If the answer suggests improvements or inconsistencies, address them first. Only then hand off to the sub-agent. Do not skip this step.
-
-## Skipping the sub-agent review (only when the user asks)
-
-The sub-agent review is the default and stays on unless the user **explicitly**
-asks to skip it (e.g. "no reviews", "skip the review", "don't review completed
-tasks") — usually to speed up the work. Never skip it on your own initiative,
-and do not infer the request from time pressure, a small diff, or a task
-annotation.
-
-When the user has asked to skip the review:
-
-- **Do not spawn review sub-agents** — neither the first review nor follow-up
-  reviews. Steps 1–4 of "Before marking complete" reduce to the self-review.
-- **Everything else still applies**: the completion criteria (best practices,
-  build, tests, negative tests), the self-review, `verification-honesty.md`,
-  in-scope-only commits, and the git commit before `ask done <id>`. With no
-  reviewer behind you, the self-review is the only check on test coverage and
-  test quality, so apply "What the review sub-agent must check" to your own work.
-- **The user's request overrides the "sub-agent reviews pass" wording** in the
-  standard "Agent workflow" task annotation (see `1-create-task.md`).
-- **Scope it as the user stated it** — a single task, the current batch, or the
-  rest of the session. If the scope is unstated, apply it to the tasks worked on
-  under the current request. It does not carry over to later sessions.
-- **Record it in an annotation** so the task history is honest:
-
-  ```bash
-  ask annotate <id> "Sub-agent review skipped on user request; self-review only."
-  ```
-
-## Commit only in-scope files (pre-existing dirty worktree)
-
-The worktree may already be dirty **before this task starts** — e.g. the user's
-own unrelated edits to `.gitignore`, `start.sh`, or other files. Those changes
-are **not yours to commit**. (This is distinct from a *stalled worker* that left
-broken, half-applied edits mid-task — for that, see `6-recover-stalled-task.md`.
-Here the dirty changes are intact, unrelated user work, not corruption.)
-
-To avoid committing unrelated files (with parallel workers sharing one worktree,
-a sibling worker's in-progress edits are also out-of-scope for you):
-
-1. **At task start, and again before committing, run `git status`** and classify
-   every dirty path:
-
-   - **In-scope** — files this task created or modified. These get committed.
-   - **Out-of-scope** — pre-existing or unrelated changes (the user's own work).
-     These get **left exactly as they were**.
-
-   ```bash
-   git status --short            # full picture of what is dirty
-   ```
-
-2. **Stage only the in-scope files by explicit path.** Never blanket-add when the
-   worktree had pre-existing unrelated changes:
-
-   ```bash
-   git add path/to/changed_file path/to/other_changed_file   # explicit paths only
-   ```
-
-   Do **not** use `git add -A`, `git add .`, or `git commit -a` here — they would
-   sweep up the user's unrelated edits into your commit.
-
-3. **Never commit unrelated files.** Leave out-of-scope changes untouched in the
-   worktree; do not stage, commit, revert, or stash them.
-
-4. **Record the in-scope/out-of-scope decision in an annotation** so the history
-   is honest and the next worker knows what was deliberately left alone (see
-   `4-annotate-update-task.md`):
-
-   ```bash
-   ask annotate <id> "Committed in-scope: <files>. Left out-of-scope (unrelated, untouched): <files>."
-   ```
-
-If you cannot confidently tell whether a dirty file is in-scope, treat it as
-out-of-scope and leave it alone rather than risk committing the user's work.
 
 ## Commit message template
 
@@ -135,55 +50,54 @@ What: <what changed>
 Proof: <tests or checks that ran, and their result>
 ```
 
-## Review budget and convergence
-
-Reviews must converge. An open-ended "find every flaw until a review is clean" loop never terminates: each round finds smaller issues, and every round costs a rebuild and test run. Follow these rules unless the user or the task explicitly asks for more:
-
-- **At most two review rounds per task**: one full review, and a second, narrow confirmation round only when the first found blocking issues.
-- **Blocking** means one of:
-  - a product defect: wrong behaviour, a crash, data loss, a security issue, a regression;
-  - a test or oracle that can pass while the behaviour is wrong (a false pass), or a missing test for an acceptance criterion;
-  - a build, lint or test failure;
-  - a missing `Red first:` record, or a failed change-risk check without a `CRAP accepted:` annotation (both defined in [3b-review-checklist.md](3b-review-checklist.md));
-  - a documentation claim that is false about what the product does or what was verified.
-- **Non-blocking** means everything else: wording, style, naming, extra hardening, nicer diagnostics, additional evidence or provenance records, duplicated helpers, hypothetical edge cases outside the acceptance criteria. Fix it inline if cheap, otherwise drop it or create a follow-up task. It never triggers another round.
-- **Do not raise the bar mid-task.** Neither the orchestrator nor the reviewer adds requirements the task did not state (for example identity hashes, evidence sha256 tables, clause-to-test tables, negative-control suites). If such a requirement is worth having, create a separate task for it.
-- **Out-of-scope discoveries** (bugs in other areas, shared helpers, flaky unrelated tests) become new tasks with full context; they do not extend the current task's review.
-- Tell every reviewer these rules in its prompt, including the round number and that it must classify each finding.
-
 ## Before marking complete (after criteria are met)
 
-**Once the completion criteria above are met:**
+**Who does what.** A worker launched by an orchestrator does steps 1 and 2,
+then reports and stops. It never launches a reviewer, runs `ask done`, or
+pushes. The orchestrator, or an agent working alone, does every step.
 
-If the user asked to skip the review, do the self-review from step 1, skip the
-rest of steps 1–4, and continue at step 5 (see "Skipping the sub-agent review").
+1. **Self-review** (see above).
+2. **Commit** the in-scope files by explicit path, using the commit message
+   template. The reviewer reads `git diff <base>..HEAD`, so work that is not
+   committed is invisible to it. If the tree was dirty before the task, see
+   [3c-commit-in-scope.md](3c-commit-in-scope.md).
+3. **Review.** Launch one fresh-context reviewer whose only goal is to find
+   bugs and design flaws. Paste [card-reviewer.md](card-reviewer.md) into its
+   prompt with the task ID, the base commit, and the round number. It judges
+   the change against the task's acceptance criteria and must not invent
+   requirements. Reviewers count as workers for the per-wave memory guard.
+   With no sub-agent tool, or when the user asked to skip reviews, apply the
+   card to your own work instead ([3d-review-budget.md](3d-review-budget.md)).
+4. **Fix every blocking finding**, in new commits. A reply without a code
+   change is acceptable only when it shows the finding is not a defect.
+   Non-blocking findings are fixed inline when cheap, otherwise dropped or
+   recorded as a follow-up task; they never trigger another round.
+5. **Second round only if round one had blocking findings.** It confirms the
+   fixes and checks the fix diff for new blocking defects, nothing else.
+   **At most two rounds.** If something blocking remains, fix it and verify
+   it with tests yourself. If it cannot be fixed within scope, create a new
+   task with full context; if it needs the user's decision, park this task
+   (`ask park <id> "<question>"`). Never start a third round.
+6. **Close**, with a one-line delivery summary (recorded as an annotation, so
+   no separate `ask annotate` is needed):
 
-1. **Self-review** (see above). The orchestrator then spawns a **sub-agent** with **fresh context** (no prior conversation). If the current worker is itself a task implementation sub-agent, it returns to the orchestrator after self-review instead of spawning the reviewer.
-2. The sub-agent's role is an **expert critical reviewer**. Its **only goal** is to find bugs and design flaws in the subject under review. It must be thorough, skeptical, and uncompromising. The sub-agent reviews the diff, code, or deliverables (including test coverage and test quality — see "What the review sub-agent must check") and **reports back** to the main agent with every concrete bug, design flaw, missed edge case, or test-quality issue it found, **each classified as blocking or non-blocking** (see "Review budget and convergence" below). Praise and suggestions for enhancement should only be included when they directly illuminate an underlying flaw or risk. The reviewer judges the change against the task's acceptance criteria; it must not invent new requirements (extra evidence formats, provenance hashes, documentation tables, stylistic rewrites) that the task did not ask for.
-   - The orchestrator owns this review launch and all worker accounting. Task implementation and review sub-agents must not spawn nested sub-agents.
-   - Reviewers may run in parallel with other workers; there is no fixed cap unless the user states one. Apply the memory guard in [7-orchestrating-task-batches.md](7-orchestrating-task-batches.md) before launching each reviewer, and wait for a running agent to finish if memory is below the floor.
-3. Main agent **resolves all blocking findings** — no exceptions. Fix every valid blocking issue; a response without a code change is acceptable only when it demonstrates that the finding is not an issue. Non-blocking findings are fixed inline when cheap, otherwise dropped or recorded as a follow-up task; they never trigger another review round.
-4. If the first review reported **blocking** findings: **Self-review again** (see above), then the orchestrator **spawns one more sub-agent** (fresh context) to review the updated code and responses. This second review only confirms that the blocking findings are resolved and checks the fix diff for new blocking defects; it must not re-audit the whole task or raise non-blocking items. **At most two review rounds per task.** If the first review reports only non-blocking findings, or none, there is no second round.
-   - If the second review still reports a blocking issue, fix it and verify the fix with tests yourself; do not launch a third review. If the issue cannot be fixed within scope, record it as a new task (`ask add`, with full context) or as an annotated blocker, and surface it to the user. Never loop.
-5. **Commit all changes to git** (`git add` and `git commit` with a message that references the task and says why, what changed, and how it was proven). Do not mark the task complete with uncommitted changes. Stage **only the in-scope files by explicit path** — never `git add -A`/`git add .` when the worktree had pre-existing unrelated changes (see "Commit only in-scope files" above).
-6. Only then:
+   ```bash
+   ask done <id> "Delivered: <what changed and how it was proven>"
+   ```
 
-```bash
-ask done <id>
-```
-
-Use the alias ID from the selection step or current task details when marking the task complete.
-
-7. **Automatically progress to the next task in the list.** After marking the task done, load `00-cli.md`, `00-project-scope.md`, and `2-start-task.md`, then run `ask list start.any:`. Resume any started task that has no live worker first. Then use `ask ready` to pick new tasks for the free worker slots (respecting dependencies, the conflict rules, and the memory guard in [7-orchestrating-task-batches.md](7-orchestrating-task-batches.md)). Do not stop when another task is available.
+7. **Take the next task.** Run `ask list start.any:` and resume any started
+   task without a live worker; then pick from `ask ready`. Do not stop while
+   a task is available. (A skill such as next-auto-task may insert its own
+   step between 6 and 7.)
 
 ## Conventions
 
 - When creating or changing tests, add negative tests (invalid input, errors, failure paths) wherever plausible; the review sub-agent will check for this.
 - A task is not done until: best practices met, code compiles, all tests pass, negative tests included where plausible, the change proven (red first or pinned behaviour), all blocking review findings are resolved (including coverage and test-quality checks) within the two-round review budget, **and all changes are committed to git**.
-- **Review opt-out.** The review-related conventions in this list apply unless the user explicitly asked to skip the sub-agent review; then the self-review replaces it and the skip is recorded in an annotation (see "Skipping the sub-agent review").
+- **Review opt-out.** The review-related conventions in this list apply unless the user explicitly asked to skip the sub-agent review; then the self-review replaces it and the skip is recorded in an annotation (see [3d-review-budget.md](3d-review-budget.md)).
 - Before every sub-agent review handoff, do the self-review: "Did it all make sense? Is there a better way?" Fix anything that comes up, then hand off.
 - **On completion, commit all changes to git** before running `ask done <id>`; do not leave uncommitted work when marking a task complete.
-- **Commit only in-scope files.** Check `git status` first, stage in-scope files by explicit path (essential when parallel workers share one worktree), never `git add -A`/`git add .` over a pre-existing dirty worktree, and never commit the user's unrelated changes. Record the in-scope/out-of-scope split in an annotation (see "Commit only in-scope files").
-- Complete with `ask done <id>` only after completion criteria, self-review(s), all blocking review findings are resolved, and the git commit is complete. Run at most one follow-up review, only after a first review that reported blocking findings (see "Review budget and convergence").
+- **Commit only in-scope files.** Check `git status` first, stage in-scope files by explicit path (essential when parallel workers share one worktree), never `git add -A`/`git add .` over a pre-existing dirty worktree, and never commit the user's unrelated changes. Record the in-scope/out-of-scope split in an annotation (see [3c-commit-in-scope.md](3c-commit-in-scope.md)).
+- Complete with `ask done <id>` only after completion criteria, self-review(s), all blocking review findings are resolved, and the git commit is complete. Run at most one follow-up review, only after a first review that reported blocking findings (see [3d-review-budget.md](3d-review-budget.md)).
 - When completing a task, note which tasks were unblocked (dependents that became ready), if any.
 - **After completing a task, automatically progress to the next task in the list** (when all tests and required sub-agent review(s) pass and the task is done). Check `ask list start.any:` first and resume started tasks that have no live worker; only then select from `ask ready`, within the parallelism policy in [7-orchestrating-task-batches.md](7-orchestrating-task-batches.md). Do not stop unless no next task is available or the user asks to stop.

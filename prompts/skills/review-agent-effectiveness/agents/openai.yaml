@@ -1,0 +1,8 @@
+interface:
+  display_name: "Review Agent Effectiveness"
+  short_description: "Measure how coding agents use the task and audit skills, then improve them"
+  default_prompt: "Use $review-agent-effectiveness to analyse recent agent session history and suggest workflow improvements."
+# Codex counterpart of `disable-model-invocation: true` in SKILL.md:
+# the skill runs only when invoked explicitly ($skill-name).
+policy:
+  allow_implicit_invocation: false

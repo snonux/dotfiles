@@ -14,13 +14,21 @@ dependencies inline during creation with `depends:<id>,...`.
   preserve dependencies and every required platform check. Avoid repeating the
   same acceptance journey in each dependent task.
 - **Every task MUST have at least one tag** for sub-project/feature/area (e.g. `+integrationtests`, `+flamegraph`, `+bpf`, `+cli`, `+refactor`, `+bugfix`). **Tag names cannot contain hyphens (`-`)**; use camelCase or concatenated words instead (e.g. `+bugfix` not `+bug-fix`).
-- **After creating a task, add annotation** — one with the agent workflow reminder:
+- **After creating a task, add the workflow annotation.** It points at the
+  worker card and nothing else:
   ```
-  ask annotate <id> "Agent workflow: load the agent-task-management skill as instructions only, not as a shell command. Use only normal ~/go/bin/ask subcommand syntax. Also load and apply: (1) the best-practices skill for the programming language used in the project, (2) solid-principles. Manual-only skills such as go-best-practices and solid-principles are not offered by the Skill tool: read ~/.agents/skills/go-best-practices/SKILL.md and ~/.agents/skills/solid-principles/SKILL.md directly. When all tests and sub-agent reviews pass, commit and automatically progress to the next ready task."
+  ask annotate <id> "Agent workflow: follow ~/.agents/skills/agent-task-management/references/card-worker.md. ask takes fixed subcommands only, never free text."
   ```
+  Do **not** tell every task to load best-practices or design skills. Session
+  history showed each worker and reviewer loading three or four skills
+  (about 3,000 words) before a small fix because the annotation said so. Name
+  an extra skill only when this task needs it, in its own annotation:
+  `"Also apply: solid-principles (this task reshapes the storage interface)."`
+  Older tasks still carry the long "load these skills" annotation; the worker
+  card overrides it.
 
 - **Include references to all context required** to work on the task. So that work can be done with a fresh context, every task must list or link everything needed: relevant files, docs, specs, other tasks, or project guidelines (e.g. paths, doc links, `AGENTS.md`, `README` sections). Put these in the task description or in an initial annotation so that an agent starting with no prior conversation has everything they need in the task itself.
-- When tasks refer to other tasks in free text (annotations, descriptions, docs, or commit messages).
+- When tasks refer to other tasks in free text (annotations, descriptions, docs, or commit messages), include the other task's alias ID.
 
 ## Add a task
 
@@ -45,7 +53,7 @@ ask add "+<tag> -p M Description"      # wrong: everything in one quoted arg
 
 ```bash
 id=$(ask add +<tag> "Description" | sed -n 's/^created task //p')
-ask annotate "$id" "Agent workflow: load the agent-task-management skill as instructions only, not as a shell command. Never run ~/go/bin/ask agent-task-management ... or other natural-language ~/go/bin/ask commands. Use only normal ~/go/bin/ask subcommand syntax. Also load and apply: (1) the best-practices skill for the programming language used in the project, (2) solid-principles, and (3) beyond-solid-principles. Manual-only skills such as go-best-practices and solid-principles are not offered by the Skill tool: read ~/.agents/skills/go-best-practices/SKILL.md and ~/.agents/skills/solid-principles/SKILL.md directly. When all tests and sub-agent reviews pass, commit and automatically progress to the next ready task."
+ask annotate "$id" "Agent workflow: follow ~/.agents/skills/agent-task-management/references/card-worker.md. ask takes fixed subcommands only, never free text."
 ```
 
 ## With dependency

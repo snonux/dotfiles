@@ -4,23 +4,53 @@ Use with `00-cli.md` and `00-project-scope.md`.
 
 ## Reading task context
 
-When working on a task, **always read the full context:** description, summary, and **all annotations**. Annotations often contain progress, challenges, and references to files or documents — use them for further reference.
-
-View full task (including annotations):
+Read a task **in full once**, when you start on it: description and all
+annotations.
 
 ```bash
 ask info <id>
 ```
 
+After that, re-read only what is new:
+
+```bash
+ask info <id> last:3
+```
+
+Do not re-run the same lookup unless the task may have changed. Session
+history showed tasks being read four times at the median and up to 77 times,
+with outputs of up to 60,000 characters each time.
+
 ## Annotate a task
 
 ```bash
-ask annotate <id> "Note about progress or context"
+ask annotate <id> "Note"
 ```
 
-While making progress, **add annotations** to reflect progress, challenges, or decisions. You may refer to files, documents, or other resources (paths, doc links, snippets) so the task history stays useful for later work and for the pre-completion review.
+Annotate **milestones, not steps**: something a later reader needs that is
+not in the code or the commit message. When one of these prefixes fits, use
+it, so agents and people can find the annotation:
 
-Whenever you mention another task inside an annotation (for example, as a dependency or related work), include that other task's alias ID.
+| Prefix | When |
+|---|---|
+| `Red first: <test> failed with <message>` | the test failed before the fix |
+| `Decision: <choice> because <reason>` | you chose between real alternatives |
+| `Needs human: <question>` | written for you by `ask park` |
+| `Answer: <text>` | the human's answer to a parked question |
+| `Handoff: <state>; next: <step>; uncommitted: <files>` | written by `ask stop <id> "..."` when stopping unfinished |
+| `CRAP accepted: <function>: <reason>` | a complex function the reviewer should accept |
+| `Committed in-scope: <files>. Left out-of-scope: <files>.` | the tree had unrelated changes |
+| `Review skipped: <reason>` | the user asked for batch reviews or none |
+| `Recovered: <what was reverted or kept>` | you resumed a stalled task |
+
+Other skills add their own, such as `Agent workflow:` and `Also apply:` at
+task creation and `Fix procedure:` on audit findings.
+
+The delivery summary goes on `ask done <id> "<summary>"`. Progress that a
+commit message already records does not need an annotation.
+
+Whenever you mention another task inside an annotation, include that task's
+alias ID. Refer to files by path.
 
 ## Modify a task
 
@@ -30,7 +60,7 @@ ask dep add <id> <dep-id>
 ask modify <id> priority:H
 ```
 
-Use the alias ID shown by `ask list`, `~/go/bin/ask ready`, or `~/go/bin/ask info` when modifying tasks selected earlier or referenced from annotations or other docs.
+Use the alias ID shown by `ask list`, `ask ready`, or `ask info`.
 
 ## Delete a task
 
@@ -40,6 +70,7 @@ ask delete <id>
 
 ## Conventions
 
-- Read description, summary, and all annotations when working on a task.
-- Annotate with implementation notes, progress, challenges, and references to files or documents as you go.
-- Annotations should be detailed enough that a fresh-context agent can pick up work without needing to ask clarifying questions.
+- Read the full task once; afterwards `ask info <id> last:3`.
+- One annotation per milestone, with a prefix from the table.
+- A fresh-context agent must be able to continue from the description, the
+  annotations, and the commits without asking.

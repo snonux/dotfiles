@@ -28,10 +28,10 @@ Every ready pick in this skill must use `due-window:7.days`. Plain `ask ready +a
 ## Workflow
 
 1. **Try current project first.**
-   - Load the `agent-task-management` skill.
+   - Read `agent-task-management`'s [card-orchestrator.md](../agent-task-management/references/card-orchestrator.md) and [card-worker.md](../agent-task-management/references/card-worker.md); they are the task lifecycle.
    - Run `ask list start.any: +auto` in the current git repository first. Resume every started `+auto` task before selecting another one (see **Started tasks** below).
    - Only when no `+auto` task is started, find the next due-window-eligible ready `+auto` task with `ask ready +auto due-window:7.days` (sorted by priority, then urgency).
-   - If there is a started or eligible ready `+auto` task here, proceed with the standard `agent-task-management` lifecycle (create context → start when needed → annotate → complete), then **Post-completion: commit, push, version**. Do not look across other projects while this project still has a started or eligible `+auto` task (see **When to stop**).
+   - If there is a started or eligible ready `+auto` task here, work on it as the cards describe, then **Post-completion: commit, push, version**. Do not look across other projects while this project still has a started or eligible `+auto` task (see **When to stop**).
 
 2. **Fall back to `+auto` tasks across projects.**
    - If the current project has no available due-window-eligible `+auto` agent task, run:
@@ -68,48 +68,43 @@ Every ready pick in this skill must use `due-window:7.days`. Plain `ask ready +a
    - Use the `cwd` parameter of subsequent tool calls to operate inside that directory (prefer the subdirectory when the project is hierarchical, so new tasks stay under the same project name). Do **not** chain `cd` with `&&` in tool calls — pass `cwd` instead.
 
 4. **Continue with `agent-task-management` from there.**
-   - Load `agent-task-management`, its `references/00-cli.md`,
-     `references/00-project-scope.md`, and the appropriate action file inside
-     the new project directory.
+   - Work inside the new project directory. Load an `agent-task-management`
+     reference only when its card says so.
    - Repeat `ask list start.any: +auto` in the target project and resume every started `+auto` task before considering a ready one (see **Started tasks**).
    - Only when none is started, select from due-window-eligible ready `+auto` tasks (`ask ready +auto due-window:7.days`).
    - Use the alias ID of the chosen task with `ask info <id>`, `ask start <id>`, etc.
-   - Follow the full task lifecycle defined by `agent-task-management`: start → annotate → prove the change (red first) → completion criteria → sub-agent review within the review budget → commit → `ask done <id>`.
+   - Follow [card-worker.md](../agent-task-management/references/card-worker.md) for the work and steps 5 and 6 of the orchestrator card for review and `ask done <id> "<summary>"`.
    - After every completed task, run **Post-completion: commit, push, version** (below) in that project before selecting the next task.
    - When progressing to the next task after completion, keep the `+auto` filter and the due-window filter (`ask list start.any: +auto`, then `ask ready +auto due-window:7.days`). Do not pick tasks without `+auto`, and do not pick far-future-due `+auto` tasks.
 
 ## Started tasks
 
-A started `+auto` task always resumes, whatever its due date, and before any
+A started `+auto` task always resumes, whatever its due date, before any
 ready task is selected. Several started `+auto` tasks are normal (an
-interrupted parallel run leaves them behind), not an error: resume all of
-them. How many to run at once, and whether to use workers, is decided by the
-"Short version" in `agent-task-management`
-[7-orchestrating-task-batches.md](../agent-task-management/references/7-orchestrating-task-batches.md)
-(no sub-agent tool: one at a time, oldest first). Recover each one with
-[6-recover-stalled-task.md](../agent-task-management/references/6-recover-stalled-task.md)
-before editing it.
+interrupted run leaves them behind): resume all of them, as step 1 and 2 of
+[card-orchestrator.md](../agent-task-management/references/card-orchestrator.md)
+describe. Read each one's `Handoff:` annotation first (`ask info <id> last:3`).
 
 ## When to stop
 
 Keep working through eligible `+auto` tasks:
 
-1. After each completed task and its post-completion, pick the next started or
-   due-window-eligible `+auto` task in the **same project**.
-2. When the project has none left, run the batched version step (below) for it,
-   then fall back to other projects (workflow step 2), telling the user which
+1. After each completed task and its post-completion, take the next started
+   or due-window-eligible `+auto` task in the **same project**.
+2. When the project has none left, run the batched version step (below), then
+   fall back to other projects (workflow step 2), telling the user which
    project and task you are moving to.
-3. Stop when no started or due-window-eligible `+auto` task remains in any
-   project, when a task hits a hard blocker you cannot resolve within scope
-   (annotate it and report it), or at any limit the user stated (for example
-   "just one task").
+3. A task that needs a human is parked, not a reason to stop:
+   `ask park <id> "<question>"`, then take the next one.
+4. Stop when no started or eligible `+auto` task remains in any project
+   except parked ones, or at a limit the user stated ("just one task").
 
-Then report the completed tasks, any blocked or skipped ones with reasons, and
-any commits left unpushed or versions not bumped, with why.
+Then report the completed tasks, the parked questions, and any commits left
+unpushed or versions not bumped, with why.
 
 ## Post-completion: commit, push, version
 
-This skill **overrides** `agent-task-management`'s "immediately pick the next task" step: after `ask done <id>`, finish the git/publish side-effects below in the project directory you used, **then** select the next `+auto` task.
+This skill inserts a step before the orchestrator card's "take the next task": after `ask done <id>`, finish the git/publish side-effects below in the project directory you used, **then** select the next `+auto` task.
 
 1. **Commit remaining in-scope work (if any).**
    - Follow `agent-task-management` commit rules: stage only in-scope paths by explicit path; never sweep unrelated dirty files.
@@ -129,17 +124,10 @@ This skill **overrides** `agent-task-management`'s "immediately pick the next ta
    - **Darwin + `~/git/dotfiles`:** never push (pull-only).
    - If there is no remote or push fails, report it to the user (and annotate if a pending task ID still exists); do not hide a failed push.
 
-3. **Increment and publish the app version when applicable (batched).**
-   - Load `increment-version-and-push` (and `references/fdroid-release.md` when relevant).
-   - **Do not bump after every task.** After each completed product-code task, remember that the project may need a release. Run the bump **once** when leaving the project or when that project has no further due-window-eligible `+auto` tasks — covering product commits since the previous version tag (they may already be pushed; the batch is about **untagged** work, not unpushed).
-   - **Applicable when all of these hold:**
-     - The repo is a **shippable app** with a documented release path: Flutter/`pubspec.yaml` + Android (especially snonux F-Droid apps), or AGENTS.md/README clearly describes releasing this app — not a library/CLI that merely has a version file, **and**
-     - Since the last version tag there are product/runtime or user-facing commits from this `/next-auto-task` run (not only `prompts/skills/`, docs-only, or chore/CI-only), **and**
-     - HEAD is on the default branch (`main`/`master`), in sync with upstream except for the commits you are releasing, and free of unrelated dirty paths, **and**
-     - You have not already created a version tag for this batch in the current run.
-   - When applicable: follow `increment-version-and-push` (patch by default; use that skill's minor-bump guidance for significant features), including F-Droid changelogs, tag, push commit+tag, and F-Droid publish hooks.
-   - When **not** applicable: skip versioning; still push task commits from step 2 when allowed.
-   - If applicability is unclear, skip the bump, say why, and push commits only.
+3. **Version bump, batched.** Not after every task: once, when leaving a
+   project or when it has no eligible `+auto` task left, and only for a
+   shippable app with product-code commits since its last tag. When that
+   moment comes, read [references/version-bump.md](references/version-bump.md).
 
 4. **Skills repo sync.** If the completed work edited `~/git/dotfiles/prompts/skills/`, use `commit-skills` for commit+push of that tree (non-Darwin only).
 ## Rules

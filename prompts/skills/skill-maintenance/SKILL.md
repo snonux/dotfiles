@@ -36,6 +36,7 @@ Detailed reference documentation is in the `references/` subfolder:
 ## Quick Checklist
 
 - [ ] `SKILL.md` < 500 lines / < 5000 tokens; detail moved to `references/`
+- [ ] Size budget: `references/card-*.md` at most 200 words; other reference files and `SKILL.md` at most 1500 words (the audit script warns)
 - [ ] `SKILL.md` does not re-inline content already in its own `references/`
 - [ ] Each reference file is focused (one topic); refs one level deep, or one area index deeper for a large skill
 - [ ] Frontmatter valid: `name` (lowercase, hyphens, ≤64), `description` (≤1024, specific keywords + when-to-use)

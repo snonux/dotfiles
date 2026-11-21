@@ -5,21 +5,9 @@ through several tasks, including the manual [work-on-tasks skill](../../work-on-
 the parallelism rules and the memory guard; other references link here instead
 of repeating them.
 
-## Short version
-
-**No sub-agent tool? Skip this file.** Work one task at a time with
-[2-start-task.md](2-start-task.md) and [3-complete-task.md](3-complete-task.md).
-
-1. Resume started tasks first, then fill free slots from `ask ready`.
-2. One task in total: work on it yourself. Two or more: one worker per task.
-3. Never run two tasks at once that touch the same files or share a resource.
-4. Before each local launch, check memory (2 GiB and 15% free). Launch one or
-   two workers, wait, measure again.
-5. Give each worker the prompt from "Worker prompt". Workers never spawn agents
-   and never run `ask done`.
-6. When a worker returns: review with [3b-review-checklist.md](3b-review-checklist.md),
-   fix blocking findings, commit, `ask done <id>`, refill the slot.
-7. At the end: clean up merged worktrees and report what is left.
+Most of the time [card-orchestrator.md](card-orchestrator.md) is enough. This
+file is the detail behind it: read the section you need. Cloud workers and
+worktree cleanup are in [7b-cloud-workers-and-worktrees.md](7b-cloud-workers-and-worktrees.md).
 
 ## Parallelism policy
 
@@ -54,53 +42,40 @@ When two conflicting tasks must still overlap, isolate them instead: give each
 worker its own git worktree (Agent `isolation: "worktree"`), then merge the
 results in the orchestrator. With no isolation, all workers share one worktree,
 so each worker must stage and commit **only its own files by explicit path**
-(see "Commit only in-scope files" in [3-complete-task.md](3-complete-task.md));
+(see [3c-commit-in-scope.md](3c-commit-in-scope.md));
 never `git add -A`, `git add .`, or `git commit -a`, since those would sweep up
 a sibling worker's half-finished edits.
 
 ## Memory guard
 
-Before launching each additional sub-agent or worker, the orchestrator checks
-available memory. Re-check whenever a running worker finishes and a slot could
-be refilled. The numbers below are conservative defaults; the orchestrator may
-tune them to the machine, but must keep the shape of the rule.
+The guard protects the machine, not the task list. Check **once before each
+wave** of local launches (not before every single launch), and again when a
+finished worker frees a slot:
 
 ```bash
-awk '/MemAvailable/ {printf "%d MiB available\n", $2/1024}' /proc/meminfo
-awk '/MemTotal/ {printf "%d MiB total\n", $2/1024}' /proc/meminfo
-free -m                       # also shows swap use
-uptime; nproc                 # optional: load average vs. core count
+awk '/MemAvailable/ {a=$2} /MemTotal/ {t=$2} END {printf "%d MiB available, %d%% of total\n", a/1024, 100*a/t}' /proc/meminfo
 ```
 
-Launch another worker only if **all** of these hold:
+Launch another local worker only if `MemAvailable` is at least **2 GiB** and
+at least **15% of total**. Swap use is not a criterion: on a machine that has
+been up for a while, old pages stay in swap long after the pressure is gone,
+and waiting on it stalled runs for no benefit.
 
-- `MemAvailable` is at least **2 GiB (2048 MiB)**, and
-- `MemAvailable` is at least **15% of `MemTotal`**, and
-- swap is not heavily in use (for example, used swap is below about 50% of
-  total swap, and not growing between two checks), and
-- optionally, the 1-minute load average is below the core count from `nproc`.
+If the check fails, launch nothing and let a running worker finish. If no
+worker is running and memory is still below the floor, work one task at a
+time in the orchestrator's own context.
 
-If any check fails, do **not** launch more workers. Let a running worker finish,
-then re-check. If no worker is running and memory is still below the floor,
-work directly in the orchestrator's context (one task at a time) rather than
-launching anything.
+- Launch one or two workers, wait 30 to 60 seconds for them to load their
+  context and start builds, then measure again.
+- Cap build-heavy workers (large compiles, `-race` suites, emulators,
+  container or VM builds) at about one per two cores, even when memory
+  allows more. Oversubscription causes timeouts and flaky tests that cost
+  more than the parallelism saves.
+- If the machine gets sluggish while workers run, stop launching and let
+  them finish. Never kill user processes, and never stop a worker mid-edit
+  to free memory.
 
-Launch in small waves, not all at once:
-
-- Launch one worker (or at most two), then wait for it to warm up, about 30 to
-  60 seconds or until it has clearly started, before measuring again. A new
-  agent's memory use only shows after it has loaded its context, started tools,
-  and begun builds.
-- Re-measure after every wave and apply the thresholds above again.
-- Never launch heavy builds or full test suites in many workers at once. If
-  tasks are known to be build-heavy (large compiles, `-race` suites, container
-  or VM builds), stagger them, or run them one at a time regardless of free
-  memory.
-
-If memory pressure appears while workers are running (available memory falls
-under the floor, swap starts growing, the machine gets sluggish), stop
-launching new workers and let the running ones finish. Never kill user
-processes, and do not stop a worker mid-edit to free memory.
+Cloud workers use no local memory, so the guard does not apply to them.
 
 ## Selecting work
 
@@ -124,86 +99,27 @@ own sub-agent. The detailed rule is in [2-start-task.md](2-start-task.md).
 
 ## Worker prompt
 
-Give every task sub-agent a short, self-contained prompt containing:
+The prompt for every task worker is short and fixed:
 
-- the task ID and a one-line summary;
-- the instruction to run `ask info <id>` as its **first action** to load the
-  full description and all annotations (do not paste them inline; a local
-  worker fetches them fresh);
-- the absolute path of the project root;
-- the instruction to log each step with `ask annotate <id> "Did: <action>. Why: <reason>."`;
-- the instruction to follow "Prove the change (red first)" in
-  [2-start-task.md](2-start-task.md), to use a focused check for each
-  coherent change, and to leave shared expensive suites and device sessions to
-  the orchestrator's integration pass (task-specific acceptance requirements
-  still apply);
-- the instruction to commit its in-scope changes, staging **only its own files
-  by explicit path** unless it has its own worktree;
-- the instructions **not** to mark the task done and **not** to spawn
-  sub-agents; it returns to the orchestrator for review.
+1. the task ID and a one-line summary;
+2. the absolute path of the project root, and whether the worker runs in its
+   own git worktree;
+3. the full text of [card-worker.md](card-worker.md), pasted in.
 
-## Cloud workers (optional)
-
-**Skip this section unless your harness has cloud or remote agents.**
-
-If the harness offers cloud or remote agents (for example the Agent tool's
-`isolation: "remote"`), the orchestrator **may** run suitable tasks there. It
-is never required. Follow whatever the agent's own instructions say about when
-to prefer cloud or local agents (a CLAUDE.md or AGENTS.md rule, for instance).
-Without such guidance, use judgment: cloud workers save local memory and CPU
-for long or build-heavy tasks, but each one needs a pushed starting point and
-a fetch-and-verify round trip.
-
-A task suits a cloud worker only when it needs nothing beyond the pushed
-repository. Keep it local when it needs root/sudo, kernel access, local
-hardware or devices, local-only toolchains or sibling checkouts, local services,
-or private data that must not leave the machine. Cloud workers also cannot
-start from unpushed local commits, so the base the task needs must already be
-on the remote, or pushing it must be allowed under the project's rules.
-
-A cloud worker cannot reach `ask`, so the orchestrator adapts the worker prompt:
-
-- paste the output of `ask info <id>` into the prompt instead of telling the
-  worker to run it, and leave out the `ask annotate` instruction;
-- ask the worker to commit on its own branch, push it, and end with a summary
-  of what it changed, how it proved the change (including the red-first test
-  output), and anything left open;
-- all other worker-prompt rules apply.
-
-When the worker returns, the orchestrator fetches the branch, records the
-worker's summary with `ask annotate`, runs any checks that need the local
-machine, merges, and continues with the normal review and completion steps.
-The memory guard does not apply to cloud workers (they use no local memory),
-but an explicit concurrency limit still counts them. If cloud agents are
-unavailable or fail to start, fall back to local workers without asking.
-
-## Worktree cleanup
-
-**Skip this section if no worker used its own git worktree.**
-
-At the end of a batch, clean up the worktrees and branches that the run's
-workers created (Agent `isolation: "worktree"` leaves a worktree behind when
-it changed something):
-
-```bash
-git worktree list
-git worktree prune            # drops entries whose directories are gone
-```
-
-For each worker worktree: if it is clean and its branch is merged into the
-current branch, remove it (`git worktree remove <path>`) and delete the branch
-(`git branch -d <branch>`). A worktree with uncommitted changes, or a branch
-that is not merged, is someone's unfinished work: leave it and list it in the
-final report for the user to decide. Never use `--force`. Remote branches
-pushed by cloud workers are listed in the report too. Delete them only when
-they are merged and the agent's instructions or the user allow it.
+Paste the card rather than telling the worker to go and read files. Session
+history showed that workers act on the prompt and the task annotations and
+rarely open the references, so a rule that is not in the prompt is usually
+not followed. Add task-specific constraints after the card (for example "do
+not touch tools/integration; another worker owns it"). Reviewers get
+[card-reviewer.md](card-reviewer.md) the same way, plus the task ID, the base
+commit, and the round number.
 
 ## Per-task lifecycle
 
-For each task, create it, start it, annotate progress, meet the completion
+For each task, create it, start it, annotate milestones, meet the completion
 criteria, and have the orchestrator run fresh-context review(s) within the
 review budget (at most two rounds; the second only for blocking findings; see
-"Review budget and convergence" in [3-complete-task.md](3-complete-task.md)).
+[3d-review-budget.md](3d-review-budget.md)).
 Commit the in-scope changes, mark the task done, then check for the next
 started or ready task. Close each task as soon as it meets its criteria; do not
 hold finished tasks back for one big final merge or gate run. When lanes are
@@ -218,10 +134,25 @@ cores) even when memory would allow more: oversubscription slows every worker
 and causes timing flakes that cost more review and rerun time than the
 parallelism saves. The completion and review procedure
 is in [3-complete-task.md](3-complete-task.md). Review sub-agents count as
-workers: apply the memory guard before launching each reviewer as well.
+workers for the per-wave memory guard.
 
 If the user explicitly asked to skip reviews (to speed up the batch), launch no
 review sub-agents: each task goes from its self-review straight to commit and
 `ask done <id>`. Tell every implementation sub-agent about the opt-out so it
-does not wait for a reviewer. See "Skipping the sub-agent review" in
-[3-complete-task.md](3-complete-task.md).
+does not wait for a reviewer. See [3d-review-budget.md](3d-review-budget.md), which also covers batch reviews.
+
+## Status line and stop conditions
+
+After each closed task, print one line so a person glancing at the session
+sees progress without asking:
+
+```text
+Status: 12 done, 2 running, 1 parked, 5 ready
+```
+
+A task that needs a human is parked (`ask park <id> "<question>"`), not a
+reason to stop: take the next task. Stop the run only when every remaining
+task is parked or waits on a parked one, when a stated limit is reached, or
+when the user says so. The final report lists the done tasks, the open
+questions from `ask parked`, worktrees or branches left for the user, and
+anything unpushed. Details: [8-blocked-and-handoff.md](8-blocked-and-handoff.md).

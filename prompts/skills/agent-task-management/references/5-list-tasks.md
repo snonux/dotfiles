@@ -1,4 +1,7 @@
-# Review / overview tasks
+# List and choose tasks
+
+This file is about listing tasks and picking the next one. To review a
+finished task's code, use [card-reviewer.md](card-reviewer.md) instead.
 
 Use with `00-cli.md` and `00-project-scope.md`.
 
@@ -57,7 +60,7 @@ Once you have chosen a task from one of these lists, **use its alias ID** from t
 ask info <id>
 ```
 
-Always read description, summary, and **all annotations** when working on or reviewing a task.
+Read the description and all annotations once when you start on a task; later re-reads use `ask info <id> last:3`.
 
 ## Visualization
 

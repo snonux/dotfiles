@@ -33,9 +33,11 @@ instead of creating one task per site.
 fixer works in a fresh context, so state how the fix must be proven. The
 general procedure (red first for bugs, pin behaviour before refactoring, fix
 the cause, subtract before adding) has one canonical home, "Prove the change
-(red first)" in [agent-task-management's start reference](../../agent-task-management/references/2-start-task.md),
-which every fixer loads anyway. Annotate with the kind and what is specific to
-this finding:
+(red first)" in [agent-task-management's start reference](../../agent-task-management/references/2-start-task.md).
+The worker card that every fixer gets carries its short form (test first,
+pin behaviour, smallest change). Annotate with the kind and what is specific
+to this finding, including "fix the cause, not the symptom" where a guard or
+retry would be the tempting shortcut:
 
 - **Bug:** "Fix procedure: red first. Expected failing test: <behaviour and
   entry point>." If an honest automated test is impractical, name the manual
@@ -114,7 +116,7 @@ that same `$START_TAG` (so a clean audit does not leave an unpushed local-only
 start tag). Do not create a gate with an empty `depends:` list.
 
 **Do not** create the gate or tagging task from **agent-task-management**'s
-“Audit task batches” section during this run — §5–6 of this skill are the sole
+[1a-audit-task-batches.md](../../agent-task-management/references/1a-audit-task-batches.md) during this run — §5–6 of this skill are the sole
 owners when **auditing-code-quality** is driving.
 
 ## 6. Create the Audit-Marker Tagging Task (mandatory last task)

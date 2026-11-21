@@ -14,25 +14,25 @@ description: >
 Review the target once through three complementary passes. Reuse check results
 and evidence across passes, then produce one report and remediation batch.
 
-## Skills and References
+## What to load, and when
 
-- Go: [go-best-practices](../go-best-practices/SKILL.md) for conventions and
-  checks, [100-go-mistakes](../100-go-mistakes/SKILL.md) for relevant pitfalls.
-- Defects: [find-code-bugs](../find-code-bugs/SKILL.md), including one `ask`
-  task per confirmed bug, whatever pass discovered it.
-- Design: [solid-principles](../solid-principles/SKILL.md) for applicable
-  type/interface contracts and [beyond-solid-principles](../beyond-solid-principles/SKILL.md)
-  for system structure.
-- Tracking: [agent-task-management](../agent-task-management/SKILL.md) owns
-  `ask` syntax; [audit tagging](../audit/references/tagging.md) owns git markers.
-- Metrics: [references/metrics.md](references/metrics.md) for the CRAP hotspot
-  ranking (bundled `scripts/gocrap`), dead code, test quality and mutation
-  testing, and the baseline the closure gate re-checks.
+Load each file when its step starts, not up front. An audit that loads
+everything first spends several thousand words before reading any code.
 
-**go-best-practices** and **solid-principles** have explicit-only invocation
-policies in `agents/openai.yaml`; read their files directly. Load other skills
-through the available skill mechanism or read their files. Use references
-within the passes below rather than running a separate full audit per skill.
+| When | Load |
+|---|---|
+| Before the first finding (pass A) | [the shared finding rules](references/report.md#shared-finding-rules) |
+| Pass A, measuring | [references/metrics.md](references/metrics.md) §1–2 |
+| Pass A or C on Go code | [go-best-practices](../go-best-practices/SKILL.md); its files are read directly (explicit-only skill) |
+| Pass B | [find-code-bugs](../find-code-bugs/SKILL.md); for Go also the [100-go-mistakes](../100-go-mistakes/SKILL.md) references that match the code |
+| Pass C | [beyond-solid-principles](../beyond-solid-principles/SKILL.md), and only the principle files that apply |
+| Pass C, type or interface design in scope | [solid-principles](../solid-principles/SKILL.md), read directly (explicit-only skill) |
+| Pass C, test quality | [references/metrics.md](references/metrics.md) §3 |
+| Writing the report (§3) | the rest of [references/report.md](references/report.md) |
+| Creating tasks (§4) | [references/tasks.md](references/tasks.md) §4, and agent-task-management's [1-create-task.md](../agent-task-management/references/1-create-task.md) for `ask` syntax |
+| Close-out (§5–6) | [references/tasks.md](references/tasks.md) §5–6 and [audit tagging](../audit/references/tagging.md) |
+
+Use these inside the passes below; do not run a separate full audit per skill.
 
 ## Scripts
 
@@ -178,4 +178,5 @@ marker to the post-fix `HEAD` and pushes it. Annotations it needs:
 [references/tasks.md](references/tasks.md#6-create-the-audit-marker-tagging-task-mandatory-last-task).
 
 §5–6 are the sole owners of the gate and tagging task when this skill is driving;
-do not create them from **agent-task-management**'s "Audit task batches" section.
+do not create them from **agent-task-management**'s
+[1a-audit-task-batches.md](../agent-task-management/references/1a-audit-task-batches.md).
