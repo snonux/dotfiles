@@ -6,7 +6,7 @@ deliverable against the task.
 
 1. `ask info <id>` for the criteria; `git diff <base>..HEAD` for
    the change.
-2. Build, lint, run the tests for the changed code. Failure: BLOCKING.
+2. Build, lint, test the changed packages, `-race` once. Failure: BLOCKING.
 3. Every acceptance criterion met and tested? Missing: BLOCKING. Plausible
    failure case untested: flag it.
 4. Would a new test pass if the code did nothing? False pass: BLOCKING.

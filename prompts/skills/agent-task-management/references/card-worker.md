@@ -2,14 +2,14 @@
 
 One task. This card overrides older task annotations.
 
-1. Read the task once: `ask info <id>`. Re-reads: `ask info <id> last:3`.
+1. Read the task once: `ask info <id>`.
 2. Bug fix or behaviour change: write the test first, see it fail, record
    `ask annotate <id> "Red first: <test> failed with <message>"`. Add a
    negative test where plausible. Refactor: tests pin the behaviour first.
 3. Smallest passing change. Touch only what the task names, never
    `vendor/`, `node_modules/`, generated files.
-4. While working: only your own tests, no `-race`. Last, once: full suite,
-   `-race`, lint.
+4. While working: only your own tests. `-race` runs exactly once per task,
+   in the final check: full suite, `-race`, lint.
 5. Re-read your diff. Commit with `git add <explicit paths>`, never `-A` or
    `.`. Message: task ID, why, what, proof, gaps.
 6. Annotate milestones, not steps.
