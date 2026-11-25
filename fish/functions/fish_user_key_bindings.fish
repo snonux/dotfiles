@@ -11,7 +11,7 @@ function fish_user_key_bindings --description 'Custom bindings layered over the 
     # writes "\eb" to the pane in one go.
     #
     # Nested tmux makes it much worse: in a tmux client running inside a
-    # tmux popup (prefix N/D/W/a/t), both clients hold Escape, and the
+    # tmux popup (prefix t/Q/V), both clients hold Escape, and the
     # popup apparently never answers the inner client's queries. Measured:
     # Esc+key typed up to ~800 ms apart still arrives as one Alt+key, so
     # practically every Esc+key is glued there.
