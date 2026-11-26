@@ -3,11 +3,12 @@
 Run this project's tasks until none is left you can do.
 
 1. `ask list start.any:`, resume started tasks first
-   (`6-recover-stalled-task.md`). Then `ask ready | head`.
-2. One task in total, or no sub-agent tool: do it yourself with
+   (`6-recover-stalled-task.md`). `ask ready | head`.
+2. A single task, or no sub-agent tool: do it yourself with
    `card-worker.md`. Otherwise one worker per task, never two on the same
-   files or resource.
-3. `ask start <id>`. Worker prompt: task ID, summary, project root, own
+   files or resource. Prefer cloud workers
+   (`7b-cloud-workers-and-worktrees.md`).
+3. `ask start <id>`. Worker prompt: task ID, summary, project root,
    worktree or not, `card-worker.md` pasted.
 4. Before each wave of local launches: `MemAvailable` at least 2 GiB and 15%
    of total. Launch one or two, re-measure.
@@ -16,9 +17,9 @@ Run this project's tasks until none is left you can do.
    Fix BLOCKING findings; two rounds maximum.
 6. Merge a worker's own branch. `ask done <id> "<summary>"`.
 7. Print `Status: <n> done, <n> running, <n> parked, <n> ready`.
-8. Task needs a human: `ask park <id> "<question>"`, take the next. Stop only
+8. Task needs a human: `ask park <id> "<question>"`, take the next. Stop
    when every remaining task is parked or waits on one.
-9. End: remove merged worktrees; report done tasks, `ask parked` questions,
+9. End: remove merged worktrees; report done tasks, parked questions,
    unpushed work.
 
 Read more only when:

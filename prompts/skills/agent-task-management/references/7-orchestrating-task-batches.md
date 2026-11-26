@@ -77,7 +77,10 @@ time in the orchestrator's own context.
   them finish. Never kill user processes, and never stop a worker mid-edit
   to free memory.
 
-Cloud workers use no local memory, so the guard does not apply to them.
+Cloud workers use no local memory, so the guard does not apply to them, and
+they are preferred over local workers whenever the harness offers them and
+the task suits one
+([7b-cloud-workers-and-worktrees.md](7b-cloud-workers-and-worktrees.md)).
 
 ## Selecting work
 
