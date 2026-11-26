@@ -92,6 +92,13 @@ Verify: the tool lists every target, and the full gate suite passes.
   test). Detail sections in the README are a finding when they duplicate or
   contradict a doc in `docs/`, or when the README has grown past roughly
   100–150 lines of reference material.
+- **One docs directory, named `docs/`:** a second one (`doc/`,
+  `documentation/`, `wiki/`, docs scattered under `notes/`) is a finding
+  when both hold prose docs, because readers and agents find one and miss
+  the other, and new docs land in either. Merge into `docs/` and rewrite
+  the links. Keep a differently named dir only when a tool requires that
+  name (for example Go's `doc.go` files, which are not a directory, or a
+  generator's fixed input path), and say why in the agent instructions.
 - **One topic per file in `docs/`**, each linked from the README index.
 - **Finished plans retire:** a PLAN.md, roadmap or design doc whose work is
   done but which is still cited as the source of truth is a finding: split
