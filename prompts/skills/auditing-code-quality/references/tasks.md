@@ -97,7 +97,7 @@ IDs and the `+codequality` IDs). Then create the gate task with all of them as
 dependencies in a single `ask add`:
 
 ```bash
-ask add +audit depends:<bug1>,<bug2>,...,<cq1>,<cq2>,... "Finalize <project> code-quality audit: verify all audit-driven fixes landed, re-run guardrails (build/vet/test -race/gofmt -l/linters), compare hotspot scores with the baseline, close out verification"
+ask add +audit depends:<bug1>,<bug2>,...,<cq1>,<cq2>,... "Finalize <project> code-quality audit: verify all audit-driven fixes landed, re-run guardrails (build/vet/test -race/gofmt -l/linters), compare hotspot scores with the baseline, re-run the root inventory if declutter tasks were filed, close out verification"
 ```
 
 Tag it `+audit` (separate arg, never quoted with the description). Do **not** set

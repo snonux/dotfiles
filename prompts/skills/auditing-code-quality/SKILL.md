@@ -28,6 +28,7 @@ everything first spends several thousand words before reading any code.
 | Pass C | [beyond-solid-principles](../beyond-solid-principles/SKILL.md), and only the principle files that apply |
 | Pass C, type or interface design in scope | [solid-principles](../solid-principles/SKILL.md), read directly (explicit-only skill) |
 | Pass C, test quality | [references/metrics.md](references/metrics.md) §3 |
+| Pass C, repository declutter | [references/declutter.md](references/declutter.md) |
 | Writing the report (§3) | the rest of [references/report.md](references/report.md) |
 | Creating tasks (§4) | [references/tasks.md](references/tasks.md) §4, and agent-task-management's [1-create-task.md](../agent-task-management/references/1-create-task.md) for `ask` syntax |
 | Close-out (§5–6) | [references/tasks.md](references/tasks.md) §5–6 and [audit tagging](../audit/references/tagging.md) |
@@ -119,7 +120,7 @@ relevant **100-go-mistakes** references. Apply the shared evidence rules;
 separate convention differences from correctness defects. Use one design
 finding for an underlying problem, even when multiple lenses describe it.
 
-Then work through these four sub-steps in order:
+Then work through these five sub-steps in order:
 
 1. **Design risks.** Look for domain states the code permits but the product
    forbids, repeated validation of the same input after its entry boundary,
@@ -139,6 +140,14 @@ Then work through these four sub-steps in order:
    current finding repeats a problem an earlier audit already fixed. Report
    a repeat as one finding about why it keeps coming back (the shared premise,
    missing enforcement, or the design that invites it), not as another local fix.
+5. **Repository declutter** ([references/declutter.md](references/declutter.md)).
+   When the target is a whole repository, inventory the root and check where
+   build outputs and runtime state land, whether the clean target sweeps
+   them, whether build-tool sources and finished plan docs belong elsewhere,
+   and whether the README stays a lean index into `docs/`. A layout finding
+   needs a concrete cost (accidental commits, stale files, docs that
+   disagree); untidiness alone is an advisory observation. Skip this step
+   when the audit scope is a single module.
 
 For large scopes, sub-agents may review distinct modules or risks. Give them
 the shared rules, existing findings and check results, and the §5–6 ownership
