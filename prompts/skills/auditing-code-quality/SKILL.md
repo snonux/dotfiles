@@ -144,8 +144,10 @@ Then work through these five sub-steps in order:
    When the target is a whole repository, inventory the root and check where
    build outputs and runtime state land, whether the clean target sweeps
    them, whether build-tool sources and finished plan docs belong elsewhere,
-   and whether the README stays a lean index into a single `docs/` dir (no
-   parallel `doc/`). A layout finding needs a concrete cost (accidental
+   whether the README stays a lean index into a single `docs/` dir (no
+   parallel `doc/`), and whether large docs are split into an index plus
+   a folder of parts (sub-folders for oversized sections) so agents can
+   load only the part they need. A layout finding needs a concrete cost (accidental
    commits, stale files, docs that disagree); untidiness alone is an
    advisory observation. Skip this step when the audit scope is a single
    module.
