@@ -23,6 +23,28 @@ for a short time (a large build, an image pull, agent scratch), or the
 warning came from another volume. The notification names the volume.
 Read-only snap squashfs mounts show 100% and do not matter.
 
+Old warnings stay in the notification list after the cleanup. Restart the
+plugin through its target (the service itself refuses a manual restart):
+
+```sh
+systemctl --user restart org.gnome.SettingsDaemon.Housekeeping.target
+```
+
+That does not remove the warnings already shown. With the user's consent
+(this also dismisses other apps' notifications), close every ID up to the
+newest one; this cleared them on 2026-11-27:
+
+```sh
+max=$(notify-send -p "clearing notifications")
+for i in $(seq 1 "$max"); do
+  gdbus call --session --dest org.freedesktop.Notifications \
+    --object-path /org/freedesktop/Notifications \
+    --method org.freedesktop.Notifications.CloseNotification "$i" >/dev/null 2>&1
+done
+```
+
+The manual alternative is **Clear** in the notification list (Super+V).
+
 ## Measure
 
 ```sh
