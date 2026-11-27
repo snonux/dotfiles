@@ -1,15 +1,21 @@
 ---
-name: clean-ram-swap
-description: "Investigate and reduce Linux RAM and swap usage, trace large processes to live coding agents, and remove verified stale temporary artifacts. Use when explicitly asked to clean RAM, clean swap, investigate memory pressure, or find orphaned agent processes."
+name: clean-ram-swap-disk
+description: "Investigate and reduce Linux RAM, swap and disk usage on the laptop: trace large processes to live coding agents, remove verified stale temporary artifacts, and reclaim disk space from caches, models, logs and agent scratch. Use when explicitly asked to clean RAM, swap or disk, investigate memory pressure or low disk space (including GNOME 'device memory nearly full' warnings), or find orphaned agent processes."
 disable-model-invocation: true
 ---
 
-# Clean RAM and Swap
+# Clean RAM, Swap and Disk
 
 Diagnose the local Linux machine, identify what is still in use, and reclaim
-memory from verified leftovers. This skill is manual-only. An investigation
+memory or disk space from verified leftovers. This skill is manual-only. An investigation
 request authorizes read-only diagnosis; a cleanup request also authorizes
 removing identified disposable artifacts. Respect any narrower user scope.
+
+For low disk space, follow [references/disk-space.md](references/disk-space.md):
+measuring btrfs usage, the usual large caches on this laptop and how to clear
+each one, agent scratch under `~/tmp`, and what to leave for the user. A
+GNOME "memory nearly full" warning is about disk, not RAM; check `df` first.
+The sections below cover RAM and swap.
 
 ## Measure actual pressure
 
