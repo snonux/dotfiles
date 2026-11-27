@@ -1,7 +1,7 @@
 set -gx WORKTIME_DIR ~/git/worktime
 
-if test (uname) = Darwin -a ! -f ~/.tsloggedin
-    echo "Warn: Not logged in, run wtlogin"
+if test (uname) = Darwin -a ! -f ~/.timesamurai_work_started
+    echo "Warn: Work not started, run timesamurai work start"
 end
 
 function worktime::add
